@@ -69,21 +69,37 @@ class Fingerprint internal constructor(
 
         // Use string declarations to first check only the classes
         // that contain one or more fingerprint strings.
-        val fingerprintStrings = mutableListOf<String>()
+        val stringEqualMatch = mutableListOf<String>()
+        var hasPartialMatchStrings = false
+
         if (strings != null) {
             // Old deprecated string declaration.
-            fingerprintStrings.addAll(strings)
+            // Can be either equal or partial matches.
+            stringEqualMatch.addAll(strings)
+            hasPartialMatchStrings = true
         }
 
         if (filters != null) {
-            fun findStringFilterLiterals(list: List<InstructionFilter>) =
-                list.filterIsInstance<StringFilter>().map { it.stringValue }
+            fun filterStringFilterInstances(list: List<InstructionFilter>) =
+                list.filterIsInstance<StringFilter>()
 
-            fingerprintStrings.addAll(findStringFilterLiterals(filters))
+            fun addStringFilterLiterals(list: List<StringFilter>) {
+                list.forEach { filter ->
+                    val stringValue = filter.stringValue
+
+                    if (filter.comparison == StringComparisonType.EQUALS) {
+                        stringEqualMatch.add(stringValue)
+                    } else {
+                        hasPartialMatchStrings = true
+                    }
+                }
+            }
+
+            addStringFilterLiterals(filterStringFilterInstances(filters))
 
             // Use strings declared inside anyInstruction.
             filters.filterIsInstance<AnyInstruction>().forEach { anyFilter ->
-                fingerprintStrings.addAll(findStringFilterLiterals(anyFilter.filters))
+                addStringFilterLiterals(filterStringFilterInstances(anyFilter.filters))
             }
         }
 
@@ -99,8 +115,8 @@ class Fingerprint internal constructor(
             return null
         }
 
-        if (fingerprintStrings.isNotEmpty()) {
-            fingerprintStrings.forEach { string ->
+        if (stringEqualMatch.isNotEmpty() || hasPartialMatchStrings) {
+            stringEqualMatch.forEach { string ->
                 patchClasses.getClassFromOpcodeStringLiteral(string)?.forEach { stringClass ->
                     val value = machAllClassMethods(stringClass)
                     if (value != null) {
