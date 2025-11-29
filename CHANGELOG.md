@@ -9,6 +9,19 @@
 ### Features
 
 * First dev release - no functional changes ([730a9dd](https://github.com/MorpheApp/morphe-patcher/commit/730a9dd1a6d05d1e742dce8ea70308fdae0956c6))
+* Update release ([b49f53e](https://github.com/MorpheApp/morphe-patcher/commit/b49f53e5b3ccbc05d890e8b85ab7de5c4137308a))
+
+# 1.0.0-dev.1 (2025-11-29)
+
+
+### Bug Fixes
+
+* Revert to old npm dependencies ([77d622f](https://github.com/MorpheApp/morphe-patcher/commit/77d622f84559580a72b09122a6b78de5e873bd0a))
+
+
+### Features
+
+* First dev release - no functional changes ([730a9dd](https://github.com/MorpheApp/morphe-patcher/commit/730a9dd1a6d05d1e742dce8ea70308fdae0956c6))
 
 # [1.0.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.0.0-dev.1...v1.0.0-dev.2) (2025-11-29)
 
