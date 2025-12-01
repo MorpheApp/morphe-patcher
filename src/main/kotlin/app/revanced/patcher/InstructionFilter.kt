@@ -998,6 +998,82 @@ fun newInstance(
 
 
 
+class InstanceOfFilter internal constructor(
+    val type: () -> String,
+    val comparison: StringComparisonType,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) : OpcodeFilter(Opcode.INSTANCE_OF, location) {
+
+    /**
+     * Store the lambda value instead of calling it more than once.
+     */
+    private val typeValue: String by lazy {
+        val typeValue = type()
+        comparison.validateSearchStringForClassType(typeValue)
+        typeValue
+    }
+
+    override fun matches(
+        enclosingMethod: Method,
+        instruction: Instruction
+    ): Boolean {
+        if (!super.matches(enclosingMethod, instruction)) {
+            return false
+        }
+
+        val reference = (instruction as ReferenceInstruction).reference as TypeReference
+        return comparison.compare(reference.type, typeValue)
+    }
+}
+
+/**
+ * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
+ *
+ * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun instanceOf(
+    type: String,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = InstanceOfFilter({ type }, StringComparisonType.ENDS_WITH, location)
+
+/**
+ * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
+ *
+ * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun instanceOf(
+    type: () -> String,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = CheckCastFilter(type, StringComparisonType.ENDS_WITH, location)
+
+/**
+ * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
+ *
+ * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun instanceOf(
+    type: String,
+    comparison: StringComparisonType,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = CheckCastFilter({ type }, comparison, location)
+
+/**
+ * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
+ *
+ * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun instanceOf(
+    type: () -> String,
+    comparison: StringComparisonType,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = CheckCastFilter(type, comparison, location)
+
+
+
 class CheckCastFilter internal constructor(
     val type: () -> String,
     val comparison: StringComparisonType,
