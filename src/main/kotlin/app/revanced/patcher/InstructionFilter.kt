@@ -652,6 +652,25 @@ fun methodCall(
 )
 
 /**
+ * Matches a method call, such as:
+ * `invoke-virtual {v3, v4}, La;->b(I)V`
+ *
+ * @param reference Exact method reference to match.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun methodCall(
+    reference: MethodReference,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = MethodCallFilter(
+    definingClass = reference.definingClass,
+    name = reference.name,
+    parameters = reference.parameterTypes.map { it.toString() },
+    returnType = reference.returnType,
+    opcodes = null,
+    location = location
+)
+
+/**
  * Method call for a copy pasted SMALI style method signature. e.g.:
  * `Landroid/view/View;->inflate(Landroid/content/Context;ILandroid/view/ViewGroup;)Landroid/view/View;`
  *
@@ -801,6 +820,47 @@ fun fieldAccess(
     type,
     opcodes,
     location
+)
+
+/**
+ * Matches a field call, such as:
+ * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
+ *
+ * @param reference Exact reference to match.
+ * @param opcodes List of all possible opcodes to match. Defaults to matching all get/put opcodes.
+ *                (`Opcode.IGET`, `Opcode.SGET`, `Opcode.IPUT`, `Opcode.SPUT`, etc).
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun fieldAccess(
+    reference: FieldReference,
+    opcode: Opcode,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = FieldAccessFilter(
+    definingClass = reference.definingClass,
+    name = reference.name,
+    type = reference.type,
+    opcodes = listOf(opcode),
+    location = location
+)
+
+/**
+ * Matches a field call, such as:
+ * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
+ *
+ * @param reference Exact reference to match.
+ * @param opcode Single opcode to match.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun fieldAccess(
+    reference: FieldReference,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = FieldAccessFilter(
+    definingClass = reference.definingClass,
+    name = reference.name,
+    type = reference.type,
+    opcodes = opcodes,
+    location = location
 )
 
 /**
