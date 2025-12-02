@@ -822,6 +822,9 @@ class FingerprintBuilder() {
      * @param customBlock A custom condition for this fingerprint.
      */
     fun custom(customBlock: (method: Method, classDef: ClassDef) -> Boolean) {
+        require(this.customBlock == null) {
+            "Custom block was already set. Fingerprints only support one custom block."
+        }
         this.customBlock = customBlock
     }
 
