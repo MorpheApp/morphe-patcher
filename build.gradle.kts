@@ -102,6 +102,7 @@ publishing {
                     license {
                         name = "GNU General Public License v3.0"
                         url = "https://www.gnu.org/licenses/gpl-3.0.en.html"
+                        comments = "Additional conditions under GPL section 7 apply: Project name restrictions. See LICENSE file."
                     }
                 }
                 developers {
