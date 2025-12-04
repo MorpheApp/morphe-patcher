@@ -24,11 +24,17 @@ tasks {
 
 repositories {
     mavenCentral()
-    google()
+    // Obtain baksmali/smali from source builds - https://github.com/iBotPeaches/smali
+    // Remove when official smali releases come out again.
+    maven {
+        url = uri("https://jitpack.io")
+        content {
+            includeGroup("com.github.iBotPeaches.smali")
+        }
+    }
     maven {
         // A repository must be specified for some reason. "registry" is a dummy.
-        // TODO: change this to Morphe
-        url = uri("https://maven.pkg.github.com/revanced/registry")
+        url = uri("https://maven.pkg.github.com/MorpheApp/registry")
         credentials {
             username = project.findProperty("gpr.user") as String? ?: System.getenv("GITHUB_ACTOR")
             password = project.findProperty("gpr.key") as String? ?: System.getenv("GITHUB_TOKEN")
@@ -47,7 +53,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.multidexlib2)
     implementation(libs.smali)
-    implementation(libs.xpp3)
 
     testImplementation(libs.mockk)
     testImplementation(libs.kotlin.test)
