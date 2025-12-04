@@ -1,6 +1,6 @@
 package app.revanced.patcher
 
-import brut.androlib.apk.ApkInfo
+import brut.androlib.meta.ApkInfo
 
 /**
  * Metadata about a package.

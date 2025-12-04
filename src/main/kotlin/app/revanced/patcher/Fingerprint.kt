@@ -686,6 +686,9 @@ class FingerprintBuilder() {
      * @param accessFlags The exact access flags using values of [AccessFlags].
      */
     fun accessFlags(accessFlags: Int) {
+        require(this.accessFlags == null) {
+            "AccessFlags already set"
+        }
         this.accessFlags = accessFlags
     }
 
@@ -695,6 +698,9 @@ class FingerprintBuilder() {
      * @param accessFlags The exact access flags using values of [AccessFlags].
      */
     fun accessFlags(vararg accessFlags: AccessFlags) {
+        require(this.accessFlags == null) {
+            "AccessFlags already set"
+        }
         this.accessFlags = accessFlags.fold(0) { acc, it -> acc or it.value }
     }
 
@@ -707,6 +713,9 @@ class FingerprintBuilder() {
      * @param returnType The return type compared using [String.startsWith].
      */
     fun returns(returnType: String) {
+        require(this.returnType == null) {
+            "Returns already set"
+        }
         this.returnType = returnType
     }
 
@@ -717,12 +726,15 @@ class FingerprintBuilder() {
      *                   Partial matches allowed and follow the same rules as [returnType].
      */
     fun parameters(vararg parameters: String) {
+        require(this.parameters == null) {
+            "Parameters already set"
+        }
         this.parameters = parameters.toList()
     }
 
     private fun verifyNoFiltersSet() {
-        if (this.instructionFilters != null) {
-            throw PatchException("Instruction filters already set")
+        require(this.instructionFilters == null) {
+            "Instruction filters already set"
         }
     }
 
@@ -766,37 +778,6 @@ class FingerprintBuilder() {
     }
 
     /**
-     * A pattern of opcodes from SMALI formatted text,
-     * where each opcode must appear immediately after the previous opcode.
-     *
-     * Unless absolutely necessary, it is recommended to instead use [instructions].
-     *
-     * @param instructions A list of instructions or opcode names in SMALI format.
-     * - Wildcard or unknown opcodes can be specified by `null`.
-     * - Empty lines are ignored.
-     * - Each instruction must be on a new line.
-     * - The opcode name is enough, no need to specify the operands.
-     *
-     * @throws Exception If an unknown opcode is used.
-     */
-    fun opcodes(instructions: String) {
-        verifyNoFiltersSet()
-        if (instructions.isBlank()) throw IllegalArgumentException("No instructions declared (empty string)")
-
-        this.instructionFilters = OpcodesFilter.listOfOpcodes(
-            instructions.trimIndent().split("\n").filter {
-                it.isNotBlank()
-            }.map {
-                // Remove any operands.
-                val name = it.split(" ", limit = 1).first().trim()
-                if (name == "null") return@map null
-
-                opcodesByName[name] ?: throw IllegalArgumentException("Unknown opcode: $name")
-            }
-        )
-    }
-
-    /**
      * A list of instruction filters to match.
      */
     fun instructions(vararg instructionFilters: InstructionFilter) {
@@ -811,8 +792,10 @@ class FingerprintBuilder() {
      *
      * @param strings A list of strings compared each using [String.contains].
      */
-    @Deprecated("Instead use `instruction()` filters and `string()` instruction declarations")
     fun strings(vararg strings: String) {
+        require(this.strings == null) {
+            "String block is already set"
+        }
         this.strings = strings.toList()
     }
 
@@ -822,6 +805,9 @@ class FingerprintBuilder() {
      * @param customBlock A custom condition for this fingerprint.
      */
     fun custom(customBlock: (method: Method, classDef: ClassDef) -> Boolean) {
+        require(this.customBlock == null) {
+            "Custom block is already set. Fingerprints only support one custom block."
+        }
         this.customBlock = customBlock
     }
 

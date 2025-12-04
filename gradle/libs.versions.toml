@@ -1,28 +1,23 @@
 [versions]
 android = "4.1.1.4"
-apktool-lib = "2.9.3"
-binary-compatibility-validator = "0.17.0"
-kotlin = "2.1.10"
-kotlinx-coroutines-core = "1.8.1"
-mockk = "1.13.10"
-multidexlib2 = "3.0.3.r3"
-# Tracking https://github.com/google/smali/issues/64.
-#noinspection GradleDependency
-smali = "3.0.5"
-xpp3 = "1.1.4c"
+apktool-lib = "3.0.0-SNAPSHOT"
+binary-compatibility-validator = "0.18.1"
+kotlin = "2.0.21"
+kotlinx-coroutines-core = "1.10.2"
+mockk = "1.14.6"
+# Tracking https://github.com/google/smali/issues/100.
+multidexlib2 = "b6365a84f4"
+smali = "b6365a84f4"
 
 [libraries]
 android = { module = "com.google.android:android", version.ref = "android" }
-# TODO: Change this to Morphe
-apktool-lib = { module = "app.revanced:apktool-lib", version.ref = "apktool-lib" }
+apktool-lib = { module = "app.morphe:apktool-lib", version.ref = "apktool-lib" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines-core" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
-# TODO: Change this to Morphe
-multidexlib2 = { module = "app.revanced:multidexlib2", version.ref = "multidexlib2" }
-smali = { module = "com.android.tools.smali:smali", version.ref = "smali" }
-xpp3 = { module = "xpp3:xpp3", version.ref = "xpp3" }
+multidexlib2 = { module = "app.morphe:multidexlib2", version.ref = "multidexlib2" }
+smali = { module = "com.github.iBotPeaches.smali:smali", version.ref = "smali" }
 
 [plugins]
 binary-compatibility-validator = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "binary-compatibility-validator" }
