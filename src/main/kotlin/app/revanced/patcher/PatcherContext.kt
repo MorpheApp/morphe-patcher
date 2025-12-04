@@ -3,7 +3,7 @@ package app.revanced.patcher
 import app.revanced.patcher.patch.BytecodePatchContext
 import app.revanced.patcher.patch.Patch
 import app.revanced.patcher.patch.ResourcePatchContext
-import brut.androlib.apk.ApkInfo
+import brut.androlib.meta.ApkInfo
 import brut.directory.ExtFile
 import java.io.Closeable
 

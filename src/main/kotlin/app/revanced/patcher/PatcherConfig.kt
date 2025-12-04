@@ -31,12 +31,10 @@ class PatcherConfig(
     /**
      * The configuration for decoding and compiling resources.
      */
-    internal val resourceConfig =
-        Config.getDefaultConfig().apply {
-            useAapt2 = true
-            aaptPath = aaptBinaryPath ?: ""
-            frameworkDirectory = frameworkFileDirectory
-        }
+    internal val resourceConfig = Config("3.0.0-SNAPSHOT").apply {
+        aaptBinaryPath?.let { aaptBinary = it }
+        frameworkFileDirectory?.let { frameworkDirectory = it }
+    }
 
     /**
      * The path to the temporary apk files directory.
