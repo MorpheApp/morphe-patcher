@@ -1,6 +1,6 @@
 [versions]
 android = "4.1.1.4"
-apktool-lib = "3.0.0-SNAPSHOT"
+apktool-lib = "3.0.0.r2-SNAPSHOT"
 binary-compatibility-validator = "0.18.1"
 kotlin = "2.0.21"
 kotlinx-coroutines-core = "1.10.2"
