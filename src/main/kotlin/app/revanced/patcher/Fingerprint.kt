@@ -303,6 +303,7 @@ class Fingerprint internal constructor(
                             // Try again with the first filter, starting from
                             // the next possible first filter index.
                             firstInstructionIndex = firstFilterIndex + 1
+                            lastMatchIndex = -1
                             instructionMatches?.clear()
                             continue@firstFilterLoop
                         }
