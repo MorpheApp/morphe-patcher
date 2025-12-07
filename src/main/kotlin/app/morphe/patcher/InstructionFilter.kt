@@ -2,6 +2,8 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.FieldAccessFilter.Companion.parseJvmFieldAccess
+import app.morphe.patcher.MethodCallFilter.Companion.parseJvmMethodCall
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction
@@ -362,119 +364,11 @@ open class OpcodesFilter protected constructor(
 
 
 
-/**
- * Literal number value. Automatically converts the provided number to opcode hex.
- *
- * @param literal Literal number.
- * @param opcodes Opcodes to match. By default this matches any literal number opcode such as:
- *                [Opcode.CONST_4], [Opcode.CONST_16], [Opcode.CONST], [Opcode.CONST_WIDE].
- * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
- */
-open class LiteralFilter(
+class LiteralFilter internal constructor(
     val literal: () -> Long,
     opcodes: List<Opcode>? = null,
-    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+    location: InstructionLocation
 ) : OpcodesFilter(opcodes, location) {
-
-    /**
-     * Integer literal. Automatically converts literal to opcode hex.
-     *
-     * @param literal Literal number.
-     * @param opcodes Opcodes to match. By default this matches any literal number opcode such as:
-     *                [Opcode.CONST_4], [Opcode.CONST_16], [Opcode.CONST], [Opcode.CONST_WIDE].
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        literal: Int,
-        opcodes: List<Opcode>? = null,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this({ literal.toLong() }, opcodes, location)
-
-    /**
-     * Integer literal. Automatically converts literal to opcode hex.
-     *
-     * @param literal Literal number.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        literal: Int,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(literal, null, location)
-
-    /**
-     * Long literal. Automatically converts literal to opcode hex.
-     *
-     * @param literal Literal number.
-     * @param opcodes Opcodes to match. By default this matches any literal number opcode such as:
-     *                [Opcode.CONST_4], [Opcode.CONST_16], [Opcode.CONST], [Opcode.CONST_WIDE].
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        literal: Long,
-        opcodes: List<Opcode>? = null,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this({ literal }, opcodes, location)
-
-    /**
-     * Long literal. Automatically converts literal to opcode hex.
-     *
-     * @param literal Literal number.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        literal: Long,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(literal, null, location)
-
-    /**
-     * Double point literal. Automatically converts literal to opcode hex.
-     *
-     * @param literal Literal number.
-     * @param opcodes Opcodes to match. By default this matches any literal number opcode such as:
-     *                [Opcode.CONST_4], [Opcode.CONST_16], [Opcode.CONST], [Opcode.CONST_WIDE].
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        literal: Double,
-        opcodes: List<Opcode>? = null,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this({ literal.toRawBits() }, opcodes, location)
-
-    /**
-     * Double point literal. Automatically converts literal to opcode hex.
-     *
-     * @param literal Literal number.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        literal: Double,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(literal, null, location)
-
-    /**
-     * Floating point literal. Automatically converts literal to opcode hex.
-     *
-     * @param literal Floating point literal.
-     * @param opcodes Opcodes to match. By default this matches any literal number opcode such as:
-     *                [Opcode.CONST_4], [Opcode.CONST_16], [Opcode.CONST], [Opcode.CONST_WIDE].
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        literal: Float,
-        opcodes: List<Opcode>? = null,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this({ literal.toRawBits().toLong() }, opcodes, location)
-
-    /**
-     * Floating point literal. Automatically converts literal to opcode hex.
-     *
-     * @param literal Floating point literal.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        literal: Float,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(literal, null, location)
 
     /**
      * Store the lambda value instead of calling it more than once.
@@ -495,124 +389,86 @@ open class LiteralFilter(
     }
 }
 
+/**
+ * Long literal. Automatically converts literal to opcode hex.
+ *
+ * @param literal Literal number.
+ * @param opcodes Opcodes to match. By default this matches any literal number opcode such as:
+ *                [Opcode.CONST_4], [Opcode.CONST_16], [Opcode.CONST], [Opcode.CONST_WIDE].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun literal(
+    literal: Long,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = LiteralFilter({ literal }, opcodes, location)
+
+/**
+ * Integer literal. Automatically converts literal to opcode hex.
+ *
+ * @param literal Literal number.
+ * @param opcodes Opcodes to match. By default this matches any literal number opcode such as:
+ *                [Opcode.CONST_4], [Opcode.CONST_16], [Opcode.CONST], [Opcode.CONST_WIDE].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun literal(
+    literal: Int,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = LiteralFilter({ literal.toLong() }, opcodes, location)
+
+/**
+ * Double point literal. Automatically converts literal to opcode hex.
+ *
+ * @param literal Literal number.
+ * @param opcodes Opcodes to match. By default this matches any literal number opcode such as:
+ *                [Opcode.CONST_4], [Opcode.CONST_16], [Opcode.CONST], [Opcode.CONST_WIDE].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun literal(
+    literal: Double,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = LiteralFilter({ literal.toRawBits() }, opcodes, location)
+
+/**
+ * Floating point literal. Automatically converts literal to opcode hex.
+ *
+ * @param literal Floating point literal.
+ * @param opcodes Opcodes to match. By default this matches any literal number opcode such as:
+ *                [Opcode.CONST_4], [Opcode.CONST_16], [Opcode.CONST], [Opcode.CONST_WIDE].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun literal(
+    literal: Float,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = LiteralFilter({ literal.toRawBits().toLong() }, opcodes, location)
+
+/**
+ * Literal number value. Automatically converts the provided number to opcode hex.
+ *
+ * @param literal Literal number.
+ * @param opcodes Opcodes to match. By default this matches any literal number opcode such as:
+ *                [Opcode.CONST_4], [Opcode.CONST_16], [Opcode.CONST], [Opcode.CONST_WIDE].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun literal(
+    literal: () -> Long,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = LiteralFilter(literal, opcodes, location)
 
 
-class MethodCallFilter : OpcodesFilter {
-    val definingClass: String?
-    val name: String?
-    val parameters: List<String>?
-    val returnType: String?
 
-    /**
-     * Matches a method call, such as:
-     * `invoke-virtual {v3, v4}, La;->b(I)V`
-     *
-     * @param definingClass Defining class of the field call. Compares using [StringComparisonType.ENDS_WITH].
-     *                      For calls to a method in the same class, use 'this' as the defining class.
-     *                      Note: 'this' does not work for fields found in superclasses.
-     * @param name Full name of the method. Compares using [StringComparisonType.EQUALS].
-     * @param parameters Parameters of the method call. Each parameter matches using[StringComparisonType.STARTS_WITH]
-     *                   and semantics are the same as [Fingerprint] parameters.
-     * @param returnType Return type. Matches using [StringComparisonType.STARTS_WITH].
-     * @param opcodes Opcode types to match. By default this matches any method call opcode: `Opcode.INVOKE_*`.
-     *                If this filter must match specific types of method call, then specify the desired opcodes
-     *                such as [Opcode.INVOKE_STATIC], [Opcode.INVOKE_STATIC_RANGE] to match only static calls.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        definingClass: String? = null,
-        name: String? = null,
-        parameters: List<String>? = null,
-        returnType: String? = null,
-        opcodes: List<Opcode>? = null,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : super(opcodes, location) {
-        this.definingClass = definingClass
-        this.name = name
-        this.parameters = parameters
-        this.returnType = returnType
-    }
-
-    /**
-     * Matches a method call, such as:
-     * `invoke-virtual {v3, v4}, La;->b(I)V`
-     *
-     * @param definingClass Defining class of the field call. Compares using [StringComparisonType.ENDS_WITH].
-     *                      For calls to a method in the same class, use 'this' as the defining class.
-     *                      Note: 'this' does not work for fields found in superclasses.
-     * @param name Full name of the method. Compares using [StringComparisonType.EQUALS].
-     * @param parameters Parameters of the method call. Each parameter matches using[StringComparisonType.STARTS_WITH]
-     *                   and semantics are the same as [Fingerprint] parameters.
-     * @param returnType Return type. Matches using [StringComparisonType.STARTS_WITH].
-     * @param opcode Single opcode type to match.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        definingClass: String? = null,
-        name: String? = null,
-        parameters: List<String>? = null,
-        returnType: String? = null,
-        opcode: Opcode,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(
-        definingClass,
-        name,
-        parameters,
-        returnType,
-        listOf(opcode),
-        location
-    )
-
-    /**
-     * Matches a method call, such as:
-     * `invoke-virtual {v3, v4}, La;->b(I)V`
-     *
-     * @param reference Exact method reference to match.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        reference: MethodReference,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(
-        reference.definingClass,
-        reference.name,
-        reference.parameterTypes.map { it.toString() },
-        reference.returnType,
-        null,
-        location
-    )
-
-    /**
-     * Method call for a copy pasted SMALI style method signature. e.g.:
-     * `Landroid/view/View;->inflate(Landroid/content/Context;ILandroid/view/ViewGroup;)Landroid/view/View;`
-     *
-     * Should never be used with obfuscated method names or parameter/return types.
-     *
-     * @param smali Smali method call reference, such as
-     *              `Landroid/view/View;->inflate(Landroid/content/Context;ILandroid/view/ViewGroup;)Landroid/view/View;`.
-     * @param opcodes List of all possible opcodes to match. Defaults to matching all method calls types: `Opcode.INVOKE_*`.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        methodSignature: String,
-        opcodes: List<Opcode>? = null,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : super(opcodes, location) {
-        val matchResult = regex.matchEntire(methodSignature)
-            ?: throw IllegalArgumentException("Invalid method signature: $methodSignature")
-
-        val classDescriptor = matchResult.groupValues[1]
-        val methodName = matchResult.groupValues[2]
-        val paramDescriptorString = matchResult.groupValues[3]
-        val returnDescriptor = matchResult.groupValues[4]
-
-        val paramDescriptors = parseParameterDescriptors(paramDescriptorString)
-
-        this.definingClass = classDescriptor
-        this.name = methodName
-        this.parameters = paramDescriptors
-        this.returnType = returnDescriptor
-    }
+class MethodCallFilter internal constructor(
+    val definingClass: String? = null,
+    val name: String? = null,
+    val parameters: List<String>? = null,
+    val returnType: String? = null,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation
+) : OpcodesFilter(opcodes, location) {
 
     override fun matches(
         enclosingMethod: Method,
@@ -658,6 +514,31 @@ class MethodCallFilter : OpcodesFilter {
 
     internal companion object {
         private val regex = Regex("""^(L[^;]+;)->([^(\s]+)\(([^)]*)\)(\[?L[^;]+;|\[?[BCSIJFDZV])${'$'}""")
+
+        internal fun parseJvmMethodCall(
+            methodSignature: String,
+            opcodes: List<Opcode>? = null,
+            location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+        ): MethodCallFilter {
+            val matchResult = regex.matchEntire(methodSignature)
+                ?: throw IllegalArgumentException("Invalid method signature: $methodSignature")
+
+            val classDescriptor = matchResult.groupValues[1]
+            val methodName = matchResult.groupValues[2]
+            val paramDescriptorString = matchResult.groupValues[3]
+            val returnDescriptor = matchResult.groupValues[4]
+
+            val paramDescriptors = parseParameterDescriptors(paramDescriptorString)
+
+            return MethodCallFilter(
+                classDescriptor,
+                methodName,
+                paramDescriptors,
+                returnDescriptor,
+                opcodes,
+                location
+            )
+        }
 
         /**
          * Parses a single JVM type descriptor or an array descriptor at the current position.
@@ -708,143 +589,130 @@ class MethodCallFilter : OpcodesFilter {
     }
 }
 
+/**
+ * Matches a method call, such as:
+ * `invoke-virtual {v3, v4}, La;->b(I)V`
+ *
+ * @param definingClass Defining class of the field call. Compares using [StringComparisonType.ENDS_WITH].
+ *                      For calls to a method in the same class, use 'this' as the defining class.
+ *                      Note: 'this' does not work for fields found in superclasses.
+ * @param name Full name of the method. Compares using [StringComparisonType.EQUALS].
+ * @param parameters Parameters of the method call. Each parameter matches using[StringComparisonType.STARTS_WITH]
+ *                   and semantics are the same as [Fingerprint] parameters.
+ * @param returnType Return type. Matches using [StringComparisonType.STARTS_WITH].
+ * @param opcodes Opcode types to match. By default this matches any method call opcode: `Opcode.INVOKE_*`.
+ *                If this filter must match specific types of method call, then specify the desired opcodes
+                  such as [Opcode.INVOKE_STATIC], [Opcode.INVOKE_STATIC_RANGE] to match only static calls.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun methodCall(
+    definingClass: String? = null,
+    name: String? = null,
+    parameters: List<String>? = null,
+    returnType: String? = null,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = MethodCallFilter(
+    definingClass,
+    name,
+    parameters,
+    returnType,
+    opcodes,
+    location
+)
+
+/**
+ * Matches a method call, such as:
+ * `invoke-virtual {v3, v4}, La;->b(I)V`
+ *
+ * @param definingClass Defining class of the field call. Compares using [StringComparisonType.ENDS_WITH].
+ *                      For calls to a method in the same class, use 'this' as the defining class.
+ *                      Note: 'this' does not work for fields found in superclasses.
+ * @param name Full name of the method. Compares using [StringComparisonType.EQUALS].
+ * @param parameters Parameters of the method call. Each parameter matches using[StringComparisonType.STARTS_WITH]
+ *                   and semantics are the same as [Fingerprint] parameters.
+ * @param returnType Return type. Matches using [StringComparisonType.STARTS_WITH].
+ * @param opcode Single opcode type to match.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun methodCall(
+    definingClass: String? = null,
+    name: String? = null,
+    parameters: List<String>? = null,
+    returnType: String? = null,
+    opcode: Opcode,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = MethodCallFilter(
+    definingClass,
+    name,
+    parameters,
+    returnType,
+    listOf(opcode),
+    location
+)
+
+/**
+ * Matches a method call, such as:
+ * `invoke-virtual {v3, v4}, La;->b(I)V`
+ *
+ * @param reference Exact method reference to match.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun methodCall(
+    reference: MethodReference,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = MethodCallFilter(
+    definingClass = reference.definingClass,
+    name = reference.name,
+    parameters = reference.parameterTypes.map { it.toString() },
+    returnType = reference.returnType,
+    opcodes = null,
+    location = location
+)
+
+/**
+ * Method call for a copy pasted SMALI style method signature. e.g.:
+ * `Landroid/view/View;->inflate(Landroid/content/Context;ILandroid/view/ViewGroup;)Landroid/view/View;`
+ *
+ * Should never be used with obfuscated method names or parameter/return types.
+ *
+ * @param smali Smali method call reference, such as
+ *              `Landroid/view/View;->inflate(Landroid/content/Context;ILandroid/view/ViewGroup;)Landroid/view/View;`.
+ * @param opcodes List of all possible opcodes to match. Defaults to matching all method calls types: `Opcode.INVOKE_*`.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun methodCall(
+    smali: String,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = parseJvmMethodCall(smali, opcodes, location)
+
+/**
+ * Method call for a copy pasted SMALI style method signature. e.g.:
+ * `Landroid/view/View;->inflate(Landroid/content/Context;ILandroid/view/ViewGroup;)Landroid/view/View;`
+ *
+ * Should never be used with obfuscated method names or parameter/return types.
+ *
+ * @param smali Smali method call reference, such as
+ *              `Landroid/view/View;->inflate(Landroid/content/Context;ILandroid/view/ViewGroup;)Landroid/view/View;`.
+ * @param opcode Single opcode type to match.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun methodCall(
+    smali: String,
+    opcode: Opcode,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = parseJvmMethodCall(smali, listOf(opcode), location)
 
 
-class FieldAccessFilter : OpcodesFilter {
-    val definingClass: String?
-    val name: String?
-    val type: String?
 
-    /**
-     * Matches a field call, such as:
-     * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
-     *
-     * @param definingClass Defining class of the field call. Compares using [StringComparisonType.ENDS_WITH].
-     *                      For calls to a method in the same class, use 'this' as the defining class.
-     *                      Note: 'this' does not work for fields found in superclasses.
-     * @param name Full name of the field. Compares using [StringComparisonType.EQUALS].
-     * @param type Class type of field. Compares using [StringComparisonType.STARTS_WITH].
-     * @param opcodes List of all possible opcodes to match. Defaults to matching all get/put opcodes.
-     *                (`Opcode.IGET`, `Opcode.SGET`, `Opcode.IPUT`, `Opcode.SPUT`, etc).
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        definingClass: String? = null,
-        name: String? = null,
-        type: String? = null,
-        opcodes: List<Opcode>? = null,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : super(opcodes, location) {
-        this.definingClass = definingClass
-        this.name = name
-        this.type = type
-    }
-
-    /**
-     * Matches a field call, such as:
-     * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
-     *
-     * @param definingClass Defining class of the field call. Compares using [StringComparisonType.ENDS_WITH].
-     *                      For calls to a method in the same class, use 'this' as the defining class.
-     *                      Note: 'this' does not work for fields found in superclasses.
-     * @param name Full name of the field. Compares using [StringComparisonType.EQUALS].
-     * @param type Class type of field. Compares using [StringComparisonType.STARTS_WITH].
-     * @param opcode Single opcode type to match.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        definingClass: String? = null,
-        name: String? = null,
-        type: String? = null,
-        opcode: Opcode,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(
-        definingClass,
-        name,
-        type,
-        listOf(opcode),
-        location
-    )
-
-    /**
-     * Matches a field call, such as:
-     * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
-     *
-     * @param reference Exact reference to match.
-     * @param opcodes List of all possible opcodes to match. Defaults to matching all get/put opcodes.
-     *                (`Opcode.IGET`, `Opcode.SGET`, `Opcode.IPUT`, `Opcode.SPUT`, etc).
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        reference: FieldReference,
-        opcode: Opcode,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(
-        definingClass = reference.definingClass,
-        name = reference.name,
-        type = reference.type,
-        opcodes = listOf(opcode),
-        location = location
-    )
-
-    /**
-     * Matches a field call, such as:
-     * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
-     *
-     * @param reference Exact reference to match.
-     * @param opcode Single opcode to match.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        reference: FieldReference,
-        opcodes: List<Opcode>? = null,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(
-        definingClass = reference.definingClass,
-        name = reference.name,
-        type = reference.type,
-        opcodes = opcodes,
-        location = location
-    )
-
-    /**
-     * Field access for a copy pasted SMALI style field access call. e.g.:
-     * `Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;`
-     *
-     * Should never be used with obfuscated field names or obfuscated field types.
-     * @param smali Smali field access statement, such as `Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;`.
-     * @param opcodes List of all possible opcodes to match. Defaults to matching all get/put opcodes.
-     *                (`Opcode.IGET`, `Opcode.SGET`, `Opcode.IPUT`, `Opcode.SPUT`, etc).
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        smali: String,
-        opcodes: List<Opcode>? = null,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : super(opcodes, location) {
-        val matchResult = regex.matchEntire(smali)
-            ?: throw IllegalArgumentException("Invalid field access smali: $smali")
-
-        this.definingClass = matchResult.groupValues[1]
-        this.name = matchResult.groupValues[2]
-        this.type = matchResult.groupValues[3]
-    }
-
-    /**
-     * Field access for a copy pasted SMALI style field access call. e.g.:
-     * `Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;`
-     *
-     * Should never be used with obfuscated field names or obfuscated field types.
-     *
-     * @param smali Smali field access statement, such as `Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;`.
-     * @param opcode Single opcode type to match.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        smali: String,
-        opcode: Opcode,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(smali, listOf(opcode), location)
+class FieldAccessFilter internal constructor(
+    val definingClass: String? = null,
+    val name: String? = null,
+    val type: String? = null,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation
+) : OpcodesFilter(opcodes, location) {
 
     override fun matches(
         enclosingMethod: Method,
@@ -880,59 +748,160 @@ class FieldAccessFilter : OpcodesFilter {
 
     internal companion object {
         private val regex = Regex("""^(L[^;]+;)->([^:]+):(\[?L[^;]+;|\[?[BCSIJFDZV])${'$'}""")
+
+        internal fun parseJvmFieldAccess(
+            fieldSignature: String,
+            opcodes: List<Opcode>? = null,
+            location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+        ): FieldAccessFilter {
+            val matchResult = regex.matchEntire(fieldSignature)
+                ?: throw IllegalArgumentException("Invalid field access smali: $fieldSignature")
+
+            return fieldAccess(
+                definingClass = matchResult.groupValues[1],
+                name = matchResult.groupValues[2],
+                type = matchResult.groupValues[3],
+                opcodes = opcodes,
+                location = location
+            )
+        }
     }
 }
 
 
-
 /**
- * Literal String instruction.
+ * Matches a field call, such as:
+ * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
  *
- * @param string string literal, using exact matching of [StringComparisonType.EQUALS].
+ * @param definingClass Defining class of the field call. Compares using [StringComparisonType.ENDS_WITH].
+ *                      For calls to a method in the same class, use 'this' as the defining class.
+ *                      Note: 'this' does not work for fields found in superclasses.
+ * @param name Full name of the field. Compares using [StringComparisonType.EQUALS].
+ * @param type Class type of field. Compares using [StringComparisonType.STARTS_WITH].
+ * @param opcode Single opcode type to match.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-
-class StringFilter(
-    val string: () -> String,
-    val comparison: StringComparisonType = StringComparisonType.ENDS_WITH,
+fun fieldAccess(
+    definingClass: String? = null,
+    name: String? = null,
+    type: String? = null,
+    opcode: Opcode,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = fieldAccess(
+    definingClass,
+    name,
+    type,
+    listOf(opcode),
+    location
+)
+
+/**
+ * Matches a field call, such as:
+ * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
+ *
+ * @param definingClass Defining class of the field call. Compares using [StringComparisonType.ENDS_WITH].
+ *                      For calls to a method in the same class, use 'this' as the defining class.
+ *                      Note: 'this' does not work for fields found in superclasses.
+ * @param name Full name of the field. Compares using [StringComparisonType.EQUALS].
+ * @param type Class type of field. Compares using [StringComparisonType.STARTS_WITH].
+ * @param opcodes List of all possible opcodes to match. Defaults to matching all get/put opcodes.
+ *                (`Opcode.IGET`, `Opcode.SGET`, `Opcode.IPUT`, `Opcode.SPUT`, etc).
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun fieldAccess(
+    definingClass: String? = null,
+    name: String? = null,
+    type: String? = null,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = FieldAccessFilter(
+    definingClass,
+    name,
+    type,
+    opcodes,
+    location
+)
+
+/**
+ * Matches a field call, such as:
+ * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
+ *
+ * @param reference Exact reference to match.
+ * @param opcodes List of all possible opcodes to match. Defaults to matching all get/put opcodes.
+ *                (`Opcode.IGET`, `Opcode.SGET`, `Opcode.IPUT`, `Opcode.SPUT`, etc).
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun fieldAccess(
+    reference: FieldReference,
+    opcode: Opcode,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = FieldAccessFilter(
+    definingClass = reference.definingClass,
+    name = reference.name,
+    type = reference.type,
+    opcodes = listOf(opcode),
+    location = location
+)
+
+/**
+ * Matches a field call, such as:
+ * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
+ *
+ * @param reference Exact reference to match.
+ * @param opcode Single opcode to match.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun fieldAccess(
+    reference: FieldReference,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = FieldAccessFilter(
+    definingClass = reference.definingClass,
+    name = reference.name,
+    type = reference.type,
+    opcodes = opcodes,
+    location = location
+)
+
+/**
+ * Field access for a copy pasted SMALI style field access call. e.g.:
+ * `Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;`
+ *
+ * Should never be used with obfuscated field names or obfuscated field types.
+ * @param smali Smali field access statement, such as `Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;`.
+ * @param opcodes List of all possible opcodes to match. Defaults to matching all get/put opcodes.
+ *                (`Opcode.IGET`, `Opcode.SGET`, `Opcode.IPUT`, `Opcode.SPUT`, etc).
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun fieldAccess(
+    smali: String,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = parseJvmFieldAccess(smali, opcodes, location)
+
+/**
+ * Field access for a copy pasted SMALI style field access call. e.g.:
+ * `Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;`
+ *
+ * Should never be used with obfuscated field names or obfuscated field types.
+ *
+ * @param smali Smali field access statement, such as `Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;`.
+ * @param opcode Single opcode type to match.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun fieldAccess(
+    smali: String,
+    opcode: Opcode,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = parseJvmFieldAccess(smali, listOf(opcode), location)
+
+
+
+class StringFilter internal constructor(
+    val string: () -> String,
+    val comparison: StringComparisonType,
+    location: InstructionLocation
 ) : OpcodesFilter(listOf(Opcode.CONST_STRING, Opcode.CONST_STRING_JUMBO), location) {
-
-    constructor(
-        string: () -> String,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(string, StringComparisonType.ENDS_WITH, location)
-
-    /**
-     * Literal String instruction.
-     *
-     * @param string string literal.
-     * @param comparison How to compare the string literal. For more precise matching of strings,
-     *                   consider using [anyInstruction] with multiple exact string declarations.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        string: String,
-        /**
-         * How to match a given string opcode literal. Default is exact string equality. For more
-         * precise matching of multiple strings, consider using [anyInstruction] with multiple
-         * exact string declarations.
-         */
-        comparison: StringComparisonType = StringComparisonType.ENDS_WITH,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this({ string }, comparison, location)
-
-    /**
-     * Literal String instruction.
-     *
-     * @param string string literal, using exact matching of [StringComparisonType.EQUALS].
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        string: String,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(string, StringComparisonType.EQUALS, location)
-
 
     /**
      * Store the lambda value instead of calling it more than once.
@@ -952,7 +921,112 @@ class StringFilter(
     }
 }
 
+/**
+ * Literal String instruction.
+ *
+ * @param string string literal, using exact matching of [StringComparisonType.EQUALS].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun string(
+    string: String,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = StringFilter({ string }, StringComparisonType.EQUALS, location)
 
+/**
+ * Literal String instruction.
+ *
+ * @param string string literal, using exact matching of [StringComparisonType.EQUALS].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun string(
+    string: () -> String,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = StringFilter(string, StringComparisonType.EQUALS, location)
+
+/**
+ * Literal String instruction.
+ *
+ * @param string string literal.
+ * @param comparison How to compare the string literal. For more precise matching of strings,
+ *                   consider using [anyInstruction] with multiple exact string declarations.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun string(
+    string: String,
+    /**
+     * How to match a given string opcode literal. Default is exact string equality. For more
+     * precise matching of multiple strings, consider using [anyInstruction] with multiple
+     * exact string declarations.
+     */
+    comparison: StringComparisonType = StringComparisonType.EQUALS,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = StringFilter({ string }, comparison, location)
+
+/**
+ * Literal String instruction.
+ *
+ * @param string string literal.
+ * @param comparison How to compare the string literal. For more precise matching of strings,
+ *                   consider using [anyInstruction] with multiple exact string declarations.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun string(
+    string: () -> String,
+    comparison: StringComparisonType,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = StringFilter(string, comparison, location)
+
+
+
+class NewInstanceFilter internal constructor (
+    val type: () -> String,
+    val comparison: StringComparisonType,
+    location: InstructionLocation
+) : OpcodesFilter(listOf(Opcode.NEW_INSTANCE, Opcode.NEW_ARRAY), location) {
+
+    /**
+     * Store the lambda value instead of calling it more than once.
+     */
+    private val typeValue: String by lazy {
+        val typeValue = type()
+        comparison.validateSearchStringForClassType(typeValue)
+        typeValue
+    }
+
+    override fun matches(
+        enclosingMethod: Method,
+        instruction: Instruction
+    ): Boolean {
+        if (!super.matches(enclosingMethod, instruction)) {
+            return false
+        }
+
+        val reference = (instruction as ReferenceInstruction).reference as TypeReference
+        return comparison.compare(reference.type, typeValue)
+    }
+}
+
+/**
+ * Opcode type [Opcode.NEW_INSTANCE] or [Opcode.NEW_ARRAY] with a non obfuscated class type.
+ *
+ * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun newInstance(
+    type: String,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = NewInstanceFilter({ type }, StringComparisonType.ENDS_WITH, location)
+
+/**
+ * Opcode type [Opcode.NEW_INSTANCE] or [Opcode.NEW_ARRAY] with a non obfuscated class type.
+ *
+ * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun newInstance(
+    type: () -> String,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = NewInstanceFilter(type, StringComparisonType.ENDS_WITH, location)
 
 /**
  * Opcode type [Opcode.NEW_INSTANCE] or [Opcode.NEW_ARRAY] with a non obfuscated class type.
@@ -962,47 +1036,33 @@ class StringFilter(
  *                   consider using [anyInstruction] with multiple exact type declarations.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-class NewInstanceFilter(
-    val type: () -> String,
-    val comparison: StringComparisonType = StringComparisonType.ENDS_WITH,
+fun newInstance(
+    type: String,
+    comparison: StringComparisonType,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) : OpcodesFilter(listOf(Opcode.NEW_INSTANCE, Opcode.NEW_ARRAY), location) {
+) = NewInstanceFilter({ type }, comparison, location)
 
-    /**
-     * Opcode type [Opcode.NEW_INSTANCE] or [Opcode.NEW_ARRAY] with a non obfuscated class type.
-     *
-     * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        type: () -> String,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(type, StringComparisonType.ENDS_WITH, location)
+/**
+ * Opcode type [Opcode.NEW_INSTANCE] or [Opcode.NEW_ARRAY] with a non obfuscated class type.
+ *
+ * @param type Class type.
+ * @param comparison How to compare the opcode class type. For more precise matching of types,
+ *                   consider using [anyInstruction] with multiple exact type declarations.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun newInstance(
+    type: () -> String,
+    comparison: StringComparisonType,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = NewInstanceFilter(type, comparison, location)
 
-    /**
-     * Opcode type [Opcode.NEW_INSTANCE] or [Opcode.NEW_ARRAY] with a non obfuscated class type.
-     *
-     * @param type Class type.
-     * @param comparison How to compare the opcode class type. For more precise matching of types,
-     *                   consider using [anyInstruction] with multiple exact type declarations.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        type: String,
-        comparison: StringComparisonType = StringComparisonType.ENDS_WITH,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this({ type }, comparison, location)
 
-    /**
-     * Opcode type [Opcode.NEW_INSTANCE] or [Opcode.NEW_ARRAY] with a non obfuscated class type.
-     *
-     * @param type Class type.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        type: String,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this({ type }, StringComparisonType.ENDS_WITH, location)
+
+class InstanceOfFilter internal constructor(
+    val type: () -> String,
+    val comparison: StringComparisonType,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) : OpcodeFilter(Opcode.INSTANCE_OF, location) {
 
     /**
      * Store the lambda value instead of calling it more than once.
@@ -1025,57 +1085,60 @@ class NewInstanceFilter(
         return comparison.compare(reference.type, typeValue)
     }
 }
-
-
 
 /**
  * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
  *
  * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
- * @param comparison How to compare the opcode class type. Defaults to [StringComparisonType.ENDS_WITH].
- *                   For more precise matching of different strings, consider using [anyInstruction]
- *                   with multiple exact type declarations.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-class InstanceOfFilter(
-    val type: () -> String,
-    val comparison: StringComparisonType = StringComparisonType.ENDS_WITH,
+fun instanceOf(
+    type: String,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) : OpcodeFilter(Opcode.INSTANCE_OF, location) {
+) = InstanceOfFilter({ type }, StringComparisonType.ENDS_WITH, location)
 
-    /**
-     * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
-     *
-     * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        type: () -> String,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(type, StringComparisonType.ENDS_WITH, location)
+/**
+ * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
+ *
+ * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun instanceOf(
+    type: () -> String,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = CheckCastFilter(type, StringComparisonType.ENDS_WITH, location)
 
-    /**
-     * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
-     *
-     * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        type: String,
-        comparison: StringComparisonType = StringComparisonType.ENDS_WITH,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) :this({ type }, comparison, location)
+/**
+ * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
+ *
+ * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun instanceOf(
+    type: String,
+    comparison: StringComparisonType,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = CheckCastFilter({ type }, comparison, location)
 
-    /**
-     * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
-     *
-     * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        type: String,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(type , StringComparisonType.ENDS_WITH, location)
+/**
+ * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
+ *
+ * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun instanceOf(
+    type: () -> String,
+    comparison: StringComparisonType,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = CheckCastFilter(type, comparison, location)
+
+
+
+class CheckCastFilter internal constructor(
+    val type: () -> String,
+    val comparison: StringComparisonType,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) : OpcodeFilter(Opcode.CHECK_CAST, location) {
 
     /**
      * Store the lambda value instead of calling it more than once.
@@ -1099,77 +1162,52 @@ class InstanceOfFilter(
     }
 }
 
+/**
+ * Opcode type [Opcode.CHECK_CAST] with a non obfuscated class type.
+ *
+ * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun checkCast(
+    type: String,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = CheckCastFilter({ type }, StringComparisonType.ENDS_WITH, location)
 
+/**
+ * Opcode type [Opcode.CHECK_CAST] with a non obfuscated class type.
+ *
+ * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun checkCast(
+    type: () -> String,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = CheckCastFilter(type, StringComparisonType.ENDS_WITH, location)
 
 /**
  * Opcode type [Opcode.CHECK_CAST] with a non obfuscated class type using the provided string comparison type.
  *
  * @param type Class type.
- * @param comparison How to compare the opcode class type. Defaults to [StringComparisonType.ENDS_WITH].
- *                   For more precise matching of different strings, consider using [anyInstruction]
- *                   with multiple exact type declarations.
+ * @param comparison How to compare the opcode class type. For more precise matching of types,
+ *                   consider using [anyInstruction] with multiple exact type declarations.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-class CheckCastFilter(
-    val type: () -> String,
-    val comparison: StringComparisonType = StringComparisonType.ENDS_WITH,
+fun checkCast(
+    type: String,
+    comparison: StringComparisonType,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) : OpcodeFilter(Opcode.CHECK_CAST, location) {
+) = CheckCastFilter({ type }, comparison, location)
 
-    /**
-     * Opcode type [Opcode.CHECK_CAST] with a non obfuscated class type.
-     *
-     * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        type: () -> String,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this(type, StringComparisonType.ENDS_WITH, location)
-
-    /**
-     * Opcode type [Opcode.CHECK_CAST] with a non obfuscated class type using the provided string comparison type.
-     *
-     * @param type Class type.
-     * @param comparison How to compare the opcode class type. For more precise matching of types,
-     *                   consider using [anyInstruction] with multiple exact type declarations.
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    fun checkCast(
-        type: String,
-        comparison: StringComparisonType = StringComparisonType.ENDS_WITH,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) = CheckCastFilter({ type }, comparison, location)
-
-    /**
-     * Opcode type [Opcode.CHECK_CAST] with a non obfuscated class type.
-     *
-     * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
-     * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
-     */
-    constructor(
-        type: String,
-        location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-    ) : this({ type }, StringComparisonType.ENDS_WITH, location)
-
-    /**
-     * Store the lambda value instead of calling it more than once.
-     */
-    private val typeValue: String by lazy {
-        val typeValue = type()
-        comparison.validateSearchStringForClassType(typeValue)
-        typeValue
-    }
-
-    override fun matches(
-        enclosingMethod: Method,
-        instruction: Instruction
-    ): Boolean {
-        if (!super.matches(enclosingMethod, instruction)) {
-            return false
-        }
-
-        val reference = (instruction as ReferenceInstruction).reference as TypeReference
-        return comparison.compare(reference.type, typeValue)
-    }
-}
+/**
+ * Opcode type [Opcode.CHECK_CAST] with a non obfuscated class type using the provided string comparison type.
+ *
+ * @param type Class type.
+ * @param comparison How to compare the opcode class type. For more precise matching of types,
+ *                   consider using [anyInstruction] with multiple exact type declarations.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun checkCast(
+    type: () -> String,
+    comparison: StringComparisonType,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = CheckCastFilter(type, comparison, location)
