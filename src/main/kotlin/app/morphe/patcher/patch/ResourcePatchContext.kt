@@ -5,13 +5,13 @@ import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.util.Document
+import brut.androlib.AaptInvoker
 import brut.androlib.ApkDecoder
-import brut.androlib.meta.UsesFramework
-import brut.androlib.res.AaptInvoker
+import brut.androlib.apk.UsesFramework
 import brut.androlib.res.Framework
 import brut.androlib.res.ResourcesDecoder
 import brut.androlib.res.decoder.AndroidManifestPullStreamDecoder
-import brut.androlib.res.decoder.BinaryXmlResourceParser
+import brut.androlib.res.decoder.AndroidManifestResourceParser
 import brut.androlib.res.xml.ResXmlUtils
 import brut.directory.ExtFile
 import java.io.InputStream
@@ -69,22 +69,19 @@ class ResourcePatchContext internal constructor(
                 apkDecoder.recordUncompressedFiles(resourcesDecoder.resFileMapping)
 
                 usesFramework =
-                    UsesFramework(
-                        resourcesDecoder.table.framePackages.map { it.id }
-                    )
+                    UsesFramework().apply {
+                        ids = resourcesDecoder.resTable.listFramePackages().map { it.id }
+                    }
             } else {
                 logger.info("Decoding app manifest")
-
-                val parser = BinaryXmlResourceParser(resourcesDecoder.table)
-                val input = apkFile.directory.getFileInput("AndroidManifest.xml")
 
                 // Decode manually instead of using resourceDecoder.decodeManifest
                 // because it does not support decoding to an OutputStream.
                 AndroidManifestPullStreamDecoder(
-                    parser,
+                    AndroidManifestResourceParser(resourcesDecoder.resTable),
                     resourcesDecoder.newXmlSerializer(),
                 ).decode(
-                    input,
+                    apkFile.directory.getFileInput("AndroidManifest.xml"),
                     // Older Android versions do not support OutputStream.nullOutputStream()
                     object : OutputStream() {
                         override fun write(b: Int) { // Do nothing.
@@ -92,12 +89,10 @@ class ResourcePatchContext internal constructor(
                     },
                 )
 
-                parser.setInput(input, null)
-
                 // Get the package name and version from the manifest using the XmlPullStreamDecoder.
                 // XmlPullStreamDecoder.decodeManifest() sets metadata.apkInfo.
                 packageMetadata.let { metadata ->
-                    metadata.packageName = parser.table.apkInfo.resourcesInfo.packageName ?: ""
+                    metadata.packageName = resourcesDecoder.resTable.packageRenamed
                     versionInfo.let {
                         metadata.packageVersion = it.versionName ?: it.versionCode
                     }
@@ -110,7 +105,7 @@ class ResourcePatchContext internal constructor(
 
                      Set this to false again to prevent the ResTable from being flagged as sparse falsely.
                      */
-                    metadata.apkInfo.resourcesInfo.isSparseEntries = false
+                    metadata.apkInfo.sparseResources = false
                 }
             }
         }
