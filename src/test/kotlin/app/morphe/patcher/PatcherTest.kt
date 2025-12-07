@@ -241,27 +241,27 @@ internal object PatcherTest {
             ImmutableStringReference("345")
         )
 
-        with(string("12345")) {
+        with(StringFilter("12345")) {
             assertTrue(matches(method, instruction1))
             assertFalse(matches(method, instruction2))
         }
 
-        with(string("234", comparison = StringComparisonType.CONTAINS)) {
+        with(StringFilter("234", comparison = StringComparisonType.CONTAINS)) {
             assertTrue(matches(method, instruction1))
             assertFalse(matches(method, instruction2))
         }
 
-        with(string("123", comparison = StringComparisonType.STARTS_WITH)) {
+        with(StringFilter("123", comparison = StringComparisonType.STARTS_WITH)) {
             assertTrue(matches(method, instruction1))
             assertFalse(matches(method, instruction2))
         }
 
-        with(string("345", comparison = StringComparisonType.ENDS_WITH)) {
+        with(StringFilter("345", comparison = StringComparisonType.ENDS_WITH)) {
             assertTrue(matches(method, instruction1))
             assertTrue(matches(method, instruction2))
         }
 
-        with(string("123", comparison = StringComparisonType.ENDS_WITH)) {
+        with(StringFilter("123", comparison = StringComparisonType.ENDS_WITH)) {
             assertFalse(matches(method, instruction1))
             assertFalse(matches(method, instruction2))
         }
@@ -276,7 +276,7 @@ internal object PatcherTest {
             var returnType = "Landroid/view/View;"
             var methodSignature = "$definingClass->$name(${parameters.joinToString("")})$returnType"
 
-            var filter = MethodCallFilter.parseJvmMethodCall(methodSignature)
+            var filter = MethodCallFilter(methodSignature)
 
             assertEquals(definingClass, filter.definingClass!!)
             assertEquals(name, filter.name!!)
@@ -289,7 +289,7 @@ internal object PatcherTest {
             returnType = "V"
             methodSignature = "$definingClass->$name(${parameters.joinToString("")})$returnType"
 
-            filter = MethodCallFilter.parseJvmMethodCall(methodSignature)
+            filter = MethodCallFilter(methodSignature)
 
             assertEquals(definingClass, filter.definingClass!!)
             assertEquals(name, filter.name!!)
@@ -302,7 +302,7 @@ internal object PatcherTest {
             returnType = "I"
             methodSignature = "$definingClass->$name(${parameters.joinToString("")})$returnType"
 
-            filter = MethodCallFilter.parseJvmMethodCall(methodSignature)
+            filter = MethodCallFilter(methodSignature)
 
             assertEquals(definingClass, filter.definingClass!!)
             assertEquals(name, filter.name!!)
@@ -315,7 +315,7 @@ internal object PatcherTest {
             returnType = "[I"
             methodSignature = "$definingClass->$name(${parameters.joinToString("")})$returnType"
 
-            filter = MethodCallFilter.parseJvmMethodCall(methodSignature)
+            filter = MethodCallFilter(methodSignature)
 
             assertEquals(definingClass, filter.definingClass!!)
             assertEquals(name, filter.name!!)
@@ -334,7 +334,7 @@ internal object PatcherTest {
             var methodSignature = "$definingClass->$name(${parameters.joinToString("")})$returnType"
 
             assertThrows<IllegalArgumentException>("Defining class missing semicolon") {
-                MethodCallFilter.parseJvmMethodCall(methodSignature)
+                MethodCallFilter(methodSignature)
             }
 
 
@@ -345,7 +345,7 @@ internal object PatcherTest {
             methodSignature = "$definingClass->$name(${parameters.joinToString("")})$returnType"
 
             assertThrows<IllegalArgumentException>("Return type missing semicolon") {
-                MethodCallFilter.parseJvmMethodCall(methodSignature)
+                MethodCallFilter(methodSignature)
             }
 
 
@@ -356,7 +356,7 @@ internal object PatcherTest {
             methodSignature = "$definingClass->$name(${parameters.joinToString("")})$returnType"
 
             assertThrows<IllegalArgumentException>("Empty return type") {
-                MethodCallFilter.parseJvmMethodCall(methodSignature)
+                MethodCallFilter(methodSignature)
             }
 
 
@@ -367,7 +367,7 @@ internal object PatcherTest {
             methodSignature = "$definingClass->$name(${parameters.joinToString("")})$returnType"
 
             assertThrows<IllegalArgumentException>("Return type class missing semicolon") {
-                MethodCallFilter.parseJvmMethodCall(methodSignature)
+                MethodCallFilter(methodSignature)
             }
 
 
@@ -378,7 +378,7 @@ internal object PatcherTest {
             methodSignature = "$definingClass->$name(${parameters.joinToString("")})$returnType"
 
             assertThrows<IllegalArgumentException>("Bad primitive type") {
-                MethodCallFilter.parseJvmMethodCall(methodSignature)
+                MethodCallFilter(methodSignature)
             }
         }
     }
@@ -391,7 +391,7 @@ internal object PatcherTest {
             var type = "Ljava/lang/Boolean;"
             var fieldSignature = "$definingClass->$name:$type"
 
-            var filter = FieldAccessFilter.parseJvmFieldAccess(fieldSignature)
+            var filter = FieldAccessFilter(fieldSignature)
 
             assertEquals(definingClass, filter.definingClass!!)
             assertEquals(name, filter.name!!)
@@ -403,7 +403,7 @@ internal object PatcherTest {
             type = "[Ljava/lang/Boolean;"
             fieldSignature = "$definingClass->$name:$type"
 
-            filter = FieldAccessFilter.parseJvmFieldAccess(fieldSignature)
+            filter = FieldAccessFilter(fieldSignature)
 
             assertEquals(definingClass, filter.definingClass!!)
             assertEquals(name, filter.name!!)
@@ -415,7 +415,7 @@ internal object PatcherTest {
             type = "I"
             fieldSignature = "$definingClass->$name:$type"
 
-            filter = FieldAccessFilter.parseJvmFieldAccess(fieldSignature)
+            filter = FieldAccessFilter(fieldSignature)
 
             assertEquals(definingClass, filter.definingClass!!)
             assertEquals(name, filter.name!!)
@@ -427,7 +427,7 @@ internal object PatcherTest {
             type = "[I"
             fieldSignature = "$definingClass->$name:$type"
 
-            filter = FieldAccessFilter.parseJvmFieldAccess(fieldSignature)
+            filter = FieldAccessFilter(fieldSignature)
 
             assertEquals(definingClass, filter.definingClass!!)
             assertEquals(name, filter.name!!)
@@ -439,19 +439,19 @@ internal object PatcherTest {
     fun `FieldAccess smali bad input`() {
         with(patcher.context.bytecodeContext) {
             assertThrows<IllegalArgumentException>("Defining class missing semicolon") {
-                FieldAccessFilter.parseJvmFieldAccess("Landroid/view/View->fieldName:Landroid/view/View;")
+                FieldAccessFilter("Landroid/view/View->fieldName:Landroid/view/View;")
             }
 
             assertThrows<IllegalArgumentException>("Type class missing semicolon") {
-                FieldAccessFilter.parseJvmFieldAccess("Landroid/view/View;->fieldName:Landroid/view/View")
+                FieldAccessFilter("Landroid/view/View;->fieldName:Landroid/view/View")
             }
 
             assertThrows<IllegalArgumentException>("Empty field name") {
-                FieldAccessFilter.parseJvmFieldAccess("Landroid/view/View;->:Landroid/view/View;")
+                FieldAccessFilter("Landroid/view/View;->:Landroid/view/View;")
             }
 
             assertThrows<IllegalArgumentException>("Invalid primitive type") {
-                FieldAccessFilter.parseJvmFieldAccess("Landroid/view/View;->fieldName:Q")
+                FieldAccessFilter("Landroid/view/View;->fieldName:Q")
             }
         }
     }
