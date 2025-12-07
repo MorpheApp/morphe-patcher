@@ -19,15 +19,6 @@ import com.android.tools.smali.dexlib2.util.MethodUtil
  * A fingerprint for a method. A fingerprint is a partial description of a method,
  * used to uniquely match a method by its characteristics.
  *
- * An example fingerprint for a public method that takes a single string parameter and returns void:
- * ```
- * fingerprint {
- *    accessFlags(AccessFlags.PUBLIC)
- *    returns("V")
- *    parameters("Ljava/lang/String;")
- * }
- * ```
- *
  * See the patcher documentation for more detailed explanations and example fingerprinting.
  *
  * @param accessFlags The exact access flags using values of [AccessFlags].
@@ -37,15 +28,30 @@ import com.android.tools.smali.dexlib2.util.MethodUtil
  * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
  * @param custom A custom condition for this fingerprint.
  */
-class Fingerprint internal constructor(
-    internal val accessFlags: Int?,
-    internal val returnType: String?,
-    internal val parameters: List<String>?,
-    internal val filters: List<InstructionFilter>?,
-    // TODO: Possibly deprecate legacy string declarations in the future.
-    internal val strings: List<String>?,
-    internal val custom: ((method: Method, classDef: ClassDef) -> Boolean)?,
+open class Fingerprint(
+    accessFlags: List<AccessFlags>? = null,
+    returnType: String? = null,
+    val parameters: List<String>? = null,
+    val filters: List<InstructionFilter>? = null,
+    val strings: List<String>? = null,
+    val custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
 ) {
+    val accessFlags: Int? = accessFlags?.fold(0) { acc, it -> acc or it.value }
+
+    // Constructor always has return type of void.
+    val returnType: String? = if (this.accessFlags != null && AccessFlags.CONSTRUCTOR.isSet(this.accessFlags)
+        && returnType == "V"
+    ) null else returnType
+
+    init {
+        // Verify an empty fingerprint wasn't declared.
+        if (accessFlags == null && returnType == null && parameters == null
+            && filters == null && strings == null && custom == null
+        ) {
+            throw IllegalArgumentException("At least one field must be set")
+        }
+    }
+
     @Suppress("ktlint:standard:backing-property-naming")
     // Backing field needed for lazy initialization.
     private var _matchOrNull: Match? = null
@@ -208,7 +214,9 @@ class Fingerprint internal constructor(
             return null
         }
 
-        if (parameters != null && !parametersStartsWith(method.parameterTypes, parameters)) {
+        if (parameters != null && !parametersStartsWith(method.parameterTypes,
+                parameters
+            )) {
             return null
         }
 
@@ -589,6 +597,32 @@ class Match internal constructor(
 }
 
 /**
+ * Matches two lists of parameters, where the first parameter list
+ * starts with the values of the second list.
+ *
+ * @param targetMethodParameters Method parameters to match against.
+ * @param fingerprintParameters Parameters to check. Partial values are valid and use
+ *                              [StringComparisonType.STARTS_WITH].
+ */
+fun parametersStartsWith(
+    targetMethodParameters: Iterable<CharSequence>,
+    fingerprintParameters: Iterable<CharSequence>,
+): Boolean {
+    if (fingerprintParameters.count() != targetMethodParameters.count()) return false
+    val fingerprintIterator = fingerprintParameters.iterator()
+
+    targetMethodParameters.forEach {
+        if (!it.startsWith(fingerprintIterator.next())) return false
+    }
+
+    return true
+}
+
+//
+// Deprecated legacy code.
+// 
+
+/**
  * A builder for [Fingerprint].
  *
  * @property accessFlags The exact access flags using values of [AccessFlags].
@@ -600,8 +634,11 @@ class Match internal constructor(
  *
  * @constructor Create a new [FingerprintBuilder].
  */
+@Deprecated(message = "DSL provides no functional benefits over class declarations " +
+        "and can make stack traces impossible to know what fingerprint failed to resolve",
+    replaceWith = ReplaceWith("Fingerprint()"))
 class FingerprintBuilder() {
-    private var accessFlags: Int? = null
+    private var accessFlags: List<AccessFlags>? = null
     private var returnType: String? = null
     private var parameters: List<String>? = null
     private var instructionFilters: List<InstructionFilter>? = null
@@ -613,23 +650,13 @@ class FingerprintBuilder() {
      *
      * @param accessFlags The exact access flags using values of [AccessFlags].
      */
-    fun accessFlags(accessFlags: Int) {
-        require(this.accessFlags == null) {
-            "AccessFlags already set"
-        }
-        this.accessFlags = accessFlags
-    }
-
-    /**
-     * Set the access flags.
-     *
-     * @param accessFlags The exact access flags using values of [AccessFlags].
-     */
+    @Deprecated(message = "DSL provides no functional benefits over class declarations " +
+            "and can make stack traces impossible to know what fingerprint failed to resolve")
     fun accessFlags(vararg accessFlags: AccessFlags) {
         require(this.accessFlags == null) {
             "AccessFlags already set"
         }
-        this.accessFlags = accessFlags.fold(0) { acc, it -> acc or it.value }
+        this.accessFlags = accessFlags.toList()
     }
 
     /**
@@ -640,6 +667,8 @@ class FingerprintBuilder() {
      *
      * @param returnType The return type compared using [String.startsWith].
      */
+    @Deprecated(message = "DSL provides no functional benefits over class declarations " +
+            "and can make stack traces impossible to know what fingerprint failed to resolve")
     fun returns(returnType: String) {
         require(this.returnType == null) {
             "Returns already set"
@@ -653,6 +682,8 @@ class FingerprintBuilder() {
      * @param parameters The parameters of the method.
      *                   Partial matches allowed and follow the same rules as [returnType].
      */
+    @Deprecated(message = "DSL provides no functional benefits over class declarations " +
+            "and can make stack traces impossible to know what fingerprint failed to resolve")
     fun parameters(vararg parameters: String) {
         require(this.parameters == null) {
             "Parameters already set"
@@ -698,16 +729,20 @@ class FingerprintBuilder() {
      * @param opcodes An opcode pattern of instructions.
      *                Wildcard or unknown opcodes can be specified by `null`.
      */
+    @Deprecated(message = "DSL provides no functional benefits over class declarations " +
+            "and can make stack traces impossible to know what fingerprint failed to resolve")
     fun opcodes(vararg opcodes: Opcode?) {
         verifyNoFiltersSet()
         if (opcodes.isEmpty()) throw IllegalArgumentException("One or more opcodes is required")
 
-        this.instructionFilters = OpcodesFilter.listOfOpcodes(opcodes.toList())
+        this.instructionFilters = OpcodesFilter.opcodesToFilters(*opcodes)
     }
 
     /**
      * A list of instruction filters to match.
      */
+    @Deprecated(message = "DSL provides no functional benefits over class declarations " +
+            "and can make stack traces impossible to know what fingerprint failed to resolve")
     fun instructions(vararg instructionFilters: InstructionFilter) {
         verifyNoFiltersSet()
         if (instructionFilters.isEmpty()) throw IllegalArgumentException("One or more instructions is required")
@@ -720,6 +755,8 @@ class FingerprintBuilder() {
      *
      * @param strings A list of strings compared each using [String.contains].
      */
+    @Deprecated(message = "DSL provides no functional benefits over class declarations " +
+            "and can make stack traces impossible to know what fingerprint failed to resolve")
     fun strings(vararg strings: String) {
         require(this.strings == null) {
             "String block is already set"
@@ -732,6 +769,8 @@ class FingerprintBuilder() {
      *
      * @param customBlock A custom condition for this fingerprint.
      */
+    @Deprecated(message = "DSL provides no functional benefits over class declarations " +
+            "and can make stack traces impossible to know what fingerprint failed to resolve")
     fun custom(customBlock: (method: Method, classDef: ClassDef) -> Boolean) {
         require(this.customBlock == null) {
             "Custom block is already set. Fingerprints only support one custom block."
@@ -740,14 +779,6 @@ class FingerprintBuilder() {
     }
 
     internal fun build(): Fingerprint {
-        // If access flags include constructor then
-        // skip the return type check since it's always void.
-        if (returnType?.equals("V") == true && accessFlags != null
-            && AccessFlags.CONSTRUCTOR.isSet(accessFlags!!)
-        ) {
-            returnType = null
-        }
-
         return Fingerprint(
             accessFlags,
             returnType,
@@ -757,31 +788,13 @@ class FingerprintBuilder() {
             customBlock,
         )
     }
-
-
-    private companion object {
-        val opcodesByName = Opcode.entries.associateBy { it.name }
-    }
 }
 
+/**
+ * Deprecated and will be removed at a future time. Migrate to non-DSL fingerprints.
+ */
+@Deprecated(message = "DSL provides no functional benefits over class declarations " +
+        "and can make stack traces impossible to know what fingerprint failed to resolve")
 fun fingerprint(
     block: FingerprintBuilder.() -> Unit,
 ) = FingerprintBuilder().apply(block).build()
-
-/**
- * Matches two lists of parameters, where the first parameter list
- * starts with the values of the second list.
- */
-internal fun parametersStartsWith(
-    targetMethodParameters: Iterable<CharSequence>,
-    fingerprintParameters: Iterable<CharSequence>,
-): Boolean {
-    if (fingerprintParameters.count() != targetMethodParameters.count()) return false
-    val fingerprintIterator = fingerprintParameters.iterator()
-
-    targetMethodParameters.forEach {
-        if (!it.startsWith(fingerprintIterator.next())) return false
-    }
-
-    return true
-}

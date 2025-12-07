@@ -327,14 +327,14 @@ open class OpcodesFilter protected constructor(
         return opcodes.contains(instruction.opcode)
     }
 
-    internal companion object {
+    companion object {
         /**
          * First opcode can match anywhere in a method, but all
          * subsequent opcodes must match after the previous opcode.
          *
          * A value of `null` indicates to match any opcode.
          */
-        internal fun listOfOpcodes(opcodes: Collection<Opcode?>): List<InstructionFilter> {
+        fun opcodesToFilters(vararg opcodes: Opcode?): List<InstructionFilter> {
             val list = ArrayList<InstructionFilter>(opcodes.size)
             var location: InstructionLocation? = null
 
