@@ -3,7 +3,7 @@ package app.morphe.patcher
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.ResourcePatchContext
-import brut.androlib.meta.ApkInfo
+import brut.androlib.apk.ApkInfo
 import brut.directory.ExtFile
 import java.io.Closeable
 

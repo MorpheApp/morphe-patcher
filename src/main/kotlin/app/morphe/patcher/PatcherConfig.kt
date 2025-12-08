@@ -31,8 +31,9 @@ class PatcherConfig(
     /**
      * The configuration for decoding and compiling resources.
      */
-    internal val resourceConfig = Config("3.0.0-SNAPSHOT").apply {
-        aaptBinaryPath?.let { aaptBinary = it }
+    internal val resourceConfig: Config = Config().apply {
+        aaptVersion = 2
+        aaptBinaryPath?.let { setAaptBinaryPath(it) }
         frameworkFileDirectory?.let { frameworkDirectory = it }
     }
 
