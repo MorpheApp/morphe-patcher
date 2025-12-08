@@ -42,6 +42,7 @@ Throughout the documentation, [Morphe Patches](https://github.com/MorpheApp/morp
 > Alternatively, instead of modifying your gradle file, your you can install [GitHub CLI](https://cli.github.com) and login using:
 > ```bash
 > gh auth
+> ```
 
 3. Open the project in your IDE
 

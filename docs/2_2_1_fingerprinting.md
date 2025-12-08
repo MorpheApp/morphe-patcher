@@ -11,7 +11,7 @@ and the fingerprint matches a method only if _all_ the declared information matc
 ## ⛳️ Example fingerprint
 
 ```kt
-// Declaring fingerprints as classes not required, but if a fingerprint fails
+// Declaring fingerprints as classes is not required, but if a fingerprint fails
 // to match then the exception stack trace will include the fingerprint name. 
 object AdLoaderFingerprint : Fingerprint(
     // Exact access flags
