@@ -4,16 +4,15 @@ Learn the basic concepts of Morphe Patcher and how to create patches.
 
 ## 📙 Fundamentals
 
-A patch is a piece of code that modifies an Android application.  
-There are multiple types of patches. Each type can modify a different part of the APK, such as the Dalvik VM bytecode, 
-the APK resources, or arbitrary files in the APK:
+A patch is a piece of code that modifies an Android application (APK).  
+There are multiple types of patches, each targeting different parts of the APK:
 
-- A `BytecodePatch` modifies the Dalvik VM bytecode
-- A `ResourcePatch` modifies (decoded) resources
-- A `RawResourcePatch` modifies arbitrary files
+- A `BytecodePatch` modifies the Dalvik VM bytecode.
+- A `ResourcePatch` modifies decoded resources.
+- A `RawResourcePatch` modifies arbitrary files.
 
-Each patch can declare a set of dependencies on other patches. Morphe Patcher will first execute dependencies
-before executing the patch itself. This way, multiple patches can work together for abstract purposes in a modular way.
+Each patch can declare dependencies on other patches. Morphe Patcher ensures these dependencies are 
+executed first, allowing patches to work together in a modular way.
 
 The `execute` function is the entry point for a patch. It is called by Morphe Patcher when the patch is executed.
 The `execute` function receives an instance of a context object that provides access to the APK.

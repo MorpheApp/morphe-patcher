@@ -20,14 +20,14 @@ val disableAdsPatch = bytecodePatch(
     dependsOn(disableAdsResourcePatch)
 
     // Merge precompiled DEX files into the patched app, before the patch is executed.
-    extendWith("disable-ads.rve")
+    extendWith("disable-ads.mpe")
 
     // Business logic of the patch to disable ads in the app.
     execute {
         // Fingerprint to find the method to patch.
-        val showAdsFingerprint = fingerprint {
+        val showAdsFingerprint = Fingerprint(
             // More about fingerprints on the next page of the documentation.
-        }
+        )
 
         // In the method that shows ads,
         // call DisableAdsPatch.shouldDisableAds() from the extension (precompiled DEX file)
@@ -121,8 +121,8 @@ After compiling the above code as a DEX file, you can add the DEX file as a reso
 and use it in a patch:
 
 ```kt
-val patch = bytecodePatch(name = "Complex patch") {
-    extendWith("complex-patch.rve")
+val complexPatch = bytecodePatch(name = "Complex patch") {
+    extendWith("complex-patch.mpe")
 
     execute {
         fingerprint.method.addInstructions(0, "invoke-static { }, LComplexPatch;->doSomething()V")
