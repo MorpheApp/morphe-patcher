@@ -1,6 +1,6 @@
 package app.morphe.patcher
 
-import brut.androlib.meta.ApkInfo
+import brut.androlib.apk.ApkInfo
 
 /**
  * Metadata about a package.
