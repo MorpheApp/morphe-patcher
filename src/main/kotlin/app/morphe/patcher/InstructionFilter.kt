@@ -327,14 +327,14 @@ open class OpcodesFilter protected constructor(
         return opcodes.contains(instruction.opcode)
     }
 
-    internal companion object {
+    companion object {
         /**
          * First opcode can match anywhere in a method, but all
          * subsequent opcodes must match after the previous opcode.
          *
          * A value of `null` indicates to match any opcode.
          */
-        internal fun listOfOpcodes(opcodes: Collection<Opcode?>): List<InstructionFilter> {
+        fun opcodesToFilters(vararg opcodes: Opcode?): List<InstructionFilter> {
             val list = ArrayList<InstructionFilter>(opcodes.size)
             var location: InstructionLocation? = null
 
@@ -827,8 +827,8 @@ fun fieldAccess(
  * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
  *
  * @param reference Exact reference to match.
- * @param opcodes List of all possible opcodes to match. Defaults to matching all get/put opcodes.
- *                (`Opcode.IGET`, `Opcode.SGET`, `Opcode.IPUT`, `Opcode.SPUT`, etc).
+ * @param opcode List of all possible opcodes to match. Defaults to matching all get/put opcodes.
+ *               (`Opcode.IGET`, `Opcode.SGET`, `Opcode.IPUT`, `Opcode.SPUT`, etc).
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
 fun fieldAccess(

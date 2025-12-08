@@ -19,15 +19,6 @@ import com.android.tools.smali.dexlib2.util.MethodUtil
  * A fingerprint for a method. A fingerprint is a partial description of a method,
  * used to uniquely match a method by its characteristics.
  *
- * An example fingerprint for a public method that takes a single string parameter and returns void:
- * ```
- * fingerprint {
- *    accessFlags(AccessFlags.PUBLIC)
- *    returns("V")
- *    parameters("Ljava/lang/String;")
- * }
- * ```
- *
  * See the patcher documentation for more detailed explanations and example fingerprinting.
  *
  * @param accessFlags The exact access flags using values of [AccessFlags].
@@ -37,15 +28,30 @@ import com.android.tools.smali.dexlib2.util.MethodUtil
  * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
  * @param custom A custom condition for this fingerprint.
  */
-class Fingerprint internal constructor(
-    internal val accessFlags: Int?,
-    internal val returnType: String?,
-    internal val parameters: List<String>?,
-    internal val filters: List<InstructionFilter>?,
-    // TODO: Possibly deprecate legacy string declarations in the future.
-    internal val strings: List<String>?,
-    internal val custom: ((method: Method, classDef: ClassDef) -> Boolean)?,
+open class Fingerprint(
+    accessFlags: List<AccessFlags>? = null,
+    returnType: String? = null,
+    val parameters: List<String>? = null,
+    val filters: List<InstructionFilter>? = null,
+    val strings: List<String>? = null,
+    val custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
 ) {
+    val accessFlags: Int? = accessFlags?.fold(0) { acc, it -> acc or it.value }
+
+    // Constructor always has return type of void.
+    val returnType: String? = if (this.accessFlags != null && AccessFlags.CONSTRUCTOR.isSet(this.accessFlags)
+        && returnType == "V"
+    ) null else returnType
+
+    init {
+        // Verify an empty fingerprint wasn't declared.
+        if (accessFlags == null && returnType == null && parameters == null
+            && filters == null && strings == null && custom == null
+        ) {
+            throw IllegalArgumentException("At least one field must be set")
+        }
+    }
+
     @Suppress("ktlint:standard:backing-property-naming")
     // Backing field needed for lazy initialization.
     private var _matchOrNull: Match? = null
@@ -149,7 +155,7 @@ class Fingerprint internal constructor(
      *
      * @param classDef The class to match against.
      * @return The [Match] if a match was found or if the
-     * fingerprint is already matched to a method, null otherwise.
+     *         fingerprint is already matched to a method, null otherwise.
      */
     context(BytecodePatchContext)
     fun matchOrNull(
@@ -174,7 +180,7 @@ class Fingerprint internal constructor(
      *
      * @param method The method to match against.
      * @return The [Match] if a match was found or if the fingerprint is previously matched to a method,
-     * otherwise `null`.
+     *         otherwise `null`.
      */
     context(BytecodePatchContext)
     fun matchOrNull(
@@ -208,7 +214,9 @@ class Fingerprint internal constructor(
             return null
         }
 
-        if (parameters != null && !parametersStartsWith(method.parameterTypes, parameters)) {
+        if (parameters != null && !parametersStartsWith(method.parameterTypes,
+                parameters
+            )) {
             return null
         }
 
@@ -498,11 +506,6 @@ class Fingerprint internal constructor(
 
 /**
  * A match of a [Fingerprint].
- *
- * @param originalClassDef The class the matching method is a member of.
- * @param originalMethod The matching method.
- * @param _instructionMatches The match for the instruction filters.
- * @param _stringMatches The matches for the strings declared using `strings()`.
  */
 context(BytecodePatchContext)
 class Match internal constructor(
@@ -589,190 +592,14 @@ class Match internal constructor(
 }
 
 /**
- * A builder for [Fingerprint].
- *
- * @property accessFlags The exact access flags using values of [AccessFlags].
- * @property returnType The return type compared using [String.startsWith].
- * @property parameters The parameters of the method. Partial matches allowed and follow the same rules as [returnType].
- * @property instructionFilters Filters to match the method instructions.
- * @property strings A list of the strings compared each using [String.contains].
- * @property customBlock A custom condition for this fingerprint.
- *
- * @constructor Create a new [FingerprintBuilder].
- */
-class FingerprintBuilder() {
-    private var accessFlags: Int? = null
-    private var returnType: String? = null
-    private var parameters: List<String>? = null
-    private var instructionFilters: List<InstructionFilter>? = null
-    private var strings: List<String>? = null
-    private var customBlock: ((method: Method, classDef: ClassDef) -> Boolean)? = null
-
-    /**
-     * Set the access flags.
-     *
-     * @param accessFlags The exact access flags using values of [AccessFlags].
-     */
-    fun accessFlags(accessFlags: Int) {
-        require(this.accessFlags == null) {
-            "AccessFlags already set"
-        }
-        this.accessFlags = accessFlags
-    }
-
-    /**
-     * Set the access flags.
-     *
-     * @param accessFlags The exact access flags using values of [AccessFlags].
-     */
-    fun accessFlags(vararg accessFlags: AccessFlags) {
-        require(this.accessFlags == null) {
-            "AccessFlags already set"
-        }
-        this.accessFlags = accessFlags.fold(0) { acc, it -> acc or it.value }
-    }
-
-    /**
-     * Set the return type.
-     *
-     * If [accessFlags] includes [AccessFlags.CONSTRUCTOR], then there is no need to
-     * set a return type set since constructors are always void return type.
-     *
-     * @param returnType The return type compared using [String.startsWith].
-     */
-    fun returns(returnType: String) {
-        require(this.returnType == null) {
-            "Returns already set"
-        }
-        this.returnType = returnType
-    }
-
-    /**
-     * Set the parameters.
-     *
-     * @param parameters The parameters of the method.
-     *                   Partial matches allowed and follow the same rules as [returnType].
-     */
-    fun parameters(vararg parameters: String) {
-        require(this.parameters == null) {
-            "Parameters already set"
-        }
-        this.parameters = parameters.toList()
-    }
-
-    private fun verifyNoFiltersSet() {
-        require(this.instructionFilters == null) {
-            "Instruction filters already set"
-        }
-    }
-
-    /**
-     * A pattern of opcodes, where each opcode must appear immediately after the previous.
-     *
-     * To use opcodes with other [InstructionFilter] objects,
-     * instead use [instructions] with individual opcodes declared using [opcode].
-     *
-     * This method is identical to declaring individual opcode filters
-     * with [InstructionFilter.location] set to [InstructionLocation.MatchAfterImmediately]
-     * for all but the first opcode.
-     *
-     * Unless absolutely necessary, it is recommended to instead use [instructions]
-     * with more fine grained filters.
-     *
-     * ```
-     * opcodes(
-     *    Opcode.INVOKE_VIRTUAL, // First opcode matches anywhere in the method.
-     *    Opcode.MOVE_RESULT_OBJECT, // Must match exactly after INVOKE_VIRTUAL.
-     *    Opcode.IPUT_OBJECT // Must match exactly after MOVE_RESULT_OBJECT.
-     * )
-     * ```
-     * is identical to:
-     * ```
-     * instructions(
-     *    opcode(Opcode.INVOKE_VIRTUAL), // First opcode matches anywhere in the method.
-     *    opcode(Opcode.MOVE_RESULT_OBJECT, MatchAfterImmediately()), // Must match exactly after INVOKE_VIRTUAL.
-     *    opcode(Opcode.IPUT_OBJECT, MatchAfterImmediately()) // Must match exactly after MOVE_RESULT_OBJECT.
-     * )
-     * ```
-     *
-     * @param opcodes An opcode pattern of instructions.
-     *                Wildcard or unknown opcodes can be specified by `null`.
-     */
-    fun opcodes(vararg opcodes: Opcode?) {
-        verifyNoFiltersSet()
-        if (opcodes.isEmpty()) throw IllegalArgumentException("One or more opcodes is required")
-
-        this.instructionFilters = OpcodesFilter.listOfOpcodes(opcodes.toList())
-    }
-
-    /**
-     * A list of instruction filters to match.
-     */
-    fun instructions(vararg instructionFilters: InstructionFilter) {
-        verifyNoFiltersSet()
-        if (instructionFilters.isEmpty()) throw IllegalArgumentException("One or more instructions is required")
-
-        this.instructionFilters = instructionFilters.toList()
-    }
-
-    /**
-     * Set the strings.
-     *
-     * @param strings A list of strings compared each using [String.contains].
-     */
-    fun strings(vararg strings: String) {
-        require(this.strings == null) {
-            "String block is already set"
-        }
-        this.strings = strings.toList()
-    }
-
-    /**
-     * Set a custom condition for this fingerprint.
-     *
-     * @param customBlock A custom condition for this fingerprint.
-     */
-    fun custom(customBlock: (method: Method, classDef: ClassDef) -> Boolean) {
-        require(this.customBlock == null) {
-            "Custom block is already set. Fingerprints only support one custom block."
-        }
-        this.customBlock = customBlock
-    }
-
-    internal fun build(): Fingerprint {
-        // If access flags include constructor then
-        // skip the return type check since it's always void.
-        if (returnType?.equals("V") == true && accessFlags != null
-            && AccessFlags.CONSTRUCTOR.isSet(accessFlags!!)
-        ) {
-            returnType = null
-        }
-
-        return Fingerprint(
-            accessFlags,
-            returnType,
-            parameters,
-            instructionFilters,
-            strings,
-            customBlock,
-        )
-    }
-
-
-    private companion object {
-        val opcodesByName = Opcode.entries.associateBy { it.name }
-    }
-}
-
-fun fingerprint(
-    block: FingerprintBuilder.() -> Unit,
-) = FingerprintBuilder().apply(block).build()
-
-/**
  * Matches two lists of parameters, where the first parameter list
  * starts with the values of the second list.
+ *
+ * @param targetMethodParameters Method parameters to match against.
+ * @param fingerprintParameters Parameters to check. Partial values are valid and use
+ *                              [StringComparisonType.STARTS_WITH].
  */
-internal fun parametersStartsWith(
+fun parametersStartsWith(
     targetMethodParameters: Iterable<CharSequence>,
     fingerprintParameters: Iterable<CharSequence>,
 ): Boolean {

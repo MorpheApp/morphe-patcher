@@ -5,26 +5,34 @@ It is used to uniquely match a method by its characteristics.
 Fingerprinting is used to match methods with a limited amount of known information.
 Methods with obfuscated names that change with each update are primary candidates for fingerprinting.
 The goal of fingerprinting is to uniquely identify a method by capturing various attributes, such as the return type,
-access flags, instructions, strings, and more.
+access flags, instructions, strings, and more. Fingerprints are declared with varying amounts of information,
+and the fingerprint matches a method only if _all_ the declared information matches. 
 
 ## ⛳️ Example fingerprint
 
 ```kt
-val showAdsFingerprint = fingerprint {
-    // Method signature.
-    accessFlags(AccessFlags.PUBLIC, AccessFlags.FINAL)
-    returns("Z")
+// Declaring fingerprints as classes is not required, but if a fingerprint fails
+// to match then the exception stack trace will include the fingerprint name. 
+object AdLoaderFingerprint : Fingerprint(
+    // Exact access flags
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    // Return type is matched using String.startsWith()
+    returnType = "Z",
     // Declared parameters are matched using String.startsWith()
     // Non obfuscated classes should be declared using the full class name.
     // While obfuscated class names must be declared only using the object type
     // Since obfuscated names change between releases.
     // Last parameter is simply `L` since it's an obfuscated class object.
-    parameters("Ljava/lang/String;", "I", "L")
+    parameters = listOf("Ljava/lang/String;", "I", "L"),
     
-    // Method implementation:
-    instructions( 
+    // Instruction filters.
+    filters = listOf( 
         // Filter 1.
         fieldAccess(
+            // Restrict to field get operation.
+            opcode = Opcode.IGET,
+            // "this" refers to the class the method was declared in.
+            // It does not include superclasses or subclasses. 
             definingClass = "this",
             type = "Ljava/util/Map;"
         ),
@@ -40,18 +48,19 @@ val showAdsFingerprint = fingerprint {
 
         // Filter 4.
         // MatchAfterImmediately() means this must match immediately after the last filter.
-        opcode(Opcode.MOVE_RESULT, MatchAfterImmediately()),
+        opcode(Opcode.MOVE_RESULT, InstructionLocation.MatchAfterImmediately()),
 
         // Filter 5.
         literal(1337),
         
         // Filter 6.
         opcode(Opcode.IF_EQ),
-    )
-    custom { method, classDef ->
+    ),
+    
+    custom = { method, classDef ->
         classDef.type == "Lcom/some/app/ads/AdsLoader;"
     }
-}
+)
 ```
 
 ## 🔎 Example target app in Java and Smali
@@ -141,23 +150,23 @@ class AdsLoader {
   the same order as the instructions appear in the target method.
 
   If the distance between each instruction declaration can be approximated, then the `instructionLocation`
-  paramter can be used with `MatchAfterWithin(int)` to restrict the instruction match to a maximum
+  parameter can be used with `MatchAfterWithin(int)` to restrict the instruction match to a maximum
   distance from the last instruction. To restrict matching to the first instruction of a method use
   `MatchFirst()`. See `InstructionLocation` for more ways to restrict the matching index.
 
   If a single instruction varies slightly between different app targets but otherwise the fingerprint
   is still the same, the `anyInstruction()` filter can be used to specify the different expected
   instruction. Such as:
-  ```
+  ```kt
   anyInstruction(
-    string("string in early app target, but not found in later target"),
-    string("updated string in latest app target, but not found in earlier target")
+      string("string in early app target, but not found in later target"),
+      string("updated string in latest app target, but not found in earlier target")
   )
   ```
 
   To simplify some filter declarations, `methodCall` and `fieldAccess` can be declared using
   copy-pasted un-obfuscated smali statements. Such as: 
-  ```
+  ```kt
   methodCall(smali = "Landroid/net/Uri;->parse(Ljava/lang/String;)Landroid/net/Uri;")
   fieldAccess(smali = "Landroid/os/Build;->MODEL:Ljava/lang/String;")
   ```
@@ -178,17 +187,17 @@ After declaring a fingerprint it can be used in a patch to find the method it ma
 
 ```kt
 execute {
-  showAdsFingerprint.let {
-    // Changes the target code to:
-    // if (false) {
-    //    showBannerAds();
-    // }
-    val filter4 = it.instructionMatches[3]
-    val moveResultIndex = filter3.index
-    val moveResultRegister = filter3.getInstruction<OneRegisterInstruction>().registerA
-     
-    it.method.addInstructions(moveResultIndex + 1, "const/4 v$moveResultRegister, 0x0")
-  }
+    AdLoaderFingerprint.let {
+        // Changes the target code to:
+        // if (false) {
+        //    showBannerAds();
+        // }
+        val filter4 = it.instructionMatches[3]
+        val moveResultIndex = filter3.index
+        val moveResultRegister = filter3.getInstruction<OneRegisterInstruction>().registerA
+
+        it.method.addInstructions(moveResultIndex + 1, "const/4 v$moveResultRegister, 0x0")
+    }
 }
 ```
 
@@ -202,23 +211,23 @@ Modifying the example above to also change the code `return parameter2 != 1337;`
 
 ```kt
 execute {
-  appFingerprint.let {
-    // Modify method from last indexes to first to preserve the correct fingerprint indexes.
-      
-    // Remove conditional branch and always return false.
-    val filter6 = it.instructionMatches[5]
-    it.method.removeInstruction(filter6.index)
-    
-    // Changes the target code to:
-    // if (false) {
-    //    showBannerAds();
-    // }
-    val filter4 = it.instructionMatches[3]
-    val moveResultIndex = filter3.index
-    val moveResultRegister = filter3.getInstruction<OneRegisterInstruction>().registerA
-     
-    it.method.addInstructions(moveResultIndex + 1, "const/4 v$moveResultRegister, 0x0")
-  }
+    AdLoaderFingerprint.let {
+        // Modify method from last indexes to first to preserve the correct fingerprint indexes.
+
+        // Remove conditional branch and always return false.
+        val filter6 = it.instructionMatches[5]
+        it.method.removeInstruction(filter6.index)
+
+        // Changes the target code to:
+        // if (false) {
+        //    showBannerAds();
+        // }
+        val filter4 = it.instructionMatches[3]
+        val moveResultIndex = filter3.index
+        val moveResultRegister = filter3.getInstruction<OneRegisterInstruction>().registerA
+
+        it.method.addInstructions(moveResultIndex + 1, "const/4 v$moveResultRegister, 0x0")
+    }
 }
 ```
 
@@ -228,28 +237,68 @@ the first usage of it.
 
 ```kt
 val mainActivityPatch1 = bytecodePatch {
-   execute {
-     mainActivityOnCreateFingerprint.method.apply {
-       // Modifications made here.
-     }
-   }
+    execute {
+        mainActivityOnCreateFingerprint.method.apply {
+            // Modifications made here.
+        }
+    }
 }
 
 val mainActivityPatch2 = bytecodePatch {
-  execute {
-    mainActivityOnCreateFingerprint.method.apply {
-      // More modifications made here.
-      // Fingerprint does not match again, and the match result indexes are still the same as
-      // found in mainActivityPatch1.  
+    execute {
+        mainActivityOnCreateFingerprint.method.apply {
+            // More modifications made here.
+            // Fingerprint does not match again, and the match result indexes are still the same as
+            // found in mainActivityPatch1.  
+        }
     }
-  }
+}
+```
+
+
+Using methods found with one fingerprint in a different fingerprint:
+
+Fingerprints can be declared as local variables (and not classes as above),
+which is useful if a fingerprint requires information found with prior fingerprints.
+
+```kotlin
+val complexPatch = bytecodePatch(name = "Complex patch") {
+    execute {
+        val showAdFingerprint = Fingerprint(
+            returnType = "Z",
+            parameters = listOf("Ljava/lang/String;"),
+            filters = listOf(
+                methodCall(
+                    name = "shouldShowAds",
+                    returnType = "Z",
+                    // Use class found with fingerprint declared earlier. 
+                    definingClass = AdLoaderFingerprint.originalClassDef.type
+                ),
+                opcode(Opcode.MOVE_RESULT, MatchAfterImmediately())
+            )
+        )
+
+        showAdFingerprint.let {
+            val shouldShowAdsFilterMatch = it.instructionMatches[1]
+            val register = shouldShowAdsFilterMatch.getInstruction<OneRegisterInstruction>().registerA
+
+            // Override method call return value of "shouldShowAds" with false.
+            it.method.addInstructions(
+                shouldShowAdsFilterMatch.index,
+                """
+                    const/4 v0, 0x0
+                    return v0
+                """
+            )
+        }
+    }
 }
 ```
 
 > [!WARNING]
 > If the fingerprint can not be matched to any method,
-> accessing certain properties of the fingerprint will raise an exception.
-> Instead, the `orNull` properties can be used to return `null` if no match is found.
+> accessing certain properties of the will raise an exception.
+> If no match existing is a normal use case, instead use the `orNull` properties such as `matchOrNull`.
 
 The following properties can be accessed in a fingerprint:
 
@@ -285,7 +334,7 @@ Instead, the fingerprint can be matched manually using various overloads of a fi
 
   ```kt
   execute {
-    val match = showAdsFingerprint.match(classes)
+      val match = ShowAdsFingerprint.match(classes)
   }
   ```
 
@@ -295,10 +344,10 @@ Instead, the fingerprint can be matched manually using various overloads of a fi
   in the class:
 
   ```kt
-  execute {
-    val adsLoaderClass = classBy("Lcom/some/app/ads/Loader;")
+  execute { 
+      val adsLoaderClass = classBy("Lcom/some/app/ads/Loader;")
 
-    val match = showAdsFingerprint.match(adsLoaderClass)
+      val match = showAdsFingerprint.match(adsLoaderClass)
   }
   ```
 
@@ -308,8 +357,8 @@ Instead, the fingerprint can be matched manually using various overloads of a fi
 
   ```kt
   execute {
-    // Match showAdsFingerprint to the class of the ads loader found by adsLoaderClassFingerprint.
-    val match = showAdsFingerprint.match(adsLoaderClassFingerprint.originalClassDef)
+      // Match showAdsFingerprint to the class of the ads loader found by adsLoaderClassFingerprint.
+      val match = showAdsFingerprint.match(adsLoaderClassFingerprint.originalClassDef)
   }
   ```
 

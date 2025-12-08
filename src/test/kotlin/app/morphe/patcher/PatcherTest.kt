@@ -180,15 +180,19 @@ internal object PatcherTest {
                             null,
                             null,
                             null,
-                        ),
-                    ),
-                ),
-            ),
+                        )
+                    )
+                )
+            )
         )
 
-        val fingerprint = fingerprint { returns("V") }
-        val fingerprint2 = fingerprint { returns("V") }
-        val fingerprint3 = fingerprint { returns("V") }
+        assertThrows<IllegalArgumentException>("Empty fingerprint") {
+            Fingerprint()
+        }
+
+        val fingerprint = Fingerprint(returnType = "V")
+        val fingerprint2 = Fingerprint(returnType = "V")
+        val fingerprint3 = Fingerprint(returnType = "V")
 
         val patches = setOf(
             bytecodePatch {
