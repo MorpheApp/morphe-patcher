@@ -155,7 +155,7 @@ open class Fingerprint(
      *
      * @param classDef The class to match against.
      * @return The [Match] if a match was found or if the
-     * fingerprint is already matched to a method, null otherwise.
+     *         fingerprint is already matched to a method, null otherwise.
      */
     context(BytecodePatchContext)
     fun matchOrNull(
@@ -180,7 +180,7 @@ open class Fingerprint(
      *
      * @param method The method to match against.
      * @return The [Match] if a match was found or if the fingerprint is previously matched to a method,
-     * otherwise `null`.
+     *         otherwise `null`.
      */
     context(BytecodePatchContext)
     fun matchOrNull(
@@ -506,11 +506,6 @@ open class Fingerprint(
 
 /**
  * A match of a [Fingerprint].
- *
- * @param originalClassDef The class the matching method is a member of.
- * @param originalMethod The matching method.
- * @param _instructionMatches The match for the instruction filters.
- * @param _stringMatches The matches for the strings declared using `strings()`.
  */
 context(BytecodePatchContext)
 class Match internal constructor(

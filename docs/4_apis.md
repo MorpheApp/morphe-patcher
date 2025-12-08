@@ -4,39 +4,39 @@ A handful of APIs are available to make patch development easier and more effici
 
 ## 📙 Overview
 
-1. 🔍 Find immutable classes with `classBy(String)`
-2. 👹 Create mutable replacements of classes with `mutableClassBy(ClassDef)`
+1. 🔍 Find immutable classes with `classDefBy(String)`
+2. 👹 Create mutable replacements of classes with `mutableClassDefBy(ClassDef)`
 3. 🏃‍ Navigate method calls recursively by index with `navigate(Method)`
 4. 💾 Read and write resource files with `get(String, Boolean)` and `delete(String)`
 5. 📃 Read and write DOM files using `document(String)` and  `document(InputStream)`
 
 ### 🧰 APIs
 
-#### 🔍 `classBy(String)`
+#### 🔍 `classDefBy(String)`
 
-The `classBy(String)` function is an alternative to finding immutable classes
+The `classDefBy(String)` function is an alternative to finding immutable classes
 from a constant string or from a String field of a fingerprint match. 
 
 ```kt
 execute {
     // Find the superclass of a fingerprint return type
-    val superClassOfReturnType = classBy(match().originalMethod.returnType).superclass
+    val superClassOfReturnType = classDefBy(match().originalMethod.returnType).superclass
 }
 ```
 
-#### 👹 `mutableClassBy(ClassDef)`
+#### 👹 `mutableDefClassBy(ClassDef)`
 
 By default, the classes are immutable and they cannot be modified.
-To make a class mutable use the `mutableClassBy(ClassDef)` function.
+To make a class mutable use the `mutableClassDefBy(ClassDef)` function.
 Accessing the property will replace the original class definition with the mutable copy,
 thus allowing you to make changes to the class. Subsequent accesses will return the same mutable copy.
 
 ```kt
 execute {
     // Find a class by the return type of a fingerprint
-    val superClassOfReturnType = classBy(match().originalMethod.returnType).superclass
+    val superClassOfReturnType = classDefBy(match().originalMethod.returnType).superclass
 
-    val mutableClass = mutableClassBy(superClassOfReturnType)
+    val mutableClass = mutableClassDefBy(superClassOfReturnType)
     mutableClass.methods.add(Method())
 }
 ```
@@ -118,5 +118,5 @@ execute {
 
 Morphe Patcher is a powerful library to patch Android applications, offering a rich set of APIs to
 develop patches that outlive app updates. Patches make up Morphe; without you, the community of
-patch developers, Morphe would not be what it is today. We hope that this documentation has been helpful to you
-and are excited to see what you will create with Morphe Patcher.
+patch developers, Morphe would not be what it is today. We hope that this documentation has been
+helpful to you and are excited to see what you will create with Morphe Patcher.
