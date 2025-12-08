@@ -50,19 +50,7 @@ public class app/morphe/patcher/Fingerprint {
 	public final fun patchException ()Lapp/morphe/patcher/patch/PatchException;
 }
 
-public final class app/morphe/patcher/FingerprintBuilder {
-	public fun <init> ()V
-	public final fun accessFlags ([Lcom/android/tools/smali/dexlib2/AccessFlags;)V
-	public final fun custom (Lkotlin/jvm/functions/Function2;)V
-	public final fun instructions ([Lapp/morphe/patcher/InstructionFilter;)V
-	public final fun opcodes ([Lcom/android/tools/smali/dexlib2/Opcode;)V
-	public final fun parameters ([Ljava/lang/String;)V
-	public final fun returns (Ljava/lang/String;)V
-	public final fun strings ([Ljava/lang/String;)V
-}
-
 public final class app/morphe/patcher/FingerprintKt {
-	public static final fun fingerprint (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/Fingerprint;
 	public static final fun parametersStartsWith (Ljava/lang/Iterable;Ljava/lang/Iterable;)Z
 }
 
@@ -1066,5 +1054,20 @@ public final class app/morphe/patcher/util/smali/InlineSmaliCompilerKt {
 	public static synthetic fun toInstruction$default (Ljava/lang/String;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;ILjava/lang/Object;)Lcom/android/tools/smali/dexlib2/builder/BuilderInstruction;
 	public static final fun toInstructions (Ljava/lang/String;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;)Ljava/util/List;
 	public static synthetic fun toInstructions$default (Ljava/lang/String;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;ILjava/lang/Object;)Ljava/util/List;
+}
+
+public final class app/revanced/patcher/FingerprintBuilder {
+	public fun <init> ()V
+	public final fun accessFlags ([Lcom/android/tools/smali/dexlib2/AccessFlags;)V
+	public final fun custom (Lkotlin/jvm/functions/Function2;)V
+	public final fun instructions ([Lapp/morphe/patcher/InstructionFilter;)V
+	public final fun opcodes ([Lcom/android/tools/smali/dexlib2/Opcode;)V
+	public final fun parameters ([Ljava/lang/String;)V
+	public final fun returns (Ljava/lang/String;)V
+	public final fun strings ([Ljava/lang/String;)V
+}
+
+public final class app/revanced/patcher/FingerprintKt {
+	public static final fun fingerprint (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/Fingerprint;
 }
 
