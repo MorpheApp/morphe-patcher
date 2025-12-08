@@ -16,10 +16,16 @@ public final class app/morphe/patcher/FieldAccessFilter : app/morphe/patcher/Opc
 	public fun matches (Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;)Z
 }
 
-public final class app/morphe/patcher/Fingerprint {
+public class app/morphe/patcher/Fingerprint {
+	public fun <init> ()V
+	public fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun clearMatch ()V
+	public final fun getAccessFlags ()Ljava/lang/Integer;
 	public final fun getClassDef (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun getClassDefOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
+	public final fun getCustom ()Lkotlin/jvm/functions/Function2;
+	public final fun getFilters ()Ljava/util/List;
 	public final fun getInstructionMatches (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
 	public final fun getInstructionMatchesOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
 	public final fun getMethod (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
@@ -28,8 +34,11 @@ public final class app/morphe/patcher/Fingerprint {
 	public final fun getOriginalClassDefOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
 	public final fun getOriginalMethod (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/Method;
 	public final fun getOriginalMethodOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/Method;
+	public final fun getParameters ()Ljava/util/List;
+	public final fun getReturnType ()Ljava/lang/String;
 	public final fun getStringMatches (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
 	public final fun getStringMatchesOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
+	public final fun getStrings ()Ljava/util/List;
 	public final fun match (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/Match;
 	public final fun match (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
 	public final fun match (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/Match;
@@ -41,20 +50,8 @@ public final class app/morphe/patcher/Fingerprint {
 	public final fun patchException ()Lapp/morphe/patcher/patch/PatchException;
 }
 
-public final class app/morphe/patcher/FingerprintBuilder {
-	public fun <init> ()V
-	public final fun accessFlags (I)V
-	public final fun accessFlags ([Lcom/android/tools/smali/dexlib2/AccessFlags;)V
-	public final fun custom (Lkotlin/jvm/functions/Function2;)V
-	public final fun instructions ([Lapp/morphe/patcher/InstructionFilter;)V
-	public final fun opcodes ([Lcom/android/tools/smali/dexlib2/Opcode;)V
-	public final fun parameters ([Ljava/lang/String;)V
-	public final fun returns (Ljava/lang/String;)V
-	public final fun strings ([Ljava/lang/String;)V
-}
-
 public final class app/morphe/patcher/FingerprintKt {
-	public static final fun fingerprint (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/Fingerprint;
+	public static final fun parametersStartsWith (Ljava/lang/Iterable;Ljava/lang/Iterable;)Z
 }
 
 public final class app/morphe/patcher/InstanceOfFilter : app/morphe/patcher/OpcodeFilter {
@@ -237,12 +234,17 @@ public class app/morphe/patcher/OpcodeFilter : app/morphe/patcher/InstructionFil
 }
 
 public class app/morphe/patcher/OpcodesFilter : app/morphe/patcher/InstructionFilter {
+	public static final field Companion Lapp/morphe/patcher/OpcodesFilter$Companion;
 	protected fun <init> (Ljava/util/EnumSet;Lapp/morphe/patcher/InstructionLocation;)V
 	public synthetic fun <init> (Ljava/util/EnumSet;Lapp/morphe/patcher/InstructionLocation;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	protected fun <init> (Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;)V
 	public fun getLocation ()Lapp/morphe/patcher/InstructionLocation;
 	public final fun getOpcodes ()Ljava/util/EnumSet;
 	public fun matches (Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;)Z
+}
+
+public final class app/morphe/patcher/OpcodesFilter$Companion {
+	public final fun opcodesToFilters ([Lcom/android/tools/smali/dexlib2/Opcode;)Ljava/util/List;
 }
 
 public final class app/morphe/patcher/PackageMetadata {
@@ -1052,5 +1054,20 @@ public final class app/morphe/patcher/util/smali/InlineSmaliCompilerKt {
 	public static synthetic fun toInstruction$default (Ljava/lang/String;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;ILjava/lang/Object;)Lcom/android/tools/smali/dexlib2/builder/BuilderInstruction;
 	public static final fun toInstructions (Ljava/lang/String;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;)Ljava/util/List;
 	public static synthetic fun toInstructions$default (Ljava/lang/String;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;ILjava/lang/Object;)Ljava/util/List;
+}
+
+public final class app/revanced/patcher/FingerprintBuilder {
+	public fun <init> ()V
+	public final fun accessFlags ([Lcom/android/tools/smali/dexlib2/AccessFlags;)V
+	public final fun custom (Lkotlin/jvm/functions/Function2;)V
+	public final fun instructions ([Lapp/morphe/patcher/InstructionFilter;)V
+	public final fun opcodes ([Lcom/android/tools/smali/dexlib2/Opcode;)V
+	public final fun parameters ([Ljava/lang/String;)V
+	public final fun returns (Ljava/lang/String;)V
+	public final fun strings ([Ljava/lang/String;)V
+}
+
+public final class app/revanced/patcher/FingerprintKt {
+	public static final fun fingerprint (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/Fingerprint;
 }
 

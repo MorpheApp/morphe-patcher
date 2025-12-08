@@ -318,7 +318,7 @@ object InstructionExtensions {
      * @param index The index to get the instruction at.
      * @return The instruction.
      */
-    fun MethodImplementation.getInstruction(index: Int) = instructions.elementAt(index)
+    fun MethodImplementation.getInstruction(index: Int): Instruction = instructions.elementAt(index)
 
     /**
      * Get an instruction at the given index.
