@@ -595,7 +595,7 @@ class MethodCallFilter internal constructor(
  *
  * @param definingClass Defining class of the field call. Compares using [StringComparisonType.ENDS_WITH].
  *                      For calls to a method in the same class, use 'this' as the defining class.
- *                      Note: 'this' does not work for fields found in superclasses.
+ *                      Note: 'this' does not work for methods found in superclasses.
  * @param name Full name of the method. Compares using [StringComparisonType.EQUALS].
  * @param parameters Parameters of the method call. Each parameter matches using[StringComparisonType.STARTS_WITH]
  *                   and semantics are the same as [Fingerprint] parameters.
@@ -627,7 +627,7 @@ fun methodCall(
  *
  * @param definingClass Defining class of the field call. Compares using [StringComparisonType.ENDS_WITH].
  *                      For calls to a method in the same class, use 'this' as the defining class.
- *                      Note: 'this' does not work for fields found in superclasses.
+ *                      Note: 'this' does not work for methods found in superclasses.
  * @param name Full name of the method. Compares using [StringComparisonType.EQUALS].
  * @param parameters Parameters of the method call. Each parameter matches using[StringComparisonType.STARTS_WITH]
  *                   and semantics are the same as [Fingerprint] parameters.
