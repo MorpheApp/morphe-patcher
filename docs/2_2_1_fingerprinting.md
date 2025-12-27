@@ -172,9 +172,9 @@ class AdsLoader {
   ```
 
   If a method cannot be uniquely identified using the built in filters, but a fixed pattern of
-  opcodes can identify the method, then the opcode pattern can be defined using the fingerprint
-  `opcodes()` declaration.  Opcode patterns do not allow variable spacing between each opcode, and
-  all opcodes all must appear exactly as declared. Opcode patterns should be avoided whenever
+  opcodes can identify the method, then the opcode pattern can be defined using
+  `OpcodesFilter.opcodesToFilters()`.  Opcode patterns do not allow variable spacing between each opcode,
+  and all opcodes all must appear exactly as declared. Opcode patterns should be avoided whenever
   possible due to their fragility and possibility of matching completely unrelated code.
 
 > [!TIP]
