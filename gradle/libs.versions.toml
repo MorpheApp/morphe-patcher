@@ -7,7 +7,7 @@ kotlinx-coroutines-core = "1.10.2"
 mockk = "1.14.6"
 # Tracking https://github.com/google/smali/issues/100.
 multidexlib2 = "b6365a84f4"
-smali = "b6365a84f4"
+smali = "v2.4.0"
 
 [libraries]
 android = { module = "com.google.android:android", version.ref = "android" }
