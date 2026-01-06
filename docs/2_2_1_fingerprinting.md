@@ -171,10 +171,26 @@ class AdsLoader {
   fieldAccess(smali = "Landroid/os/Build;->MODEL:Ljava/lang/String;")
   ```
 
+  #### String declarations
+  
+  There are two ways to declare strings in fingerprints. The first and preferred is using a
+  string filter declaration such as `filters = listOf(string("foo"), string("bar"), /* other filters if desired */ )`
+  where the order of the strings declared in the fingerprint must be the same as the order the strings appearing in
+  the target method (the example above "foo" must appear _before_ "bar").
+  
+  The second is using the `strings = listof("foo", "bar")` declaration, where the strings are unordered and will
+  match in any order of the target method. Generally, the `strings = listOf()` declaration is only useful for 
+  matching methods with a large number of strings and they may appear randomly such as enum name types in an Enum
+  initialization method. If you are unsure which to use, then use `filter = listOf(string("foo"))`.
+  If you need the indices of this second matching type they are not found in `instructionMatches` but instead in
+  their own legacy matching result. Please see the Fingerprint javadoc for more details on this second string declaration.
+
+  #### Pure opcode matching
+
   If a method cannot be uniquely identified using the built in filters, but a fixed pattern of
-  opcodes can identify the method, then the opcode pattern can be defined using the fingerprint
-  `opcodes()` declaration.  Opcode patterns do not allow variable spacing between each opcode, and
-  all opcodes all must appear exactly as declared. Opcode patterns should be avoided whenever
+  opcodes can identify the method, then the opcode pattern can be defined using 
+  `filters = OpcodesFilter.opcodesToFilters(Opcode...)`. Opcode patterns do not allow variable spacing between
+  each opcode, and all opcodes all must appear exactly as declared. Opcode patterns should be avoided whenever
   possible due to their fragility and possibility of matching completely unrelated code.
 
 > [!TIP]
