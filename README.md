@@ -26,6 +26,9 @@ It powers [Morphe CLI](https://github.com/MorpheApp/morphe-cli),
 [Morphe (Manager)](https://github.com/MorpheApp/morphe-manager),
 and various third party patch managers.
 
+Morphe Patcher is based off the prior work of [ReVanced](https://github.com/ReVanced/revanced-patcher).
+All modifications made by Morphe, along with their dates, can be found in the Git history.
+
 ## 💪 Features
 
 Some of the features the Morphe Patcher provides are:

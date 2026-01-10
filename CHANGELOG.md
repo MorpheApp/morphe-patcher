@@ -1,3 +1,10 @@
+## [1.0.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.0.0...v1.0.1-dev.1) (2026-01-08)
+
+
+### Bug Fixes
+
+* Allow `matchAfterWithin()` to be used on the first filter ([2fe26bc](https://github.com/MorpheApp/morphe-patcher/commit/2fe26bcea7a2b63cc9240c234744b2fd4cb5288a))
+
 # 1.0.0 (2025-12-11)
 
 

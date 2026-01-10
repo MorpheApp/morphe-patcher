@@ -89,9 +89,6 @@ fun interface InstructionLocation {
         }
 
         override fun indexIsValidForMatching(previouslyMatchedIndex: Int, currentIndex: Int) : Boolean {
-            require(previouslyMatchedIndex >= 0) {
-                "MatchAfterImmediately cannot be used for the first instruction filter"
-            }
             return currentIndex - previouslyMatchedIndex - 1 <= matchDistance
         }
     }
