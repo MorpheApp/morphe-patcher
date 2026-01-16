@@ -13,8 +13,11 @@ import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.net.URLClassLoader
+import java.util.Locale
 import java.util.function.Supplier
 import java.util.jar.JarFile
+import java.util.logging.Logger
+import kotlin.text.lowercase
 
 typealias PackageName = String
 typealias VersionName = String
@@ -49,6 +52,43 @@ sealed class Patch<C : PatchContext<*>>(
     // if a patch has a finalizing block in order to not emit it twice.
     internal var finalizeBlock: ((C) -> Unit)?,
 ) {
+
+    /**
+     * @param C The [PatchContext] to execute and finalize the patch with.
+     * @param name The name of the patch. If null then this patch not be loaded by [PatchLoader].
+     * @param description The description of the patch.
+     * @param use Weather or not the patch should be used.
+     * @param dependencies Other patches this patch depends on.
+     * @param compatiblePackages The packages the patch is compatible with.
+     *                           If null, the patch is compatible with all packages.
+     * @param options The options of the patch.
+     * @param executeBlock The execution block of the patch.
+     * @param finalizeBlock The finalizing block of the patch. Called after all patches have been executed,
+     *                      in reverse order of execution.
+     */
+//    @Deprecated("Here only for binary backwards compatibility")
+    constructor(
+        name: String?,
+        description: String?,
+        use: Boolean,
+        dependencies: Set<Patch<*>>,
+        compatiblePackages: Set<Package>?,
+        options: Set<Option<*>>,
+        executeBlock: (C) -> Unit,
+        finalizeBlock: ((C) -> Unit)?,
+    ) : this(
+        name,
+        null,
+        description,
+        null,
+        use,
+        dependencies,
+        compatiblePackages,
+        options,
+        executeBlock,
+        finalizeBlock
+    )
+
     /**
      * The options of the patch.
      */
@@ -511,6 +551,32 @@ class BytecodePatchBuilder internal constructor(
         finalizeBlock,
     )
 }
+
+/**
+ * Create a new [BytecodePatch].
+ *
+ * @param name The name of the patch.
+ * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
+ * @param description The description of the patch.
+ * @param use Weather or not the patch should be used.
+ * @param block The block to build the patch.
+ *
+ * @return The created [BytecodePatch].
+ */
+//@Deprecated("Here only for binary backwards compatibility")
+fun bytecodePatch(
+    name: String? = null,
+    description: String? = null,
+    use: Boolean = true,
+    block: BytecodePatchBuilder.() -> Unit = {},
+) = BytecodePatchBuilder(
+    name = name,
+    nameKey = null,
+    description = description,
+    descriptionKey = null,
+    use = use,
+).buildPatch(block) as BytecodePatch
+
 
 /**
  * Create a new [BytecodePatch].

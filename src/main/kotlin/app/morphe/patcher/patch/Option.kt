@@ -252,6 +252,44 @@ fun stringOption(
     key: String,
     default: String? = null,
     values: Map<String, String?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<String>.(String?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with a string value.
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun stringOption(
+    key: String,
+    default: String? = null,
+    values: Map<String, String?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -260,11 +298,14 @@ fun stringOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
 )
+
 
 /**
  * Create a new [Option] with a string value and add it to the current [PatchBuilder].
@@ -285,6 +326,44 @@ fun PatchBuilder<*>.stringOption(
     key: String,
     default: String? = null,
     values: Map<String, String?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<String>.(String?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with a string value and add it to the current [PatchBuilder].
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun PatchBuilder<*>.stringOption(
+    key: String,
+    default: String? = null,
+    values: Map<String, String?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -293,7 +372,9 @@ fun PatchBuilder<*>.stringOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
@@ -318,6 +399,44 @@ fun intOption(
     key: String,
     default: Int? = null,
     values: Map<String, Int?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<Int>.(Int?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with an integer value.
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun intOption(
+    key: String,
+    default: Int? = null,
+    values: Map<String, Int?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -326,7 +445,9 @@ fun intOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
@@ -351,6 +472,44 @@ fun PatchBuilder<*>.intOption(
     key: String,
     default: Int? = null,
     values: Map<String, Int?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<Int>.(Int?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with an integer value and add it to the current [PatchBuilder].
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun PatchBuilder<*>.intOption(
+    key: String,
+    default: Int? = null,
+    values: Map<String, Int?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -359,7 +518,9 @@ fun PatchBuilder<*>.intOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
@@ -384,6 +545,44 @@ fun booleanOption(
     key: String,
     default: Boolean? = null,
     values: Map<String, Boolean?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<Boolean>.(Boolean?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with a boolean value.
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun booleanOption(
+    key: String,
+    default: Boolean? = null,
+    values: Map<String, Boolean?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -392,11 +591,14 @@ fun booleanOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
 )
+
 
 /**
  * Create a new [Option] with a boolean value and add it to the current [PatchBuilder].
@@ -417,6 +619,44 @@ fun PatchBuilder<*>.booleanOption(
     key: String,
     default: Boolean? = null,
     values: Map<String, Boolean?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<Boolean>.(Boolean?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with a boolean value and add it to the current [PatchBuilder].
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun PatchBuilder<*>.booleanOption(
+    key: String,
+    default: Boolean? = null,
+    values: Map<String, Boolean?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -425,7 +665,9 @@ fun PatchBuilder<*>.booleanOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
@@ -450,6 +692,44 @@ fun floatOption(
     key: String,
     default: Float? = null,
     values: Map<String, Float?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<Float>.(Float?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with a float value.
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun floatOption(
+    key: String,
+    default: Float? = null,
+    values: Map<String, Float?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -458,11 +738,14 @@ fun floatOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
 )
+
 
 /**
  * Create a new [Option] with a float value and add it to the current [PatchBuilder].
@@ -483,6 +766,44 @@ fun PatchBuilder<*>.floatOption(
     key: String,
     default: Float? = null,
     values: Map<String, Float?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<Float>.(Float?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with a float value and add it to the current [PatchBuilder].
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun PatchBuilder<*>.floatOption(
+    key: String,
+    default: Float? = null,
+    values: Map<String, Float?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -491,11 +812,14 @@ fun PatchBuilder<*>.floatOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
 )
+
 
 /**
  * Create a new [Option] with a long value.
@@ -516,6 +840,40 @@ fun longOption(
     key: String,
     default: Long? = null,
     values: Map<String, Long?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<Long>.(Long?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun longOption(
+    key: String,
+    default: Long? = null,
+    values: Map<String, Long?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -524,7 +882,9 @@ fun longOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
@@ -549,6 +909,44 @@ fun PatchBuilder<*>.longOption(
     key: String,
     default: Long? = null,
     values: Map<String, Long?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<Long>.(Long?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with a long value and add it to the current [PatchBuilder].
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun PatchBuilder<*>.longOption(
+    key: String,
+    default: Long? = null,
+    values: Map<String, Long?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -557,7 +955,9 @@ fun PatchBuilder<*>.longOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
@@ -582,6 +982,44 @@ fun stringsOption(
     key: String,
     default: List<String>? = null,
     values: Map<String, List<String>?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<List<String>>.(List<String>?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with a string list value.
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun stringsOption(
+    key: String,
+    default: List<String>? = null,
+    values: Map<String, List<String>?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -590,7 +1028,9 @@ fun stringsOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
@@ -615,6 +1055,44 @@ fun PatchBuilder<*>.stringsOption(
     key: String,
     default: List<String>? = null,
     values: Map<String, List<String>?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<List<String>>.(List<String>?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with a string list value and add it to the current [PatchBuilder].
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun PatchBuilder<*>.stringsOption(
+    key: String,
+    default: List<String>? = null,
+    values: Map<String, List<String>?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -623,11 +1101,14 @@ fun PatchBuilder<*>.stringsOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
 )
+
 
 /**
  * Create a new [Option] with an integer list value.
@@ -648,6 +1129,44 @@ fun intsOption(
     key: String,
     default: List<Int>? = null,
     values: Map<String, List<Int>?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<List<Int>>.(List<Int>?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with an integer list value.
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun intsOption(
+    key: String,
+    default: List<Int>? = null,
+    values: Map<String, List<Int>?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -656,7 +1175,9 @@ fun intsOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
@@ -681,6 +1202,44 @@ fun PatchBuilder<*>.intsOption(
     key: String,
     default: List<Int>? = null,
     values: Map<String, List<Int>?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<List<Int>>.(List<Int>?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with an integer list value and add it to the current [PatchBuilder].
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun PatchBuilder<*>.intsOption(
+    key: String,
+    default: List<Int>? = null,
+    values: Map<String, List<Int>?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -689,7 +1248,9 @@ fun PatchBuilder<*>.intsOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
@@ -714,6 +1275,44 @@ fun booleansOption(
     key: String,
     default: List<Boolean>? = null,
     values: Map<String, List<Boolean>?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<List<Boolean>>.(List<Boolean>?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with a boolean list value.
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun booleansOption(
+    key: String,
+    default: List<Boolean>? = null,
+    values: Map<String, List<Boolean>?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -722,7 +1321,9 @@ fun booleansOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
@@ -747,6 +1348,44 @@ fun PatchBuilder<*>.booleansOption(
     key: String,
     default: List<Boolean>? = null,
     values: Map<String, List<Boolean>?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<List<Boolean>>.(List<Boolean>?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with a boolean list value and add it to the current [PatchBuilder].
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun PatchBuilder<*>.booleansOption(
+    key: String,
+    default: List<Boolean>? = null,
+    values: Map<String, List<Boolean>?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -755,7 +1394,9 @@ fun PatchBuilder<*>.booleansOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
@@ -780,6 +1421,44 @@ fun PatchBuilder<*>.floatsOption(
     key: String,
     default: List<Float>? = null,
     values: Map<String, List<Float>?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<List<Float>>.(List<Float>?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with a float list value and add it to the current [PatchBuilder].
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun PatchBuilder<*>.floatsOption(
+    key: String,
+    default: List<Float>? = null,
+    values: Map<String, List<Float>?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -788,7 +1467,9 @@ fun PatchBuilder<*>.floatsOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
@@ -813,6 +1494,44 @@ fun longsOption(
     key: String,
     default: List<Long>? = null,
     values: Map<String, List<Long>?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<List<Long>>.(List<Long>?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with a long list value.
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun longsOption(
+    key: String,
+    default: List<Long>? = null,
+    values: Map<String, List<Long>?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -821,7 +1540,9 @@ fun longsOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
@@ -846,6 +1567,44 @@ fun PatchBuilder<*>.longsOption(
     key: String,
     default: List<Long>? = null,
     values: Map<String, List<Long>?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    validator: Option<List<Long>>.(List<Long>?) -> Boolean = { true },
+) = option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+)
+
+/**
+ * Create a new [Option] with a long list value and add it to the current [PatchBuilder].
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+fun PatchBuilder<*>.longsOption(
+    key: String,
+    default: List<Long>? = null,
+    values: Map<String, List<Long>?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -854,7 +1613,9 @@ fun PatchBuilder<*>.longsOption(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
@@ -879,6 +1640,45 @@ inline fun <reified T> option(
     key: String,
     default: T? = null,
     values: Map<String, T?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    noinline validator: Option<T>.(T?) -> Boolean = { true },
+) = Option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    typeOf<T>(),
+    validator,
+)
+
+/**
+ * Create a new [Option].
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+inline fun <reified T> option(
+    key: String,
+    default: T? = null,
+    values: Map<String, T?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -887,7 +1687,9 @@ inline fun <reified T> option(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     typeOf<T>(),
@@ -913,6 +1715,44 @@ inline fun <reified T> PatchBuilder<*>.option(
     key: String,
     default: T? = null,
     values: Map<String, T?>? = null,
+    titleKey: String? = null,
+    title: String? = null,
+    descriptionKey: String? = null,
+    description: String? = null,
+    required: Boolean = false,
+    noinline validator: Option<T>.(T?) -> Boolean = { true },
+) = app.morphe.patcher.patch.option(
+    key,
+    default,
+    values,
+    titleKey,
+    title,
+    descriptionKey,
+    description,
+    required,
+    validator,
+).also { it() }
+
+/**
+ * Create a new [Option] and add it to the current [PatchBuilder].
+ *
+ * @param key The key.
+ * @param default The default value.
+ * @param values Eligible option values mapped to a human-readable name.
+ * @param title The title.
+ * @param description A description.
+ * @param required Whether the option is required.
+ * @param validator The function to validate the option value.
+ *
+ * @return The created [Option].
+ *
+ * @see Option
+ */
+//@Deprecated("Binary backwards compatibility. Delete after next major version change.")
+inline fun <reified T> PatchBuilder<*>.option(
+    key: String,
+    default: T? = null,
+    values: Map<String, T?>? = null,
     title: String? = null,
     description: String? = null,
     required: Boolean = false,
@@ -921,7 +1761,9 @@ inline fun <reified T> PatchBuilder<*>.option(
     key,
     default,
     values,
+    null,
     title,
+    null,
     description,
     required,
     validator,
