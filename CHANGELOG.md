@@ -1,3 +1,10 @@
+## [1.0.2-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.0.1...v1.0.2-dev.1) (2026-01-22)
+
+
+### Performance Improvements
+
+* Add methods to find all classes by String ([dcb13f3](https://github.com/MorpheApp/morphe-patcher/commit/dcb13f37a02b23735cc8fa0116aea7a0ace61954))
+
 ## [1.0.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.0.0...v1.0.1) (2026-01-10)
 
 
