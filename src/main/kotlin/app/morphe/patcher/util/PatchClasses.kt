@@ -106,36 +106,39 @@ internal class PatchClasses internal constructor(
         classMap[classDef.type] = ClassDefWrapper(classDef)
     }
 
-    private fun getClassesByStrings(): Map<String, List<ClassDefWrapper>> {
+    internal fun getClassesByStringMap(): Map<String, List<ClassDefWrapper>> {
         if (stringMap != null) {
             return stringMap!!
         }
 
         // Default 0.75f load factor works well and a lower value does not improve patching time.
         val map = HashMap<String, LinkedList<ClassDefWrapper>>()
-        val allClasses = mutableListOf<ClassDefWrapper>()
+        val classesWithStrings = mutableListOf<ClassDefWrapper>()
 
         classMap.values.forEach { wrapper ->
-            wrapper.classDef.findMethodStrings()?.forEach { stringLiteral ->
-                map.getOrPut(stringLiteral) {
-                    LinkedList()
-                }.add(wrapper)
-            }
+            val methodStrings = wrapper.classDef.findMethodStrings()
+            if (methodStrings != null) {
+                methodStrings.forEach { stringLiteral ->
+                    map.getOrPut(stringLiteral) {
+                        LinkedList()
+                    }.add(wrapper)
+                }
 
-            allClasses += wrapper
+                classesWithStrings += wrapper
+            }
         }
 
         stringMap = map
-        allClassesWithStrings = allClasses
+        allClassesWithStrings = classesWithStrings
         return map
     }
 
     internal fun getClassFromOpcodeStringLiteral(stringLiteral: String): List<ClassDefWrapper>? {
-        return getClassesByStrings()[stringLiteral]
+        return getClassesByStringMap()[stringLiteral]
     }
 
     internal fun getAllClassesWithStrings(): List<ClassDefWrapper> {
-        getClassesByStrings() // Load string map if needed.
+        getClassesByStringMap() // Load string map if needed.
         return allClassesWithStrings!!
     }
 

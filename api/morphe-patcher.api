@@ -379,10 +379,13 @@ public final class app/morphe/patcher/patch/BytecodePatchContext : app/morphe/pa
 	public final fun classDefBy (Lkotlin/jvm/functions/Function1;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
 	public final fun classDefByOrNull (Ljava/lang/String;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
 	public final fun classDefByOrNull (Lkotlin/jvm/functions/Function1;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
+	public final fun classDefByStrings (Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;)Ljava/util/List;
+	public static synthetic fun classDefByStrings$default (Lapp/morphe/patcher/patch/BytecodePatchContext;Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;ILjava/lang/Object;)Ljava/util/List;
 	public final fun classDefForEach (Lkotlin/jvm/functions/Function1;)V
 	public fun close ()V
 	public synthetic fun get ()Ljava/lang/Object;
 	public fun get ()Ljava/util/Set;
+	public final fun getAllClassesWithStrings ()Ljava/util/List;
 	public final fun mutableClassDefBy (Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun mutableClassDefBy (Ljava/lang/String;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun mutableClassDefBy (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;

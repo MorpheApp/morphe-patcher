@@ -3,6 +3,7 @@ package app.morphe.patcher.patch
 import app.morphe.patcher.InternalApi
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherResult
+import app.morphe.patcher.StringComparisonType
 import app.morphe.patcher.util.ClassMerger.merge
 import app.morphe.patcher.util.MethodNavigator
 import app.morphe.patcher.util.PatchClasses
@@ -159,6 +160,36 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      */
     fun classDefForEach(action: (ClassDef) -> Unit) {
         patchClasses.forEach(action)
+    }
+
+    /**
+     * @return All classes that contain the string parameter.
+     */
+    fun classDefByStrings(
+        literalString: String,
+        comparison: StringComparisonType = StringComparisonType.EQUALS
+    ): List<ClassDef> {
+        val result = mutableSetOf<ClassDef>()
+        patchClasses.getClassesByStringMap().forEach { (string, list) ->
+            if (comparison.compare(string, literalString)) {
+                list.forEach { wrapper ->
+                    result += wrapper.classDef
+                }
+            }
+        }
+        return result.toList()
+    }
+
+    /**
+     * @return All classes that contain at least 1 string.
+     */
+    fun getAllClassesWithStrings(): List<ClassDef> {
+        val classes = patchClasses.getAllClassesWithStrings()
+        val result = ArrayList<ClassDef>(classes.size)
+        for (wrapper in classes) {
+            result.add(wrapper.classDef)
+        }
+        return result
     }
 
     /**
