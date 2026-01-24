@@ -48,7 +48,7 @@ Throughout the documentation, [Morphe Patches](https://github.com/MorpheApp/morp
 
 > [!TIP]
 > It is a good idea to set up a complete development environment for Morphe, so that you can also test your patches
-> by following the [Morphe documentation](https://github.com/Morphe/Morphe-documentation).
+> by following the [Morphe documentation](https://github.com/MorpheApp/Morphe-documentation).
 
 ## ⏭️ What's next
 
