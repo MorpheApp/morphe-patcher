@@ -1,3 +1,11 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ *
+ * Original forked code:
+ * https://github.com/LisoUseInAIKyrios/revanced-patcher
+ */
+
 package app.morphe.patcher.patch
 
 import app.morphe.patcher.InternalApi
@@ -5,19 +13,12 @@ import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.util.Document
-import brut.androlib.AaptInvoker
-import brut.androlib.ApkDecoder
-import brut.androlib.apk.UsesFramework
-import brut.androlib.res.Framework
-import brut.androlib.res.ResourcesDecoder
-import brut.androlib.res.decoder.AndroidManifestPullStreamDecoder
-import brut.androlib.res.decoder.AndroidManifestResourceParser
-import brut.androlib.res.xml.ResXmlUtils
-import brut.directory.ExtFile
+import com.reandroid.apk.ApkModuleXmlDecoder
+import com.reandroid.apk.ApkModuleXmlEncoder
 import java.io.InputStream
-import java.io.OutputStream
 import java.nio.file.Files
 import java.util.logging.Logger
+
 
 /**
  * A context for patches containing the current state of resources.
@@ -54,58 +55,25 @@ class ResourcePatchContext internal constructor(
         with(packageMetadata.apkInfo) {
             config.initializeTemporaryFilesDirectories()
 
-            // Needed to decode resources.
-            val resourcesDecoder = ResourcesDecoder(this, config.resourceConfig)
-
+            val xmlDecoder = ApkModuleXmlDecoder(this)
             if (mode == ResourceMode.FULL) {
                 logger.info("Decoding resources")
 
-                resourcesDecoder.decodeResources(config.apkFiles)
-                resourcesDecoder.decodeManifest(config.apkFiles)
+                xmlDecoder.decodeResourceTable(config.apkFiles)
+                xmlDecoder.decodeAndroidManifest(config.apkFiles)
 
                 // Needed to record uncompressed files.
-                val apkDecoder = ApkDecoder(this, config.resourceConfig)
-                apkDecoder.recordUncompressedFiles(resourcesDecoder.resFileMapping)
-
-                usesFramework =
-                    UsesFramework().apply {
-                        ids = resourcesDecoder.resTable.listFramePackages().map { it.id }
-                    }
+                xmlDecoder.decodeUncompressedFiles(config.apkFiles)
             } else {
                 logger.info("Decoding app manifest")
 
-                // Decode manually instead of using resourceDecoder.decodeManifest
-                // because it does not support decoding to an OutputStream.
-                AndroidManifestPullStreamDecoder(
-                    AndroidManifestResourceParser(resourcesDecoder.resTable),
-                    resourcesDecoder.newXmlSerializer(),
-                ).decode(
-                    apkFile.directory.getFileInput("AndroidManifest.xml"),
-                    // Older Android versions do not support OutputStream.nullOutputStream()
-                    object : OutputStream() {
-                        override fun write(b: Int) { // Do nothing.
-                        }
-                    },
-                )
+                xmlDecoder.decodeAndroidManifest(config.apkFiles)
+            }
 
-                // Get the package name and version from the manifest using the XmlPullStreamDecoder.
-                // XmlPullStreamDecoder.decodeManifest() sets metadata.apkInfo.
-                packageMetadata.let { metadata ->
-                    metadata.packageName = resourcesDecoder.resTable.packageRenamed
-                    versionInfo.let {
-                        metadata.packageVersion = it.versionName ?: it.versionCode
-                    }
-
-                    /*
-                     The ResTable if flagged as sparse if the main package is not loaded, which is the case here,
-                     because ResourcesDecoder.decodeResources loads the main package
-                     and not XmlPullStreamDecoder.decodeManifest.
-                     See ARSCDecoder.readTableType for more info.
-
-                     Set this to false again to prevent the ResTable from being flagged as sparse falsely.
-                     */
-                    metadata.apkInfo.sparseResources = false
-                }
+            val manifest = this.androidManifest
+            packageMetadata.let { metadata ->
+                metadata.packageName = manifest.packageName
+                metadata.packageVersion = manifest.versionName ?: manifest.versionCode.toString()
             }
         }
 
@@ -125,30 +93,18 @@ class ResourcePatchContext internal constructor(
         val resourcesApkFile =
             if (config.resourceMode == ResourceMode.FULL) {
                 resources.resolve("resources.apk").apply {
-                    // Compile the resources.apk file.
-                    AaptInvoker(
-                        packageMetadata.apkInfo,
-                        config.resourceConfig,
-                    ).invoke(
-                        resources.resolve("resources.apk"),
-                        config.apkFiles.resolve("AndroidManifest.xml").also {
-                            ResXmlUtils.fixingPublicAttrsInProviderAttributes(it)
-                        },
-                        config.apkFiles.resolve("res"),
-                        null,
-                        null,
-                        packageMetadata.apkInfo.usesFramework.let { usesFramework ->
-                            usesFramework.ids.map { id ->
-                                Framework(config.resourceConfig).getApkFile(id, usesFramework.tag)
-                            }.toTypedArray()
-                        },
-                    )
+                    val encoder = ApkModuleXmlEncoder()
+                    encoder.buildResources(config.apkFiles)
+                    val loadedModule = encoder.apkModule
+                    loadedModule.writeApk(resources.resolve("resources.apk"))
+                    loadedModule.close()
                 }
             } else {
                 null
             }
 
         val otherFiles =
+            // TODO: Is this needed still?
             config.apkFiles.listFiles()!!.filter {
                 // Excluded because present in resources.other.
                 // TODO: We are reusing config.apkFiles as a temporarily directory for extracting resources.
@@ -160,9 +116,9 @@ class ResourcePatchContext internal constructor(
                 //  The filters wouldn't be needed anymore.
                 //  For now, we assume that the files we filter here are not needed for the patching process.
                 it.name != "AndroidManifest.xml" &&
-                    it.name != "res" &&
-                    // Generated by Androlib.
-                    it.name != "build"
+                        it.name != "res" &&
+                        // Generated by Androlib.
+                        it.name != "build"
             }
 
         val otherResourceFiles =
@@ -177,10 +133,11 @@ class ResourcePatchContext internal constructor(
                 null
             }
 
+        // FIXME: Handle uncompressed files here.
         return PatcherResult.PatchedResources(
             resourcesApkFile,
             otherResourceFiles,
-            packageMetadata.apkInfo.doNotCompress?.toSet() ?: emptySet(),
+            emptySet(), //packageMetadata.apkInfo.uncompressedFiles,
             deleteResources,
         )
     }
@@ -195,12 +152,11 @@ class ResourcePatchContext internal constructor(
         path: String,
         copy: Boolean = true,
     ) = config.apkFiles.resolve(path).apply {
+        // TODO: Remove this.
+        logger.info("Accessing $absolutePath")
         if (copy && !exists()) {
-            with(ExtFile(config.apkFile).directory) {
-                if (containsFile(path) || containsDir(path)) {
-                    copyToDir(config.apkFiles, path)
-                }
-            }
+            // TODO: Handle this properly.
+            throw RuntimeException("File $path does not exist in temporary apk files directory ${config.apkFiles.path}.")
         }
     }
 

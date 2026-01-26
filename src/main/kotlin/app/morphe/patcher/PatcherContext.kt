@@ -1,10 +1,17 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ *
+ * Original forked code:
+ * https://github.com/LisoUseInAIKyrios/revanced-patcher
+ */
+
 package app.morphe.patcher
 
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.ResourcePatchContext
-import brut.androlib.apk.ApkInfo
-import brut.directory.ExtFile
+import com.reandroid.apk.ApkModule
 import java.io.Closeable
 
 /**
@@ -17,7 +24,7 @@ class PatcherContext internal constructor(config: PatcherConfig): Closeable {
     /**
      * [PackageMetadata] of the supplied [PatcherConfig.apkFile].
      */
-    val packageMetadata = PackageMetadata(ApkInfo(ExtFile(config.apkFile)))
+    val packageMetadata = PackageMetadata(ApkModule.loadApkFile(config.apkFile))
 
     /**
      * The set of [Patch]es.

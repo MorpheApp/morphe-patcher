@@ -30,6 +30,7 @@ repositories {
         url = uri("https://jitpack.io")
         content {
             includeGroup("com.github.iBotPeaches.smali")
+            includeGroup("com.github.REAndroid")
         }
     }
     maven {
@@ -48,7 +49,7 @@ dependencies {
         exclude(group = "xerces", module = "xmlParserAPIs")
     }
 
-    implementation(libs.apktool.lib)
+    implementation(libs.arsclib)
     implementation(libs.kotlin.reflect)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.multidexlib2)

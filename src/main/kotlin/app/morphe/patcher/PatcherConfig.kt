@@ -1,7 +1,14 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ *
+ * Original forked code:
+ * https://github.com/LisoUseInAIKyrios/revanced-patcher
+ */
+
 package app.morphe.patcher
 
 import app.morphe.patcher.patch.ResourcePatchContext
-import brut.androlib.Config
 import java.io.File
 import java.util.logging.Logger
 
@@ -16,6 +23,7 @@ import java.util.logging.Logger
 class PatcherConfig(
     internal val apkFile: File,
     private val temporaryFilesPath: File = File("morphe-temporary-files"),
+    // TODO: Remove these.
     aaptBinaryPath: String? = null,
     frameworkFileDirectory: String? = null,
 ) {
@@ -27,15 +35,6 @@ class PatcherConfig(
      * @see ResourcePatchContext.ResourceMode
      */
     internal var resourceMode = ResourcePatchContext.ResourceMode.NONE
-
-    /**
-     * The configuration for decoding and compiling resources.
-     */
-    internal val resourceConfig: Config = Config().apply {
-        aaptVersion = 2
-        aaptBinaryPath?.let { setAaptBinaryPath(it) }
-        frameworkFileDirectory?.let { frameworkDirectory = it }
-    }
 
     /**
      * The path to the temporary apk files directory.
