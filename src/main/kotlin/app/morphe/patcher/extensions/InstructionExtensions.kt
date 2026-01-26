@@ -141,6 +141,7 @@ object InstructionExtensions {
      *
      * @param smaliInstructions The instructions to add.
      */
+    @Deprecated("Use addInstructions(int, String). This method will soon be deleted.")
     fun MutableMethod.addInstructions(smaliInstructions: String) = implementation!!.addInstructions(smaliInstructions.toInstructions(this))
 
     /**
