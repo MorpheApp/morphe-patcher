@@ -193,6 +193,22 @@ enum class StringComparisonType {
             }
         }
     }
+
+    internal companion object {
+        fun classDefDeclarationToComparison(string: String?): StringComparisonType {
+            if (string == null) return EQUALS
+
+            val startsWith = string.startsWith('L')
+            val endsWith = string.endsWith(';')
+
+            return when {
+                startsWith && endsWith -> EQUALS
+                startsWith -> STARTS_WITH
+                endsWith -> ENDS_WITH
+                else -> CONTAINS
+            }
+        }
+    }
 }
 
 
@@ -467,6 +483,8 @@ class MethodCallFilter internal constructor(
     location: InstructionLocation
 ) : OpcodesFilter(opcodes, location) {
 
+    private val definingClassComparison = StringComparisonType.classDefDeclarationToComparison(definingClass)
+
     override fun matches(
         enclosingMethod: Method,
         instruction: Instruction
@@ -481,7 +499,7 @@ class MethodCallFilter internal constructor(
         if (definingClass != null) {
             val referenceClass = reference.definingClass
 
-            if (!StringComparisonType.ENDS_WITH.compare(referenceClass, definingClass)) {
+            if (!definingClassComparison.compare(referenceClass, definingClass)) {
                 // Check if 'this' defining class is used.
                 // Would be nice if this also checked all super classes,
                 // but doing so requires iteratively checking all superclasses
@@ -590,16 +608,17 @@ class MethodCallFilter internal constructor(
  * Matches a method call, such as:
  * `invoke-virtual {v3, v4}, La;->b(I)V`
  *
- * @param definingClass Defining class of the field call. Compares using [StringComparisonType.ENDS_WITH].
- *                      For calls to a method in the same class, use 'this' as the defining class.
- *                      Note: 'this' does not work for methods found in superclasses.
+ * @param definingClass Defining class of the field call.
+ *   For calls to a method in the same class, use 'this' as the defining class.
+ *   Note: 'this' does not work for methods found in superclasses.
+ *   Otherwise the declaration semantics are the same as [Fingerprint.definingClass].
  * @param name Full name of the method. Compares using [StringComparisonType.EQUALS].
  * @param parameters Parameters of the method call. Each parameter matches using[StringComparisonType.STARTS_WITH]
- *                   and semantics are the same as [Fingerprint] parameters.
+ *   and semantics are the same as [Fingerprint] parameters.
  * @param returnType Return type. Matches using [StringComparisonType.STARTS_WITH].
  * @param opcodes Opcode types to match. By default this matches any method call opcode: `Opcode.INVOKE_*`.
- *                If this filter must match specific types of method call, then specify the desired opcodes
-                  such as [Opcode.INVOKE_STATIC], [Opcode.INVOKE_STATIC_RANGE] to match only static calls.
+ *   If this filter must match specific types of method call, then specify the desired opcodes
+ *   such as [Opcode.INVOKE_STATIC], [Opcode.INVOKE_STATIC_RANGE] to match only static calls.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
 fun methodCall(
@@ -622,12 +641,13 @@ fun methodCall(
  * Matches a method call, such as:
  * `invoke-virtual {v3, v4}, La;->b(I)V`
  *
- * @param definingClass Defining class of the field call. Compares using [StringComparisonType.ENDS_WITH].
- *                      For calls to a method in the same class, use 'this' as the defining class.
- *                      Note: 'this' does not work for methods found in superclasses.
+ * @param definingClass Defining class of the field call.
+ *   For calls to a method in the same class, use 'this' as the defining class.
+ *   Note: 'this' does not work for methods found in superclasses.
+ *   Otherwise the declaration semantics are the same as [Fingerprint.definingClass].
  * @param name Full name of the method. Compares using [StringComparisonType.EQUALS].
  * @param parameters Parameters of the method call. Each parameter matches using[StringComparisonType.STARTS_WITH]
- *                   and semantics are the same as [Fingerprint] parameters.
+ *   and semantics are the same as [Fingerprint] parameters.
  * @param returnType Return type. Matches using [StringComparisonType.STARTS_WITH].
  * @param opcode Single opcode type to match.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
