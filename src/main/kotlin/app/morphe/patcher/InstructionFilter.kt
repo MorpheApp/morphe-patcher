@@ -1091,7 +1091,6 @@ class InstanceOfFilter internal constructor(
      */
     private val typeValue: String by lazy {
         val typeValue = type()
-        comparison.validateSearchStringForClassType(typeValue)
         typeValue
     }
 
@@ -1172,7 +1171,6 @@ class CheckCastFilter internal constructor(
      */
     private val typeValue: String by lazy {
         val typeValue = type()
-        comparison.validateSearchStringForClassType(typeValue)
         typeValue
     }
 
