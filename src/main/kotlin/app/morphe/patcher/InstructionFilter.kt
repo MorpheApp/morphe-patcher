@@ -496,6 +496,10 @@ class MethodCallFilter internal constructor(
         val reference = (instruction as? ReferenceInstruction)?.reference as? MethodReference
             ?: return false
 
+        if (name != null && reference.name != name) {
+            return false
+        }
+
         if (definingClass != null) {
             val referenceClass = reference.definingClass
 
@@ -508,10 +512,6 @@ class MethodCallFilter internal constructor(
                     return false
                 } // else, the method call is for 'this' class.
             }
-        }
-
-        if (name != null && reference.name != name) {
-            return false
         }
 
         if (returnType != null &&
@@ -731,6 +731,8 @@ class FieldAccessFilter internal constructor(
     location: InstructionLocation
 ) : OpcodesFilter(opcodes, location) {
 
+    private val definingClassComparison = StringComparisonType.classDefDeclarationToComparison(definingClass)
+
     override fun matches(
         enclosingMethod: Method,
         instruction: Instruction
@@ -742,18 +744,18 @@ class FieldAccessFilter internal constructor(
         val reference = (instruction as? ReferenceInstruction)?.reference as? FieldReference
                 ?: return false
 
+        if (name != null && reference.name != name) {
+            return false
+        }
+
         if (definingClass != null) {
             val referenceClass = reference.definingClass
 
-            if (!referenceClass.endsWith(definingClass)) {
+            if (!definingClassComparison.compare(referenceClass, definingClass)) {
                 if (!(definingClass == "this" && referenceClass == enclosingMethod.definingClass)) {
                     return false
                 } // else, the method call is for 'this' class.
             }
-        }
-
-        if (name != null && reference.name != name) {
-            return false
         }
 
         if (type != null && !reference.type.startsWith(type)) {
@@ -997,7 +999,6 @@ fun string(
 
 class NewInstanceFilter internal constructor (
     val type: () -> String,
-    val comparison: StringComparisonType,
     location: InstructionLocation
 ) : OpcodesFilter(listOf(Opcode.NEW_INSTANCE, Opcode.NEW_ARRAY), location) {
 
@@ -1006,8 +1007,11 @@ class NewInstanceFilter internal constructor (
      */
     private val typeValue: String by lazy {
         val typeValue = type()
-        comparison.validateSearchStringForClassType(typeValue)
         typeValue
+    }
+
+    val comparison by lazy {
+        StringComparisonType.classDefDeclarationToComparison(typeValue)
     }
 
     override fun matches(
@@ -1026,24 +1030,24 @@ class NewInstanceFilter internal constructor (
 /**
  * Opcode type [Opcode.NEW_INSTANCE] or [Opcode.NEW_ARRAY] with a non obfuscated class type.
  *
- * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param type Class type, compared using same semantics as [Fingerprint.definingClass].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
 fun newInstance(
     type: String,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) = NewInstanceFilter({ type }, StringComparisonType.ENDS_WITH, location)
+) = NewInstanceFilter({ type }, location)
 
 /**
  * Opcode type [Opcode.NEW_INSTANCE] or [Opcode.NEW_ARRAY] with a non obfuscated class type.
  *
- * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param type Class type, compared using same semantics as [Fingerprint.definingClass].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
 fun newInstance(
     type: () -> String,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
-) = NewInstanceFilter(type, StringComparisonType.ENDS_WITH, location)
+) = NewInstanceFilter(type, location)
 
 /**
  * Opcode type [Opcode.NEW_INSTANCE] or [Opcode.NEW_ARRAY] with a non obfuscated class type.
@@ -1053,11 +1057,12 @@ fun newInstance(
  *                   consider using [anyInstruction] with multiple exact type declarations.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
+@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration")
 fun newInstance(
     type: String,
     comparison: StringComparisonType,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) = NewInstanceFilter({ type }, comparison, location)
+) = NewInstanceFilter({ type }, location)
 
 /**
  * Opcode type [Opcode.NEW_INSTANCE] or [Opcode.NEW_ARRAY] with a non obfuscated class type.
@@ -1067,17 +1072,17 @@ fun newInstance(
  *                   consider using [anyInstruction] with multiple exact type declarations.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
+@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration")
 fun newInstance(
     type: () -> String,
     comparison: StringComparisonType,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) = NewInstanceFilter(type, comparison, location)
+) = NewInstanceFilter(type, location)
 
 
 
 class InstanceOfFilter internal constructor(
     val type: () -> String,
-    val comparison: StringComparisonType,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
 ) : OpcodeFilter(Opcode.INSTANCE_OF, location) {
 
@@ -1090,6 +1095,10 @@ class InstanceOfFilter internal constructor(
         typeValue
     }
 
+    val comparison by lazy {
+        StringComparisonType.classDefDeclarationToComparison(typeValue)
+    }
+
     override fun matches(
         enclosingMethod: Method,
         instruction: Instruction
@@ -1106,24 +1115,24 @@ class InstanceOfFilter internal constructor(
 /**
  * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
  *
- * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param type Class type, compared using same semantics as [Fingerprint.definingClass].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
 fun instanceOf(
     type: String,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) = InstanceOfFilter({ type }, StringComparisonType.ENDS_WITH, location)
+) = InstanceOfFilter({ type }, location)
 
 /**
  * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
  *
- * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param type Class type, compared using same semantics as [Fingerprint.definingClass].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
 fun instanceOf(
     type: () -> String,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) = CheckCastFilter(type, StringComparisonType.ENDS_WITH, location)
+) = CheckCastFilter(type, location)
 
 /**
  * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
@@ -1131,11 +1140,12 @@ fun instanceOf(
  * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
+@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration")
 fun instanceOf(
     type: String,
     comparison: StringComparisonType,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) = CheckCastFilter({ type }, comparison, location)
+) = CheckCastFilter({ type }, location)
 
 /**
  * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
@@ -1143,17 +1153,17 @@ fun instanceOf(
  * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
+@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration")
 fun instanceOf(
     type: () -> String,
     comparison: StringComparisonType,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) = CheckCastFilter(type, comparison, location)
+) = CheckCastFilter(type, location)
 
 
 
 class CheckCastFilter internal constructor(
     val type: () -> String,
-    val comparison: StringComparisonType,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
 ) : OpcodeFilter(Opcode.CHECK_CAST, location) {
 
@@ -1166,6 +1176,10 @@ class CheckCastFilter internal constructor(
         typeValue
     }
 
+    val comparison by lazy {
+        StringComparisonType.classDefDeclarationToComparison(typeValue)
+    }
+
     override fun matches(
         enclosingMethod: Method,
         instruction: Instruction
@@ -1182,24 +1196,24 @@ class CheckCastFilter internal constructor(
 /**
  * Opcode type [Opcode.CHECK_CAST] with a non obfuscated class type.
  *
- * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param type Class type, compared using same semantics as [Fingerprint.definingClass].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
 fun checkCast(
     type: String,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) = CheckCastFilter({ type }, StringComparisonType.ENDS_WITH, location)
+) = CheckCastFilter({ type }, location)
 
 /**
  * Opcode type [Opcode.CHECK_CAST] with a non obfuscated class type.
  *
- * @param type Class type, compared using [StringComparisonType.ENDS_WITH].
+ * @param type Class type, compared using same semantics as [Fingerprint.definingClass].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
 fun checkCast(
     type: () -> String,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) = CheckCastFilter(type, StringComparisonType.ENDS_WITH, location)
+) = CheckCastFilter(type, location)
 
 /**
  * Opcode type [Opcode.CHECK_CAST] with a non obfuscated class type using the provided string comparison type.
@@ -1209,11 +1223,12 @@ fun checkCast(
  *                   consider using [anyInstruction] with multiple exact type declarations.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
+@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration")
 fun checkCast(
     type: String,
     comparison: StringComparisonType,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) = CheckCastFilter({ type }, comparison, location)
+) = CheckCastFilter({ type }, location)
 
 /**
  * Opcode type [Opcode.CHECK_CAST] with a non obfuscated class type using the provided string comparison type.
@@ -1223,8 +1238,9 @@ fun checkCast(
  *                   consider using [anyInstruction] with multiple exact type declarations.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
+@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration")
 fun checkCast(
     type: () -> String,
     comparison: StringComparisonType,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) = CheckCastFilter(type, comparison, location)
+) = CheckCastFilter(type, location)
