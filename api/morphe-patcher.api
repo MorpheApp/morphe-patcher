@@ -18,6 +18,8 @@ public final class app/morphe/patcher/FieldAccessFilter : app/morphe/patcher/Opc
 
 public class app/morphe/patcher/Fingerprint {
 	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
 	public synthetic fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun clearMatch ()V
@@ -25,11 +27,13 @@ public class app/morphe/patcher/Fingerprint {
 	public final fun getClassDef (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun getClassDefOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun getCustom ()Lkotlin/jvm/functions/Function2;
+	public final fun getDefiningClass ()Ljava/lang/String;
 	public final fun getFilters ()Ljava/util/List;
 	public final fun getInstructionMatches (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
 	public final fun getInstructionMatchesOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
 	public final fun getMethod (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
 	public final fun getMethodOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public final fun getName ()Ljava/lang/String;
 	public final fun getOriginalClassDef (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
 	public final fun getOriginalClassDefOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
 	public final fun getOriginalMethod (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/Method;
@@ -379,10 +383,13 @@ public final class app/morphe/patcher/patch/BytecodePatchContext : app/morphe/pa
 	public final fun classDefBy (Lkotlin/jvm/functions/Function1;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
 	public final fun classDefByOrNull (Ljava/lang/String;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
 	public final fun classDefByOrNull (Lkotlin/jvm/functions/Function1;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
+	public final fun classDefByStrings (Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;)Ljava/util/List;
+	public static synthetic fun classDefByStrings$default (Lapp/morphe/patcher/patch/BytecodePatchContext;Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;ILjava/lang/Object;)Ljava/util/List;
 	public final fun classDefForEach (Lkotlin/jvm/functions/Function1;)V
 	public fun close ()V
 	public synthetic fun get ()Ljava/lang/Object;
 	public fun get ()Ljava/util/Set;
+	public final fun getAllClassesWithStrings ()Ljava/util/List;
 	public final fun mutableClassDefBy (Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun mutableClassDefBy (Ljava/lang/String;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun mutableClassDefBy (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;

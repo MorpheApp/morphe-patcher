@@ -21,6 +21,13 @@ import com.android.tools.smali.dexlib2.util.MethodUtil
  *
  * See the patcher documentation for more detailed explanations and example fingerprinting.
  *
+ * @param definingClass Defining class. Will use one of three comparison types depending on how
+ *   this string is declared:
+ *   - Declaration starts with `L` _and_ ends with `;` is compared using [StringComparisonType.EQUALS].
+ *   - Declaration starts with `L` is compared using [StringComparisonType.STARTS_WITH].
+  *  - Declaration ends with `;` is compared using [StringComparisonType.ENDS_WITH].
+ *   - All other declarations are compared using [StringComparisonType.CONTAINS].
+ * @param name Exact method name.
  * @param accessFlags The exact access flags using values of [AccessFlags].
  * @param returnType The return type. Compared using [String.startsWith].
  * @param parameters The parameters. Partial matches allowed and follow the same rules as [returnType].
@@ -29,6 +36,8 @@ import com.android.tools.smali.dexlib2.util.MethodUtil
  * @param custom A custom condition for this fingerprint.
  */
 open class Fingerprint(
+    val definingClass: String? = null,
+    val name: String? = null,
     accessFlags: List<AccessFlags>? = null,
     returnType: String? = null,
     val parameters: List<String>? = null,
@@ -36,6 +45,28 @@ open class Fingerprint(
     val strings: List<String>? = null,
     val custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
 ) {
+
+    // @Deprecated("Here only for backwards compatibility") // TODO: Remove after next major version bump.
+    constructor(
+        accessFlags: List<AccessFlags>? = null,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        null,
+        null,
+        accessFlags,
+        returnType,
+        parameters,
+        filters,
+        strings,
+        custom
+    )
+
+    private val definingClassComparison = StringComparisonType.classDefDeclarationToComparison(definingClass)
+
     val accessFlags: Int? = accessFlags?.fold(0) { acc, it -> acc or it.value }
 
     // Constructor always has return type of void.
@@ -45,8 +76,8 @@ open class Fingerprint(
 
     init {
         // Verify an empty fingerprint wasn't declared.
-        if (accessFlags == null && returnType == null && parameters == null
-            && filters == null && strings == null && custom == null
+        if (name == null && definingClass == null && accessFlags == null && returnType == null
+            && parameters == null && filters == null && strings == null && custom == null
         ) {
             throw IllegalArgumentException("At least one field must be set")
         }
@@ -110,11 +141,34 @@ open class Fingerprint(
 
         fun machAllClassMethods(value: PatchClasses.ClassDefWrapper): Match? {
             val classDef = value.classDef
-            value.classDef.methods.forEach { method ->
+            classDef.methods.forEach { method ->
                 val match = matchOrNull(method, classDef)
                 if (match != null) {
                     _matchOrNull = match
                     return match
+                }
+            }
+            return null
+        }
+
+        if (definingClass != null) {
+            val type = classDefByOrNull(definingClass)
+            if (type != null) {
+                val match = matchOrNull(type)
+                if (match != null) {
+                    _matchOrNull = match
+                    return match
+                }
+            }
+
+            if (definingClassComparison != StringComparisonType.EQUALS) {
+                patchClasses.classMap.values.forEach { value ->
+                    if (definingClassComparison.compare(value.classDef.type, definingClass)) {
+                        val value = machAllClassMethods(value)
+                        if (value != null) {
+                            return value
+                        }
+                    }
                 }
             }
             return null
@@ -159,7 +213,7 @@ open class Fingerprint(
      */
     context(BytecodePatchContext)
     fun matchOrNull(
-        classDef: ClassDef,
+        classDef: ClassDef
     ): Match? {
         if (_matchOrNull != null) return _matchOrNull
 
@@ -205,6 +259,14 @@ open class Fingerprint(
         classDef: ClassDef
     ): Match? {
         if (_matchOrNull != null) return _matchOrNull
+
+        if (name != null && name != method.name) {
+            return null
+        }
+
+        if (definingClass != null && !definingClassComparison.compare(classDef.type, definingClass)) {
+            return null
+        }
 
         if (returnType != null && !method.returnType.startsWith(returnType)) {
             return null
@@ -771,12 +833,12 @@ class FingerprintBuilder() {
 
     internal fun build(): Fingerprint {
         return Fingerprint(
-            accessFlags,
-            returnType,
-            parameters,
-            instructionFilters,
-            strings,
-            customBlock,
+            accessFlags = accessFlags,
+            returnType = returnType,
+            parameters = parameters,
+            filters = instructionFilters,
+            strings = strings,
+            custom = customBlock,
         )
     }
 }

@@ -14,6 +14,7 @@ and the fingerprint matches a method only if _all_ the declared information matc
 // Declaring fingerprints as classes is not required, but if a fingerprint fails
 // to match then the exception stack trace will include the fingerprint name. 
 object AdLoaderFingerprint : Fingerprint(
+    definingClass = "Lcom/some/app/ads/AdsLoader;",
     // Exact access flags
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     // Return type is matched using String.startsWith()
@@ -54,12 +55,8 @@ object AdLoaderFingerprint : Fingerprint(
         literal(1337),
         
         // Filter 6.
-        opcode(Opcode.IF_EQ),
-    ),
-    
-    custom = { method, classDef ->
-        classDef.type == "Lcom/some/app/ads/AdsLoader;"
-    }
+        opcode(Opcode.IF_EQ)
+    )
 )
 ```
 
