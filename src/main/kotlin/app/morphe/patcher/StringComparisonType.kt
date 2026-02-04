@@ -50,17 +50,18 @@ enum class StringComparisonType {
 
             // First handle single character declarations.
             if (type.length == 1) {
-                when (firstChar) {
-                    'B', 'C', 'D', 'F', 'I', 'J', 'S', 'V', 'Z' -> return EQUALS
-                    'L' -> return STARTS_WITH
-                    '[' -> return STARTS_WITH
+                return when (firstChar) {
+                    'B', 'C', 'D', 'F', 'I', 'J', 'S', 'V', 'Z' -> EQUALS
+                    'L' -> STARTS_WITH
+                    '[' -> STARTS_WITH
+                    else -> throw IllegalArgumentException("Unknown type declaration: $type")
                 }
             }
 
             val endsWithSemicolon = type.endsWith(';')
 
             if (firstChar == '[') {
-                return if (endsWithSemicolon) ENDS_WITH else STARTS_WITH
+                return if (endsWithSemicolon) EQUALS else STARTS_WITH
             }
 
             val startsWithL = (firstChar == 'L')
