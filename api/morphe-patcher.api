@@ -309,10 +309,15 @@ public final class app/morphe/patcher/StringComparisonType : java/lang/Enum {
 	public static final field ENDS_WITH Lapp/morphe/patcher/StringComparisonType;
 	public static final field EQUALS Lapp/morphe/patcher/StringComparisonType;
 	public static final field STARTS_WITH Lapp/morphe/patcher/StringComparisonType;
+	public final fun compare (Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Z
 	public final fun compare (Ljava/lang/String;Ljava/lang/String;)Z
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/StringComparisonType;
 	public static fun values ()[Lapp/morphe/patcher/StringComparisonType;
+}
+
+public final class app/morphe/patcher/StringComparisonTypeKt {
+	public static final fun parametersMatch (Ljava/lang/Iterable;Ljava/lang/Iterable;)Z
 }
 
 public final class app/morphe/patcher/StringFilter : app/morphe/patcher/OpcodesFilter {

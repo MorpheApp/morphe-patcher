@@ -21,16 +21,11 @@ import com.android.tools.smali.dexlib2.util.MethodUtil
  *
  * See the patcher documentation for more detailed explanations and example fingerprinting.
  *
- * @param definingClass Defining class. Will use one of three comparison types depending on how
- *   this string is declared:
- *   - Declaration starts with `L` _and_ ends with `;` is compared using [StringComparisonType.EQUALS].
- *   - Declaration starts with `L` is compared using [StringComparisonType.STARTS_WITH].
-  *  - Declaration ends with `;` is compared using [StringComparisonType.ENDS_WITH].
- *   - All other declarations are compared using [StringComparisonType.CONTAINS].
+ * @param definingClass Defining class. Type declaration follow the semantics described in [StringComparisonType].
  * @param name Exact method name.
  * @param accessFlags The exact access flags using values of [AccessFlags].
- * @param returnType The return type. Compared using [String.startsWith].
- * @param parameters The parameters. Partial matches allowed and follow the same rules as [returnType].
+ * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
+ * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
  * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
  * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
  * @param custom A custom condition for this fingerprint.
@@ -65,7 +60,11 @@ open class Fingerprint(
         custom
     )
 
-    private val definingClassComparison = StringComparisonType.classDefDeclarationToComparison(definingClass)
+    private val definingClassComparison = StringComparisonType.typeDeclarationToComparison(definingClass)
+
+    private val returnTypeComparison = StringComparisonType.typeDeclarationToComparison(returnType)
+
+    private val parameterTypeComparison = StringComparisonType.typeDeclarationToComparison(parameters)
 
     val accessFlags: Int? = accessFlags?.fold(0) { acc, it -> acc or it.value }
 
@@ -108,14 +107,17 @@ open class Fingerprint(
         val stringEqualMatch = mutableListOf<String>()
         var hasPartialMatchStrings = false
 
-        if (strings != null) {
+        // Store local to avoid more than one field access.
+        val stringsLocal = strings
+        if (stringsLocal != null) {
             // Old unordered string declarations.
             // Can be either equal or partial matches.
-            stringEqualMatch.addAll(strings)
+            stringEqualMatch.addAll(stringsLocal)
             hasPartialMatchStrings = true
         }
 
-        if (filters != null) {
+        val filtersLocal = filters
+        if (filtersLocal != null) {
             fun filterStringFilterInstances(list: List<InstructionFilter>) =
                 list.filterIsInstance<StringFilter>()
 
@@ -131,10 +133,10 @@ open class Fingerprint(
                 }
             }
 
-            addStringFilterLiterals(filterStringFilterInstances(filters))
+            addStringFilterLiterals(filterStringFilterInstances(filtersLocal))
 
             // Use strings declared inside anyInstruction.
-            filters.filterIsInstance<AnyInstruction>().forEach { anyFilter ->
+            filtersLocal.filterIsInstance<AnyInstruction>().forEach { anyFilter ->
                 addStringFilterLiterals(filterStringFilterInstances(anyFilter.filters))
             }
         }
@@ -151,8 +153,9 @@ open class Fingerprint(
             return null
         }
 
-        if (definingClass != null) {
-            val type = classDefByOrNull(definingClass)
+        val definingClassLocal = definingClass
+        if (definingClassLocal != null) {
+            val type = classDefByOrNull(definingClassLocal)
             if (type != null) {
                 val match = matchOrNull(type)
                 if (match != null) {
@@ -161,9 +164,10 @@ open class Fingerprint(
                 }
             }
 
-            if (definingClassComparison != StringComparisonType.EQUALS) {
+            val definingClassComparisonLocal = definingClassComparison
+            if (definingClassComparisonLocal != StringComparisonType.EQUALS) {
                 patchClasses.classMap.values.forEach { value ->
-                    if (definingClassComparison.compare(value.classDef.type, definingClass)) {
+                    if (definingClassComparisonLocal.compare(value.classDef.type, definingClassLocal)) {
                         val value = machAllClassMethods(value)
                         if (value != null) {
                             return value
@@ -260,34 +264,46 @@ open class Fingerprint(
     ): Match? {
         if (_matchOrNull != null) return _matchOrNull
 
-        if (name != null && name != method.name) {
+        // Store local to avoid duplicate field access and Kotlin intrinsic null check calls.
+        val nameLocal = name
+        if (nameLocal != null && nameLocal != method.name) {
             return null
         }
 
-        if (definingClass != null && !definingClassComparison.compare(classDef.type, definingClass)) {
+        val definingClassLocal = definingClass
+        if (definingClassLocal != null && !definingClassComparison.compare(classDef.type, definingClassLocal)) {
             return null
         }
 
-        if (returnType != null && !method.returnType.startsWith(returnType)) {
+        val returnTypeLocal = returnType
+        if (returnTypeLocal != null) {
+            if (!returnTypeComparison.compare(method.returnType, returnTypeLocal)) {
+                return null
+            }
+        }
+
+        val accessFlagsLocal = accessFlags
+        if (accessFlagsLocal != null && accessFlagsLocal != method.accessFlags) {
             return null
         }
 
-        if (accessFlags != null && accessFlags != method.accessFlags) {
-            return null
-        }
-
-        if (parameters != null && !parametersStartsWith(method.parameterTypes,
-                parameters
+        val parametersLocal = parameters
+        if (parametersLocal != null && !parametersMatch(
+                method.parameterTypes,
+                parametersLocal,
+                parameterTypeComparison
             )) {
             return null
         }
 
-        if (custom != null && !custom.invoke(method, classDef)) {
+        val customLocal = custom
+        if (customLocal != null && !customLocal.invoke(method, classDef)) {
             return null
         }
 
         // Legacy string declarations.
-        val stringMatches: List<Match.StringMatch>? = if (strings == null) {
+        val stringsLocal = strings
+        val stringMatches: List<Match.StringMatch>? = if (stringsLocal == null) {
             null
         } else {
             buildList {
@@ -305,7 +321,7 @@ open class Fingerprint(
 
                     val string = ((instruction as ReferenceInstruction).reference as StringReference).string
                     if (stringsList == null) {
-                        stringsList = strings.toMutableList()
+                        stringsList = stringsLocal.toMutableList()
                     }
                     val index = stringsList.indexOfFirst(string::contains)
                     if (index < 0) return@forEachIndexed
@@ -318,7 +334,8 @@ open class Fingerprint(
             }
         }
 
-        val instructionMatches = if (filters == null) {
+        val filtersLocal = filters
+        val instructionMatches = if (filtersLocal == null) {
             null
         } else {
             val instructions = method.instructionsOrNull?.toList() ?: return null
@@ -335,8 +352,8 @@ open class Fingerprint(
                     var firstFilterIndex = -1
                     var subIndex = firstInstructionIndex
 
-                    for (filterIndex in filters.indices) {
-                        val filter = filters[filterIndex]
+                    for (filterIndex in filtersLocal.indices) {
+                        val filter = filtersLocal[filterIndex]
                         val location = filter.location
                         var instructionsMatched = false
 
@@ -353,7 +370,7 @@ open class Fingerprint(
                                     firstFilterIndex = subIndex
                                 }
                                 if (instructionMatches == null) {
-                                    instructionMatches = ArrayList(filters.size)
+                                    instructionMatches = ArrayList(filtersLocal.size)
                                 }
                                 instructionMatches += Match.InstructionMatch(filter, subIndex, instruction)
                                 instructionsMatched = true
@@ -654,26 +671,19 @@ class Match internal constructor(
 }
 
 /**
- * Matches two lists of parameters, where the first parameter list
- * starts with the values of the second list.
+ * Matches two lists of parameters.
  *
- * @param targetMethodParameters Method parameters to match against.
- * @param fingerprintParameters Parameters to check. Partial values are valid and use
- *                              [StringComparisonType.STARTS_WITH].
+ * @param targetMethodParameters Method parameters to search in.
+ * @param fingerprintParameters Parameters to check. Uses [StringComparisonType] type semantics.
  */
-fun parametersStartsWith(
+@Deprecated(
+    "Method was renamed and moved to StringComparisonType",
+    replaceWith = ReplaceWith("parametersMatch(targetMethodParameters, fingerprintParameters)")
+)
+fun parametersStartsWith(  // TODO: Delete on next major version release.
     targetMethodParameters: Iterable<CharSequence>,
     fingerprintParameters: Iterable<CharSequence>,
-): Boolean {
-    if (fingerprintParameters.count() != targetMethodParameters.count()) return false
-    val fingerprintIterator = fingerprintParameters.iterator()
-
-    targetMethodParameters.forEach {
-        if (!it.startsWith(fingerprintIterator.next())) return false
-    }
-
-    return true
-}
+) = parametersMatch(targetMethodParameters, fingerprintParameters)
 
 /**
  * A builder for [Fingerprint].
