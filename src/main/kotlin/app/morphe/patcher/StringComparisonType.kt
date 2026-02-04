@@ -1,14 +1,15 @@
 package app.morphe.patcher
 
 /**
- * String comparison type.
+ * String comparison type. Enum is explicitly used for [string()] and other Instruction filter
+ * declarations, and implicitly used for [Fingerprint] and [InstructionFilter] type declarations.
  *
- * All classes/parameters that use type declarations are parsed in the order of:
+ * For type declarations such as [Fingerprint.definingClass], type semantics are parsed in the order of:
+ * - All single character primitive types (`B`, `C`, `D`, `F`, `I`, `J`, `S`, `V`, `Z`) are compared using [EQUALS].
  * - Declaration starts with `L` _and_ ends with `;` are compared using [EQUALS].
  * - Declaration starts with `L` are compared using [STARTS_WITH].
  * - Declaration ends with `;` are compared using [ENDS_WITH].
  * - Declaration that starts with an array `[` are compared using [STARTS_WITH].
- * - All primitive types (`B`, `C`, `D`, `F`, `I`, `J`, `S`, `V`, `Z`) are compared using [EQUALS].
  * - All other declarations are compared using [CONTAINS].
  */
 enum class StringComparisonType {
