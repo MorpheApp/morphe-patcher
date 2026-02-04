@@ -64,6 +64,8 @@ open class Fingerprint(
 
     private val returnTypeComparison = StringComparisonType.typeDeclarationToComparison(returnType)
 
+    private val parameterTypeComparison = StringComparisonType.typeDeclarationToComparison(parameters)
+
     val accessFlags: Int? = accessFlags?.fold(0) { acc, it -> acc or it.value }
 
     // Constructor always has return type of void.
@@ -286,8 +288,10 @@ open class Fingerprint(
         }
 
         val parametersLocal = parameters
-        if (parametersLocal != null && !parametersMatch(method.parameterTypes,
-                parametersLocal
+        if (parametersLocal != null && !parametersMatch(
+                method.parameterTypes,
+                parametersLocal,
+                parameterTypeComparison
             )) {
             return null
         }

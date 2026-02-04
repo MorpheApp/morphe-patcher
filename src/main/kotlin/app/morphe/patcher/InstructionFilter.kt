@@ -425,6 +425,8 @@ class MethodCallFilter internal constructor(
 
     private val returnTypeComparison = StringComparisonType.typeDeclarationToComparison(returnType)
 
+    private val parameterTypeComparison = StringComparisonType.typeDeclarationToComparison(parameters)
+
     override fun matches(
         enclosingMethod: Method,
         instruction: Instruction
@@ -465,8 +467,12 @@ class MethodCallFilter internal constructor(
         }
 
         val parametersLocal = parameters
-        if (parametersLocal != null &&
-            !parametersMatch(reference.parameterTypes, parametersLocal)) {
+        if (parametersLocal != null && !parametersMatch(
+                reference.parameterTypes,
+                parametersLocal,
+                parameterTypeComparison
+            )
+        ) {
             return false
         }
 

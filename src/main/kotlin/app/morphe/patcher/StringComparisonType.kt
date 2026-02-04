@@ -35,6 +35,10 @@ enum class StringComparisonType {
         compare(targetString as CharSequence, searchString as CharSequence)
 
     internal companion object {
+        fun typeDeclarationToComparison(type: Iterable<CharSequence>?): List<StringComparisonType> {
+            return type?.map(::typeDeclarationToComparison).orEmpty()
+        }
+
         fun typeDeclarationToComparison(type: CharSequence?): StringComparisonType {
             if (type == null) return EQUALS
             require(type.isNotEmpty()) {
@@ -93,3 +97,21 @@ fun parametersMatch(
     return true
 }
 
+
+internal fun parametersMatch(
+    targetMethodParameters: Iterable<CharSequence>,
+    fingerprintParameters: Iterable<CharSequence>,
+    stringComparisonType: Iterable<StringComparisonType>
+): Boolean {
+    if (targetMethodParameters.count() != fingerprintParameters.count()) return false
+    val fingerprintIterator = fingerprintParameters.iterator()
+    val comparisonIterator = stringComparisonType.iterator()
+
+    targetMethodParameters.forEach { targetParameter ->
+        val comparison = comparisonIterator.next()
+        val fingerprintParameter = fingerprintIterator.next()
+        if (!comparison.compare(targetParameter, fingerprintParameter)) return false
+    }
+
+    return true
+}
