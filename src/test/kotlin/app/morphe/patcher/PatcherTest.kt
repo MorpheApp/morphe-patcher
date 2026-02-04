@@ -175,7 +175,7 @@ internal object PatcherTest {
                             "class",
                             "method",
                             emptyList(),
-                            "V",
+                            "Ljava/lang/String;",
                             0,
                             null,
                             null,
@@ -190,14 +190,14 @@ internal object PatcherTest {
             Fingerprint()
         }
 
-        val fingerprint = Fingerprint(returnType = "V")
-        val fingerprint2 = Fingerprint(returnType = "V")
-        val fingerprint3 = Fingerprint(returnType = "V")
+        val fingerprint1 = Fingerprint(returnType = "Ljava/lang/String;")
+        val fingerprint2 = Fingerprint(returnType = "String;")
+        val fingerprint3 = Fingerprint(returnType = "/lang")
 
         val patches = setOf(
             bytecodePatch {
                 execute {
-                    fingerprint.match(patchClasses.classMap.values.first().classDef.methods.first())
+                    fingerprint1.match(patchClasses.classMap.values.first().classDef.methods.first())
                     fingerprint2.match(patchClasses.classMap.values.first().classDef)
                     fingerprint3.originalClassDef
                 }
@@ -209,7 +209,7 @@ internal object PatcherTest {
         with(patcher.context.bytecodeContext) {
             assertAll(
                 "Expected fingerprints to match.",
-                { assertNotNull(fingerprint.originalClassDefOrNull) },
+                { assertNotNull(fingerprint1.originalClassDefOrNull) },
                 { assertNotNull(fingerprint2.originalClassDefOrNull) },
                 { assertNotNull(fingerprint3.originalClassDefOrNull) },
             )
@@ -457,35 +457,104 @@ internal object PatcherTest {
     }
 
     @Test
-    fun `StringComparisonType bad input`() {
+    fun `parameter type declaration comparison`() {
         with(patcher.context.bytecodeContext) {
-            StringComparisonType.entries.forEach { type ->
-                type.validateSearchStringForClassType(
-                    "Lcom/whatever/GoodClassType;"
+
+            arrayOf(
+                "B", "C", "D", "F", "I", "J", "S", "V", "Z"
+            ).forEach { type ->
+                assertEquals(
+                    StringComparisonType.typeDeclarationToComparison(type),
+                    StringComparisonType.EQUALS
                 )
             }
 
-            assertThrows<IllegalArgumentException>("Defining class leading L") {
-                StringComparisonType.STARTS_WITH.validateSearchStringForClassType(
-                    "com/whatever/BadClassType;"
-                )
-            }
+            assertEquals(
+                StringComparisonType.typeDeclarationToComparison("L"),
+                StringComparisonType.STARTS_WITH
+            )
 
-            assertThrows<IllegalArgumentException>("Defining class missing semicolon") {
-                StringComparisonType.ENDS_WITH.validateSearchStringForClassType(
-                    "Lcom/whatever/BadClassType"
-                )
-            }
+            assertEquals(
+                StringComparisonType.typeDeclarationToComparison("/String;"),
+                StringComparisonType.ENDS_WITH
+            )
 
-            assertThrows<IllegalArgumentException>("Defining class missing semicolon") {
-                StringComparisonType.EQUALS.validateSearchStringForClassType(
-                    "Lcom/whatever/BadClassType"
-                )
+            assertEquals(
+                // 'S' is a type, but ; ends with has precedences.
+                StringComparisonType.typeDeclarationToComparison("String;"),
+                StringComparisonType.ENDS_WITH
+            )
 
-                StringComparisonType.EQUALS.validateSearchStringForClassType(
-                    "Lcom/whatever/BadClassType;"
+            assertEquals(
+                // 'S' is a type, but ; ends with has precedences.
+                StringComparisonType.typeDeclarationToComparison("Ljava/lang/String;"),
+                StringComparisonType.EQUALS
+            )
+
+            assertEquals(
+                StringComparisonType.typeDeclarationToComparison("/String"),
+                StringComparisonType.CONTAINS
+            )
+
+            assertEquals(
+                StringComparisonType.typeDeclarationToComparison("[Ljava/lang"),
+                StringComparisonType.STARTS_WITH
+            )
+
+            assertEquals(
+                StringComparisonType.typeDeclarationToComparison("[I"),
+                StringComparisonType.STARTS_WITH
+            )
+        }
+    }
+
+    @Test
+    fun `parameter type comparison`() {
+        with(patcher.context.bytecodeContext) {
+
+            val parametersActual = listOf(
+                "Ljava/lang/String;",
+                "Ljava/lang/String;",
+                "Ljava/lang/String;",
+                "[Ljava/lang/String;",
+                "[Landroid/view/ViewGroup;",
+                "Landroid/view/ViewGroup;",
+                "Z",
+                "C",
+            )
+            var parametersFiler = listOf(
+                "L",
+                "/String;",
+                "/String",
+                "[Ljava",
+                "[Landroid/view/ViewGroup;",
+                "Landroid/view/ViewGroup;",
+                "Z",
+                "C",
+            )
+
+            assertTrue(
+                parametersMatch(
+                    parametersActual, parametersFiler
                 )
-            }
+            )
+
+            parametersFiler = listOf(
+                "Ljava/lang/String;",
+                "Ljava/lang/String;",
+                "Ljava/lang/String;",
+                "[Ljava/lang/String;",
+                "[Landroid/view/ViewGroup;",
+                "Landroid/view/ViewGroup;",
+                "Z",
+                "I",
+            )
+
+            assertFalse(
+                parametersMatch(
+                    parametersActual, parametersFiler
+                )
+            )
         }
     }
 
