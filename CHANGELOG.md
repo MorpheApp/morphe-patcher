@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.1.0...v1.1.1) (2026-02-04)
+
+
+### Bug Fixes
+
+* Resolve 'this' class type can match using 'contains' semantics ([#43](https://github.com/MorpheApp/morphe-patcher/issues/43)) ([8aff750](https://github.com/MorpheApp/morphe-patcher/commit/8aff7503fbee7752c48064fca5bd55030177143e))
+
 ## [1.1.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.1.0...v1.1.1-dev.1) (2026-02-04)
 
 
