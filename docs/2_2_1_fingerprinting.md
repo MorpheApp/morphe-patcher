@@ -14,13 +14,14 @@ and the fingerprint matches a method only if _all_ the declared information matc
 // Declaring fingerprints as classes is not required, but if a fingerprint fails
 // to match then the exception stack trace will include the fingerprint name. 
 object AdLoaderFingerprint : Fingerprint(
+    // Defining class is matched using StringComparisonType semantics (see class for details).
     definingClass = "Lcom/some/app/ads/AdsLoader;",
     // Exact access flags
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
-    // Return type is matched using String.startsWith()
+    // Return type is matched using StringComparisonType semantics.
     returnType = "Z",
-    // Declared parameters are matched using String.startsWith()
-    // Non obfuscated classes should be declared using the full class name.
+    // Declared parameters are matched using StringComparisonType semantics.
+    // Non obfuscated classes are best declared using the full class name.
     // While obfuscated class names must be declared only using the object type
     // Since obfuscated names change between releases.
     // Last parameter is simply `L` since it's an obfuscated class object.
@@ -170,7 +171,7 @@ class AdsLoader {
 
   #### String declarations
   
-  There are two ways to declare strings in fingerprints. The first and preferred is using a
+  There are two ways to declare strings in fingerprints. The first and preferred way is using a
   string filter declaration such as `filters = listOf(string("foo"), string("bar"), /* other filters if desired */ )`
   where the order of the strings declared in the fingerprint must be the same as the order the strings appearing in
   the target method (the example above "foo" must appear _before_ "bar").
@@ -186,9 +187,10 @@ class AdsLoader {
 
   If a method cannot be uniquely identified using the built in filters, but a fixed pattern of
   opcodes can identify the method, then the opcode pattern can be defined using the fingerprint
-  `opcodes()` declaration.  Opcode patterns do not allow variable spacing between each opcode, and
-  all opcodes all must appear exactly as declared. Opcode patterns should be avoided whenever
-  possible due to their fragility and possibility of matching completely unrelated code.
+  `filters = OpcodesFilter.opcodesToFilters(Opcode...)` declaration.  Opcode patterns do not allow 
+  variable spacing between each opcode, and all opcodes all must appear exactly as declared. Opcode 
+  patterns should be avoided whenever possible due to their fragility and possibility of matching
+  completely unrelated code.
 
 > [!TIP]
 > A fingerprint should contain information about a method that is unlikely to change between updates.
