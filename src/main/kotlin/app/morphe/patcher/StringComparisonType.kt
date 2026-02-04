@@ -41,22 +41,32 @@ enum class StringComparisonType {
                 "type cannot be empty"
             }
 
-            // Handle class types first.
             val firstChar = type[0]
-            val startsWith = firstChar == 'L'
-            val endsWith = type.endsWith(';')
+
+            // First handle single character declarations.
+            if (type.length == 1) {
+                when (firstChar) {
+                    'B', 'C', 'D', 'F', 'I', 'J', 'S', 'V', 'Z' -> return EQUALS
+                    'L' -> return STARTS_WITH
+                    '[' -> return STARTS_WITH
+                }
+            }
+
+            val endsWithSemicolon = type.endsWith(';')
+
+            if (firstChar == '[') {
+                return if (endsWithSemicolon) ENDS_WITH else STARTS_WITH
+            }
+
+            val startsWithL = (firstChar == 'L')
 
             when {
-                startsWith && endsWith -> return EQUALS
-                startsWith -> return STARTS_WITH
-                endsWith -> return ENDS_WITH
+                startsWithL && endsWithSemicolon -> return EQUALS
+                startsWithL -> return STARTS_WITH
+                endsWithSemicolon -> return ENDS_WITH
             }
 
-            return when (firstChar) {
-                '[' -> STARTS_WITH
-                'B', 'C', 'D', 'F', 'I', 'J', 'S', 'V', 'Z' -> EQUALS
-                else -> CONTAINS
-            }
+            return CONTAINS
         }
     }
 }
