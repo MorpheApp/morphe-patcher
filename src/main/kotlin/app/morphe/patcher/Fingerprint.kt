@@ -667,12 +667,10 @@ class Match internal constructor(
 }
 
 /**
- * Matches two lists of parameters, where the first parameter list
- * starts with the values of the second list.
+ * Matches two lists of parameters.
  *
- * @param targetMethodParameters Method parameters to match against.
- * @param fingerprintParameters Parameters to check. Partial values are valid and use
- *                              [StringComparisonType.STARTS_WITH].
+ * @param targetMethodParameters Method parameters to search in.
+ * @param fingerprintParameters Parameters to check. Uses [StringComparisonType] type semantics.
  */
 @Deprecated("Method was renamed to parametersMatch")
 fun parametersStartsWith(
@@ -681,12 +679,10 @@ fun parametersStartsWith(
 ) = parametersMatch(targetMethodParameters, fingerprintParameters)
 
 /**
- * Matches two lists of parameters, where the first parameter list
- * starts with the values of the second list.
+ * Matches two lists of parameters.
  *
- * @param targetMethodParameters Method parameters to match against.
- * @param fingerprintParameters Parameters to check. Partial values are valid and use
- *                              [StringComparisonType.STARTS_WITH].
+ * @param targetMethodParameters Method parameters to search in.
+ * @param fingerprintParameters Parameters to check. Uses [StringComparisonType] type semantics.
  */
 fun parametersMatch(
     targetMethodParameters: Iterable<CharSequence>,
@@ -696,9 +692,9 @@ fun parametersMatch(
     val fingerprintIterator = fingerprintParameters.iterator()
 
     targetMethodParameters.forEach { targetParameter ->
-        val parameter = fingerprintIterator.next()
-        if (!StringComparisonType.typeDeclarationToComparison(parameter)
-                .compare(targetParameter, parameter)) return false
+        val fingerprintParameter = fingerprintIterator.next()
+        if (!StringComparisonType.typeDeclarationToComparison(fingerprintParameter)
+                .compare(targetParameter, fingerprintParameter)) return false
     }
 
     return true
