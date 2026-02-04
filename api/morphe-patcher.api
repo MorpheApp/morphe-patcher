@@ -67,7 +67,6 @@ public final class app/morphe/patcher/FingerprintBuilder {
 
 public final class app/morphe/patcher/FingerprintKt {
 	public static final fun fingerprint (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/Fingerprint;
-	public static final fun parametersMatch (Ljava/lang/Iterable;Ljava/lang/Iterable;)Z
 	public static final fun parametersStartsWith (Ljava/lang/Iterable;Ljava/lang/Iterable;)Z
 }
 
@@ -315,6 +314,10 @@ public final class app/morphe/patcher/StringComparisonType : java/lang/Enum {
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/StringComparisonType;
 	public static fun values ()[Lapp/morphe/patcher/StringComparisonType;
+}
+
+public final class app/morphe/patcher/StringComparisonTypeKt {
+	public static final fun parametersMatch (Ljava/lang/Iterable;Ljava/lang/Iterable;)Z
 }
 
 public final class app/morphe/patcher/StringFilter : app/morphe/patcher/OpcodesFilter {

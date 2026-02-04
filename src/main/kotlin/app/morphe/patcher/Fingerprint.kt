@@ -672,33 +672,14 @@ class Match internal constructor(
  * @param targetMethodParameters Method parameters to search in.
  * @param fingerprintParameters Parameters to check. Uses [StringComparisonType] type semantics.
  */
-@Deprecated("Method was renamed to parametersMatch")
-fun parametersStartsWith(
+@Deprecated(
+    "Method was renamed and moved to StringComparisonType",
+    replaceWith = ReplaceWith("parametersMatch(targetMethodParameters, fingerprintParameters)")
+)
+fun parametersStartsWith(  // TODO: Delete on next major version release.
     targetMethodParameters: Iterable<CharSequence>,
     fingerprintParameters: Iterable<CharSequence>,
 ) = parametersMatch(targetMethodParameters, fingerprintParameters)
-
-/**
- * Matches two lists of parameters.
- *
- * @param targetMethodParameters Method parameters to search in.
- * @param fingerprintParameters Parameters to check. Uses [StringComparisonType] type semantics.
- */
-fun parametersMatch(
-    targetMethodParameters: Iterable<CharSequence>,
-    fingerprintParameters: Iterable<CharSequence>,
-): Boolean {
-    if (fingerprintParameters.count() != targetMethodParameters.count()) return false
-    val fingerprintIterator = fingerprintParameters.iterator()
-
-    targetMethodParameters.forEach { targetParameter ->
-        val fingerprintParameter = fingerprintIterator.next()
-        if (!StringComparisonType.typeDeclarationToComparison(fingerprintParameter)
-                .compare(targetParameter, fingerprintParameter)) return false
-    }
-
-    return true
-}
 
 /**
  * A builder for [Fingerprint].
