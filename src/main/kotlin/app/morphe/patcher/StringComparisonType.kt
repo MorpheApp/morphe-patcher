@@ -36,7 +36,7 @@ enum class StringComparisonType {
         compare(targetString as CharSequence, searchString as CharSequence)
 
     internal companion object {
-        fun typeDeclarationToComparison(type: Iterable<CharSequence>?): List<StringComparisonType> {
+        internal fun typeDeclarationToComparison(type: Iterable<CharSequence>?): List<StringComparisonType> {
             return type?.map(::typeDeclarationToComparison).orEmpty()
         }
 
@@ -97,7 +97,6 @@ fun parametersMatch(
 
     return true
 }
-
 
 internal fun parametersMatch(
     targetMethodParameters: Iterable<CharSequence>,
