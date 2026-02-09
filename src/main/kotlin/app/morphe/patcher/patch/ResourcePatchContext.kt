@@ -22,11 +22,10 @@ import java.util.logging.Logger
 /**
  * A context for patches containing the current state of resources.
  *
- * @param packageMetadata The [PackageMetadata] of the apk file.
- * @param config The [PatcherConfig] used to create this context.
+ * @param packageMetadata The [PackageMetadata] of the target apk.
  */
 class ResourcePatchContext internal constructor(
-    private val packageMetadata: PackageMetadata,
+    val packageMetadata: PackageMetadata,
     private val config: PatcherConfig,
 ) : PatchContext<PatcherResult.PatchedResources?> {
     private val logger = Logger.getLogger(ResourcePatchContext::class.java.name)

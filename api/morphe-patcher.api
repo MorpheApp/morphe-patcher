@@ -645,6 +645,7 @@ public final class app/morphe/patcher/patch/ResourcePatchContext : app/morphe/pa
 	public synthetic fun get ()Ljava/lang/Object;
 	public final fun get (Ljava/lang/String;Z)Ljava/io/File;
 	public static synthetic fun get$default (Lapp/morphe/patcher/patch/ResourcePatchContext;Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
+	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
 }
 
 public final class app/morphe/patcher/util/Document : java/io/Closeable, org/w3c/dom/Document {
