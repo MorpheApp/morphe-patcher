@@ -265,7 +265,8 @@ public final class app/morphe/patcher/OpcodesFilter$Companion {
 
 public final class app/morphe/patcher/PackageMetadata {
 	public final fun getPackageName ()Ljava/lang/String;
-	public final fun getPackageVersion ()Ljava/lang/String;
+	public final fun getVersionCode ()Ljava/lang/String;
+	public final fun getVersionName ()Ljava/lang/String;
 }
 
 public final class app/morphe/patcher/Patcher : java/io/Closeable {
