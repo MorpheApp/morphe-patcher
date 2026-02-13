@@ -25,7 +25,7 @@ class PatcherConfig(
     private val temporaryFilesPath: File = File("morphe-temporary-files"),
     // TODO: Remove these.
     aaptBinaryPath: String? = null,
-    frameworkFileDirectory: String? = null,
+    internal val frameworkFileDirectory: String? = null,
 ) {
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
 
@@ -45,6 +45,9 @@ class PatcherConfig(
      * The path to the temporary patched files directory.
      */
     internal val patchedFiles = temporaryFilesPath.resolve("patched")
+
+    // TODO: Handle multiple packages.
+    internal val resourceFiles = apkFiles.resolve("resources").resolve("package_1")
 
     /**
      * Initialize the temporary files' directories.

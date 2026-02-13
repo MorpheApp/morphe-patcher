@@ -15,8 +15,10 @@ import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.util.Document
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
+import org.w3c.dom.Element
+import java.io.File
+import java.io.FileNotFoundException
 import java.io.InputStream
-import java.nio.file.Files
 import java.util.logging.Logger
 
 
@@ -56,14 +58,14 @@ class ResourcePatchContext internal constructor(
             config.initializeTemporaryFilesDirectories()
 
             val xmlDecoder = ApkModuleXmlDecoder(this)
+            xmlDecoder.setKeepResPath(false)
             if (mode == ResourceMode.FULL) {
                 logger.info("Decoding resources")
 
-                xmlDecoder.decodeResourceTable(config.apkFiles)
-                xmlDecoder.decodeAndroidManifest(config.apkFiles)
+                xmlDecoder.decode(config.apkFiles)
 
-                // Needed to record uncompressed files.
-                xmlDecoder.decodeUncompressedFiles(config.apkFiles)
+                // Delete all the dex files so they don't get built into the final resources.apk.
+                config.apkFiles.resolve("dex").deleteRecursively()
             } else {
                 logger.info("Decoding app manifest")
 
@@ -93,9 +95,160 @@ class ResourcePatchContext internal constructor(
         val resourcesApkFile =
             if (config.resourceMode == ResourceMode.FULL) {
                 resources.resolve("resources.apk").apply {
+                    // FIXME: Update package.json and public.xml here with new package name.
+                    // Unsure how to handle multiple resource bundles for apps like reddit, need to research.
+
+                    document("res/values/public.xml").use { publicDoc ->
+                        val publicNode = publicDoc.getElementsByTagName("resources").item(0)
+                        val resourceIds = mutableMapOf<String, Int>()
+
+                        val definedIds = mutableSetOf<String>()
+                        val resDirectories = get("res").listFiles { file -> file.isDirectory }
+
+                        publicDoc.getElementsByTagName("public").apply {
+                            for (i in 0 until this.length) {
+                                val element = this.item(i) as Element
+                                val idString = element.getAttribute("id")
+                                val typeString = element.getAttribute("type")
+                                val nameString = element.getAttribute("name")
+                                val id = idString.substring(2).toInt(16)
+                                if (id > resourceIds.getOrElse(typeString, { 0 })) {
+                                    resourceIds[typeString] = id
+                                }
+                                // Update the reference string to remove the + after we create the ID.
+                                definedIds.add("@$typeString/$nameString")
+                            }
+                        }
+
+                        // Find all new ID declarations in layout/menu files so we can create a corresponding entry in ids.xml
+                        // They will get added to public.xml later
+                        document("res/values/ids.xml").use { idDoc ->
+                            val idNode = idDoc.getElementsByTagName("resources").item(0)
+
+                            resDirectories.filter { it.name.startsWith("layout") || it.name.startsWith("menu") }.forEach { dir ->
+                                dir.listFiles { file -> file.isFile }.forEach { file ->
+                                    document("res/${dir.name}/${file.name}").use { doc ->
+                                        val deque = ArrayDeque<Element>()
+                                        for (i in 0 until doc.childNodes.length) {
+                                            deque.add(doc.childNodes.item(i) as Element)
+                                        }
+                                        while (deque.isNotEmpty()) {
+                                            val element = deque.removeFirst()
+                                            for (i in 0 until element.childNodes.length) {
+                                                val childElem = element.childNodes.item(i) as? Element
+                                                if (childElem != null) {
+                                                    deque.add(childElem)
+                                                }
+                                            }
+                                            val idString = element.getAttribute("android:id")
+                                            if (idString.startsWith("@+id/")) {
+                                                println("Adding $idString to ids.xml")
+                                                val idName = idString.substring(5)
+                                                val item = idDoc.createElement("id")
+                                                item.setAttribute("name", idName)
+                                                idNode.appendChild(item)
+                                                element.setAttribute("android:id", "@id/$idName")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        val resourceTypes = mapOf(
+                            "attrs" to Pair("attr", "attr"),
+                            "bools" to Pair("bool", "bool"),
+                            "colors" to Pair("color", "color"),
+                            "dimens" to Pair("dimen", "dimen"),
+                            "drawables" to Pair("drawable", "drawable"),
+                            "fonts" to Pair("font", "font"),
+                            "fractions" to Pair("fraction", "fraction"),
+                            "ids" to Pair("id", "id"),
+                            "integers" to Pair("integer", "integer"),
+                            "layouts" to Pair("layout", "layout"),
+                            "plurals" to Pair("plurals", "plurals"),
+                            "strings" to Pair("string", "string"),
+                            "styles" to Pair("style", "style"),
+                            "arrays" to Pair("string-array", "array")
+                        )
+
+                        val valuesDirectories = resDirectories.filter { it.name.startsWith("values") }
+
+                        resourceTypes.forEach { resourceType, tagInfo ->
+                            val xmlTagName = tagInfo.first
+                            val publicTagName = tagInfo.second
+
+                            valuesDirectories.forEach { dir ->
+                                try {
+                                    document("res/${dir.name}/$resourceType.xml").use { doc ->
+                                        val elements = doc.getElementsByTagName(xmlTagName)
+                                        for (i in 0 until elements.length) {
+                                            val element = elements.item(i) as Element
+                                            val resourceName = element.getAttribute("name")
+                                            if (definedIds.contains("@$publicTagName/$resourceName")) {
+                                                continue
+                                            }
+
+                                            println("Adding @$publicTagName/$resourceName to public.xml")
+                                            val resourceId = resourceIds[publicTagName]!! + 1
+                                            resourceIds[publicTagName] = resourceId
+                                            val item = publicDoc.createElement("public")
+                                            item.setAttribute("id", "0x${resourceId.toString(16)}")
+                                            item.setAttribute("type", publicTagName)
+                                            item.setAttribute("name", resourceName)
+                                            publicNode.appendChild(item)
+                                            definedIds.add("@$publicTagName/$resourceName")
+                                        }
+                                    }
+                                } catch (_: FileNotFoundException) {
+                                    // don't need to process
+                                }
+                            }
+                        }
+
+                        val fileResourceTypes = listOf(
+                            "anim",
+                            "color",
+                            "drawable",
+                            "font",
+                            "interpolator",
+                            "layout",
+                            "menu",
+                            "mipmap",
+                            "raw",
+                            "transition",
+                            "xml"
+                        )
+
+                        fileResourceTypes.forEach { type ->
+                            val directories = resDirectories.filter { it.name.startsWith(type) }
+                            directories.forEach { dir ->
+                                dir.listFiles { file -> file.isFile }
+                                    .map{ file -> file.name.split(".").first() }
+                                    .filter { !definedIds.contains("@$type/$it")}
+                                    .forEach { name ->
+                                        println("Adding @$type/$name to public.xml")
+                                        val resourceId = resourceIds[type]!! + 1
+                                        resourceIds[type] = resourceId
+                                        val item = publicDoc.createElement("public")
+                                        item.setAttribute("id", "0x${resourceId.toString(16)}")
+                                        item.setAttribute("type", type)
+                                        item.setAttribute("name", name)
+                                        publicNode.appendChild(item)
+                                        definedIds.add("@$type/$name")
+                                }
+                            }
+                        }
+                    }
+
                     val encoder = ApkModuleXmlEncoder()
-                    encoder.buildResources(config.apkFiles)
+
                     val loadedModule = encoder.apkModule
+                    loadedModule.setPreferredFramework(packageMetadata.apkInfo.androidFrameworkVersion)
+                    packageMetadata.apkInfo.loadedFrameworks.forEach {
+                        loadedModule.addExternalFramework(it)
+                    }
+                    encoder.scanDirectory(config.apkFiles)
                     loadedModule.writeApk(resources.resolve("resources.apk"))
                     loadedModule.close()
                 }
@@ -103,6 +256,7 @@ class ResourcePatchContext internal constructor(
                 null
             }
 
+        /*
         val otherFiles =
             // TODO: Is this needed still?
             config.apkFiles.listFiles()!!.filter {
@@ -133,10 +287,12 @@ class ResourcePatchContext internal constructor(
                 null
             }
 
-        // FIXME: Handle uncompressed files here.
+        */
+
+        // FIXME: All of this stuff is handled by arsclib using metadata files. Clean this up.
         return PatcherResult.PatchedResources(
             resourcesApkFile,
-            otherResourceFiles,
+            null,
             emptySet(), //packageMetadata.apkInfo.uncompressedFiles,
             deleteResources,
         )
@@ -151,12 +307,23 @@ class ResourcePatchContext internal constructor(
     operator fun get(
         path: String,
         copy: Boolean = true,
-    ) = config.apkFiles.resolve(path).apply {
-        // TODO: Remove this.
-        logger.info("Accessing $absolutePath")
-        if (copy && !exists()) {
-            // TODO: Handle this properly.
-            throw RuntimeException("File $path does not exist in temporary apk files directory ${config.apkFiles.path}.")
+    ): File {
+        if (path == "AndroidManifest.xml") {
+            return config.apkFiles.resolve(path);
+        }
+
+        return config.resourceFiles.resolve(path).apply {
+            // TODO: Remove this.
+            if (copy && !exists()) {
+                /*
+                with(ExtFile(config.apkFile).directory) {
+-                if (containsFile(path) || containsDir(path)) {
+-                    copyToDir(config.apkFiles, path)
+-                }
+                 */
+                // TODO: Handle this properly.
+                // throw RuntimeException("File $path does not exist in temporary apk files directory ${config.resourceFiles.path}.")
+            }
         }
     }
 
