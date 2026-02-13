@@ -10,8 +10,13 @@ package app.morphe.patcher
 
 /**
  * Metadata about a package.
+ *
+ * @param packageName The name of the package.
+ * @param versionCode The version code of the package.
+ * @param versionName The version name of the package.
  */
 class PackageMetadata internal constructor(
     val packageName: String,
-    val packageVersion: String,
+    val versionName: String,
+    val versionCode: String,
 )
