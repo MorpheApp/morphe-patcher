@@ -645,15 +645,10 @@ public final class app/morphe/patcher/patch/ResourcePatchContext : app/morphe/pa
 	public final fun document (Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/util/Document;
 	public fun get ()Lapp/morphe/patcher/PatcherResult$PatchedResources;
 	public synthetic fun get ()Ljava/lang/Object;
+	public final fun get (Ljava/lang/String;Ljava/lang/Boolean;)Ljava/io/File;
 	public final fun get (Ljava/lang/String;Ljava/lang/String;)Ljava/io/File;
-	public final fun get (Ljava/lang/String;Z)Ljava/io/File;
-	public static synthetic fun get$default (Lapp/morphe/patcher/patch/ResourcePatchContext;Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
+	public static synthetic fun get$default (Lapp/morphe/patcher/patch/ResourcePatchContext;Ljava/lang/String;Ljava/lang/Boolean;ILjava/lang/Object;)Ljava/io/File;
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
-}
-
-public final class app/morphe/patcher/resource/AaptMacroProcessor {
-	public fun <init> (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/util/Set;)V
-	public final fun process ()Ljava/util/Set;
 }
 
 public final class app/morphe/patcher/resource/NodeUtilsKt {
@@ -681,7 +676,7 @@ public final class app/morphe/patcher/resource/PublicXmlManager : java/io/Closea
 }
 
 public final class app/morphe/patcher/resource/ResourceIdProcessor {
-	public fun <init> (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lapp/morphe/patcher/resource/PublicXmlManager;)V
+	public fun <init> (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lapp/morphe/patcher/resource/PublicXmlManager;Ljava/util/Set;Ljava/util/Set;)V
 	public final fun process ()V
 }
 
