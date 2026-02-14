@@ -80,7 +80,7 @@ class ResourcePatchContext internal constructor(
                 config.apkFiles.resolve("dex").deleteRecursively()
 
                 // Update ARSCLib package metadata so the resources will be accessible under the correct package name.
-                config.apkFiles.resolve("resources").listFiles { it.isDirectory }.forEach { dir ->
+                config.apkFiles.resolve("resources").listFiles { it.isDirectory }?.forEach { dir ->
                     val packageJson = JSONObject(dir.resolve("package.json"))
                     val packageName = packageJson.getString("package_name")
                     packageDirectories[packageName] = dir
@@ -191,7 +191,7 @@ class ResourcePatchContext internal constructor(
         packageName: String
     ): File {
         if (path == "AndroidManifest.xml") {
-            return config.apkFiles.resolve(path);
+            return config.apkFiles.resolve(path)
         } else {
             val retval = packageDirectories[packageName]!!.resolve(path)
             if (path != "res/values/public.xml" && path != "res/values/ids.xml") {

@@ -30,6 +30,7 @@ class ResourceIdProcessor(
         // TODO: Only handle this for newly added files (this is a breaking change).
         document("res/values/ids.xml").use { idDoc ->
             val idNode = idDoc.getElementsByTagName("resources").item(0)
+                ?: throw IllegalStateException("ids.xml is missing the <resources> root element.")
 
             (modifiedResources + addedResources)
                 .filter { it.exists() && it.extension == "xml" }

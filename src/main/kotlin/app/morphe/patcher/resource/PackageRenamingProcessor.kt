@@ -42,8 +42,8 @@ class PackageRenamingProcessor(
 
         // We should only need to fix references to the original package in other package resource bundles.
         packageDirectories.filter { it.key != originalPackageName }.forEach { (resPackageName, rootDir) ->
-            rootDir.resolve("res").listFiles { it.isDirectory }.forEach { dir ->
-                dir.listFiles { it.extension == "xml" }.forEach { file ->
+            rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
+                dir.listFiles { it.extension == "xml" }?.forEach { file ->
                     document("res/${dir.name}/${file.name}", resPackageName).use { doc ->
                         doc.inOrderTraverse { element ->
                             for (i in 0 until element.attributes.length) {
@@ -52,11 +52,11 @@ class PackageRenamingProcessor(
                                 if (attrMatch != null) {
                                     attr.value = attr.value.replace(originalPackageName, newPackageName)
                                 }
+                            }
 
-                                val textContentMatch = regex.matchEntire(element.textContent)
-                                if (textContentMatch != null) {
-                                    element.textContent = element.textContent.replace(originalPackageName, newPackageName)
-                                }
+                            val textContentMatch = regex.matchEntire(element.textContent)
+                            if (textContentMatch != null) {
+                                element.textContent = element.textContent.replace(originalPackageName, newPackageName)
                             }
                         }
                     }

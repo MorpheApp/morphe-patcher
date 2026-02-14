@@ -16,7 +16,7 @@ import javax.xml.transform.TransformerFactory
 import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 
-class AaptMacroProcessor(
+internal class AaptMacroProcessor(
     internal val get: (path: String) -> File,
     internal val modifiedResources: Set<File>,
     internal val addedResources: MutableSet<File>,
@@ -53,7 +53,7 @@ class AaptMacroProcessor(
             .map { get("res/$it") }
             .filter { it.exists() && it.isDirectory }
             .forEach { dir ->
-                dir.listFiles { file -> file.isFile && file.extension == "xml" && !file.startsWith("$") }
+                dir.listFiles { file -> file.isFile && file.extension == "xml" && !file.name.startsWith("$") }
                     .filter { !newlyCreatedFiles.contains(it) && !modifiedResources.contains(it) && !addedResources.contains(it) }
                     .forEach { file ->
                          val res = processDocument(file)
@@ -92,7 +92,10 @@ class AaptMacroProcessor(
                         val resourceType = aaptNameToResourceType[parentAttribute] ?: throw PatchException("Unhandled XML attribute: $parentAttribute")
                         parentElement.setAttribute(parentAttribute, "@$resourceType/$shadowedName")
 
-                        val sourceElement = element.childNodes.first { it is Element } as Element
+                        val sourceElement = element.childNodes
+                            .mapNotNull { it as? Element }
+                            .firstOrNull()
+                            ?: throw PatchException("aapt:attr element has no child element in ${file.name}")
                         sourceElement.setAttribute(
                             "xmlns:android",
                             "http://schemas.android.com/apk/res/android"
@@ -120,9 +123,10 @@ class AaptMacroProcessor(
 
     private fun writeDocumentToFile(doc: org.w3c.dom.Document, file: File) {
         val source = DOMSource(doc)
-        val writer = FileWriter(file)
-        val result = StreamResult(writer)
-        transformer.transform(source, result)
+        FileWriter(file).use { writer ->
+            val result = StreamResult(writer)
+            transformer.transform(source, result)
+        }
         addedResources.add(file)
     }
 }

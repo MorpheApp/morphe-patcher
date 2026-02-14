@@ -14,7 +14,9 @@ class PublicXmlManager(
     internal val publicDoc: Document
 ) : Closeable {
     private val logger = Logger.getLogger(PublicXmlManager::class.java.name)
-    private val publicNode = publicDoc.getElementsByTagName("resources").item(0) as Element
+    private val publicNode: Element = publicDoc.getElementsByTagName("resources").item(0)?.let { node ->
+        node as? Element ?: throw IllegalStateException("Root <resources> element in public.xml is not an Element.")
+    } ?: throw IllegalStateException("Missing <resources> root element in public.xml.")
 
     private val resourceIds = mutableMapOf<String, Int>()
     private val definedIds = readExistingIds()
@@ -26,7 +28,18 @@ class PublicXmlManager(
             val idString = element.getAttribute("id")
             val typeString = element.getAttribute("type")
             val nameString = element.getAttribute("name")
-            val id = idString.substring(2).toInt(16)
+
+            if (!idString.startsWith("0x") || idString.length <= 2) {
+                logger.warning("Skipping <public> element with malformed id attribute: '$idString' (expected format like '0x1234').")
+                return@forEachElement
+            }
+
+            val id = try {
+                idString.substring(2).toInt(16)
+            } catch (e: NumberFormatException) {
+                logger.warning("Skipping <public> element with non-hex id attribute: '$idString'.")
+                return@forEachElement
+            }
             if (id > resourceIds.getOrElse(typeString, { 0 })) {
                 resourceIds[typeString] = id
             }
@@ -48,7 +61,7 @@ class PublicXmlManager(
 
         logger.fine("Adding @$type/$name to public.xml")
 
-        val resourceId = resourceIds[type]!! + 1
+        val resourceId = resourceIds.getOrElse(type) { 0 } + 1
         resourceIds[type] = resourceId
         val item = publicDoc.createElement("public")
         item.setAttribute("id", "0x${resourceId.toString(16)}")
