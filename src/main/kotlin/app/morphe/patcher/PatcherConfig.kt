@@ -46,9 +46,6 @@ class PatcherConfig(
      */
     internal val patchedFiles = temporaryFilesPath.resolve("patched")
 
-    // TODO: Handle multiple packages.
-    internal val resourceFiles = apkFiles.resolve("resources").resolve("package_1")
-
     /**
      * Initialize the temporary files' directories.
      * This will delete the existing temporary files directory if it exists.

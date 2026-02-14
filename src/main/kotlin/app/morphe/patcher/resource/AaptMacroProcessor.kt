@@ -1,0 +1,102 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ */
+
+package app.morphe.patcher.resource
+
+import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.util.Document
+import org.w3c.dom.Element
+import java.io.File
+import java.io.FileWriter
+import javax.xml.parsers.DocumentBuilderFactory
+import javax.xml.transform.TransformerFactory
+import javax.xml.transform.dom.DOMSource
+import javax.xml.transform.stream.StreamResult
+
+class AaptMacroProcessor(
+    internal val get: (path: String) -> File,
+    internal val document: (path: String) -> Document,
+    internal val addedResources: Set<String>
+) {
+    // TODO: Make a better way of determining this
+    private val aaptNameToResourceType = mutableMapOf(
+        "android:animation" to "drawable",
+        "android:drawable" to "drawable",
+        "android:fillColor" to "drawable"
+    )
+
+    private val dbFactory = DocumentBuilderFactory.newInstance()
+    private val docBuilder = dbFactory.newDocumentBuilder()
+    private val transformerFactory = TransformerFactory.newInstance()
+    private val transformer = transformerFactory.newTransformer()
+
+    fun process(): Set<File> {
+        val newlyCreatedFiles = mutableSetOf<File>()
+
+        // TODO: Only handle newly added resource files here. (This is a breaking change.)
+        // Additionally, handle the process of creating new IDs here so we don't have to read the same files again.
+        // (This will require refactoring of the code that handles public.xml id generation.)
+        fileResourceTypes
+            .map { get("res/$it") }
+            .filter { it.exists() && it.isDirectory }
+            .forEach { dir ->
+                dir.listFiles { file -> file.isFile && file.extension == "xml" && !file.startsWith("$") }
+                    .forEach { file ->
+                        document("res/${dir.name}/${file.name}").use { doc ->
+                            var aaptCounter = 0
+                            doc.childNodes
+                                .mapNotNull { it as? Element }
+                                .filter { it.hasAttribute("xmlns:aapt") }
+                                .forEach { topLevelElem ->
+                                    topLevelElem.postOrderTraverse({ element ->
+                                        if (element.nodeName != "aapt:attr") {
+                                            return@postOrderTraverse
+                                        }
+
+                                        val shadowedName = "$${file.nameWithoutExtension}__$aaptCounter"
+                                        aaptCounter++
+
+                                        val parentElement = element.parentNode as Element
+                                        val parentAttribute = element.getAttribute("name")
+
+                                        val resourceType = aaptNameToResourceType[parentAttribute] ?: throw PatchException("Unhandled XML attribute: $parentAttribute")
+                                        parentElement.setAttribute(parentAttribute, "@$resourceType/$shadowedName")
+
+                                        val sourceElement = element.childNodes.first { it is Element } as Element
+                                        sourceElement.setAttribute(
+                                            "xmlns:android",
+                                            "http://schemas.android.com/apk/res/android"
+                                        )
+
+                                        val newElementFilename = "res/$resourceType/$shadowedName.xml"
+                                        val newElementFile = get(newElementFilename)
+                                        extractElementToNewDocument(sourceElement, newElementFile)
+                                        newlyCreatedFiles.add(newElementFile)
+                                    })
+                                }
+                        }
+                    }
+            }
+
+        return newlyCreatedFiles
+    }
+
+    private fun extractElementToNewDocument(element: Element, file: File) {
+        val copiedDocument = docBuilder.newDocument()
+        val copiedRoot = copiedDocument.importNode(element, true)
+        copiedDocument.appendChild(copiedRoot)
+
+        writeDocumentToFile(copiedDocument, file)
+
+        element.parentNode.removeChild(element)
+    }
+
+    private fun writeDocumentToFile(doc: org.w3c.dom.Document, file: File) {
+        val source = DOMSource(doc)
+        val writer = FileWriter(file)
+        val result = StreamResult(writer)
+        transformer.transform(source, result)
+    }
+}
