@@ -54,7 +54,7 @@ class ResourceIdProcessor(
 
             if (nonTrackedFiles.isNotEmpty()) {
                 val fileNames = nonTrackedFiles.map { it.name }
-                logger.warning("Found ${nonTrackedFiles.size} modified files that were not tracked: $fileNames")
+                logger.fine("Found ${nonTrackedFiles.size} modified files that were not tracked: $fileNames")
             }
         }
 

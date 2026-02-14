@@ -148,6 +148,7 @@ class ResourcePatchContext internal constructor(
                         ).process()
                     }
 
+                    logger.info("Writing resource APK")
                     val encoder = ApkModuleXmlEncoder()
 
                     val loadedModule = encoder.apkModule
