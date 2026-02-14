@@ -37,7 +37,7 @@ class AaptMacroProcessor(
 
     fun process(): Set<File> {
         val newlyCreatedFiles = mutableSetOf<File>()
-        logger.info("Compiling modified resources")
+        logger.info("Processing aapt macros")
 
         // TODO: Only handle newly added resource files here. (This is a breaking change.)
         // Additionally, handle the process of creating new IDs here so we don't have to read the same files again.
