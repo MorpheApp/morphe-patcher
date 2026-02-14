@@ -75,7 +75,10 @@ fun Element.postOrderTraverse(op: (Element) -> Unit) {
 fun Document.inOrderTraverse(op: (Element) -> Unit) {
     val deque = ArrayDeque<Element>()
     for (i in 0 until childNodes.length) {
-        deque.add(childNodes.item(i) as Element)
+        val childElem = childNodes.item(i) as? Element
+        if (childElem != null) {
+            deque.add(childElem)
+        }
     }
     while (deque.isNotEmpty()) {
         val element = deque.removeFirst()
