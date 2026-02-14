@@ -73,7 +73,8 @@ class ResourceIdProcessor(
             val directories = resDirectories.filter { it.name.startsWith(type) }
             directories.forEach { dir ->
                 dir.listFiles { file -> file.isFile }
-                    .map { file -> file.name.split(".").first() }
+                    // TODO: This generates superfluous IDs for existing files like 9patch files.
+                    .map { file -> file.nameWithoutExtension }
                     .forEach { name ->
                         publicIdManager.createPublicId(type, name)
                     }

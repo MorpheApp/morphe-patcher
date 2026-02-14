@@ -120,8 +120,8 @@ class ResourcePatchContext internal constructor(
 
                         PublicXmlManager(document("res/values/public.xml")).use { publicXmlManager ->
                             PackageRenamingProcessor(
-                                { path, packageName -> get(path, packageName) },
-                                { path, packageName -> document(path, packageName) },
+                                this@ResourcePatchContext::get,
+                                this@ResourcePatchContext::document,
                                 publicXmlManager,
                                 packageDirectories,
                                 originalPackageName,
@@ -130,10 +130,10 @@ class ResourcePatchContext internal constructor(
 
                             // Post process all aapt:attr macros in XML files.
                             // TODO: We should only need to do this in new files, have a way of tracking those.
-                            AaptMacroProcessor({ get(it) }, { document(it) }, addedResources).process()
+                            AaptMacroProcessor(this@ResourcePatchContext::get, this@ResourcePatchContext::document, addedResources).process()
 
                             // Process all XMLs to ensure we have IDs generated for each one.
-                            ResourceIdProcessor({get(it)}, {document(it)}, publicXmlManager).process()
+                            ResourceIdProcessor(this@ResourcePatchContext::get, this@ResourcePatchContext::document, publicXmlManager).process()
                         }
                     }
 
