@@ -18,8 +18,8 @@ import javax.xml.transform.stream.StreamResult
 
 class AaptMacroProcessor(
     internal val get: (path: String) -> File,
-    internal val document: (path: String) -> Document,
-    internal val addedResources: Set<String>
+    internal val modifiedResources: Set<File>,
+    internal val addedResources: MutableSet<File>,
 ) {
     private val logger = Logger.getLogger(AaptMacroProcessor::class.java.name)
 
@@ -35,55 +35,76 @@ class AaptMacroProcessor(
     private val transformerFactory = TransformerFactory.newInstance()
     private val transformer = transformerFactory.newTransformer()
 
-    fun process(): Set<File> {
-        val newlyCreatedFiles = mutableSetOf<File>()
+    fun process() {
         logger.info("Processing aapt macros")
 
         // TODO: Only handle newly added resource files here. (This is a breaking change.)
         // Additionally, handle the process of creating new IDs here so we don't have to read the same files again.
         // (This will require refactoring of the code that handles public.xml id generation.)
+        val newlyCreatedFiles = mutableSetOf<File>()
+        (modifiedResources + addedResources)
+            .filter { it.exists() && it.extension == "xml" }
+            .forEach {
+            newlyCreatedFiles += processDocument(it)
+        }
+
+        val nonTrackedFiles = mutableSetOf<File>()
         fileResourceTypes
             .map { get("res/$it") }
             .filter { it.exists() && it.isDirectory }
             .forEach { dir ->
                 dir.listFiles { file -> file.isFile && file.extension == "xml" && !file.startsWith("$") }
+                    .filter { !newlyCreatedFiles.contains(it) && !modifiedResources.contains(it) && !addedResources.contains(it) }
                     .forEach { file ->
-                        document("res/${dir.name}/${file.name}").use { doc ->
-                            var aaptCounter = 0
-                            doc.childNodes
-                                .mapNotNull { it as? Element }
-                                .filter { it.hasAttribute("xmlns:aapt") }
-                                .forEach { topLevelElem ->
-                                    topLevelElem.postOrderTraverse({ element ->
-                                        if (element.nodeName != "aapt:attr") {
-                                            return@postOrderTraverse
-                                        }
-
-                                        val shadowedName = "$${file.nameWithoutExtension}__$aaptCounter"
-                                        aaptCounter++
-
-                                        val parentElement = element.parentNode as Element
-                                        val parentAttribute = element.getAttribute("name")
-
-                                        val resourceType = aaptNameToResourceType[parentAttribute] ?: throw PatchException("Unhandled XML attribute: $parentAttribute")
-                                        parentElement.setAttribute(parentAttribute, "@$resourceType/$shadowedName")
-
-                                        val sourceElement = element.childNodes.first { it is Element } as Element
-                                        sourceElement.setAttribute(
-                                            "xmlns:android",
-                                            "http://schemas.android.com/apk/res/android"
-                                        )
-
-                                        val newElementFilename = "res/$resourceType/$shadowedName.xml"
-                                        val newElementFile = get(newElementFilename)
-                                        extractElementToNewDocument(sourceElement, newElementFile)
-                                        newlyCreatedFiles.add(newElementFile)
-                                    })
-                                }
-                        }
+                         val res = processDocument(file)
+                         if (res.isNotEmpty()) {
+                             nonTrackedFiles += file
+                         }
                     }
             }
 
+        if (nonTrackedFiles.isNotEmpty()) {
+            val fileNames = nonTrackedFiles.map { it.name }
+            logger.warning("Found ${nonTrackedFiles.size} modified files that were not tracked: $fileNames")
+        }
+    }
+
+    private fun processDocument(file: File): Set<File> {
+        val newlyCreatedFiles = mutableSetOf<File>()
+
+        var aaptCounter = 0
+        Document(file).use { doc ->
+            doc.childNodes
+                .mapNotNull { it as? Element }
+                .filter { it.hasAttribute("xmlns:aapt") }
+                .forEach { topLevelElem ->
+                    topLevelElem.postOrderTraverse({ element ->
+                        if (element.nodeName != "aapt:attr") {
+                            return@postOrderTraverse
+                        }
+
+                        val shadowedName = "$${file.nameWithoutExtension}__$aaptCounter"
+                        aaptCounter++
+
+                        val parentElement = element.parentNode as Element
+                        val parentAttribute = element.getAttribute("name")
+
+                        val resourceType = aaptNameToResourceType[parentAttribute] ?: throw PatchException("Unhandled XML attribute: $parentAttribute")
+                        parentElement.setAttribute(parentAttribute, "@$resourceType/$shadowedName")
+
+                        val sourceElement = element.childNodes.first { it is Element } as Element
+                        sourceElement.setAttribute(
+                            "xmlns:android",
+                            "http://schemas.android.com/apk/res/android"
+                        )
+
+                        val newElementFilename = "res/$resourceType/$shadowedName.xml"
+                        val newElementFile = get(newElementFilename)
+                        extractElementToNewDocument(sourceElement, newElementFile)
+                        newlyCreatedFiles.add(newElementFile)
+                    })
+                }
+        }
         return newlyCreatedFiles
     }
 
@@ -102,5 +123,6 @@ class AaptMacroProcessor(
         val writer = FileWriter(file)
         val result = StreamResult(writer)
         transformer.transform(source, result)
+        addedResources.add(file)
     }
 }

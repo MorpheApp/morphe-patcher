@@ -57,7 +57,8 @@ class ResourcePatchContext internal constructor(
     private val deleteResources = mutableSetOf<String>()
 
     private val packageDirectories = mutableMapOf<String, File>()
-    private val addedResources = mutableSetOf<String>()
+    private val modifiedResources = mutableSetOf<File>()
+    private val addedResources = mutableSetOf<File>()
 
     /**
      * Decode resources of [PatcherConfig.apkFile].
@@ -113,28 +114,38 @@ class ResourcePatchContext internal constructor(
         val resourcesApkFile =
             if (config.resourceMode == ResourceMode.FULL) {
                 resources.resolve("resources.apk").apply {
-                    document("AndroidManifest.xml").use { manifest ->
+                    val newPackageName = document("AndroidManifest.xml").use { manifest ->
                         val manifestNode = manifest.getElementsByTagName("manifest").item(0) as Element
-                        val newPackageName = manifestNode.getAttribute("package")
-                        val originalPackageName = packageMetadata.packageName
+                        manifestNode.getAttribute("package")
+                    }
+                    val originalPackageName = packageMetadata.packageName
 
-                        PublicXmlManager(document("res/values/public.xml")).use { publicXmlManager ->
-                            PackageRenamingProcessor(
-                                this@ResourcePatchContext::get,
-                                this@ResourcePatchContext::document,
-                                publicXmlManager,
-                                packageDirectories,
-                                originalPackageName,
-                                newPackageName
-                            ).process()
+                    PublicXmlManager(document("res/values/public.xml")).use { publicXmlManager ->
+                        PackageRenamingProcessor(
+                            this@ResourcePatchContext::get,
+                            this@ResourcePatchContext::document,
+                            publicXmlManager,
+                            packageDirectories,
+                            originalPackageName,
+                            newPackageName
+                        ).process()
 
-                            // Post process all aapt:attr macros in XML files.
-                            // TODO: We should only need to do this in new files, have a way of tracking those.
-                            AaptMacroProcessor(this@ResourcePatchContext::get, this@ResourcePatchContext::document, addedResources).process()
+                        // Post process all aapt:attr macros in XML files.
+                        // TODO: We should only need to do this in new files, have a way of tracking those.
+                        AaptMacroProcessor(
+                            this@ResourcePatchContext::get,
+                            modifiedResources,
+                            addedResources
+                        ).process()
 
-                            // Process all XMLs to ensure we have IDs generated for each one.
-                            ResourceIdProcessor(this@ResourcePatchContext::get, this@ResourcePatchContext::document, publicXmlManager).process()
-                        }
+                        // Process all XMLs to ensure we have IDs generated for each one.
+                        ResourceIdProcessor(
+                            this@ResourcePatchContext::get,
+                            this@ResourcePatchContext::document,
+                            publicXmlManager,
+                            modifiedResources,
+                            addedResources
+                        ).process()
                     }
 
                     val encoder = ApkModuleXmlEncoder()
@@ -151,39 +162,6 @@ class ResourcePatchContext internal constructor(
             } else {
                 null
             }
-
-        /*
-        val otherFiles =
-            // TODO: Is this needed still?
-            config.apkFiles.listFiles()!!.filter {
-                // Excluded because present in resources.other.
-                // TODO: We are reusing config.apkFiles as a temporarily directory for extracting resources.
-                //  This is not ideal as it could conflict with files such as the ones that we filter here.
-                //  The problem is that ResourcePatchContext#get returns a File relative to config.apkFiles,
-                //  and we need to extract files to that directory.
-                //  A solution would be to use config.apkFiles as the working directory for the patching process.
-                //  Once all patches have been executed, we can move the decoded resources to a new directory.
-                //  The filters wouldn't be needed anymore.
-                //  For now, we assume that the files we filter here are not needed for the patching process.
-                it.name != "AndroidManifest.xml" &&
-                        it.name != "res" &&
-                        // Generated by Androlib.
-                        it.name != "build"
-            }
-
-        val otherResourceFiles =
-            if (otherFiles.isNotEmpty()) {
-                // Move the other resources files.
-                resources.resolve("other").also { it.mkdirs() }.apply {
-                    otherFiles.forEach { file ->
-                        Files.move(file.toPath(), resolve(file.name).toPath())
-                    }
-                }
-            } else {
-                null
-            }
-
-        */
 
         // FIXME: All of this stuff is handled by arsclib using metadata files. Clean this up.
         return PatcherResult.PatchedResources(
@@ -204,9 +182,6 @@ class ResourcePatchContext internal constructor(
         path: String,
         copy: Boolean = true,
     ): File {
-        if (path == "AndroidManifest.xml") {
-            return config.apkFiles.resolve(path);
-        }
         return get(path, packageMetadata.packageName)
     }
 
@@ -216,14 +191,19 @@ class ResourcePatchContext internal constructor(
     ): File {
         if (path == "AndroidManifest.xml") {
             return config.apkFiles.resolve(path);
+        } else {
+            val retval = packageDirectories[packageName]!!.resolve(path)
+            if (path != "res/values/public.xml" && path != "res/values/ids.xml") {
+                // Only add files that aren't the manifest, public.xml, or ids.xml, because these will always be modified anyway.
+                modifiedResources.add(retval)
+            }
+            return retval
         }
-
-        return packageDirectories[packageName]!!.resolve(path)
     }
 
     fun addFile(destPath: String, srcFile: File) {
-        addedResources.add(destPath)
         val destFile = packageDirectories[packageMetadata.packageName]!!.resolve(destPath)
+        addedResources.add(destFile)
         Files.copy(srcFile.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
     }
 

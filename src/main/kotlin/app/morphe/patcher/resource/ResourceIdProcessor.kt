@@ -6,6 +6,7 @@
 package app.morphe.patcher.resource
 
 import app.morphe.patcher.util.Document
+import org.w3c.dom.Node
 import java.io.File
 import java.io.FileNotFoundException
 import java.util.logging.Logger
@@ -14,6 +15,8 @@ class ResourceIdProcessor(
     internal val get: (path: String) -> File,
     internal val document: (path: String) -> Document,
     internal val publicIdManager: PublicXmlManager,
+    internal val modifiedResources: Set<File>,
+    internal val addedResources: Set<File>,
 ) {
     private val logger = Logger.getLogger(ResourceIdProcessor::class.java.name)
 
@@ -28,23 +31,30 @@ class ResourceIdProcessor(
         document("res/values/ids.xml").use { idDoc ->
             val idNode = idDoc.getElementsByTagName("resources").item(0)
 
+            (modifiedResources + addedResources)
+                .filter { it.exists() && it.extension == "xml" }
+                .forEach {
+                processDocument(it, idNode)
+            }
+
             // TODO: Check if we need to look through any other XML files for new ID declarations.
-            resDirectories.filter { it.name.startsWith("layout") || it.name.startsWith("menu") }.forEach { dir ->
-                dir.listFiles { file -> file.isFile }.forEach { file ->
-                    document("res/${dir.name}/${file.name}").use { doc ->
-                        doc.inOrderTraverse {
-                            val idString = it.getAttribute("android:id")
-                            if (idString.startsWith("@+id/")) {
-                                logger.fine("Adding $idString to ids.xml")
-                                val idName = idString.substring(5)
-                                val item = idDoc.createElement("id")
-                                item.setAttribute("name", idName)
-                                idNode.appendChild(item)
-                                it.setAttribute("android:id", "@id/$idName")
-                            }
+            val nonTrackedFiles = mutableSetOf<File>()
+            resDirectories
+                .filter { it.name.startsWith("layout") || it.name.startsWith("menu") }
+                .forEach { dir ->
+                dir.listFiles { file -> file.isFile }
+                    .filter { !modifiedResources.contains(it) && !addedResources.contains(it) }
+                    .forEach { file ->
+                        val nonTrackedIds = processDocument(file, idNode)
+                        if (nonTrackedIds.isNotEmpty()) {
+                            nonTrackedFiles += file
                         }
-                    }
                 }
+            }
+
+            if (nonTrackedFiles.isNotEmpty()) {
+                val fileNames = nonTrackedFiles.map { it.name }
+                logger.warning("Found ${nonTrackedFiles.size} modified files that were not tracked: $fileNames")
             }
         }
 
@@ -80,5 +90,28 @@ class ResourceIdProcessor(
                     }
             }
         }
+    }
+
+    private fun processDocument(file: File, idNode: Node): Set<String> {
+        val createdIds = mutableSetOf<String>()
+
+        Document(file).use { doc ->
+            doc.inOrderTraverse {
+                val idString = it.getAttribute("android:id")
+                if (idString.startsWith("@+id/")) {
+                    logger.fine("Adding $idString to ids.xml")
+                    val idName = idString.substring(5)
+                    val item = idNode.ownerDocument.createElement("id")
+                    item.setAttribute("name", idName)
+                    idNode.appendChild(item)
+
+                    it.setAttribute("android:id", "@id/$idName")
+
+                    createdIds.add("@id/$idName")
+                }
+            }
+        }
+
+        return createdIds
     }
 }
