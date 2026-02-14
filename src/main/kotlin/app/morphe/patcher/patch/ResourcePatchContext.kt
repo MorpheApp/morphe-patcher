@@ -177,11 +177,11 @@ class ResourcePatchContext internal constructor(
      * Get a file from [PatcherConfig.apkFiles].
      *
      * @param path The path of the file.
-     * @param copy Whether to copy the file from [PatcherConfig.apkFile] if it does not exist yet in [PatcherConfig.apkFiles].
+     * @param copy Deprecated parameter. All files are always available from the APK. This parameter will be removed in a future release.
      */
     operator fun get(
         path: String,
-        copy: Boolean = true,
+        copy: Boolean? = null,
     ): File {
         return get(path, packageMetadata.packageName)
     }
@@ -193,7 +193,7 @@ class ResourcePatchContext internal constructor(
         if (path == "AndroidManifest.xml") {
             return config.apkFiles.resolve(path)
         } else {
-            val retval = packageDirectories[packageName]!!.resolve(path)
+            val retval = packageDirectories[packageName]?.resolve(path) ?: throw PatchException("Package $packageName not found")
             if (path != "res/values/public.xml" && path != "res/values/ids.xml") {
                 // Only add files that aren't the manifest, public.xml, or ids.xml, because these will always be modified anyway.
                 modifiedResources.add(retval)

@@ -17,15 +17,15 @@ import java.util.logging.Logger
  *
  * @param apkFile The apk file to patch.
  * @param temporaryFilesPath A path to a folder to store temporary files in.
- * @param aaptBinaryPath A path to a custom aapt binary.
- * @param frameworkFileDirectory A path to the directory to cache the framework file in.
+ * @param aaptBinaryPath Deprecated parameter. This parameter will be removed in a future release.
+ * @param frameworkFileDirectory Deprecated parameter. This parameter will be removed in a future release.
  */
 class PatcherConfig(
     internal val apkFile: File,
     private val temporaryFilesPath: File = File("morphe-temporary-files"),
     // TODO: Remove these.
-    aaptBinaryPath: String? = null,
-    internal val frameworkFileDirectory: String? = null,
+    private val aaptBinaryPath: String? = null,
+    private val frameworkFileDirectory: String? = null,
 ) {
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
 
