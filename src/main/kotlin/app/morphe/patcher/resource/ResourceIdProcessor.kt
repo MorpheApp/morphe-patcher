@@ -24,7 +24,8 @@ class ResourceIdProcessor(
     fun process() {
         logger.info("Generating new resource IDs")
 
-        val resDirectories = get("res").listFiles { file -> file.isDirectory } ?: throw PatchException("Resource directory not found")
+        val resDirectories =
+            get("res").listFiles { file -> file.isDirectory } ?: throw PatchException("Resource directory not found")
         val nonTrackedFiles = mutableSetOf<File>()
 
         // Find all new ID declarations in layout/menu files so we can create a corresponding entry in ids.xml
@@ -37,22 +38,22 @@ class ResourceIdProcessor(
             (modifiedResources + addedResources)
                 .filter { it.exists() && it.extension == "xml" }
                 .forEach {
-                processNewIdDeclarations(it, idNode)
-            }
+                    processNewIdDeclarations(it, idNode)
+                }
 
             // TODO: Check if we need to look through any other XML files for new ID declarations.
             resDirectories
                 .filter { it.name.startsWith("layout") || it.name.startsWith("menu") }
                 .forEach { dir ->
-                dir.listFiles { file -> file.isFile }
-                    ?.filter { !modifiedResources.contains(it) && !addedResources.contains(it) }
-                    ?.forEach { file ->
-                        val nonTrackedIds = processNewIdDeclarations(file, idNode)
-                        if (nonTrackedIds.isNotEmpty()) {
-                            nonTrackedFiles += file
+                    dir.listFiles { file -> file.isFile }
+                        ?.filter { !modifiedResources.contains(it) && !addedResources.contains(it) }
+                        ?.forEach { file ->
+                            val nonTrackedIds = processNewIdDeclarations(file, idNode)
+                            if (nonTrackedIds.isNotEmpty()) {
+                                nonTrackedFiles += file
+                            }
                         }
                 }
-            }
         }
 
         val valuesDirectories = resDirectories.filter { it.name.startsWith("values") }

@@ -45,8 +45,8 @@ internal class AaptMacroProcessor(
         (modifiedResources + addedResources)
             .filter { it.exists() && it.extension == "xml" }
             .forEach {
-            newlyCreatedFiles += processDocument(it)
-        }
+                newlyCreatedFiles += processDocument(it)
+            }
 
         val nonTrackedFiles = mutableSetOf<File>()
         fileResourceTypes
@@ -54,12 +54,16 @@ internal class AaptMacroProcessor(
             .filter { it.exists() && it.isDirectory }
             .forEach { dir ->
                 dir.listFiles { file -> file.isFile && file.extension == "xml" && !file.name.startsWith("$") }
-                    .filter { !newlyCreatedFiles.contains(it) && !modifiedResources.contains(it) && !addedResources.contains(it) }
+                    .filter {
+                        !newlyCreatedFiles.contains(it) && !modifiedResources.contains(it) && !addedResources.contains(
+                            it
+                        )
+                    }
                     .forEach { file ->
-                         val res = processDocument(file)
-                         if (res.isNotEmpty()) {
-                             nonTrackedFiles += file
-                         }
+                        val res = processDocument(file)
+                        if (res.isNotEmpty()) {
+                            nonTrackedFiles += file
+                        }
                     }
             }
 
@@ -89,7 +93,8 @@ internal class AaptMacroProcessor(
                         val parentElement = element.parentNode as Element
                         val parentAttribute = element.getAttribute("name")
 
-                        val resourceType = aaptNameToResourceType[parentAttribute] ?: throw PatchException("Unhandled XML attribute: $parentAttribute")
+                        val resourceType = aaptNameToResourceType[parentAttribute]
+                            ?: throw PatchException("Unhandled XML attribute: $parentAttribute")
                         parentElement.setAttribute(parentAttribute, "@$resourceType/$shadowedName")
 
                         val sourceElement = element.childNodes

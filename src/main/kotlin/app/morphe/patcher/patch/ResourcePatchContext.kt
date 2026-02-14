@@ -193,7 +193,8 @@ class ResourcePatchContext internal constructor(
         if (path == "AndroidManifest.xml") {
             return config.apkFiles.resolve(path)
         } else {
-            val retval = packageDirectories[packageName]?.resolve(path) ?: throw PatchException("Package $packageName not found")
+            val retval =
+                packageDirectories[packageName]?.resolve(path) ?: throw PatchException("Package $packageName not found")
             if (path != "res/values/public.xml" && path != "res/values/ids.xml") {
                 // Only add files that aren't the manifest, public.xml, or ids.xml, because these will always be modified anyway.
                 modifiedResources.add(retval)
