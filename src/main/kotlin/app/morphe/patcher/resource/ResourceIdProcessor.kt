@@ -5,22 +5,21 @@
 
 package app.morphe.patcher.resource
 
-import app.morphe.patcher.patch.ResourcePatchContext
 import app.morphe.patcher.util.Document
 import org.w3c.dom.Element
 import java.io.File
 import java.io.FileNotFoundException
 import java.util.logging.Logger
-import kotlin.collections.set
 
 class ResourceIdProcessor(
     val get: (path: String) -> File,
     val document: (path: String) -> Document,
     val packageName: String
 ) {
-    private val logger = Logger.getLogger(ResourcePatchContext::class.java.name)
+    private val logger = Logger.getLogger(ResourceIdProcessor::class.java.name)
 
     fun process() {
+        // TODO: Refactor this so that we pass around an object to modify public.xml, instead of modifying it directly.
         document("res/values/public.xml").use { publicDoc ->
             val publicNode = publicDoc.getElementsByTagName("resources").item(0) as Element
             publicNode.setAttribute("package", packageName)
@@ -60,6 +59,7 @@ class ResourceIdProcessor(
 
             // Find all new ID declarations in layout/menu files so we can create a corresponding entry in ids.xml
             // They will get added to public.xml later
+            // TODO: Only handle this for newly added files (this is a breaking change).
             document("res/values/ids.xml").use { idDoc ->
                 val idNode = idDoc.getElementsByTagName("resources").item(0)
 
@@ -85,6 +85,7 @@ class ResourceIdProcessor(
 
             val valuesDirectories = resDirectories.filter { it.name.startsWith("values") }
 
+            // TODO: Only enumerate through files that have been modified by patches.
             resourceTypes.forEach { (resourceType, tagInfo) ->
                 val xmlTagName = tagInfo.first
                 val publicTagName = tagInfo.second
@@ -102,6 +103,7 @@ class ResourceIdProcessor(
                 }
             }
 
+            // TODO: Only enumerate through files that have been modified by patches.
             fileResourceTypes.forEach { type ->
                 val directories = resDirectories.filter { it.name.startsWith(type) }
                 directories.forEach { dir ->

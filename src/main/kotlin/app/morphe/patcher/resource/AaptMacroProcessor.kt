@@ -10,6 +10,7 @@ import app.morphe.patcher.util.Document
 import org.w3c.dom.Element
 import java.io.File
 import java.io.FileWriter
+import java.util.logging.Logger
 import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.transform.TransformerFactory
 import javax.xml.transform.dom.DOMSource
@@ -20,8 +21,10 @@ class AaptMacroProcessor(
     internal val document: (path: String) -> Document,
     internal val addedResources: Set<String>
 ) {
+    private val logger = Logger.getLogger(AaptMacroProcessor::class.java.name)
+
     // TODO: Make a better way of determining this
-    private val aaptNameToResourceType = mutableMapOf(
+    private val aaptNameToResourceType = mapOf(
         "android:animation" to "drawable",
         "android:drawable" to "drawable",
         "android:fillColor" to "drawable"
@@ -34,6 +37,7 @@ class AaptMacroProcessor(
 
     fun process(): Set<File> {
         val newlyCreatedFiles = mutableSetOf<File>()
+        logger.info("Compiling modified resources")
 
         // TODO: Only handle newly added resource files here. (This is a breaking change.)
         // Additionally, handle the process of creating new IDs here so we don't have to read the same files again.
