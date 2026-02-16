@@ -146,9 +146,11 @@ class ArsclibResourceCoder(
             }
         }
 
-        val binaryManifest = workingDir.resolve("AndroidManifest.xml.bin")
-        if (binaryManifest.exists()) {
-            otherFiles.add(binaryManifest)
+        // Add all touched files to the other files list in raw only mode since we won't be creating a resources.apk.
+        if (resourceMode == ResourceMode.RAW_ONLY) {
+            otherFiles.addAll(addedResources)
+            otherFiles.addAll(modifiedResources)
+            otherFiles.add(workingDir.resolve("AndroidManifest.xml.bin"))
         }
 
         return if (otherFiles.isNotEmpty()) {
@@ -181,7 +183,7 @@ class ArsclibResourceCoder(
      *
      * @param path The path of the file.
      * @param packageName The package name of the file. Defaults to the package name of the APK.
-     * @param copy No-op for backwards compatibility with APKTool. All files are always available from the APK.
+     * @param copy No-op for backwards compatibility with APKTool. All files from the APK are always available.
      * @return a File object representing the desired file.
      */
     override fun getFile(
@@ -192,18 +194,13 @@ class ArsclibResourceCoder(
         val pkgName = packageName ?: apkModule.packageName
 
         val retval: File
-        if (path == "AndroidManifest.xml") {
-            val decodedManifest = workingDir.resolve(path)
-            // If the manifest was decoded, return that, otherwise transparently return the original binary manifest.
-            // TODO: We should probably have an interface in the patch context to return the manifest instead of
-            //  patches looking it up by filename.
-            retval = if (decodedManifest.exists()) {
-                decodedManifest
-            } else {
-                workingDir.resolve("AndroidManifest.xml.bin")
-            }
-        } else {
+
+        if (path.startsWith("res/")) {
             retval = packageDirectories[pkgName]?.resolve(path) ?: throw PatchException("Package $pkgName not found")
+        } else if (path == "AndroidManifest.xml") {
+            retval = workingDir.resolve(path)
+        } else {
+            retval = workingDir.resolve("root").resolve(path)
         }
 
         if (!excludedPaths.contains(path)) {
