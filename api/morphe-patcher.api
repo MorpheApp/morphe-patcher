@@ -645,6 +645,8 @@ public final class app/morphe/patcher/patch/ResourcePatchContext : app/morphe/pa
 	public final fun document (Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/util/Document;
 	public fun get ()Lapp/morphe/patcher/PatcherResult$PatchedResources;
 	public synthetic fun get ()Ljava/lang/Object;
+	public final fun get (Ljava/lang/String;Z)Ljava/io/File;
+	public static synthetic fun get$default (Lapp/morphe/patcher/patch/ResourcePatchContext;Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
 }
 
@@ -659,22 +661,12 @@ public final class app/morphe/patcher/resource/NodeUtilsKt {
 	public static final fun postOrderTraverse (Lorg/w3c/dom/Element;Lkotlin/jvm/functions/Function1;)V
 }
 
-public final class app/morphe/patcher/resource/PackageRenamingProcessor {
-	public fun <init> (Lkotlin/jvm/functions/Function2;Lapp/morphe/patcher/resource/PublicXmlManager;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;)V
-	public final fun process ()V
-}
-
 public final class app/morphe/patcher/resource/PublicXmlManager : java/io/Closeable {
 	public fun <init> (Ljava/io/File;)V
 	public fun close ()V
 	public final fun createPublicId (Ljava/lang/String;Ljava/lang/String;)V
 	public final fun getPublicNode ()Lorg/w3c/dom/Element;
 	public final fun idExists (Ljava/lang/String;Ljava/lang/String;)Z
-}
-
-public final class app/morphe/patcher/resource/ResourceIdProcessor {
-	public fun <init> (Lkotlin/jvm/functions/Function1;Lapp/morphe/patcher/resource/PublicXmlManager;Ljava/util/Set;Ljava/util/Set;)V
-	public final fun process ()V
 }
 
 public final class app/morphe/patcher/resource/ResourceMode : java/lang/Enum {
@@ -728,6 +720,16 @@ public final class app/morphe/patcher/resource/coder/ResourceCoder$DefaultImpls 
 	public static synthetic fun addFile$default (Lapp/morphe/patcher/resource/coder/ResourceCoder;Ljava/lang/String;Ljava/io/File;Ljava/lang/String;ILjava/lang/Object;)Ljava/io/File;
 	public static synthetic fun deleteFile$default (Lapp/morphe/patcher/resource/coder/ResourceCoder;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)V
 	public static synthetic fun getFile$default (Lapp/morphe/patcher/resource/coder/ResourceCoder;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;ILjava/lang/Object;)Ljava/io/File;
+}
+
+public final class app/morphe/patcher/resource/processor/PackageRenamingProcessor {
+	public fun <init> (Lkotlin/jvm/functions/Function2;Lapp/morphe/patcher/resource/PublicXmlManager;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun process ()V
+}
+
+public final class app/morphe/patcher/resource/processor/ResourceIdProcessor {
+	public fun <init> (Lkotlin/jvm/functions/Function1;Lapp/morphe/patcher/resource/PublicXmlManager;Ljava/util/Set;Ljava/util/Set;)V
+	public final fun process ()V
 }
 
 public final class app/morphe/patcher/util/Document : java/io/Closeable, org/w3c/dom/Document {
