@@ -1,5 +1,6 @@
 [versions]
 android = "4.1.1.4"
+apktool-lib = "2.11.2.r3"
 arsclib = "2664403e24"
 binary-compatibility-validator = "0.18.1"
 kotlin = "2.0.21"
@@ -11,6 +12,7 @@ smali = "b6365a84f4"
 
 [libraries]
 android = { module = "com.google.android:android", version.ref = "android" }
+apktool-lib = { module = "app.morphe:apktool-lib", version.ref = "apktool-lib" }
 arsclib = { module = "com.github.REAndroid:arsclib", version.ref = "arsclib" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines-core" }

@@ -23,6 +23,7 @@ tasks {
 }
 
 repositories {
+    mavenLocal()
     mavenCentral()
     // Obtain baksmali/smali from source builds - https://github.com/iBotPeaches/smali
     // Remove when official smali releases come out again.
@@ -49,6 +50,7 @@ dependencies {
         exclude(group = "xerces", module = "xmlParserAPIs")
     }
 
+    implementation(libs.apktool.lib)
     implementation(libs.arsclib)
     implementation(libs.kotlin.reflect)
     implementation(libs.kotlinx.coroutines.core)
