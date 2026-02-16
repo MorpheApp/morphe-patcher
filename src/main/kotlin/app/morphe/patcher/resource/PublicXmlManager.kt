@@ -8,11 +8,21 @@ package app.morphe.patcher.resource
 import app.morphe.patcher.util.Document
 import org.w3c.dom.Element
 import java.io.Closeable
+import java.io.File
 import java.util.logging.Logger
 
 class PublicXmlManager(
-    internal val publicDoc: Document
+    internal val publicDocPath: File
 ) : Closeable {
+    private val publicDoc: Document
+    init {
+        if (!publicDocPath.exists()) {
+            throw IllegalArgumentException("File does not exist at path: ${publicDocPath.absolutePath}")
+        }
+
+        publicDoc = Document(publicDocPath)
+    }
+
     private val logger = Logger.getLogger(PublicXmlManager::class.java.name)
     private val publicNode: Element = publicDoc.getElementsByTagName("resources").item(0)?.let { node ->
         node as? Element ?: throw IllegalStateException("Root <resources> element in public.xml is not an Element.")

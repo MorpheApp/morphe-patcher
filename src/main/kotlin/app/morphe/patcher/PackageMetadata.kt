@@ -8,17 +8,10 @@
 
 package app.morphe.patcher
 
-import com.reandroid.apk.ApkModule
-
 /**
  * Metadata about a package.
- *
- * @param apkInfo The [ApkModule] of the apk file.
  */
-class PackageMetadata internal constructor(internal val apkInfo: ApkModule) {
-    lateinit var packageName: String
-        internal set
-
-    lateinit var packageVersion: String
-        internal set
-}
+class PackageMetadata internal constructor(
+    val packageName: String,
+    val packageVersion: String,
+)

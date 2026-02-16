@@ -4,8 +4,8 @@ import app.morphe.patcher.patch.BytecodePatch
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.PatchResult
-import app.morphe.patcher.patch.ResourcePatchContext
 import app.morphe.patcher.patch.bytecodePatch
+import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.util.PatchClasses
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.immutable.ImmutableClassDef
@@ -38,7 +38,7 @@ internal object PatcherTest {
             setPrivateField(
                 "config",
                 mockk<PatcherConfig> {
-                    every { resourceMode } returns ResourcePatchContext.ResourceMode.NONE
+                    every { resourceMode } returns ResourceMode.NONE
                 },
             )
             setPrivateField(

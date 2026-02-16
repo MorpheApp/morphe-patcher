@@ -15,7 +15,6 @@ import kotlin.collections.component2
 
 class PackageRenamingProcessor(
     internal val get: (String, String) -> File,
-    internal val document: (String, String) -> Document,
     internal val publicXmlManager: PublicXmlManager,
     internal val packageDirectories: Map<String, File>,
     internal val originalPackageName: String,
@@ -44,7 +43,7 @@ class PackageRenamingProcessor(
         packageDirectories.filter { it.key != originalPackageName }.forEach { (resPackageName, rootDir) ->
             rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
                 dir.listFiles { it.extension == "xml" }?.forEach { file ->
-                    document("res/${dir.name}/${file.name}", resPackageName).use { doc ->
+                    Document(get("res/${dir.name}/${file.name}", resPackageName)).use { doc ->
                         doc.inOrderTraverse { element ->
                             for (i in 0 until element.attributes.length) {
                                 val attr = element.attributes.item(i) as Attr

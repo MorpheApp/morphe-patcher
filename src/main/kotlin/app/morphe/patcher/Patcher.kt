@@ -1,6 +1,7 @@
 package app.morphe.patcher
 
 import app.morphe.patcher.patch.*
+import app.morphe.patcher.resource.ResourceMode
 import kotlinx.coroutines.flow.flow
 import java.io.Closeable
 import java.util.logging.Logger
@@ -19,7 +20,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
     val context = PatcherContext(config)
 
     init {
-        context.resourceContext.decodeResources(ResourcePatchContext.ResourceMode.NONE)
+        context.resourceContext.decodeResources(ResourceMode.NONE)
     }
 
     /**
@@ -42,11 +43,11 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         context.allPatches.let { allPatches ->
             // Check, if what kind of resource mode is required.
             config.resourceMode = if (allPatches.any { patch -> patch.anyRecursively { it is ResourcePatch } }) {
-                ResourcePatchContext.ResourceMode.FULL
+                ResourceMode.FULL
             } else if (allPatches.any { patch -> patch.anyRecursively { it is RawResourcePatch } }) {
-                ResourcePatchContext.ResourceMode.RAW_ONLY
+                ResourceMode.RAW_ONLY
             } else {
-                ResourcePatchContext.ResourceMode.NONE
+                ResourceMode.NONE
             }
         }
     }
@@ -92,7 +93,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         }
 
         // Prevent decoding the app manifest twice if it is not needed.
-        if (config.resourceMode != ResourcePatchContext.ResourceMode.NONE) {
+        if (config.resourceMode != ResourceMode.NONE) {
             context.resourceContext.decodeResources(config.resourceMode)
         }
 

@@ -8,7 +8,8 @@
 
 package app.morphe.patcher
 
-import app.morphe.patcher.patch.ResourcePatchContext
+import app.morphe.patcher.resource.ResourceMode
+import brut.androlib.Config
 import java.io.File
 import java.util.logging.Logger
 
@@ -17,29 +18,38 @@ import java.util.logging.Logger
  *
  * @param apkFile The apk file to patch.
  * @param temporaryFilesPath A path to a folder to store temporary files in.
- * @param aaptBinaryPath Deprecated parameter. This parameter will be removed in a future release.
- * @param frameworkFileDirectory Deprecated parameter. This parameter will be removed in a future release.
+ * @param aaptBinaryPath A path to a custom aapt binary.
+ * @param frameworkFileDirectory A path to the directory to cache the framework file in.
  */
 class PatcherConfig(
     internal val apkFile: File,
     private val temporaryFilesPath: File = File("morphe-temporary-files"),
-    // TODO: Remove these.
     private val aaptBinaryPath: String? = null,
     private val frameworkFileDirectory: String? = null,
+    internal val useArsclib: Boolean = false
 ) {
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
 
     /**
      * The mode to use for resource decoding and compiling.
      *
-     * @see ResourcePatchContext.ResourceMode
+     * @see ResourceMode
      */
-    internal var resourceMode = ResourcePatchContext.ResourceMode.NONE
+    internal var resourceMode = ResourceMode.NONE
 
     /**
      * The path to the temporary apk files directory.
      */
     internal val apkFiles = temporaryFilesPath.resolve("apk")
+
+    /**
+     * The configuration for decoding and compiling resources.
+     */
+    internal val resourceConfig: Config = Config().apply {
+        aaptVersion = 2
+        aaptBinaryPath?.let { setAaptBinaryPath(it) }
+        frameworkFileDirectory?.let { frameworkDirectory = it }
+    }
 
     /**
      * The path to the temporary patched files directory.

@@ -14,7 +14,6 @@ import java.util.logging.Logger
 
 class ResourceIdProcessor(
     internal val get: (path: String) -> File,
-    internal val document: (path: String) -> Document,
     internal val publicIdManager: PublicXmlManager,
     internal val modifiedResources: Set<File>,
     internal val addedResources: Set<File>,
@@ -31,7 +30,7 @@ class ResourceIdProcessor(
         // Find all new ID declarations in layout/menu files so we can create a corresponding entry in ids.xml
         // They will get added to public.xml later
         // TODO: Only handle this for newly added files (this is a breaking change).
-        document("res/values/ids.xml").use { idDoc ->
+        Document(get("res/values/ids.xml")).use { idDoc ->
             val idNode = idDoc.getElementsByTagName("resources").item(0)
                 ?: throw IllegalStateException("ids.xml is missing the <resources> root element.")
 
@@ -65,7 +64,7 @@ class ResourceIdProcessor(
 
             valuesDirectories.forEach { dir ->
                 try {
-                    document("res/${dir.name}/$resourceType.xml").use { doc ->
+                    Document(get("res/${dir.name}/$resourceType.xml")).use { doc ->
                         doc.getElementsByTagName(xmlTagName).forEachElement {
                             publicIdManager.createPublicId(publicTagName, it.getAttribute("name"))
                         }
