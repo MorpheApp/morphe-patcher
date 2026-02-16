@@ -1,6 +1,6 @@
 /*
  * Copyright 2026 Morphe.
- * https://github.com/morpheapp/morphe-patches
+ * https://github.com/morpheapp/morphe-patcher
  */
 
 package app.morphe.patcher.util.proxy.mutableTypes
