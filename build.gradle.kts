@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.binary.compatibility.validator)
     `maven-publish`
     signing
+    jacoco
 }
 
 group = "app.morphe"
@@ -18,6 +19,15 @@ tasks {
         useJUnitPlatform()
         testLogging {
             events("PASSED", "SKIPPED", "FAILED")
+        }
+        finalizedBy(jacocoTestReport)
+    }
+
+    jacocoTestReport {
+        dependsOn(test)
+        reports {
+            xml.required.set(true)
+            html.required.set(true)
         }
     }
 }
