@@ -681,38 +681,41 @@ public final class app/morphe/patcher/resource/ResourceMode : java/lang/Enum {
 public final class app/morphe/patcher/resource/coder/ApkToolResourceCoder : app/morphe/patcher/resource/coder/ResourceCoder {
 	public fun <init> (Ljava/io/File;Lbrut/androlib/Config;Ljava/io/File;)V
 	public fun addFile (Ljava/lang/String;Ljava/io/File;Ljava/lang/String;)Ljava/io/File;
-	public fun decodeManifest ()Lapp/morphe/patcher/PackageMetadata;
+	public fun decodeRaw ()Lapp/morphe/patcher/PackageMetadata;
 	public fun decodeResources ()Lapp/morphe/patcher/PackageMetadata;
 	public fun deleteFile (Ljava/lang/String;Ljava/lang/String;)V
 	public fun encodeResources (Ljava/io/File;)Ljava/io/File;
 	public fun getDeletedFiles ()Ljava/util/Set;
 	public fun getFile (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;)Ljava/io/File;
-	public fun getOtherResourceFiles (Ljava/io/File;)Ljava/io/File;
+	public fun getOtherResourceFiles (Ljava/io/File;Lapp/morphe/patcher/resource/ResourceMode;)Ljava/io/File;
+	public fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
 	public fun getUncompressedFiles ()Ljava/util/Set;
 }
 
 public final class app/morphe/patcher/resource/coder/ArsclibResourceCoder : app/morphe/patcher/resource/coder/ResourceCoder {
 	public fun <init> (Ljava/io/File;Ljava/io/File;)V
 	public fun addFile (Ljava/lang/String;Ljava/io/File;Ljava/lang/String;)Ljava/io/File;
-	public fun decodeManifest ()Lapp/morphe/patcher/PackageMetadata;
+	public fun decodeRaw ()Lapp/morphe/patcher/PackageMetadata;
 	public fun decodeResources ()Lapp/morphe/patcher/PackageMetadata;
 	public fun deleteFile (Ljava/lang/String;Ljava/lang/String;)V
 	public fun encodeResources (Ljava/io/File;)Ljava/io/File;
 	public fun getDeletedFiles ()Ljava/util/Set;
 	public fun getFile (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;)Ljava/io/File;
-	public fun getOtherResourceFiles (Ljava/io/File;)Ljava/io/File;
+	public fun getOtherResourceFiles (Ljava/io/File;Lapp/morphe/patcher/resource/ResourceMode;)Ljava/io/File;
+	public fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
 	public fun getUncompressedFiles ()Ljava/util/Set;
 }
 
 public abstract interface class app/morphe/patcher/resource/coder/ResourceCoder {
 	public abstract fun addFile (Ljava/lang/String;Ljava/io/File;Ljava/lang/String;)Ljava/io/File;
-	public abstract fun decodeManifest ()Lapp/morphe/patcher/PackageMetadata;
+	public abstract fun decodeRaw ()Lapp/morphe/patcher/PackageMetadata;
 	public abstract fun decodeResources ()Lapp/morphe/patcher/PackageMetadata;
 	public abstract fun deleteFile (Ljava/lang/String;Ljava/lang/String;)V
 	public abstract fun encodeResources (Ljava/io/File;)Ljava/io/File;
 	public abstract fun getDeletedFiles ()Ljava/util/Set;
 	public abstract fun getFile (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;)Ljava/io/File;
-	public abstract fun getOtherResourceFiles (Ljava/io/File;)Ljava/io/File;
+	public abstract fun getOtherResourceFiles (Ljava/io/File;Lapp/morphe/patcher/resource/ResourceMode;)Ljava/io/File;
+	public abstract fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
 	public abstract fun getUncompressedFiles ()Ljava/util/Set;
 }
 
