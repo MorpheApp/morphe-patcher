@@ -10,9 +10,11 @@ import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.processor.AaptMacroProcessor
 import app.morphe.patcher.resource.processor.PackageRenamingProcessor
 import app.morphe.patcher.resource.PublicXmlManager
+import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.resource.processor.ResourceIdProcessor
 import app.morphe.patcher.util.Document
 import com.reandroid.apk.ApkModule
+import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
 import com.reandroid.json.JSONObject
@@ -41,14 +43,7 @@ class ArsclibResourceCoder(
         "res/values/ids.xml",
     )
 
-    private val xmlDecoder = ApkModuleXmlDecoder(apkModule).let {
-        it.setKeepResPath(false)
-        it
-    }
-
-    override fun decodeManifest(): PackageMetadata {
-        xmlDecoder.decodeAndroidManifest(workingDir)
-
+    override fun getPackageMetadata(): PackageMetadata {
         val manifest = apkModule.androidManifest
         return PackageMetadata(
             manifest.packageName,
@@ -56,7 +51,19 @@ class ArsclibResourceCoder(
         )
     }
 
+    override fun decodeRaw(): PackageMetadata {
+        val rawDecoder = ApkModuleRawDecoder(apkModule)
+        rawDecoder.decode(workingDir)
+
+        return getPackageMetadata()
+    }
+
     override fun decodeResources(): PackageMetadata {
+        val xmlDecoder = ApkModuleXmlDecoder(apkModule).let {
+            it.setKeepResPath(false)
+            it
+        }
+
         xmlDecoder.decode(workingDir)
 
         // Delete all the dex files so they don't get built into the final resources.apk.
@@ -69,11 +76,7 @@ class ArsclibResourceCoder(
             packageDirectories[packageName] = dir
         }
 
-        val manifest = apkModule.androidManifest
-        return PackageMetadata(
-            manifest.packageName,
-            manifest.versionName ?: manifest.versionCode.toString()
-        )
+        return getPackageMetadata()
     }
 
     override fun encodeResources(outputDir: File): File {
@@ -126,13 +129,45 @@ class ArsclibResourceCoder(
         return outputApk
     }
 
-    /**
-     * No-op, not currently supported by ArsclibResourceCoder.
-     */
-    override fun getOtherResourceFiles(outputDir: File): File? = null
+    override fun getOtherResourceFiles(outputDir: File, resourceMode: ResourceMode): File? {
+        if (resourceMode == ResourceMode.NONE) return null
+
+        val otherFiles = mutableSetOf<File>()
+        packageDirectories.values.forEach { packageDirectory ->
+            packageDirectory.listFiles()?.filter {
+                // Include any files that were copied to the resources folder root.
+                // This is the equivalent of copying to the APK root when using apktool.
+
+                // In RAW_ONLY mode, AndroidManifest.xml is not decoded and is named AndroidManifest.xml.bin.
+                // We only want to include the manifest in this mode.
+                it.isFile && it.name != "package.json" && it.name != "AndroidManifest.xml"
+            }?.forEach {
+                otherFiles.add(it)
+            }
+        }
+
+        val binaryManifest = workingDir.resolve("AndroidManifest.xml.bin")
+        if (binaryManifest.exists()) {
+            otherFiles.add(binaryManifest)
+        }
+
+        return if (otherFiles.isNotEmpty()) {
+            val otherResourcesDir = outputDir.resolve("other")
+            otherResourcesDir.mkdirs()
+            otherFiles.forEach { file ->
+                Files.move(file.toPath(),
+                    otherResourcesDir.resolve(file.name).toPath(),
+                    StandardCopyOption.REPLACE_EXISTING
+                )
+            }
+            otherResourcesDir
+        } else {
+            null
+        }
+    }
 
     /**
-     * No-op, not currently supported by ArsclibResourceCoder.
+     * No-op, this is already handled by arsclib during encoding.
      */
     override fun getUncompressedFiles(): Set<String> = emptySet()
 
@@ -158,7 +193,15 @@ class ArsclibResourceCoder(
 
         val retval: File
         if (path == "AndroidManifest.xml") {
-            retval = workingDir.resolve(path)
+            val decodedManifest = workingDir.resolve(path)
+            // If the manifest was decoded, return that, otherwise transparently return the original binary manifest.
+            // TODO: We should probably have an interface in the patch context to return the manifest instead of
+            //  patches looking it up by filename.
+            retval = if (decodedManifest.exists()) {
+                decodedManifest
+            } else {
+                workingDir.resolve("AndroidManifest.xml.bin")
+            }
         } else {
             retval = packageDirectories[pkgName]?.resolve(path) ?: throw PatchException("Package $pkgName not found")
         }

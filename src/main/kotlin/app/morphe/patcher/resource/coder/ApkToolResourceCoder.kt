@@ -9,7 +9,7 @@
 package app.morphe.patcher.resource.coder
 
 import app.morphe.patcher.PackageMetadata
-import app.morphe.patcher.PatcherResult
+import app.morphe.patcher.resource.ResourceMode
 import brut.androlib.AaptInvoker
 import brut.androlib.ApkDecoder
 import brut.androlib.Config
@@ -37,7 +37,7 @@ class ApkToolResourceCoder(
     private val logger = Logger.getLogger(ApkToolResourceCoder::class.java.name)
     private val deletedResources = mutableSetOf<String>()
 
-    override fun decodeManifest(): PackageMetadata {
+    override fun getPackageMetadata(): PackageMetadata {
         val resourcesDecoder = ResourcesDecoder(apkInfo, resourceConfig)
 
         // Decode manually instead of using resourceDecoder.decodeManifest
@@ -70,6 +70,13 @@ class ApkToolResourceCoder(
             resourcesDecoder.resTable.packageRenamed,
             apkInfo.versionInfo.versionName ?: apkInfo.versionInfo.versionCode
         )
+    }
+
+    /**
+     * No-op for apktool. Raw resources are extracted directly from the apk.
+     */
+    override fun decodeRaw(): PackageMetadata {
+        return getPackageMetadata()
     }
 
     override fun decodeResources(): PackageMetadata {
@@ -115,7 +122,7 @@ class ApkToolResourceCoder(
         }
     }
 
-    override fun getOtherResourceFiles(outputDir: File): File? {
+    override fun getOtherResourceFiles(outputDir: File, resourceMode: ResourceMode): File? {
         val otherFiles =
             workingDir.listFiles()!!.filter {
                 // Excluded because present in resources.other.

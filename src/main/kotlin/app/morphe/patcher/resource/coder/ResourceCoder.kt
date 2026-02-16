@@ -6,15 +6,23 @@
 package app.morphe.patcher.resource.coder
 
 import app.morphe.patcher.PackageMetadata
+import app.morphe.patcher.resource.ResourceMode
 import java.io.File
 
 interface ResourceCoder {
     /**
-     * Decode AndroidManifest.xml from the APK into the working directory and update the package metadata.
+     * Get package metadata from the APK.
      *
      * @return The package's metadata.
      */
-    fun decodeManifest(): PackageMetadata
+    fun getPackageMetadata(): PackageMetadata
+
+    /**
+     * Decode raw resources from the APK into the working directory and update the package metadata.
+     *
+     * @return The package's metadata.
+     */
+    fun decodeRaw(): PackageMetadata
 
     /**
      * Decode resources from the APK into the working directory and update the package metadata.
@@ -35,9 +43,10 @@ interface ResourceCoder {
      * Get other resource files.
      *
      * @param outputDir a File object representing the output directory for patched files.
+     * @param resourceMode the resource mode that is being used.
      * @return a File object representing the output directory of other resource files.
      */
-    fun getOtherResourceFiles(outputDir: File): File?
+    fun getOtherResourceFiles(outputDir: File, resourceMode: ResourceMode): File?
 
     /**
      * Get uncompressed files.

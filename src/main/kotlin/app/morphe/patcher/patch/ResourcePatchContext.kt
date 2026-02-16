@@ -17,7 +17,6 @@ import app.morphe.patcher.resource.coder.ApkToolResourceCoder
 import app.morphe.patcher.resource.coder.ArsclibResourceCoder
 import app.morphe.patcher.resource.coder.ResourceCoder
 import app.morphe.patcher.util.Document
-import java.io.File
 import java.io.InputStream
 import java.util.logging.Logger
 
@@ -30,14 +29,15 @@ import java.util.logging.Logger
 class ResourcePatchContext internal constructor(
     private val config: PatcherConfig,
 ) : PatchContext<PatcherResult.PatchedResources?> {
+    private val logger = Logger.getLogger(ResourcePatchContext::class.java.name)
+
     private val resourceCoder: ResourceCoder = if (config.useArsclib) {
         ArsclibResourceCoder(config.apkFiles, config.apkFile)
     } else {
         ApkToolResourceCoder(config.apkFiles, config.resourceConfig, config.apkFile)
     }
-    val packageMetadata = resourceCoder.decodeManifest()
 
-    private val logger = Logger.getLogger(ResourcePatchContext::class.java.name)
+    val packageMetadata = resourceCoder.getPackageMetadata()
 
     /**
      * Read a document from an [InputStream].
@@ -58,14 +58,14 @@ class ResourcePatchContext internal constructor(
      *
      * @param mode The [ResourceMode] to use.
      */
-    internal fun decodeResources(mode: ResourceMode) {
+    internal fun decodeResources(mode: ResourceMode): PackageMetadata {
         config.initializeTemporaryFilesDirectories()
         if (mode == ResourceMode.FULL) {
-            logger.info("Decoding resources")
-            resourceCoder.decodeResources()
+            logger.info("Decoding all resources")
+            return resourceCoder.decodeResources()
         } else {
-            logger.info("Decoding app manifest")
-            resourceCoder.decodeManifest()
+            logger.info("Decoding resources in raw mode")
+            return resourceCoder.decodeRaw()
         }
     }
 
@@ -89,7 +89,7 @@ class ResourcePatchContext internal constructor(
         // FIXME: All of this stuff is handled by arsclib using metadata files. Clean this up.
         return PatcherResult.PatchedResources(
             resourcesApkFile,
-            resourceCoder.getOtherResourceFiles(config.patchedFiles),
+            resourceCoder.getOtherResourceFiles(config.patchedFiles, config.resourceMode),
             resourceCoder.getUncompressedFiles(),
             resourceCoder.getDeletedFiles(),
         )

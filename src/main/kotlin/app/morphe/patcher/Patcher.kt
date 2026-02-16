@@ -27,10 +27,6 @@ class Patcher(private val config: PatcherConfig) : Closeable {
      */
     val context = PatcherContext(config)
 
-    init {
-        context.resourceContext.decodeResources(ResourceMode.NONE)
-    }
-
     /**
      * Add patches.
      *

@@ -11,6 +11,7 @@ package app.morphe.patcher
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.ResourcePatchContext
+import app.morphe.patcher.resource.ResourceMode
 import com.reandroid.apk.ApkModule
 import java.io.Closeable
 
