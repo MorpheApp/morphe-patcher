@@ -22,11 +22,6 @@ import java.io.Closeable
 @Suppress("MemberVisibilityCanBePrivate")
 class PatcherContext internal constructor(config: PatcherConfig): Closeable {
     /**
-     * [PackageMetadata] of the supplied [PatcherConfig.apkFile].
-     */
-    val packageMetadata = PackageMetadata(ApkModule.loadApkFile(config.apkFile))
-
-    /**
      * The set of [Patch]es.
      */
     internal val executablePatches = mutableSetOf<Patch<*>>()
@@ -39,7 +34,12 @@ class PatcherContext internal constructor(config: PatcherConfig): Closeable {
     /**
      * The context for patches containing the current state of the resources.
      */
-    internal val resourceContext = ResourcePatchContext(packageMetadata, config)
+    internal val resourceContext = ResourcePatchContext(config)
+
+    /**
+     * [PackageMetadata] of the supplied [PatcherConfig.apkFile].
+     */
+    val packageMetadata = resourceContext.packageMetadata
 
     /**
      * The context for patches containing the current state of the bytecode.
