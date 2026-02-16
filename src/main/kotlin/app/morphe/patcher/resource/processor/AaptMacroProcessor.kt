@@ -3,9 +3,12 @@
  * https://github.com/MorpheApp/morphe-patcher
  */
 
-package app.morphe.patcher.resource
+package app.morphe.patcher.resource.processor
 
 import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.resource.fileResourceTypes
+import app.morphe.patcher.resource.mapNotNull
+import app.morphe.patcher.resource.postOrderTraverse
 import app.morphe.patcher.util.Document
 import org.w3c.dom.Element
 import java.io.File

@@ -17,6 +17,7 @@ import app.morphe.patcher.resource.coder.ApkToolResourceCoder
 import app.morphe.patcher.resource.coder.ArsclibResourceCoder
 import app.morphe.patcher.resource.coder.ResourceCoder
 import app.morphe.patcher.util.Document
+import java.io.File
 import java.io.InputStream
 import java.util.logging.Logger
 
@@ -93,6 +94,17 @@ class ResourcePatchContext internal constructor(
             resourceCoder.getDeletedFiles(),
         )
     }
+
+    /**
+     * Get a file from [PatcherConfig.apkFiles].
+     *
+     * @param path The path of the file.
+     * @param copy Whether to copy the file from [PatcherConfig.apkFile] if it does not exist yet in [PatcherConfig.apkFiles].
+     */
+    operator fun get(
+        path: String,
+        copy: Boolean = true,
+    ) = resourceCoder.getFile(path, copy = copy)
 
     /**
      * Mark a file for deletion when the APK is rebuilt.

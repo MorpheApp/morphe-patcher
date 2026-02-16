@@ -3,9 +3,14 @@
  * https://github.com/MorpheApp/morphe-patcher
  */
 
-package app.morphe.patcher.resource
+package app.morphe.patcher.resource.processor
 
 import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.resource.PublicXmlManager
+import app.morphe.patcher.resource.fileResourceTypes
+import app.morphe.patcher.resource.forEachElement
+import app.morphe.patcher.resource.inOrderTraverse
+import app.morphe.patcher.resource.resourceTypes
 import app.morphe.patcher.util.Document
 import org.w3c.dom.Node
 import java.io.File

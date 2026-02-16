@@ -92,6 +92,7 @@ class ApkToolResourceCoder(
     }
 
     override fun encodeResources(outputDir: File): File {
+        logger.info("Writing resource APK")
         return outputDir.resolve("resources.apk").apply {
             // Compile the resources.apk file.
             AaptInvoker(

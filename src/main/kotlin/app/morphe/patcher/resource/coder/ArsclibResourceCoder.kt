@@ -6,12 +6,11 @@
 package app.morphe.patcher.resource.coder
 
 import app.morphe.patcher.PackageMetadata
-import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.patch.PatchException
-import app.morphe.patcher.resource.AaptMacroProcessor
-import app.morphe.patcher.resource.PackageRenamingProcessor
+import app.morphe.patcher.resource.processor.AaptMacroProcessor
+import app.morphe.patcher.resource.processor.PackageRenamingProcessor
 import app.morphe.patcher.resource.PublicXmlManager
-import app.morphe.patcher.resource.ResourceIdProcessor
+import app.morphe.patcher.resource.processor.ResourceIdProcessor
 import app.morphe.patcher.util.Document
 import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkModuleXmlDecoder
@@ -43,7 +42,7 @@ class ArsclibResourceCoder(
     )
 
     private val xmlDecoder = ApkModuleXmlDecoder(apkModule).let {
-        it.setKeepResPath(true)
+        it.setKeepResPath(false)
         it
     }
 
@@ -181,7 +180,8 @@ class ArsclibResourceCoder(
      */
     override fun addFile(destPath: String, srcFile: File, packageName: String?): File {
         val pkgName = packageName ?: apkModule.packageName
-        val destFile = packageDirectories[pkgName]?.resolve(destPath) ?: throw PatchException("Package $pkgName not found")
+        val destFile =
+            packageDirectories[pkgName]?.resolve(destPath) ?: throw PatchException("Package $pkgName not found")
         addedResources.add(destFile)
         if (!excludedPaths.contains(destPath)) {
             modifiedResources.add(destFile)
