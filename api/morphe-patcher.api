@@ -725,16 +725,6 @@ public final class app/morphe/patcher/resource/coder/ResourceCoder$DefaultImpls 
 	public static synthetic fun getFile$default (Lapp/morphe/patcher/resource/coder/ResourceCoder;Ljava/lang/String;Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
 }
 
-public final class app/morphe/patcher/resource/processor/PackageRenamingProcessor {
-	public fun <init> (Lkotlin/jvm/functions/Function2;Lapp/morphe/patcher/resource/PublicXmlManager;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;)V
-	public final fun process ()V
-}
-
-public final class app/morphe/patcher/resource/processor/ResourceIdProcessor {
-	public fun <init> (Lkotlin/jvm/functions/Function1;Lapp/morphe/patcher/resource/PublicXmlManager;Ljava/util/Set;Ljava/util/Set;)V
-	public final fun process ()V
-}
-
 public final class app/morphe/patcher/util/Document : java/io/Closeable, org/w3c/dom/Document {
 	public fun adoptNode (Lorg/w3c/dom/Node;)Lorg/w3c/dom/Node;
 	public fun appendChild (Lorg/w3c/dom/Node;)Lorg/w3c/dom/Node;
