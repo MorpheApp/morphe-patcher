@@ -209,7 +209,7 @@ class ArsclibResourceCoder(
 
         val retval: File
 
-        if (path.startsWith("res/")) {
+        if (path == "res" || path.startsWith("res/") || path == "package.json") {
             retval = packageDirectories[pkgName]?.resolve(path) ?: throw PatchException("Package $pkgName not found")
         } else if (path == "AndroidManifest.xml") {
             // TODO: Doesn't handle modifications to binary AndroidManifest.xml, but then again neither does apktool in raw mode.
