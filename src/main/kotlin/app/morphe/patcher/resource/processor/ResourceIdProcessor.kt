@@ -17,7 +17,7 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.util.logging.Logger
 
-class ResourceIdProcessor(
+internal class ResourceIdProcessor(
     internal val get: (path: String) -> File,
     internal val publicIdManager: PublicXmlManager,
     internal val modifiedResources: Set<File>,

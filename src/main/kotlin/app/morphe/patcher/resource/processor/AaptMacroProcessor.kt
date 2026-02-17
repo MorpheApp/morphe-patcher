@@ -57,12 +57,12 @@ internal class AaptMacroProcessor(
             .filter { it.exists() && it.isDirectory }
             .forEach { dir ->
                 dir.listFiles { file -> file.isFile && file.extension == "xml" && !file.name.startsWith("$") }
-                    .filter {
+                    ?.filter {
                         !newlyCreatedFiles.contains(it) && !modifiedResources.contains(it) && !addedResources.contains(
                             it
                         )
                     }
-                    .forEach { file ->
+                    ?.forEach { file ->
                         val res = processDocument(file)
                         if (res.isNotEmpty()) {
                             nonTrackedFiles += file

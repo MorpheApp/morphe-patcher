@@ -15,7 +15,7 @@ import java.util.logging.Logger
 import kotlin.collections.component1
 import kotlin.collections.component2
 
-class PackageRenamingProcessor(
+internal class PackageRenamingProcessor(
     internal val get: (String, String) -> File,
     internal val publicXmlManager: PublicXmlManager,
     internal val packageDirectories: Map<String, File>,

@@ -50,7 +50,7 @@ class PublicXmlManager(
                 logger.warning("Skipping <public> element with non-hex id attribute: '$idString'.")
                 return@forEachElement
             }
-            if (id > resourceIds.getOrElse(typeString, { 0 })) {
+            if (id > resourceIds.getOrElse(typeString) { 0 }) {
                 resourceIds[typeString] = id
             }
             // Need to add type because it is possible to have multiple resources with the same name but different types.

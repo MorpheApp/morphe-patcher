@@ -165,7 +165,9 @@ class ArsclibResourceCoder(
 
             val binaryManifest = workingDir.resolve("AndroidManifest.xml.bin")
             val modifiedManifest = workingDir.resolve("AndroidManifest.xml")
-            otherFiles[binaryManifest] = modifiedManifest
+            if (binaryManifest.exists()) {
+                otherFiles[binaryManifest] = modifiedManifest
+            }
         }
 
         return if (otherFiles.isNotEmpty()) {
