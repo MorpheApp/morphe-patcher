@@ -132,33 +132,47 @@ class ArsclibResourceCoder(
     override fun getOtherResourceFiles(outputDir: File, resourceMode: ResourceMode): File? {
         if (resourceMode == ResourceMode.NONE) return null
 
-        val otherFiles = mutableSetOf<File>()
+        val otherResourcesDir = outputDir.resolve("other")
+        otherResourcesDir.mkdirs()
+
+        val otherFiles = mutableMapOf<File, File>()
         packageDirectories.values.forEach { packageDirectory ->
             packageDirectory.listFiles()?.filter {
                 // Include any files that were copied to the resources folder root.
                 // This is the equivalent of copying to the APK root when using apktool.
+                // TODO: This is kind of bad. We should treat the resources folder as a read-only view and have all
+                //  modified/added files end up somewhere else.
 
                 // In RAW_ONLY mode, AndroidManifest.xml is not decoded and is named AndroidManifest.xml.bin.
                 // We only want to include the manifest in this mode.
                 it.isFile && it.name != "package.json" && it.name != "AndroidManifest.xml"
             }?.forEach {
-                otherFiles.add(it)
+                otherFiles[it] = otherResourcesDir.resolve(it.name)
             }
         }
 
         // Add all touched files to the other files list in raw only mode since we won't be creating a resources.apk.
         if (resourceMode == ResourceMode.RAW_ONLY) {
-            otherFiles.addAll(addedResources)
-            otherFiles.addAll(modifiedResources)
-            otherFiles.add(workingDir.resolve("AndroidManifest.xml.bin"))
+            (addedResources + modifiedResources).forEach {
+                val path = it.absolutePath.replace(workingDir.absolutePath, "")
+                if (path.startsWith("/root/")) {
+                    otherFiles[it] = otherResourcesDir.resolve(path.replace("/root/", ""))
+                } else {
+                    val subPath = path.substringAfter("/resources/").substringAfter("/")
+                    otherFiles[it] = otherResourcesDir.resolve(subPath)
+                }
+            }
+
+            val binaryManifest = workingDir.resolve("AndroidManifest.xml.bin")
+            val modifiedManifest = workingDir.resolve("AndroidManifest.xml")
+            otherFiles[binaryManifest] = modifiedManifest
         }
 
         return if (otherFiles.isNotEmpty()) {
-            val otherResourcesDir = outputDir.resolve("other")
-            otherResourcesDir.mkdirs()
-            otherFiles.forEach { file ->
-                Files.move(file.toPath(),
-                    otherResourcesDir.resolve(file.name).toPath(),
+            otherFiles.forEach { (src, dest) ->
+                dest.parentFile.mkdirs()
+                Files.move(src.toPath(),
+                    dest.toPath(),
                     StandardCopyOption.REPLACE_EXISTING
                 )
             }
@@ -189,7 +203,7 @@ class ArsclibResourceCoder(
     override fun getFile(
         path: String,
         packageName: String?,
-        copy: Boolean?,
+        copy: Boolean,
     ): File {
         val pkgName = packageName ?: apkModule.packageName
 
@@ -198,6 +212,7 @@ class ArsclibResourceCoder(
         if (path.startsWith("res/")) {
             retval = packageDirectories[pkgName]?.resolve(path) ?: throw PatchException("Package $pkgName not found")
         } else if (path == "AndroidManifest.xml") {
+            // TODO: Doesn't handle modifications to binary AndroidManifest.xml, but then again neither does apktool in raw mode.
             retval = workingDir.resolve(path)
         } else {
             retval = workingDir.resolve("root").resolve(path)

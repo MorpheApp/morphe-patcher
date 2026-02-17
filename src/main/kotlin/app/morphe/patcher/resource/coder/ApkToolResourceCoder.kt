@@ -168,10 +168,10 @@ class ApkToolResourceCoder(
     override fun getFile(
         path: String,
         packageName: String?,
-        copy: Boolean?
+        copy: Boolean
     ): File = workingDir.resolve(path).apply {
             if (copy == true && !exists()) {
-                val extFileDir = ExtFile(workingDir).directory
+                val extFileDir = apkInfo.apkFile.directory
                 if (extFileDir.containsFile(path) || extFileDir.containsDir(path)) {
                     extFileDir.copyToDir(workingDir, path)
                 }

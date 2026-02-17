@@ -70,7 +70,7 @@ interface ResourceCoder {
      * @param copy Whether to copy the file from the original APK if it does not exist yet in the working directory.
      * @return a File object representing the desired file.
      */
-    fun getFile(path: String, packageName: String? = null, copy: Boolean? = null): File
+    fun getFile(path: String, packageName: String? = null, copy: Boolean = true): File
 
     /**
      * Add a file to the working directory. The file will be tracked for inclusion in the final resources.apk.
