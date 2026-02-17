@@ -17,8 +17,10 @@ import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
+import com.reandroid.arsc.chunk.TableBlock
 import com.reandroid.json.JSONObject
 import org.w3c.dom.Element
+import java.io.Closeable
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -26,10 +28,8 @@ import java.util.logging.Logger
 
 class ArsclibResourceCoder(
     internal val workingDir: File,
-    apkFile: File
+    internal val apkFile: File
 ) : ResourceCoder {
-    internal val apkModule: ApkModule = ApkModule.loadApkFile(apkFile)
-
     private val logger = Logger.getLogger(ArsclibResourceCoder::class.java.name)
 
     private val packageDirectories = mutableMapOf<String, File>()
@@ -43,15 +43,38 @@ class ArsclibResourceCoder(
         "res/values/ids.xml",
     )
 
-    override fun getPackageMetadata(): PackageMetadata {
-        val manifest = apkModule.androidManifest
-        return PackageMetadata(
+    class PackageInfo(
+        val packageName: String,
+        val packageVersion: String,
+        val frameworkVersion: Int,
+        val externalFrameworks: MutableList<TableBlock>
+    ) : Closeable {
+        // No way to reload this once closed. Might not be a real issue though.
+        override fun close() {
+            externalFrameworks.clear()
+        }
+    }
+
+    private val lazyPackageInfo = lazy {
+        val module = ApkModule.loadApkFile(apkFile)
+        val manifest = module.androidManifest
+        PackageInfo(
             manifest.packageName,
-            manifest.versionName ?: manifest.versionCode.toString()
+            manifest.versionName ?: manifest.versionCode.toString(),
+            module.androidFrameworkVersion,
+            module.loadedFrameworks
+        )
+    }
+
+    override fun getPackageMetadata(): PackageMetadata {
+        return PackageMetadata(
+            packageName = lazyPackageInfo.value.packageName,
+            packageVersion = lazyPackageInfo.value.packageVersion
         )
     }
 
     override fun decodeRaw(): PackageMetadata {
+        val apkModule = ApkModule.loadApkFile(apkFile)
         val rawDecoder = ApkModuleRawDecoder(apkModule)
         rawDecoder.decode(workingDir)
 
@@ -59,12 +82,15 @@ class ArsclibResourceCoder(
     }
 
     override fun decodeResources(): PackageMetadata {
+        val apkModule = ApkModule.loadApkFile(apkFile)
         val xmlDecoder = ApkModuleXmlDecoder(apkModule).let {
             it.setKeepResPath(false)
             it
         }
 
         xmlDecoder.decode(workingDir)
+        xmlDecoder.dexDecoder = null
+        xmlDecoder.dexProfileDecoder = null
 
         // Delete all the dex files so they don't get built into the final resources.apk.
         workingDir.resolve("dex").deleteRecursively()
@@ -86,7 +112,7 @@ class ArsclibResourceCoder(
             val manifestNode = manifest.getElementsByTagName("manifest").item(0) as Element
             manifestNode.getAttribute("package")
         }
-        val originalPackageName = apkModule.packageName
+        val originalPackageName = lazyPackageInfo.value.packageName
 
         PublicXmlManager(getFile("res/values/public.xml")).use { publicXmlManager ->
             PackageRenamingProcessor(
@@ -118,10 +144,8 @@ class ArsclibResourceCoder(
         val encoder = ApkModuleXmlEncoder()
 
         encoder.apkModule.use { loadedModule ->
-            loadedModule.setPreferredFramework(apkModule.androidFrameworkVersion)
-            apkModule.loadedFrameworks.forEach {
-                loadedModule.addExternalFramework(it)
-            }
+            loadedModule.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
+            lazyPackageInfo.value.externalFrameworks.forEach { loadedModule.addExternalFramework(it) }
             encoder.scanDirectory(workingDir)
             loadedModule.writeApk(outputApk)
         }
@@ -207,7 +231,7 @@ class ArsclibResourceCoder(
         packageName: String?,
         copy: Boolean,
     ): File {
-        val pkgName = packageName ?: apkModule.packageName
+        val pkgName = packageName ?: lazyPackageInfo.value.packageName
 
         val retval: File
 
@@ -236,7 +260,7 @@ class ArsclibResourceCoder(
      * @return a File object representing the copied file.
      */
     override fun addFile(destPath: String, srcFile: File, packageName: String?): File {
-        val pkgName = packageName ?: apkModule.packageName
+        val pkgName = packageName ?: lazyPackageInfo.value.packageName
         val destFile =
             packageDirectories[pkgName]?.resolve(destPath) ?: throw PatchException("Package $pkgName not found")
         addedResources.add(destFile)
@@ -249,7 +273,7 @@ class ArsclibResourceCoder(
     }
 
     override fun deleteFile(path: String, packageName: String?) {
-        val pkgName = packageName ?: apkModule.packageName
+        val pkgName = packageName ?: lazyPackageInfo.value.packageName
         val file = packageDirectories[pkgName]?.resolve(path) ?: throw PatchException("Package $pkgName not found")
 
         Files.deleteIfExists(file.toPath())

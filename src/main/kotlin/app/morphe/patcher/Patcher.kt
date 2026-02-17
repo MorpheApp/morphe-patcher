@@ -156,5 +156,13 @@ class Patcher(private val config: PatcherConfig) : Closeable {
      * @return The [PatcherResult] containing the patched APK files.
      */
     @OptIn(InternalApi::class)
-    fun get() = PatcherResult(context.bytecodeContext.get(), context.resourceContext.get())
+    fun get(): PatcherResult {
+        Fingerprint.clearFingerprints()
+        val dexFiles = context.bytecodeContext.get()
+        context.close()
+        context.allPatches.clear()
+        context.executablePatches.clear()
+        val resFiles = context.resourceContext.get()
+        return PatcherResult(dexFiles, resFiles)
+    }
 }

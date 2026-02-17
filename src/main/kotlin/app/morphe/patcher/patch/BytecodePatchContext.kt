@@ -237,8 +237,6 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                 PatcherResult.PatchedDexFile(it.name, it.inputStream())
             }.toSet()
 
-        System.gc()
-
         return patchedDexFileResults
     }
 
