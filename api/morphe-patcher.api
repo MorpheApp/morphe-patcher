@@ -400,6 +400,7 @@ public final class app/morphe/patcher/patch/BytecodePatchContext : app/morphe/pa
 	public synthetic fun get ()Ljava/lang/Object;
 	public fun get ()Ljava/util/Set;
 	public final fun getAllClassesWithStrings ()Ljava/util/List;
+	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
 	public final fun mutableClassDefBy (Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun mutableClassDefBy (Ljava/lang/String;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun mutableClassDefBy (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;

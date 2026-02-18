@@ -33,7 +33,7 @@ import java.util.logging.Logger
  *
  * @param config The [PatcherConfig] used to create this context.
  */
-@Suppress("MemberVisibilityCanBePrivate")
+@Suppress("MemberVisibilityCanBePrivate", "unused")
 class BytecodePatchContext internal constructor(private val config: PatcherConfig, val packageMetadata: PackageMetadata) :
     PatchContext<Set<PatcherResult.PatchedDexFile>>,
     Closeable {
