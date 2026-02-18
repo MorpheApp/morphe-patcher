@@ -10,9 +10,10 @@ import app.morphe.patcher.resource.PublicXmlManager
 import app.morphe.patcher.resource.fileResourceTypes
 import app.morphe.patcher.resource.forEachElement
 import app.morphe.patcher.resource.inOrderTraverse
-import app.morphe.patcher.resource.resourceTypes
+import app.morphe.patcher.resource.resourceToTagOverrideMapping
 import app.morphe.patcher.util.Document
 import org.w3c.dom.Node
+import org.xml.sax.SAXParseException
 import java.io.File
 import java.io.FileNotFoundException
 import java.util.logging.Logger
@@ -63,21 +64,58 @@ internal class ResourceIdProcessor(
         val valuesDirectories = resDirectories.filter { it.name.startsWith("values") }
 
         // TODO: Only enumerate through files that have been modified by patches.
-        resourceTypes.forEach { (resourceType, tagInfo) ->
-            val xmlTagName = tagInfo.first
-            val publicTagName = tagInfo.second
 
-            valuesDirectories.forEach { dir ->
-                try {
-                    Document(get("res/${dir.name}/$resourceType.xml")).use { doc ->
-                        doc.getElementsByTagName(xmlTagName).forEachElement {
-                            publicIdManager.createPublicId(publicTagName, it.getAttribute("name"))
+        // TODO: Remove this workaround once we fix Piko patches.
+        val pikoMap = mapOf(
+            "piko_strings.xml" to "strings.xml",
+            "piko_arrays.xml" to "arrays.xml",
+            "piko_app_icon_colors.xml" to "colors.xml",
+            "piko_app_icon_strings.xml" to "strings.xml",
+        )
+
+        valuesDirectories.forEach { dir ->
+            dir.listFiles { file -> file.isFile }
+                ?.filter { it.extension == "xml" && it.name != "public.xml" }
+                ?.forEach { file ->
+                    try {
+                        Document(file).use { doc ->
+                            val resourcesNode = doc.getElementsByTagName("resources").item(0)
+                                ?: throw IllegalStateException("ids.xml is missing the <resources> root element.")
+
+                            resourcesNode.childNodes.forEachElement {
+                                val publicTagName = resourceToTagOverrideMapping[it.tagName] ?: it.tagName
+                                publicIdManager.createPublicId(publicTagName, it.getAttribute("name"))
+                            }
+
+                            if (file.name in pikoMap) {
+                                val originalFileName = pikoMap[file.name] ?: return@forEach
+                                val originalFile = File(file.parentFile, originalFileName)
+                                if (!originalFile.exists()) {
+                                    throw FileNotFoundException("Expected to find $originalFileName for ${file.name} but it does not exist.")
+                                }
+
+                                Document(originalFile).use { originalDoc ->
+                                    val originalResourcesNode = originalDoc.getElementsByTagName("resources").item(0)
+                                        ?: throw IllegalStateException("$originalFileName is missing the <resources> root element.")
+
+                                    resourcesNode.childNodes.forEachElement {
+                                        originalDoc.adoptNode(it.cloneNode(true)).also { importedNode ->
+                                            originalResourcesNode.appendChild(importedNode)
+                                        }
+                                    }
+                                }
+                            }
                         }
+                    } catch (_: FileNotFoundException) {
+                        // don't need to process
+                    } catch (e: SAXParseException) {
+                        logger.warning("Failed to parse res/${dir.name}/${file.name}: ${e.message}")
                     }
-                } catch (_: FileNotFoundException) {
-                    // don't need to process
+
+                    if (file.name in pikoMap) {
+                        file.delete()
+                    }
                 }
-            }
         }
 
         // TODO: Only enumerate through files that have been modified by patches.

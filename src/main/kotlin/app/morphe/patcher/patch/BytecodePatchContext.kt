@@ -1,6 +1,15 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ *
+ * Original forked code:
+ * https://github.com/LisoUseInAIKyrios/revanced-patcher
+ */
+
 package app.morphe.patcher.patch
 
 import app.morphe.patcher.InternalApi
+import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.StringComparisonType
@@ -25,7 +34,7 @@ import java.util.logging.Logger
  * @param config The [PatcherConfig] used to create this context.
  */
 @Suppress("MemberVisibilityCanBePrivate")
-class BytecodePatchContext internal constructor(private val config: PatcherConfig) :
+class BytecodePatchContext internal constructor(private val config: PatcherConfig, val packageMetadata: PackageMetadata) :
     PatchContext<Set<PatcherResult.PatchedDexFile>>,
     Closeable {
     private val logger = Logger.getLogger(this::class.java.name)
