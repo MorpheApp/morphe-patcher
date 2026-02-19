@@ -17,7 +17,6 @@ public final class app/morphe/patcher/FieldAccessFilter : app/morphe/patcher/Opc
 }
 
 public class app/morphe/patcher/Fingerprint {
-	public static final field Companion Lapp/morphe/patcher/Fingerprint$Companion;
 	public fun <init> ()V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -53,10 +52,6 @@ public class app/morphe/patcher/Fingerprint {
 	public final fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/Match;
 	public final fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
 	public final fun patchException ()Lapp/morphe/patcher/patch/PatchException;
-}
-
-public final class app/morphe/patcher/Fingerprint$Companion {
-	public final fun clearFingerprints ()V
 }
 
 public final class app/morphe/patcher/FingerprintBuilder {

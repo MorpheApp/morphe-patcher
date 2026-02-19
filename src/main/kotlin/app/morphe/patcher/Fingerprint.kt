@@ -69,7 +69,7 @@ open class Fingerprint(
     )
 
     // Holds a reference to all constructed fingerprints so that they can be later cleared.
-    companion object {
+    internal companion object {
         private val fingerprintList = mutableListOf<WeakReference<Fingerprint>>()
 
         fun clearFingerprints() {
