@@ -20,13 +20,14 @@ import java.util.logging.Logger
  * @param temporaryFilesPath A path to a folder to store temporary files in.
  * @param aaptBinaryPath A path to a custom aapt binary.
  * @param frameworkFileDirectory A path to the directory to cache the framework file in.
+ * @param useArsclib Whether to use Arsclib for resource decoding and compiling.
  */
 class PatcherConfig(
     internal val apkFile: File,
     private val temporaryFilesPath: File = File("morphe-temporary-files"),
     private val aaptBinaryPath: String? = null,
     private val frameworkFileDirectory: String? = null,
-    internal val useArsclib: Boolean = false
+    internal val useArsclib: Boolean = true
 ) {
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
 
