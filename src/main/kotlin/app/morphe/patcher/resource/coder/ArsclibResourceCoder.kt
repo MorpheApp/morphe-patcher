@@ -18,6 +18,9 @@ import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
 import com.reandroid.arsc.chunk.TableBlock
+import com.reandroid.arsc.coder.CoderSetting
+import com.reandroid.arsc.coder.xml.AaptXmlStringDecoder
+import com.reandroid.arsc.coder.xml.XmlCoder
 import com.reandroid.json.JSONObject
 import org.w3c.dom.Element
 import java.io.Closeable
@@ -83,9 +86,8 @@ class ArsclibResourceCoder(
 
     override fun decodeResources(): PackageMetadata {
         val apkModule = ApkModule.loadApkFile(apkFile)
-        val xmlDecoder = ApkModuleXmlDecoder(apkModule).let {
+        val xmlDecoder = ApkModuleXmlDecoder(apkModule).also {
             it.setKeepResPath(false)
-            it
         }
 
         xmlDecoder.decode(workingDir)
@@ -142,6 +144,9 @@ class ArsclibResourceCoder(
 
         logger.info("Writing resource APK")
         val encoder = ApkModuleXmlEncoder()
+        XmlCoder.getInstance().setting = CoderSetting().also {
+            it.stringDecoder = AaptXmlStringDecoder()
+        }
 
         encoder.apkModule.use { loadedModule ->
             loadedModule.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
