@@ -265,7 +265,8 @@ public final class app/morphe/patcher/OpcodesFilter$Companion {
 
 public final class app/morphe/patcher/PackageMetadata {
 	public final fun getPackageName ()Ljava/lang/String;
-	public final fun getPackageVersion ()Ljava/lang/String;
+	public final fun getVersionCode ()Ljava/lang/String;
+	public final fun getVersionName ()Ljava/lang/String;
 }
 
 public final class app/morphe/patcher/Patcher : java/io/Closeable {
@@ -708,12 +709,13 @@ public final class app/morphe/patcher/resource/coder/ArsclibResourceCoder : app/
 }
 
 public final class app/morphe/patcher/resource/coder/ArsclibResourceCoder$PackageInfo : java/io/Closeable {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;ILjava/util/List;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/util/List;)V
 	public fun close ()V
 	public final fun getExternalFrameworks ()Ljava/util/List;
 	public final fun getFrameworkVersion ()I
 	public final fun getPackageName ()Ljava/lang/String;
-	public final fun getPackageVersion ()Ljava/lang/String;
+	public final fun getVersionCode ()Ljava/lang/String;
+	public final fun getVersionName ()Ljava/lang/String;
 }
 
 public abstract interface class app/morphe/patcher/resource/coder/ResourceCoder {
