@@ -1,3 +1,10 @@
+# [1.2.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.2...v1.2.0-dev.3) (2026-02-21)
+
+
+### Features
+
+* Add a version code field to `PackageMetadata` ([#47](https://github.com/MorpheApp/morphe-patcher/issues/47)) ([c8800fd](https://github.com/MorpheApp/morphe-patcher/commit/c8800fd725a32009542e45743dc533b73f97d747))
+
 # [1.2.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.1...v1.2.0-dev.2) (2026-02-21)
 
 
