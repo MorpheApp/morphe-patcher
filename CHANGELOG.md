@@ -1,3 +1,10 @@
+# [1.2.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.1...v1.2.0-dev.2) (2026-02-21)
+
+
+### Features
+
+* Use arsclib during resource encoding/decoding and fix memory leaks ([#48](https://github.com/MorpheApp/morphe-patcher/issues/48)) ([7d0f837](https://github.com/MorpheApp/morphe-patcher/commit/7d0f837c939df44b78d81fff6c4f100c6afada49))
+
 # [1.2.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.1.1...v1.2.0-dev.1) (2026-02-09)
 
 
