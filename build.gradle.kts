@@ -33,6 +33,7 @@ tasks {
 }
 
 repositories {
+    mavenLocal()
     mavenCentral()
     // Obtain baksmali/smali from source builds - https://github.com/iBotPeaches/smali
     // Remove when official smali releases come out again.
@@ -40,6 +41,7 @@ repositories {
         url = uri("https://jitpack.io")
         content {
             includeGroup("com.github.iBotPeaches.smali")
+            includeGroup("com.github.REAndroid")
         }
     }
     maven {
@@ -59,6 +61,7 @@ dependencies {
     }
 
     implementation(libs.apktool.lib)
+    implementation(libs.arsclib)
     implementation(libs.kotlin.reflect)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.multidexlib2)

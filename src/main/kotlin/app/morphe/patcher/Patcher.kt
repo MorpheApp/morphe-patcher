@@ -1,6 +1,15 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ *
+ * Original forked code:
+ * https://github.com/LisoUseInAIKyrios/revanced-patcher
+ */
+
 package app.morphe.patcher
 
 import app.morphe.patcher.patch.*
+import app.morphe.patcher.resource.ResourceMode
 import kotlinx.coroutines.flow.flow
 import java.io.Closeable
 import java.util.logging.Logger
@@ -17,10 +26,6 @@ class Patcher(private val config: PatcherConfig) : Closeable {
      * The context containing the current state of the patcher.
      */
     val context = PatcherContext(config)
-
-    init {
-        context.resourceContext.decodeResources(ResourcePatchContext.ResourceMode.NONE)
-    }
 
     /**
      * Add patches.
@@ -42,11 +47,11 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         context.allPatches.let { allPatches ->
             // Check, if what kind of resource mode is required.
             config.resourceMode = if (allPatches.any { patch -> patch.anyRecursively { it is ResourcePatch } }) {
-                ResourcePatchContext.ResourceMode.FULL
+                ResourceMode.FULL
             } else if (allPatches.any { patch -> patch.anyRecursively { it is RawResourcePatch } }) {
-                ResourcePatchContext.ResourceMode.RAW_ONLY
+                ResourceMode.RAW_ONLY
             } else {
-                ResourcePatchContext.ResourceMode.NONE
+                ResourceMode.NONE
             }
         }
     }
@@ -92,7 +97,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         }
 
         // Prevent decoding the app manifest twice if it is not needed.
-        if (config.resourceMode != ResourcePatchContext.ResourceMode.NONE) {
+        if (config.resourceMode != ResourceMode.NONE) {
             context.resourceContext.decodeResources(config.resourceMode)
         }
 
@@ -151,5 +156,13 @@ class Patcher(private val config: PatcherConfig) : Closeable {
      * @return The [PatcherResult] containing the patched APK files.
      */
     @OptIn(InternalApi::class)
-    fun get() = PatcherResult(context.bytecodeContext.get(), context.resourceContext.get())
+    fun get(): PatcherResult {
+        Fingerprint.clearFingerprints()
+        val dexFiles = context.bytecodeContext.get()
+        context.close()
+        context.allPatches.clear()
+        context.executablePatches.clear()
+        val resFiles = context.resourceContext.get()
+        return PatcherResult(dexFiles, resFiles)
+    }
 }

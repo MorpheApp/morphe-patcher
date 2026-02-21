@@ -1,16 +1,17 @@
-package app.morphe.patcher
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ *
+ * Original forked code:
+ * https://github.com/LisoUseInAIKyrios/revanced-patcher
+ */
 
-import brut.androlib.apk.ApkInfo
+package app.morphe.patcher
 
 /**
  * Metadata about a package.
- *
- * @param apkInfo The [ApkInfo] of the apk file.
  */
-class PackageMetadata internal constructor(internal val apkInfo: ApkInfo) {
-    lateinit var packageName: String
-        internal set
-
-    lateinit var packageVersion: String
-        internal set
-}
+class PackageMetadata internal constructor(
+    val packageName: String,
+    val packageVersion: String,
+)
