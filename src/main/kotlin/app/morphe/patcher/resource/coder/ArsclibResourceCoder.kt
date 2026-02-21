@@ -48,7 +48,8 @@ class ArsclibResourceCoder(
 
     class PackageInfo(
         val packageName: String,
-        val packageVersion: String,
+        val versionName: String,
+        val versionCode: String,
         val frameworkVersion: Int,
         val externalFrameworks: MutableList<TableBlock>
     ) : Closeable {
@@ -63,7 +64,8 @@ class ArsclibResourceCoder(
         val manifest = module.androidManifest
         PackageInfo(
             manifest.packageName,
-            manifest.versionName ?: manifest.versionCode.toString(),
+            manifest.versionName,
+            manifest.versionCode.toString(),
             module.androidFrameworkVersion,
             module.loadedFrameworks
         )
@@ -71,8 +73,9 @@ class ArsclibResourceCoder(
 
     override fun getPackageMetadata(): PackageMetadata {
         return PackageMetadata(
-            packageName = lazyPackageInfo.value.packageName,
-            packageVersion = lazyPackageInfo.value.packageVersion
+            lazyPackageInfo.value.packageName,
+            lazyPackageInfo.value.versionName,
+            lazyPackageInfo.value.versionCode
         )
     }
 

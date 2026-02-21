@@ -68,7 +68,8 @@ class ApkToolResourceCoder(
         // XmlPullStreamDecoder.decodeManifest() sets metadata.apkInfo.
         return PackageMetadata(
             resourcesDecoder.resTable.packageRenamed,
-            apkInfo.versionInfo.versionName ?: apkInfo.versionInfo.versionCode
+            apkInfo.versionInfo.versionName,
+            apkInfo.versionInfo.versionCode
         )
     }
 
@@ -94,7 +95,8 @@ class ApkToolResourceCoder(
 
         return PackageMetadata(
             resourcesDecoder.resTable.packageRenamed,
-            apkInfo.versionInfo.versionName ?: apkInfo.versionInfo.versionCode.toString()
+            apkInfo.versionInfo.versionName,
+            apkInfo.versionInfo.versionCode.toString()
         )
     }
 
