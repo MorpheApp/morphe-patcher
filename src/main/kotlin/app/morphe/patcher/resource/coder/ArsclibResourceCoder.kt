@@ -7,11 +7,12 @@ package app.morphe.patcher.resource.coder
 
 import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.patch.PatchException
-import app.morphe.patcher.resource.processor.AaptMacroProcessor
-import app.morphe.patcher.resource.processor.PackageRenamingProcessor
 import app.morphe.patcher.resource.PublicXmlManager
 import app.morphe.patcher.resource.ResourceMode
+import app.morphe.patcher.resource.processor.AaptMacroProcessor
+import app.morphe.patcher.resource.processor.PackageRenamingProcessor
 import app.morphe.patcher.resource.processor.ResourceIdProcessor
+import app.morphe.patcher.resource.processor.UnEscapeProcessor
 import app.morphe.patcher.util.Document
 import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkModuleRawDecoder
@@ -120,6 +121,11 @@ class ArsclibResourceCoder(
         val originalPackageName = lazyPackageInfo.value.packageName
 
         PublicXmlManager(getFile("res/values/public.xml")).use { publicXmlManager ->
+            UnEscapeProcessor(
+                this@ArsclibResourceCoder::getFile,
+                packageDirectories,
+            ).process()
+
             PackageRenamingProcessor(
                 this@ArsclibResourceCoder::getFile,
                 publicXmlManager,
@@ -146,11 +152,11 @@ class ArsclibResourceCoder(
         }
 
         logger.info("Writing resource APK")
-        val encoder = ApkModuleXmlEncoder()
         XmlCoder.getInstance().setting = CoderSetting().also {
             it.stringDecoder = AaptXmlStringDecoder()
         }
 
+        val encoder = ApkModuleXmlEncoder()
         encoder.apkModule.use { loadedModule ->
             loadedModule.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
             lazyPackageInfo.value.externalFrameworks.forEach { loadedModule.addExternalFramework(it) }
