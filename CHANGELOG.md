@@ -1,3 +1,10 @@
+# [1.2.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.3...v1.2.0-dev.4) (2026-02-24)
+
+
+### Bug Fixes
+
+* Sanitize invalid XML characters in unpatched apk ([#54](https://github.com/MorpheApp/morphe-patcher/issues/54)) ([86a4087](https://github.com/MorpheApp/morphe-patcher/commit/86a4087c6345b5150ffa43e3695eba9e96224070))
+
 # [1.2.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.2...v1.2.0-dev.3) (2026-02-21)
 
 
