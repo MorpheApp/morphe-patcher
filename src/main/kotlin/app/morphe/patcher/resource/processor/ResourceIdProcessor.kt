@@ -65,14 +65,6 @@ internal class ResourceIdProcessor(
 
         // TODO: Only enumerate through files that have been modified by patches.
 
-        // TODO: Remove this workaround once we fix Piko patches.
-        val pikoMap = mapOf(
-            "piko_strings.xml" to "strings.xml",
-            "piko_arrays.xml" to "arrays.xml",
-            "piko_app_icon_colors.xml" to "colors.xml",
-            "piko_app_icon_strings.xml" to "strings.xml",
-        )
-
         valuesDirectories.forEach { dir ->
             dir.listFiles { file -> file.isFile }
                 ?.filter { it.extension == "xml" && it.name != "public.xml" }
@@ -86,34 +78,11 @@ internal class ResourceIdProcessor(
                                 val publicTagName = resourceToTagOverrideMapping[it.tagName] ?: it.tagName
                                 publicIdManager.createPublicId(publicTagName, it.getAttribute("name"))
                             }
-
-                            if (file.name in pikoMap) {
-                                val originalFileName = pikoMap[file.name] ?: return@forEach
-                                val originalFile = File(file.parentFile, originalFileName)
-                                if (!originalFile.exists()) {
-                                    throw FileNotFoundException("Expected to find $originalFileName for ${file.name} but it does not exist.")
-                                }
-
-                                Document(originalFile).use { originalDoc ->
-                                    val originalResourcesNode = originalDoc.getElementsByTagName("resources").item(0)
-                                        ?: throw IllegalStateException("$originalFileName is missing the <resources> root element.")
-
-                                    resourcesNode.childNodes.forEachElement {
-                                        originalDoc.adoptNode(it.cloneNode(true)).also { importedNode ->
-                                            originalResourcesNode.appendChild(importedNode)
-                                        }
-                                    }
-                                }
-                            }
                         }
                     } catch (_: FileNotFoundException) {
                         // don't need to process
                     } catch (e: SAXParseException) {
                         logger.warning("Failed to parse res/${dir.name}/${file.name}: ${e.message}")
-                    }
-
-                    if (file.name in pikoMap) {
-                        file.delete()
                     }
                 }
         }
