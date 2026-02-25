@@ -44,7 +44,7 @@ internal class PackageRenamingProcessor(
         // We should only need to fix references to the original package in other package resource bundles.
         packageDirectories.filter { it.key != originalPackageName }.forEach { (resPackageName, rootDir) ->
             rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
-                dir.listFiles { it.extension == "xml" }?.forEach { file ->
+                dir.listFiles { it.extension == "xml" && it.name != "strings.xml" }?.forEach { file ->
                     Document(get("res/${dir.name}/${file.name}", resPackageName)).use { doc ->
                         doc.inOrderTraverse { element ->
                             for (i in 0 until element.attributes.length) {
