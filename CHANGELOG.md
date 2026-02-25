@@ -1,3 +1,10 @@
+# [1.2.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.4...v1.2.0-dev.5) (2026-02-25)
+
+
+### Bug Fixes
+
+* Sanitize strings.xml after decoding resources ([#55](https://github.com/MorpheApp/morphe-patcher/issues/55)) ([4155343](https://github.com/MorpheApp/morphe-patcher/commit/41553432f784dda34ddc3c2364279c6d2d87c3df))
+
 # [1.2.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.3...v1.2.0-dev.4) (2026-02-24)
 
 
