@@ -7,21 +7,14 @@ package app.morphe.patcher.resource.processor
 
 import app.morphe.patcher.resource.inOrderTraverse
 import app.morphe.patcher.util.Document
-import java.io.ByteArrayInputStream
 import java.io.File
-import java.io.StringWriter
-import java.nio.charset.StandardCharsets
 import java.util.logging.Logger
-import javax.xml.transform.OutputKeys
-import javax.xml.transform.TransformerFactory
-import javax.xml.transform.dom.DOMSource
-import javax.xml.transform.stream.StreamResult
 
-internal class UnEscapeProcessor(
+internal class StringsXmlUnEscapeProcessor(
     internal val get: (String, String) -> File,
     internal val packageDirectories: Map<String, File>,
 ) {
-    private val logger = Logger.getLogger(UnEscapeProcessor::class.java.name)
+    private val logger = Logger.getLogger(StringsXmlUnEscapeProcessor::class.java.name)
 
     private val escapedUnicodeRegex = Regex("\\\\u([0-9a-fA-F]{4})")
 
@@ -32,14 +25,7 @@ internal class UnEscapeProcessor(
             rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
                 // TODO Strings declared in arrays.xml may also need unescaping of string literals.
                 dir.listFiles { it.name == "strings.xml" }?.forEach { file ->
-                    val rawXml = file.readText()
-                    // Sanitize and remove invalid XML before parsing.
-                    val sanitizedXml = sanitizeXmlText(rawXml)
-                    val inputStream = ByteArrayInputStream(
-                        sanitizedXml.toByteArray(StandardCharsets.UTF_8)
-                    )
-
-                    Document(inputStream).use { doc ->
+                    Document(get("res/${dir.name}/${file.name}", resPackageName)).use { doc ->
                         doc.inOrderTraverse { element ->
                             if (element.nodeName == "string") {
                                 val textContent = element.textContent
@@ -73,42 +59,5 @@ internal class UnEscapeProcessor(
             }
         }
     }
-}
-
-
-/**
- * Clean both forms of invalid XML characters:
- * 1. Remove invalid numeric character references (e.g., &#65535;), which would
- *    otherwise cause the XML parser to fail before the document can be loaded.
- * 2. Remove any literal invalid Unicode characters that may appear directly in
- *    the file (e.g., U+FFFF), ensuring the resulting text always conforms to
- *    XML 1.0's allowed character ranges.
- */
-internal fun sanitizeXmlText(input: String): String {
-    fun isValidXmlChar(code: Int): Boolean =
-        code == 0x9 ||
-                code == 0xA ||
-                code == 0xD ||
-                (code in 0x20..0xD7FF) ||
-                (code in 0xE000..0xFFFD) ||
-                (code in 0x10000..0x10FFFF)
-
-    // Remove invalid numeric character references like &#65535;
-    val cleanedEntities = input.replace(Regex("&#(\\d+);")) { match ->
-        val code = match.groupValues[1].toInt()
-        if (isValidXmlChar(code)) match.value else ""
-    }
-
-    // Remove invalid literal unicode.
-    return cleanedEntities.filter { ch -> isValidXmlChar(ch.code) }
-}
-
-internal fun Document.toXmlString(): String {
-    val transformer = TransformerFactory.newInstance().newTransformer()
-    transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8")
-
-    val writer = StringWriter()
-    transformer.transform(DOMSource(this), StreamResult(writer))
-    return writer.toString()
 }
 

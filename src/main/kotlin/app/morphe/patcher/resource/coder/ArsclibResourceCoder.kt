@@ -10,9 +10,11 @@ import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.PublicXmlManager
 import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.resource.processor.AaptMacroProcessor
+import app.morphe.patcher.resource.processor.StringsXmlEscapeProcessor
 import app.morphe.patcher.resource.processor.PackageRenamingProcessor
 import app.morphe.patcher.resource.processor.ResourceIdProcessor
-import app.morphe.patcher.resource.processor.UnEscapeProcessor
+import app.morphe.patcher.resource.processor.SanitizeStringsXmlProcessor
+import app.morphe.patcher.resource.processor.StringsXmlUnEscapeProcessor
 import app.morphe.patcher.util.Document
 import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkModuleRawDecoder
@@ -108,6 +110,16 @@ class ArsclibResourceCoder(
             packageDirectories[packageName] = dir
         }
 
+        SanitizeStringsXmlProcessor(
+            this::getFile,
+            packageDirectories,
+        ).process()
+
+        StringsXmlEscapeProcessor(
+            this::getFile,
+            packageDirectories,
+        ).process()
+
         return getPackageMetadata()
     }
 
@@ -121,7 +133,7 @@ class ArsclibResourceCoder(
         val originalPackageName = lazyPackageInfo.value.packageName
 
         PublicXmlManager(getFile("res/values/public.xml")).use { publicXmlManager ->
-            UnEscapeProcessor(
+            StringsXmlUnEscapeProcessor(
                 this@ArsclibResourceCoder::getFile,
                 packageDirectories,
             ).process()
