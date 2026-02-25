@@ -53,7 +53,6 @@ internal class StringsXmlUnEscapeProcessor(
                                 }
                             }
                         }
-                        file.writeText(doc.toXmlString())
                     }
                 }
             }

@@ -21,6 +21,7 @@ internal class StringsXmlEscapeProcessor(
 
         packageDirectories.forEach { (resPackageName, rootDir) ->
             rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
+                // TODO Strings declared in arrays.xml may also need unescaping of string literals.
                 dir.listFiles { it.name == "strings.xml" }?.forEach { file ->
                     Document(get("res/${dir.name}/${file.name}", resPackageName)).use { doc ->
                         doc.inOrderTraverse { element ->
@@ -55,7 +56,6 @@ internal class StringsXmlEscapeProcessor(
                                 }
                             }
                         }
-                        file.writeText(doc.toXmlString())
                     }
                 }
             }

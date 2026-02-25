@@ -13,7 +13,7 @@ import app.morphe.patcher.resource.processor.AaptMacroProcessor
 import app.morphe.patcher.resource.processor.StringsXmlEscapeProcessor
 import app.morphe.patcher.resource.processor.PackageRenamingProcessor
 import app.morphe.patcher.resource.processor.ResourceIdProcessor
-import app.morphe.patcher.resource.processor.SanitizeStringsXmlProcessor
+import app.morphe.patcher.resource.processor.StringsXmlSanitizeProcessor
 import app.morphe.patcher.resource.processor.StringsXmlUnEscapeProcessor
 import app.morphe.patcher.util.Document
 import com.reandroid.apk.ApkModule
@@ -110,7 +110,7 @@ class ArsclibResourceCoder(
             packageDirectories[packageName] = dir
         }
 
-        SanitizeStringsXmlProcessor(
+        StringsXmlSanitizeProcessor(
             this::getFile,
             packageDirectories,
         ).process()

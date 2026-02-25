@@ -14,18 +14,17 @@ import javax.xml.transform.TransformerFactory
 import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 
-internal class SanitizeStringsXmlProcessor(
+internal class StringsXmlSanitizeProcessor(
     internal val get: (String, String) -> File,
     internal val packageDirectories: Map<String, File>,
 ) {
-    private val logger = Logger.getLogger(SanitizeStringsXmlProcessor::class.java.name)
+    private val logger = Logger.getLogger(StringsXmlSanitizeProcessor::class.java.name)
 
     fun process() {
         logger.info("Running strings.xml sanitizing")
 
         packageDirectories.forEach { (resPackageName, rootDir) ->
             rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
-                // TODO Strings declared in arrays.xml may also need unescaping of string literals.
                 dir.listFiles { it.name == "strings.xml" }?.forEach { file ->
                     val rawXml = file.readText()
                     file.writeText(sanitizeXmlText(rawXml))
