@@ -31,7 +31,7 @@ internal class PackageRenamingProcessor(
             return
         }
 
-        logger.info("Running post-processing steps for package renaming")
+        logger.info("Post-processing package name change")
 
         publicXmlManager.getPublicNode().setAttribute("package", newPackageName)
 

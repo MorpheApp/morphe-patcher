@@ -19,7 +19,7 @@ internal class StringsXmlUnEscapeProcessor(
     private val escapedUnicodeRegex = Regex("\\\\u([0-9a-fA-F]{4})")
 
     fun process() {
-        logger.info("Running string unescape processing")
+        logger.info("Unescaping strings")
 
         packageDirectories.forEach { (resPackageName, rootDir) ->
             rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->

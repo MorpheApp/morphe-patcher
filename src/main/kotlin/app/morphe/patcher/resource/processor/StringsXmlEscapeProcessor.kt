@@ -17,7 +17,7 @@ internal class StringsXmlEscapeProcessor(
     private val logger = Logger.getLogger(StringsXmlEscapeProcessor::class.java.name)
 
     fun process() {
-        logger.info("Running string escape processing")
+        logger.info("Escaping unpatched strings")
 
         packageDirectories.forEach { (resPackageName, rootDir) ->
             rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->

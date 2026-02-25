@@ -21,9 +21,9 @@ internal class StringsXmlSanitizeProcessor(
     private val logger = Logger.getLogger(StringsXmlSanitizeProcessor::class.java.name)
 
     fun process() {
-        logger.info("Running strings.xml sanitizing")
+        logger.info("Sanitizing unpatched strings")
 
-        packageDirectories.forEach { (resPackageName, rootDir) ->
+        packageDirectories.forEach { (_, rootDir) ->
             rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
                 dir.listFiles { it.name == "strings.xml" }?.forEach { file ->
                     val rawXml = file.readText()
