@@ -33,7 +33,9 @@ internal class ResourceIdProcessor(
             get("res").listFiles { file -> file.isDirectory } ?: throw PatchException("Resource directory not found")
         val nonTrackedFiles = mutableSetOf<File>()
 
-        // Step 1: Process new IDs in layout/menu files
+        // Find all new ID declarations in layout/menu files so we can create a corresponding entry in ids.xml
+        // They will get added to public.xml later
+        // TODO: Only handle this for newly added files (this is a breaking change).
         Document(get("res/values/ids.xml")).use { idDoc ->
             val idNode = idDoc.getElementsByTagName("resources").item(0)
                 ?: throw IllegalStateException("ids.xml is missing the <resources> root element.")
@@ -42,6 +44,7 @@ internal class ResourceIdProcessor(
                 .filter { it.exists() && it.extension == "xml" }
                 .forEach { processNewIdDeclarations(it, idNode) }
 
+            // TODO: Check if we need to look through any other XML files for new ID declarations.
             resDirectories
                 .filter { it.name.startsWith("layout") || it.name.startsWith("menu") }
                 .forEach { dir ->
@@ -80,6 +83,7 @@ internal class ResourceIdProcessor(
         }
 
         // Step 3: Ensure all other resources have a public ID
+        // TODO: Only enumerate through files that have been modified by patches.
         for (type in fileResourceTypes) {
             val directories = resDirectories.filter { it.name.startsWith(type) }
             for (dir in directories) {
