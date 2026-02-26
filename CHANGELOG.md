@@ -1,3 +1,10 @@
+# [1.2.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.5...v1.2.0-dev.6) (2026-02-26)
+
+
+### Bug Fixes
+
+* Use streaming XML processing ([#56](https://github.com/MorpheApp/morphe-patcher/issues/56)) ([e9d56d0](https://github.com/MorpheApp/morphe-patcher/commit/e9d56d0a1f06e04a72ff031974c894bd113985f5))
+
 # [1.2.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.4...v1.2.0-dev.5) (2026-02-25)
 
 
