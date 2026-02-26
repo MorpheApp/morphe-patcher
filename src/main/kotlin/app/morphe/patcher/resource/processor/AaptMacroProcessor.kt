@@ -7,12 +7,11 @@ package app.morphe.patcher.resource.processor
 
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.fileResourceTypes
-import app.morphe.patcher.resource.mapNotNull
-import app.morphe.patcher.resource.postOrderTraverse
 import app.morphe.patcher.util.Document
 import org.w3c.dom.Element
 import java.io.File
 import java.io.FileWriter
+import java.util.ArrayDeque
 import java.util.logging.Logger
 import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.transform.TransformerFactory
@@ -26,7 +25,6 @@ internal class AaptMacroProcessor(
 ) {
     private val logger = Logger.getLogger(AaptMacroProcessor::class.java.name)
 
-    // TODO: Make a better way of determining this
     private val aaptNameToResourceType = mapOf(
         "android:animation" to "drawable",
         "android:drawable" to "drawable",
@@ -47,9 +45,7 @@ internal class AaptMacroProcessor(
         val newlyCreatedFiles = mutableSetOf<File>()
         (modifiedResources + addedResources)
             .filter { it.exists() && it.extension == "xml" }
-            .forEach {
-                newlyCreatedFiles += processDocument(it)
-            }
+            .forEach { newlyCreatedFiles += processDocument(it) }
 
         val nonTrackedFiles = mutableSetOf<File>()
         fileResourceTypes
@@ -57,16 +53,10 @@ internal class AaptMacroProcessor(
             .filter { it.exists() && it.isDirectory }
             .forEach { dir ->
                 dir.listFiles { file -> file.isFile && file.extension == "xml" && !file.name.startsWith("$") }
-                    ?.filter {
-                        !newlyCreatedFiles.contains(it) && !modifiedResources.contains(it) && !addedResources.contains(
-                            it
-                        )
-                    }
                     ?.forEach { file ->
+                        if (file in newlyCreatedFiles || file in modifiedResources || file in addedResources) return@forEach
                         val res = processDocument(file)
-                        if (res.isNotEmpty()) {
-                            nonTrackedFiles += file
-                        }
+                        if (res.isNotEmpty()) nonTrackedFiles += file
                     }
             }
 
@@ -78,44 +68,49 @@ internal class AaptMacroProcessor(
 
     private fun processDocument(file: File): Set<File> {
         val newlyCreatedFiles = mutableSetOf<File>()
-
         var aaptCounter = 0
+
         Document(file).use { doc ->
-            doc.childNodes
-                .mapNotNull { it as? Element }
-                .filter { it.hasAttribute("xmlns:aapt") }
-                .forEach { topLevelElem ->
-                    topLevelElem.postOrderTraverse({ element ->
-                        if (element.nodeName != "aapt:attr") {
-                            return@postOrderTraverse
+            val topNodes = doc.childNodes
+            for (i in 0 until topNodes.length) {
+                val topLevelElem = topNodes.item(i) as? Element ?: continue
+                if (!topLevelElem.hasAttribute("xmlns:aapt")) continue
+
+                // Replace recursive postOrderTraverse with iterative stack-based version
+                iterativePostOrder(topLevelElem) { element ->
+                    if (element.nodeName != "aapt:attr") return@iterativePostOrder
+
+                    val shadowedName = "$${file.nameWithoutExtension}__$aaptCounter"
+                    aaptCounter++
+
+                    val parentElement = element.parentNode as Element
+                    val parentAttribute = element.getAttribute("name")
+                    val resourceType = aaptNameToResourceType[parentAttribute]
+                        ?: throw PatchException("Unhandled XML attribute: $parentAttribute")
+                    parentElement.setAttribute(parentAttribute, "@$resourceType/$shadowedName")
+
+                    // Find first child element without allocating a list
+                    val childNodes = element.childNodes
+                    var sourceElement: Element? = null
+                    for (j in 0 until childNodes.length) {
+                        val child = childNodes.item(j) as? Element
+                        if (child != null) {
+                            sourceElement = child
+                            break
                         }
+                    }
+                    if (sourceElement == null)
+                        throw PatchException("aapt:attr element has no child element in ${file.name}")
 
-                        val shadowedName = "$${file.nameWithoutExtension}__$aaptCounter"
-                        aaptCounter++
+                    sourceElement.setAttribute("xmlns:android", "http://schemas.android.com/apk/res/android")
 
-                        val parentElement = element.parentNode as Element
-                        val parentAttribute = element.getAttribute("name")
-
-                        val resourceType = aaptNameToResourceType[parentAttribute]
-                            ?: throw PatchException("Unhandled XML attribute: $parentAttribute")
-                        parentElement.setAttribute(parentAttribute, "@$resourceType/$shadowedName")
-
-                        val sourceElement = element.childNodes
-                            .mapNotNull { it as? Element }
-                            .firstOrNull()
-                            ?: throw PatchException("aapt:attr element has no child element in ${file.name}")
-                        sourceElement.setAttribute(
-                            "xmlns:android",
-                            "http://schemas.android.com/apk/res/android"
-                        )
-
-                        val newElementFilename = "res/$resourceType/$shadowedName.xml"
-                        val newElementFile = get(newElementFilename)
-                        extractElementToNewDocument(sourceElement, newElementFile)
-                        newlyCreatedFiles.add(newElementFile)
-                    })
+                    val newElementFile = get("res/$resourceType/$shadowedName.xml")
+                    extractElementToNewDocument(sourceElement, newElementFile)
+                    newlyCreatedFiles.add(newElementFile)
                 }
+            }
         }
+
         return newlyCreatedFiles
     }
 
@@ -125,16 +120,42 @@ internal class AaptMacroProcessor(
         copiedDocument.appendChild(copiedRoot)
 
         writeDocumentToFile(copiedDocument, file)
-
         element.parentNode.removeChild(element)
     }
 
     private fun writeDocumentToFile(doc: org.w3c.dom.Document, file: File) {
-        val source = DOMSource(doc)
         FileWriter(file).use { writer ->
-            val result = StreamResult(writer)
-            transformer.transform(source, result)
+            transformer.transform(DOMSource(doc), StreamResult(writer))
         }
         addedResources.add(file)
+    }
+
+    /**
+     * Iterative post-order traversal for Element nodes.
+     * Preserves original postOrderTraverse behavior without recursion.
+     */
+    private fun iterativePostOrder(root: Element, action: (Element) -> Unit) {
+        data class StackNode(val element: Element, var visited: Boolean = false)
+
+        val stack = ArrayDeque<StackNode>()
+        stack.add(StackNode(root))
+
+        while (stack.isNotEmpty()) {
+            val node = stack.removeLast()
+            if (node.visited) {
+                action(node.element)
+                continue
+            }
+
+            node.visited = true
+            stack.add(node) // Add back to process after children
+
+            // Add children to stack
+            val children = node.element.childNodes
+            for (i in children.length - 1 downTo 0) {
+                val child = children.item(i)
+                if (child is Element) stack.add(StackNode(child))
+            }
+        }
     }
 }

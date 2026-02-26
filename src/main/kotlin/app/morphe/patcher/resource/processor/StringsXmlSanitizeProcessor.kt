@@ -70,4 +70,3 @@ internal fun Document.toXmlString(): String {
     transformer.transform(DOMSource(this), StreamResult(writer))
     return writer.toString()
 }
-
