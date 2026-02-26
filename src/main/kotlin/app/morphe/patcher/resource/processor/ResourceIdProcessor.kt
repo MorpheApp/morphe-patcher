@@ -8,14 +8,14 @@ package app.morphe.patcher.resource.processor
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.PublicXmlManager
 import app.morphe.patcher.resource.fileResourceTypes
-import app.morphe.patcher.resource.forEachElement
-import app.morphe.patcher.resource.inOrderTraverse
 import app.morphe.patcher.resource.resourceToTagOverrideMapping
 import app.morphe.patcher.util.Document
+import org.w3c.dom.Element
 import org.w3c.dom.Node
 import org.xml.sax.SAXParseException
 import java.io.File
 import java.io.FileNotFoundException
+import java.util.ArrayDeque
 import java.util.logging.Logger
 
 internal class ResourceIdProcessor(
@@ -33,70 +33,60 @@ internal class ResourceIdProcessor(
             get("res").listFiles { file -> file.isDirectory } ?: throw PatchException("Resource directory not found")
         val nonTrackedFiles = mutableSetOf<File>()
 
-        // Find all new ID declarations in layout/menu files so we can create a corresponding entry in ids.xml
-        // They will get added to public.xml later
-        // TODO: Only handle this for newly added files (this is a breaking change).
+        // Step 1: Process new IDs in layout/menu files
         Document(get("res/values/ids.xml")).use { idDoc ->
             val idNode = idDoc.getElementsByTagName("resources").item(0)
                 ?: throw IllegalStateException("ids.xml is missing the <resources> root element.")
 
             (modifiedResources + addedResources)
                 .filter { it.exists() && it.extension == "xml" }
-                .forEach {
-                    processNewIdDeclarations(it, idNode)
-                }
+                .forEach { processNewIdDeclarations(it, idNode) }
 
-            // TODO: Check if we need to look through any other XML files for new ID declarations.
             resDirectories
                 .filter { it.name.startsWith("layout") || it.name.startsWith("menu") }
                 .forEach { dir ->
-                    dir.listFiles { file -> file.isFile }
-                        ?.filter { !modifiedResources.contains(it) && !addedResources.contains(it) }
-                        ?.forEach { file ->
-                            val nonTrackedIds = processNewIdDeclarations(file, idNode)
-                            if (nonTrackedIds.isNotEmpty()) {
-                                nonTrackedFiles += file
-                            }
-                        }
+                    val files = dir.listFiles { file -> file.isFile } ?: return@forEach
+                    for (file in files) {
+                        if (file in modifiedResources || file in addedResources) continue
+                        val nonTrackedIds = processNewIdDeclarations(file, idNode)
+                        if (nonTrackedIds.isNotEmpty()) nonTrackedFiles += file
+                    }
                 }
         }
 
+        // Step 2: Update publicIdManager from values XML files
         val valuesDirectories = resDirectories.filter { it.name.startsWith("values") }
-
-        // TODO: Only enumerate through files that have been modified by patches.
-
-        valuesDirectories.forEach { dir ->
-            dir.listFiles { file -> file.isFile }
-                ?.filter { it.extension == "xml" && it.name != "public.xml" }
-                ?.forEach { file ->
-                    try {
-                        Document(file).use { doc ->
-                            val resourcesNode = doc.getElementsByTagName("resources").item(0)
-                                ?: throw IllegalStateException("ids.xml is missing the <resources> root element.")
-
-                            resourcesNode.childNodes.forEachElement {
-                                val publicTagName = resourceToTagOverrideMapping[it.tagName] ?: it.tagName
-                                publicIdManager.createPublicId(publicTagName, it.getAttribute("name"))
-                            }
+        for (dir in valuesDirectories) {
+            val files = dir.listFiles { file -> file.isFile } ?: continue
+            for (file in files) {
+                if (file.extension != "xml" || file.name == "public.xml") continue
+                try {
+                    Document(file).use { doc ->
+                        val resourcesNode = doc.getElementsByTagName("resources").item(0)
+                            ?: throw IllegalStateException("<resources> root missing in ${file.name}")
+                        // Use stack-based iterative traversal instead of recursive forEachElement
+                        iterativeTraverse(resourcesNode) { element ->
+                            val publicTagName =
+                                resourceToTagOverrideMapping[element.nodeName] ?: element.nodeName
+                            publicIdManager.createPublicId(publicTagName, element.getAttribute("name"))
                         }
-                    } catch (_: FileNotFoundException) {
-                        // don't need to process
-                    } catch (e: SAXParseException) {
-                        logger.warning("Failed to parse res/${dir.name}/${file.name}: ${e.message}")
                     }
+                } catch (_: FileNotFoundException) {
+                    // ignore
+                } catch (e: SAXParseException) {
+                    logger.warning("Failed to parse res/${dir.name}/${file.name}: ${e.message}")
                 }
+            }
         }
 
-        // TODO: Only enumerate through files that have been modified by patches.
-        fileResourceTypes.forEach { type ->
+        // Step 3: Ensure all other resources have a public ID
+        for (type in fileResourceTypes) {
             val directories = resDirectories.filter { it.name.startsWith(type) }
-            directories.forEach { dir ->
-                dir.listFiles { file -> file.isFile }
-                    // TODO: This generates superfluous IDs for existing files like 9patch files.
-                    ?.map { file -> file.nameWithoutExtension }
-                    ?.forEach { name ->
-                        publicIdManager.createPublicId(type, name)
-                    }
+            for (dir in directories) {
+                val files = dir.listFiles { file -> file.isFile } ?: continue
+                for (file in files) {
+                    publicIdManager.createPublicId(type, file.nameWithoutExtension)
+                }
             }
         }
 
@@ -108,24 +98,43 @@ internal class ResourceIdProcessor(
 
     private fun processNewIdDeclarations(file: File, idNode: Node): Set<String> {
         val createdIds = mutableSetOf<String>()
-
         Document(file).use { doc ->
-            doc.inOrderTraverse {
-                val idString = it.getAttribute("android:id")
+            iterativeTraverse(doc.documentElement) { element ->
+                val idString = element.getAttribute("android:id")
                 if (idString.startsWith("@+id/")) {
                     logger.fine("Adding $idString to ids.xml")
                     val idName = idString.substring(5)
+
                     val item = idNode.ownerDocument.createElement("id")
                     item.setAttribute("name", idName)
                     idNode.appendChild(item)
 
-                    it.setAttribute("android:id", "@id/$idName")
-
-                    createdIds.add("@id/$idName")
+                    element.setAttribute("android:id", "@id/$idName")
+                    createdIds += "@id/$idName"
                 }
             }
         }
-
         return createdIds
+    }
+
+    /**
+     * Iterative traversal of all Element nodes in the subtree starting at [root].
+     * Preserves original in-order behavior of inOrderTraverse.
+     */
+    private fun iterativeTraverse(root: Node, action: (Element) -> Unit) {
+        val stack = ArrayDeque<Element>()
+        if (root is Element) stack.add(root)
+
+        while (stack.isNotEmpty()) {
+            val elem = stack.removeLast()
+            action(elem)
+
+            // Add children to stack in reverse order to maintain order
+            val children = elem.childNodes
+            for (i in children.length - 1 downTo 0) {
+                val child = children.item(i)
+                if (child is Element) stack.add(child)
+            }
+        }
     }
 }
