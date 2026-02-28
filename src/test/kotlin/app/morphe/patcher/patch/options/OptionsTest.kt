@@ -5,7 +5,6 @@ import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
 import kotlin.reflect.typeOf
 import kotlin.test.*
-import kotlin.text.get
 
 internal object OptionsTest {
     private val externalOption = stringOption("external", "default")

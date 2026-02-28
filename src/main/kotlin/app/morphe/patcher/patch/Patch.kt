@@ -15,13 +15,10 @@ import java.lang.reflect.Modifier
 import java.net.URLClassLoader
 import java.util.function.Supplier
 import java.util.jar.JarFile
-import java.util.logging.Logger
 
 typealias PackageName = String
 typealias VersionName = String
 typealias Package = Pair<PackageName, Set<VersionName>?>
-
-private val logger = Logger.getLogger("Patch")
 
 /**
  * A patch.
