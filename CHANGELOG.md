@@ -1,3 +1,10 @@
+# [1.2.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.6...v1.2.0-dev.7) (2026-02-28)
+
+
+### Bug Fixes
+
+* Specify UTF-8 during XML processing to prevent encoding issues on Windows ([#58](https://github.com/MorpheApp/morphe-patcher/issues/58)) ([842604d](https://github.com/MorpheApp/morphe-patcher/commit/842604d0504c904ac2abd6f2b268c164388384fc))
+
 # [1.2.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.5...v1.2.0-dev.6) (2026-02-26)
 
 
