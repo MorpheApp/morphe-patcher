@@ -4,14 +4,12 @@ import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.ApkSigner.newApkSigner
 import app.morphe.patcher.apk.ApkSigner.newKeyStore
 import app.morphe.patcher.apk.ApkSigner.newPrivateKeyCertificatePair
-import app.morphe.patcher.apk.ApkSigner.readKeyStore
-import app.morphe.patcher.apk.ApkSigner.readPrivateKeyCertificatePair
 import com.android.tools.build.apkzlib.zip.AlignmentRules
 import com.android.tools.build.apkzlib.zip.StoredEntry
 import com.android.tools.build.apkzlib.zip.ZFile
 import com.android.tools.build.apkzlib.zip.ZFileOptions
 import java.io.File
-import java.util.Date
+import java.util.*
 import java.util.logging.Logger
 import kotlin.time.Duration.Companion.days
 
@@ -58,6 +56,7 @@ object ApkUtils {
         ZFile.openReadWrite(apkFile, zFileOptions).use { targetApkZFile ->
             dexFiles.forEach { dexFile ->
                 targetApkZFile.add(dexFile.name, dexFile.stream)
+                dexFile.stream.close()
             }
 
             resources?.let { resources ->
@@ -137,8 +136,8 @@ object ApkUtils {
      */
     private fun readPrivateKeyCertificatePairFromKeyStore(
         keyStoreDetails: KeyStoreDetails,
-    ) = readPrivateKeyCertificatePair(
-        readKeyStore(
+    ) = ApkSigner.readPrivateKeyCertificatePair(
+        ApkSigner.readKeyStore(
             keyStoreDetails.keyStore.inputStream(),
             keyStoreDetails.keyStorePassword,
         ),
