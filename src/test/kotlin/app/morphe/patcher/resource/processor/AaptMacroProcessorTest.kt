@@ -10,7 +10,6 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import kotlin.test.assertContains
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 internal object AaptMacroProcessorTest {
@@ -34,7 +33,7 @@ internal object AaptMacroProcessorTest {
             </vector>
         """.trimIndent()
 
-        val (sourceFile, resDir) = setupAndProcess(xmlContent, addedResources)
+        val (sourceFile, _) = setupAndProcess(xmlContent, addedResources)
 
         // Verify the aapt:attr was replaced with a reference
         val resultText = sourceFile.readText(Charsets.UTF_8)
@@ -43,15 +42,19 @@ internal object AaptMacroProcessorTest {
             "Expected drawable reference, got: $resultText",
         )
 
+        // Verify the aapt:attr element was removed from the source
+        assertFalse(
+            resultText.contains("aapt:attr"),
+            "Expected aapt:attr to be removed from source, got: $resultText",
+        )
+
         // Verify the extracted file was created
-        val drawableDir = resDir.resolve("drawable")
-        assertTrue(drawableDir.exists(), "drawable directory should exist")
-        val extractedFiles = drawableDir.listFiles()
-        assertNotNull(extractedFiles, "Expected drawable directory to have files")
-        assertTrue(extractedFiles.isNotEmpty(), "Expected extracted drawable file")
+        assertTrue(addedResources.isNotEmpty(), "Expected extracted drawable file")
+        val extractedFile = addedResources.first()
+        assertTrue(extractedFile.exists(), "Extracted file should exist on disk")
 
         // Verify the extracted file contains the gradient
-        val extractedContent = extractedFiles.first().readText(Charsets.UTF_8)
+        val extractedContent = extractedFile.readText(Charsets.UTF_8)
         assertContains(extractedContent, "gradient")
         assertContains(extractedContent, "#FF0000")
     }
@@ -86,6 +89,12 @@ internal object AaptMacroProcessorTest {
         val resultText = sourceFile.readText(Charsets.UTF_8)
         assertContains(resultText, "\$test_icon__0")
         assertContains(resultText, "\$test_icon__1")
+
+        // Verify all aapt:attr elements were removed from the source
+        assertFalse(
+            resultText.contains("aapt:attr"),
+            "Expected all aapt:attr elements to be removed from source, got: $resultText",
+        )
     }
 
     @Test

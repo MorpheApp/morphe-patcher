@@ -107,6 +107,9 @@ internal class AaptMacroProcessor(
                     val newElementFile = get("res/$resourceType/$shadowedName.xml")
                     extractElementToNewDocument(sourceElement, newElementFile)
                     newlyCreatedFiles.add(newElementFile)
+
+                    // Remove the now-empty aapt:attr element from the source document
+                    parentElement.removeChild(element)
                 }
             }
         }
