@@ -677,6 +677,12 @@ public final class app/morphe/patcher/patch/PatchResult {
 	public final fun getPatch ()Lapp/morphe/patcher/patch/Patch;
 }
 
+public final class app/morphe/patcher/patch/PatchUtilsKt {
+	public static final fun mostCommonCompatibleVersions (Ljava/util/Set;Ljava/util/Set;Z)Ljava/util/Map;
+	public static synthetic fun mostCommonCompatibleVersions$default (Ljava/util/Set;Ljava/util/Set;ZILjava/lang/Object;)Ljava/util/Map;
+	public static final fun setOptions (Ljava/util/Set;Ljava/util/Map;)V
+}
+
 public final class app/morphe/patcher/patch/RawResourcePatch : app/morphe/patcher/patch/Patch {
 	public fun toString ()Ljava/lang/String;
 }
