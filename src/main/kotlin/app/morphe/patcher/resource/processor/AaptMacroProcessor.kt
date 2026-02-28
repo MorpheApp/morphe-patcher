@@ -124,7 +124,7 @@ internal class AaptMacroProcessor(
     }
 
     private fun writeDocumentToFile(doc: org.w3c.dom.Document, file: File) {
-        FileWriter(file).use { writer ->
+        FileWriter(file, Charsets.UTF_8).use { writer ->
             transformer.transform(DOMSource(doc), StreamResult(writer))
         }
         addedResources.add(file)

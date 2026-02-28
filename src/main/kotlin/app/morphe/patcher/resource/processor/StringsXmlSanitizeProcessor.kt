@@ -26,8 +26,8 @@ internal class StringsXmlSanitizeProcessor(
         packageDirectories.forEach { (_, rootDir) ->
             rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
                 dir.listFiles { it.name == "strings.xml" }?.forEach { file ->
-                    val rawXml = file.readText()
-                    file.writeText(sanitizeXmlText(rawXml))
+                    val rawXml = file.readText(Charsets.UTF_8)
+                    file.writeText(sanitizeXmlText(rawXml), Charsets.UTF_8)
                 }
             }
         }

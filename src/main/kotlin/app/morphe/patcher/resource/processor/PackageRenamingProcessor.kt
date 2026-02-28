@@ -56,10 +56,10 @@ internal class PackageRenamingProcessor(
         val factory = XmlPullParserFactory.newInstance()
         factory.isNamespaceAware = true
         val parser = factory.newPullParser()
-        parser.setInput(BufferedReader(FileReader(file)))
+        parser.setInput(BufferedReader(FileReader(file, Charsets.UTF_8)))
 
         val tempFile = File(file.parentFile, file.name + ".tmp")
-        val writer = BufferedWriter(FileWriter(tempFile))
+        val writer = BufferedWriter(FileWriter(tempFile, Charsets.UTF_8))
         val serializer = factory.newSerializer()
         serializer.setOutput(writer)
         serializer.startDocument("UTF-8", true)

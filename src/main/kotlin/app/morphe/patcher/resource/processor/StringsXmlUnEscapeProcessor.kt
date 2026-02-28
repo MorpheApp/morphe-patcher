@@ -44,11 +44,11 @@ internal class StringsXmlUnEscapeProcessor(
         factory.isNamespaceAware = true
 
         val parser = factory.newPullParser()
-        val reader = BufferedReader(FileReader(file))
+        val reader = BufferedReader(FileReader(file, Charsets.UTF_8))
         parser.setInput(reader)
 
         val tempFile = File(file.parentFile, file.name + ".tmp")
-        val writer = BufferedWriter(FileWriter(tempFile))
+        val writer = BufferedWriter(FileWriter(tempFile, Charsets.UTF_8))
 
         val serializer: XmlSerializer = factory.newSerializer()
         serializer.setOutput(writer)
