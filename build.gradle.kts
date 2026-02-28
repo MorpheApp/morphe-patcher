@@ -1,3 +1,4 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -21,6 +22,7 @@ tasks {
             events("PASSED", "SKIPPED", "FAILED")
         }
         finalizedBy(jacocoTestReport)
+        testLogging { exceptionFormat = TestExceptionFormat.FULL }
     }
 
     jacocoTestReport {

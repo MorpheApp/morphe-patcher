@@ -652,6 +652,11 @@ public final class app/morphe/patcher/patch/ResourcePatchContext : app/morphe/pa
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
 }
 
+public final class app/morphe/patcher/resource/FileUtilsKt {
+	public static final fun utf8Reader (Ljava/io/File;)Ljava/io/BufferedReader;
+	public static final fun utf8Writer (Ljava/io/File;)Ljava/io/BufferedWriter;
+}
+
 public final class app/morphe/patcher/resource/NodeUtilsKt {
 	public static final fun filter (Lorg/w3c/dom/NodeList;Lkotlin/jvm/functions/Function1;)Ljava/util/List;
 	public static final fun first (Lorg/w3c/dom/NodeList;Lkotlin/jvm/functions/Function1;)Lorg/w3c/dom/Node;

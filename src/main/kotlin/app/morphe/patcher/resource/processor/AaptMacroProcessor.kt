@@ -7,10 +7,10 @@ package app.morphe.patcher.resource.processor
 
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.fileResourceTypes
+import app.morphe.patcher.resource.utf8Writer
 import app.morphe.patcher.util.Document
 import org.w3c.dom.Element
 import java.io.File
-import java.io.FileWriter
 import java.util.ArrayDeque
 import java.util.logging.Logger
 import javax.xml.parsers.DocumentBuilderFactory
@@ -107,6 +107,9 @@ internal class AaptMacroProcessor(
                     val newElementFile = get("res/$resourceType/$shadowedName.xml")
                     extractElementToNewDocument(sourceElement, newElementFile)
                     newlyCreatedFiles.add(newElementFile)
+
+                    // Remove the now-empty aapt:attr element from the source document
+                    parentElement.removeChild(element)
                 }
             }
         }
@@ -124,7 +127,7 @@ internal class AaptMacroProcessor(
     }
 
     private fun writeDocumentToFile(doc: org.w3c.dom.Document, file: File) {
-        FileWriter(file).use { writer ->
+        file.utf8Writer().use { writer ->
             transformer.transform(DOMSource(doc), StreamResult(writer))
         }
         addedResources.add(file)
