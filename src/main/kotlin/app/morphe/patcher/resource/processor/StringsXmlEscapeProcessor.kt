@@ -5,14 +5,18 @@
 
 package app.morphe.patcher.resource.processor
 
+import app.morphe.patcher.resource.utf8Reader
+import app.morphe.patcher.resource.utf8Writer
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import org.xmlpull.v1.XmlSerializer
 import java.io.BufferedReader
 import java.io.BufferedWriter
 import java.io.File
-import java.io.FileReader
-import java.io.FileWriter
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.util.logging.Logger
 
 internal class StringsXmlEscapeProcessor(
@@ -45,11 +49,11 @@ internal class StringsXmlEscapeProcessor(
 
         val parser = factory.newPullParser()
         val tempFile = File(file.parentFile, file.name + ".tmp")
-        
-        BufferedReader(FileReader(file, Charsets.UTF_8)).use { reader ->
+
+        file.utf8Reader().use { reader ->
             parser.setInput(reader)
 
-            BufferedWriter(FileWriter(tempFile, Charsets.UTF_8)).use { writer ->
+            tempFile.utf8Writer().use { writer ->
                 val serializer: XmlSerializer = factory.newSerializer()
                 serializer.setOutput(writer)
                 serializer.startDocument("UTF-8", true)

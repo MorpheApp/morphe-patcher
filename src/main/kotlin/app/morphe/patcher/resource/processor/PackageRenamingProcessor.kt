@@ -6,14 +6,18 @@
 package app.morphe.patcher.resource.processor
 
 import app.morphe.patcher.resource.PublicXmlManager
+import app.morphe.patcher.resource.utf8Reader
+import app.morphe.patcher.resource.utf8Writer
 import com.reandroid.json.JSONObject
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.BufferedReader
 import java.io.BufferedWriter
 import java.io.File
-import java.io.FileReader
-import java.io.FileWriter
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.util.logging.Logger
 import kotlin.jvm.java
 
@@ -56,56 +60,56 @@ internal class PackageRenamingProcessor(
         val factory = XmlPullParserFactory.newInstance()
         factory.isNamespaceAware = true
         val parser = factory.newPullParser()
-        val reader = BufferedReader(FileReader(file, Charsets.UTF_8))
-        parser.setInput(reader)
-
         val tempFile = File(file.parentFile, file.name + ".tmp")
-        val writer = BufferedWriter(FileWriter(tempFile, Charsets.UTF_8))
-        val serializer = factory.newSerializer()
-        serializer.setOutput(writer)
-        serializer.startDocument("UTF-8", true)
 
-        var eventType = parser.eventType
-        var currentTag: String? = null
+        file.utf8Reader().use { reader ->
+            parser.setInput(reader)
 
-        while (eventType != XmlPullParser.END_DOCUMENT) {
-            when (eventType) {
-                XmlPullParser.START_TAG -> {
-                    currentTag = parser.name
-                    serializer.startTag(parser.namespace, currentTag)
-                    for (i in 0 until parser.attributeCount) {
-                        var value = parser.getAttributeValue(i)
-                        if (regex.matches(value)) {
-                            value = value.replace(originalPackageName, newPackageName)
+            tempFile.utf8Writer().use { writer ->
+                val serializer = factory.newSerializer()
+                serializer.setOutput(writer)
+                serializer.startDocument("UTF-8", true)
+
+                var eventType = parser.eventType
+                var currentTag: String? = null
+
+                while (eventType != XmlPullParser.END_DOCUMENT) {
+                    when (eventType) {
+                        XmlPullParser.START_TAG -> {
+                            currentTag = parser.name
+                            serializer.startTag(parser.namespace, currentTag)
+                            for (i in 0 until parser.attributeCount) {
+                                var value = parser.getAttributeValue(i)
+                                if (regex.matches(value)) {
+                                    value = value.replace(originalPackageName, newPackageName)
+                                }
+                                serializer.attribute(
+                                    parser.getAttributeNamespace(i),
+                                    parser.getAttributeName(i),
+                                    value
+                                )
+                            }
                         }
-                        serializer.attribute(
-                            parser.getAttributeNamespace(i),
-                            parser.getAttributeName(i),
-                            value
-                        )
+                        XmlPullParser.END_TAG -> {
+                            serializer.endTag(parser.namespace, parser.name)
+                        }
+                        XmlPullParser.TEXT -> {
+                            var text = parser.text
+                            if (regex.matches(text)) {
+                                text = text.replace(originalPackageName, newPackageName)
+                            }
+                            serializer.text(text)
+                        }
+                        XmlPullParser.CDSECT -> serializer.cdsect(parser.text)
+                        XmlPullParser.COMMENT -> serializer.comment(parser.text)
+                        XmlPullParser.IGNORABLE_WHITESPACE -> serializer.ignorableWhitespace(parser.text)
                     }
+                    eventType = parser.next()
                 }
-                XmlPullParser.END_TAG -> {
-                    serializer.endTag(parser.namespace, parser.name)
-                }
-                XmlPullParser.TEXT -> {
-                    var text = parser.text
-                    if (regex.matches(text)) {
-                        text = text.replace(originalPackageName, newPackageName)
-                    }
-                    serializer.text(text)
-                }
-                XmlPullParser.CDSECT -> serializer.cdsect(parser.text)
-                XmlPullParser.COMMENT -> serializer.comment(parser.text)
-                XmlPullParser.IGNORABLE_WHITESPACE -> serializer.ignorableWhitespace(parser.text)
-            }
-            eventType = parser.next()
-        }
 
-        serializer.endDocument()
-        writer.flush()
-        writer.close()
-        reader.close()
+                serializer.endDocument()
+            }
+        }
 
         file.delete()
         tempFile.renameTo(file)
