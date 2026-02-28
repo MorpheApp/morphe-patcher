@@ -1,9 +1,10 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ */
+
 package app.morphe.patcher.environment
 
-
-/**
- * Utils for the library.
- */
 @Suppress("unused")
 object EnvironmentUtils {
     /**

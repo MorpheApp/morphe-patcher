@@ -1,3 +1,8 @@
+/*
+ * Code hard forked from:
+ * https://github.com/revanced/revanced-library/tree/06733072045c8016a75f232dec76505c0ba2e1cd
+ */
+
 package app.morphe.patcher.apk
 
 import app.morphe.patcher.PatcherResult
