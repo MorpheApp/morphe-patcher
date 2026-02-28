@@ -40,7 +40,9 @@ class PublicXmlManager(
             val nameString = element.getAttribute("name")
 
             if (!idString.startsWith("0x") || idString.length <= 2) {
-                logger.warning("Skipping <public> element with malformed id attribute: '$idString' (expected format like '0x1234').")
+                logger.warning("Skipping <public> element with malformed id " +
+                        "attribute: '$idString' (expected format like '0x1234')."
+                )
                 return@forEachElement
             }
 
@@ -69,7 +71,7 @@ class PublicXmlManager(
             return
         }
 
-        logger.fine("Adding @$type/$name to public.xml")
+        logger.fine { "Adding @$type/$name to public.xml" }
 
         val resourceId = resourceIds.getOrElse(type) { 0 } + 1
         resourceIds[type] = resourceId

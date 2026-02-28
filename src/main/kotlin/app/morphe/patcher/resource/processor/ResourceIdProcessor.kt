@@ -96,7 +96,7 @@ internal class ResourceIdProcessor(
 
         if (nonTrackedFiles.isNotEmpty()) {
             val fileNames = nonTrackedFiles.map { it.name }
-            logger.fine("Found ${nonTrackedFiles.size} modified files that were not tracked: $fileNames")
+            logger.fine { "Found ${nonTrackedFiles.size} modified files that were not tracked: $fileNames" }
         }
     }
 
@@ -106,7 +106,7 @@ internal class ResourceIdProcessor(
             iterativeTraverse(doc.documentElement) { element ->
                 val idString = element.getAttribute("android:id")
                 if (idString.startsWith("@+id/")) {
-                    logger.fine("Adding $idString to ids.xml")
+                    logger.fine { "Adding $idString to ids.xml" }
                     val idName = idString.substring(5)
 
                     val item = idNode.ownerDocument.createElement("id")

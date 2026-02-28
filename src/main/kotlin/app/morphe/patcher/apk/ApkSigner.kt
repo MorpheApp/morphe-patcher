@@ -114,7 +114,7 @@ object ApkSigner {
         commonName: String,
         validUntil: Date,
     ): PrivateKeyCertificatePair {
-        logger.fine("Creating certificate for $commonName")
+        logger.fine { "Creating certificate for $commonName" }
 
         // Generate a new key pair.
         val keyPair = KeyPairGenerator.getInstance("RSA").apply {
@@ -157,7 +157,7 @@ object ApkSigner {
         keyStoreEntryAlias: String,
         keyStoreEntryPassword: String,
     ): PrivateKeyCertificatePair {
-        logger.fine("Reading key and certificate pair from keystore entry $keyStoreEntryAlias")
+        logger.fine { "Reading key and certificate pair from keystore entry $keyStoreEntryAlias" }
 
         if (!keyStore.containsAlias(keyStoreEntryAlias)) {
             throw IllegalArgumentException("Keystore does not contain entry with alias $keyStoreEntryAlias")
