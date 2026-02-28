@@ -9,11 +9,5 @@ object EnvironmentUtils {
     /**
      * True if the environment is Android.
      */
-    val isAndroidEnvironment =
-        try {
-            Class.forName("android.app.Application")
-            true
-        } catch (e: ClassNotFoundException) {
-            false
-        }
+    val isAndroidEnvironment = System.getProperty("java.runtime.name") == "Android Runtime"
 }
