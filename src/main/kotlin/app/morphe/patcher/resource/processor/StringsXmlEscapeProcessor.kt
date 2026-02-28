@@ -44,77 +44,76 @@ internal class StringsXmlEscapeProcessor(
         factory.isNamespaceAware = true
 
         val parser = factory.newPullParser()
-        val reader = BufferedReader(FileReader(file, Charsets.UTF_8))
-        parser.setInput(reader)
-
         val tempFile = File(file.parentFile, file.name + ".tmp")
-        val writer = BufferedWriter(FileWriter(tempFile, Charsets.UTF_8))
+        
+        BufferedReader(FileReader(file, Charsets.UTF_8)).use { reader ->
+            parser.setInput(reader)
 
-        val serializer: XmlSerializer = factory.newSerializer()
-        serializer.setOutput(writer)
-        serializer.startDocument("UTF-8", true)
+            BufferedWriter(FileWriter(tempFile, Charsets.UTF_8)).use { writer ->
+                val serializer: XmlSerializer = factory.newSerializer()
+                serializer.setOutput(writer)
+                serializer.startDocument("UTF-8", true)
 
-        var eventType = parser.eventType
-        var insideString = false
+                var eventType = parser.eventType
+                var insideString = false
 
-        while (eventType != XmlPullParser.END_DOCUMENT) {
-            when (eventType) {
+                while (eventType != XmlPullParser.END_DOCUMENT) {
+                    when (eventType) {
 
-                XmlPullParser.START_TAG -> {
-                    val tagName = parser.name
-                    serializer.startTag(parser.namespace, tagName)
+                        XmlPullParser.START_TAG -> {
+                            val tagName = parser.name
+                            serializer.startTag(parser.namespace, tagName)
 
-                    for (i in 0 until parser.attributeCount) {
-                        serializer.attribute(
-                            parser.getAttributeNamespace(i),
-                            parser.getAttributeName(i),
-                            parser.getAttributeValue(i)
-                        )
+                            for (i in 0 until parser.attributeCount) {
+                                serializer.attribute(
+                                    parser.getAttributeNamespace(i),
+                                    parser.getAttributeName(i),
+                                    parser.getAttributeValue(i)
+                                )
+                            }
+
+                            if (tagName == "string") {
+                                insideString = true
+                            }
+                        }
+
+                        XmlPullParser.TEXT -> {
+                            val text = parser.text
+                            if (insideString) {
+                                serializer.text(escapeString(text))
+                            } else {
+                                serializer.text(text)
+                            }
+                        }
+
+                        XmlPullParser.END_TAG -> {
+                            val tagName = parser.name
+                            serializer.endTag(parser.namespace, tagName)
+
+                            if (tagName == "string") {
+                                insideString = false
+                            }
+                        }
+
+                        XmlPullParser.CDSECT -> {
+                            serializer.cdsect(parser.text)
+                        }
+
+                        XmlPullParser.COMMENT -> {
+                            serializer.comment(parser.text)
+                        }
+
+                        XmlPullParser.IGNORABLE_WHITESPACE -> {
+                            serializer.ignorableWhitespace(parser.text)
+                        }
                     }
 
-                    if (tagName == "string") {
-                        insideString = true
-                    }
+                    eventType = parser.next()
                 }
 
-                XmlPullParser.TEXT -> {
-                    val text = parser.text
-                    if (insideString) {
-                        serializer.text(escapeString(text))
-                    } else {
-                        serializer.text(text)
-                    }
-                }
-
-                XmlPullParser.END_TAG -> {
-                    val tagName = parser.name
-                    serializer.endTag(parser.namespace, tagName)
-
-                    if (tagName == "string") {
-                        insideString = false
-                    }
-                }
-
-                XmlPullParser.CDSECT -> {
-                    serializer.cdsect(parser.text)
-                }
-
-                XmlPullParser.COMMENT -> {
-                    serializer.comment(parser.text)
-                }
-
-                XmlPullParser.IGNORABLE_WHITESPACE -> {
-                    serializer.ignorableWhitespace(parser.text)
-                }
+                serializer.endDocument()
             }
-
-            eventType = parser.next()
         }
-
-        serializer.endDocument()
-        writer.flush()
-        writer.close()
-        reader.close()
 
         // Replace original file
         file.delete()
