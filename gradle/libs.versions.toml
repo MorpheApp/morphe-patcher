@@ -1,10 +1,14 @@
 [versions]
 android = "4.1.1.4"
+android-tools = "8.5.2"
 apktool-lib = "2.11.2.r3"
 arsclib = "2664403e24"
+bcpkix-jdk18on = "1.77"
 binary-compatibility-validator = "0.18.1"
+guava = "33.5.0-jre"
 kotlin = "2.0.21"
 kotlinx-coroutines-core = "1.10.2"
+kotlinx-serialization = "1.7.1"
 mockk = "1.14.6"
 # Tracking https://github.com/google/smali/issues/100.
 multidexlib2 = "b6365a84f4"
@@ -13,9 +17,14 @@ smali = "b6365a84f4"
 [libraries]
 android = { module = "com.google.android:android", version.ref = "android" }
 apktool-lib = { module = "app.morphe:apktool-lib", version.ref = "apktool-lib" }
+apkzlib = { module = "com.android.tools.build:apkzlib", version.ref = "android-tools" }
+apksig = { module = "com.android.tools.build:apksig", version.ref = "android-tools" }
 arsclib = { module = "com.github.REAndroid:arsclib", version.ref = "arsclib" }
+bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bcpkix-jdk18on" }
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines-core" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 multidexlib2 = { module = "app.morphe:multidexlib2", version.ref = "multidexlib2" }

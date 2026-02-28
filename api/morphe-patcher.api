@@ -327,6 +327,55 @@ public final class app/morphe/patcher/StringFilter : app/morphe/patcher/OpcodesF
 	public fun matches (Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;)Z
 }
 
+public final class app/morphe/patcher/apk/ApkSigner {
+	public static final field INSTANCE Lapp/morphe/patcher/apk/ApkSigner;
+	public final fun newApkSigner (Ljava/lang/String;Lapp/morphe/patcher/apk/ApkSigner$PrivateKeyCertificatePair;)Lapp/morphe/patcher/apk/ApkSigner$Signer;
+	public final fun newKeyStore (Ljava/util/Set;)Ljava/security/KeyStore;
+	public final fun newPrivateKeyCertificatePair (Ljava/lang/String;Ljava/util/Date;)Lapp/morphe/patcher/apk/ApkSigner$PrivateKeyCertificatePair;
+	public final fun readKeyStore (Ljava/io/InputStream;Ljava/lang/String;)Ljava/security/KeyStore;
+	public final fun readPrivateKeyCertificatePair (Ljava/security/KeyStore;Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/apk/ApkSigner$PrivateKeyCertificatePair;
+}
+
+public final class app/morphe/patcher/apk/ApkSigner$KeyStoreEntry {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lapp/morphe/patcher/apk/ApkSigner$PrivateKeyCertificatePair;)V
+	public final fun getAlias ()Ljava/lang/String;
+	public final fun getPassword ()Ljava/lang/String;
+	public final fun getPrivateKeyCertificatePair ()Lapp/morphe/patcher/apk/ApkSigner$PrivateKeyCertificatePair;
+}
+
+public final class app/morphe/patcher/apk/ApkSigner$PrivateKeyCertificatePair {
+	public fun <init> (Ljava/security/PrivateKey;Ljava/security/cert/X509Certificate;)V
+	public final fun getCertificate ()Ljava/security/cert/X509Certificate;
+	public final fun getPrivateKey ()Ljava/security/PrivateKey;
+}
+
+public final class app/morphe/patcher/apk/ApkSigner$Signer {
+	public final fun signApk (Ljava/io/File;Ljava/io/File;)V
+}
+
+public final class app/morphe/patcher/apk/ApkUtils {
+	public static final field INSTANCE Lapp/morphe/patcher/apk/ApkUtils;
+	public final fun applyTo (Lapp/morphe/patcher/PatcherResult;Ljava/io/File;)V
+	public final fun signApk (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Lapp/morphe/patcher/apk/ApkUtils$KeyStoreDetails;)V
+}
+
+public final class app/morphe/patcher/apk/ApkUtils$KeyStoreDetails {
+	public fun <init> (Ljava/io/File;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/io/File;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAlias ()Ljava/lang/String;
+	public final fun getKeyStore ()Ljava/io/File;
+	public final fun getKeyStorePassword ()Ljava/lang/String;
+	public final fun getPassword ()Ljava/lang/String;
+}
+
+public final class app/morphe/patcher/apk/ApkUtils$PrivateKeyCertificatePairDetails {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;Ljava/util/Date;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Date;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getCommonName ()Ljava/lang/String;
+	public final fun getValidUntil ()Ljava/util/Date;
+}
+
 public final class app/morphe/patcher/extensions/ExtensionsKt {
 	public static final fun newLabel (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;I)Lcom/android/tools/smali/dexlib2/builder/Label;
 }
@@ -581,10 +630,13 @@ public final class app/morphe/patcher/patch/PatchKt {
 	public static final fun loadPatchesFromDex (Ljava/util/Set;Ljava/io/File;)Lapp/morphe/patcher/patch/PatchLoader$Dex;
 	public static synthetic fun loadPatchesFromDex$default (Ljava/util/Set;Ljava/io/File;ILjava/lang/Object;)Lapp/morphe/patcher/patch/PatchLoader$Dex;
 	public static final fun loadPatchesFromJar (Ljava/util/Set;)Lapp/morphe/patcher/patch/PatchLoader$Jar;
+	public static final fun mostCommonCompatibleVersions (Ljava/util/Set;Ljava/util/Set;Z)Ljava/util/Map;
+	public static synthetic fun mostCommonCompatibleVersions$default (Ljava/util/Set;Ljava/util/Set;ZILjava/lang/Object;)Ljava/util/Map;
 	public static final fun rawResourcePatch (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/patch/RawResourcePatch;
 	public static synthetic fun rawResourcePatch$default (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/patch/RawResourcePatch;
 	public static final fun resourcePatch (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/patch/ResourcePatch;
 	public static synthetic fun resourcePatch$default (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/patch/ResourcePatch;
+	public static final fun setOptions (Ljava/util/Set;Ljava/util/Map;)V
 }
 
 public abstract class app/morphe/patcher/patch/PatchLoader : java/util/Set, kotlin/jvm/internal/markers/KMappedMarker {
@@ -650,6 +702,11 @@ public final class app/morphe/patcher/patch/ResourcePatchContext : app/morphe/pa
 	public final fun get (Ljava/lang/String;Z)Ljava/io/File;
 	public static synthetic fun get$default (Lapp/morphe/patcher/patch/ResourcePatchContext;Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
+}
+
+public final class app/morphe/patcher/patch/SerializationKt {
+	public static final fun serializeTo (Ljava/util/Set;Ljava/io/OutputStream;Z)V
+	public static synthetic fun serializeTo$default (Ljava/util/Set;Ljava/io/OutputStream;ZILjava/lang/Object;)V
 }
 
 public final class app/morphe/patcher/resource/FileUtilsKt {
