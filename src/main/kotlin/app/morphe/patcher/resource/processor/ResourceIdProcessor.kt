@@ -7,14 +7,15 @@ package app.morphe.patcher.resource.processor
 
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.PublicXmlManager
+import app.morphe.patcher.resource.XPP_FACTORY
 import app.morphe.patcher.resource.fileResourceTypes
 import app.morphe.patcher.resource.resourceToTagOverrideMapping
+import app.morphe.patcher.resource.utf8Reader
 import app.morphe.patcher.util.Document
 import org.w3c.dom.Element
 import org.w3c.dom.Node
-import org.xml.sax.SAXParseException
+import org.xmlpull.v1.XmlPullParser
 import java.io.File
-import java.io.FileNotFoundException
 import java.util.ArrayDeque
 import java.util.logging.Logger
 
@@ -57,28 +58,13 @@ internal class ResourceIdProcessor(
                 }
         }
 
-        // Step 2: Update publicIdManager from values XML files
+        // Step 2: Update publicIdManager from values XML files (including the newly modified ids.xml)
         val valuesDirectories = resDirectories.filter { it.name.startsWith("values") }
         for (dir in valuesDirectories) {
             val files = dir.listFiles { file -> file.isFile } ?: continue
             for (file in files) {
                 if (file.extension != "xml" || file.name == "public.xml") continue
-                try {
-                    Document(file).use { doc ->
-                        val resourcesNode = doc.getElementsByTagName("resources").item(0)
-                            ?: throw IllegalStateException("<resources> root missing in ${file.name}")
-                        // Use stack-based iterative traversal instead of recursive forEachElement
-                        iterativeTraverse(resourcesNode) { element ->
-                            val publicTagName =
-                                resourceToTagOverrideMapping[element.nodeName] ?: element.nodeName
-                            publicIdManager.createPublicId(publicTagName, element.getAttribute("name"))
-                        }
-                    }
-                } catch (_: FileNotFoundException) {
-                    // ignore
-                } catch (e: SAXParseException) {
-                    logger.warning("Failed to parse res/${dir.name}/${file.name}: ${e.message}")
-                }
+                createPublicIdsFromValuesXml(file)
             }
         }
 
@@ -119,6 +105,34 @@ internal class ResourceIdProcessor(
             }
         }
         return createdIds
+    }
+
+    private fun createPublicIdsFromValuesXml(file: File) {
+        val parser = XPP_FACTORY.newPullParser()
+        file.utf8Reader().use { reader ->
+            parser.setInput(reader)
+            var eventType = parser.eventType
+            var depth = 0
+            while (eventType != XmlPullParser.END_DOCUMENT) {
+                when (eventType) {
+                    XmlPullParser.START_TAG -> {
+                        val tagName = parser.name
+                        if (depth >= 1) {
+                            val idName = parser.getAttributeValue(null, "name")
+                                ?: throw IllegalStateException("Missing 'name' attribute in <$tagName> element in ${file.name}")
+
+                            val publicTagName = resourceToTagOverrideMapping[tagName] ?: tagName
+                            publicIdManager.createPublicId(publicTagName, idName)
+                        }
+                        depth += 1
+                    }
+                    XmlPullParser.END_TAG -> {
+                        depth -= 1
+                    }
+                }
+                eventType = parser.next()
+            }
+        }
     }
 
     /**
