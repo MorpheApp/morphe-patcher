@@ -116,6 +116,34 @@ internal object StringsXmlUnEscapeProcessorTest {
         assertContains(result, "\\")
     }
 
+    // ==================== Namespace preservation tests ====================
+
+    @Test
+    fun `process preserves XML namespace prefix declarations`() {
+        val result = processAndRead(
+            """<resources xmlns:android="http://schemas.android.com/apk/res/android"><string name="t" android:translatable="false">it\'s</string></resources>""",
+        )
+
+        assertContains(result, "xmlns:android=\"http://schemas.android.com/apk/res/android\"")
+        assertContains(result, "android:translatable=")
+        assertFalse(result.contains("xmlns:n0"), "Namespace prefix should not be auto-generated as n0")
+        assertFalse(result.contains("xmlns:n1"), "Namespace prefix should not be auto-generated as n1")
+    }
+
+    @Test
+    fun `process preserves multiple namespace prefixes`() {
+        val result = processAndRead(
+            """<resources xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools"><string name="t" tools:ignore="Typos" android:translatable="false">hello</string></resources>""",
+        )
+
+        assertContains(result, "xmlns:android=")
+        assertContains(result, "xmlns:tools=")
+        assertContains(result, "android:translatable=")
+        assertContains(result, "tools:ignore=")
+        assertFalse(result.contains("xmlns:n0"), "Namespace prefix should not be auto-generated")
+        assertFalse(result.contains("xmlns:n1"), "Namespace prefix should not be auto-generated")
+    }
+
     // ==================== UTF-8 encoding tests ====================
 
     @Test

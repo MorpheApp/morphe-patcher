@@ -11,15 +11,8 @@ import app.morphe.patcher.resource.utf8Writer
 import com.reandroid.json.JSONObject
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
-import java.io.BufferedReader
-import java.io.BufferedWriter
 import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
 import java.util.logging.Logger
-import kotlin.jvm.java
 
 internal class PackageRenamingProcessor(
     private val get: (String, String) -> File,
@@ -71,24 +64,19 @@ internal class PackageRenamingProcessor(
                 serializer.startDocument("UTF-8", true)
 
                 var eventType = parser.eventType
-                var currentTag: String? = null
 
                 while (eventType != XmlPullParser.END_DOCUMENT) {
                     when (eventType) {
                         XmlPullParser.START_TAG -> {
-                            currentTag = parser.name
-                            serializer.startTag(parser.namespace, currentTag)
-                            for (i in 0 until parser.attributeCount) {
-                                var value = parser.getAttributeValue(i)
+                            serializer.copyNamespaces(parser)
+                            serializer.startTag(parser.namespace, parser.name)
+                            serializer.copyAttributes(parser, attributeMapper = { ns, name, value ->
+                                var newValue = value
                                 if (regex.matches(value)) {
-                                    value = value.replace(originalPackageName, newPackageName)
+                                    newValue = value.replace(originalPackageName, newPackageName)
                                 }
-                                serializer.attribute(
-                                    parser.getAttributeNamespace(i),
-                                    parser.getAttributeName(i),
-                                    value
-                                )
-                            }
+                                Triple(ns, name, newValue)
+                            })
                         }
                         XmlPullParser.END_TAG -> {
                             serializer.endTag(parser.namespace, parser.name)
