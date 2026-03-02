@@ -5,11 +5,11 @@
 
 package app.morphe.patcher.resource.processor
 
-import app.morphe.patcher.resource.utf8Reader
-import app.morphe.patcher.resource.utf8Writer
+import app.morphe.patcher.resource.copyAttributes
+import app.morphe.patcher.resource.copyNamespaces
+import app.morphe.patcher.resource.parseXml
+import app.morphe.patcher.resource.writeXml
 import org.xmlpull.v1.XmlPullParser
-import org.xmlpull.v1.XmlPullParserFactory
-import org.xmlpull.v1.XmlSerializer
 import java.io.File
 import java.util.logging.Logger
 
@@ -18,10 +18,6 @@ abstract internal class StringsXmlProcessor(
     internal val packageDirectories: Map<String, File>,
     internal val logString: String
 ) {
-    private companion object {
-        val factory = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }!!
-    }
-
     private val logger = Logger.getLogger(this::class.java.name)
 
     fun process() {
@@ -42,15 +38,10 @@ abstract internal class StringsXmlProcessor(
     }
 
     private fun processFile(file: File) {
-        val parser = factory.newPullParser()
         val tempFile = File(file.parentFile, file.name + ".tmp")
 
-        file.utf8Reader().use { reader ->
-            parser.setInput(reader)
-
-            tempFile.utf8Writer().use { writer ->
-                val serializer: XmlSerializer = factory.newSerializer()
-                serializer.setOutput(writer)
+        file.parseXml { parser ->
+            tempFile.writeXml { serializer ->
                 serializer.startDocument("UTF-8", true)
 
                 var eventType = parser.eventType

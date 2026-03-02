@@ -34,7 +34,7 @@ internal object ResourceIdProcessorTest {
             ),
         )
 
-        try {
+        publicXmlManager.use { publicXmlManager ->
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
@@ -46,8 +46,36 @@ internal object ResourceIdProcessorTest {
 
             assertTrue(publicXmlManager.idExists("string", "app_name"), "Expected public ID for string/app_name")
             assertTrue(publicXmlManager.idExists("string", "greeting"), "Expected public ID for string/greeting")
-        } finally {
-            publicXmlManager.close()
+        }
+    }
+
+    @Test
+    fun `process handles arrays`() {
+        val (publicXmlManager, resDir) = setupEnvironment(
+            valuesXml = mapOf(
+                "arrays.xml" to """<?xml version="1.0" encoding="UTF-8"?>
+                    <resources>
+                        <array name="auto_dark_option_values">
+                            <item>@string/option_value_off</item>
+                            <item>@string/option_value_os_setting</item>
+                            <item>@string/option_value_sunrise_sunset</item>
+                        </array>
+                    </resources>
+                """.trimIndent(),
+            ),
+        )
+
+        publicXmlManager.use { publicXmlManager ->
+            val processor = ResourceIdProcessor(
+                get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
+                publicIdManager = publicXmlManager,
+                modifiedResources = emptySet(),
+                addedResources = emptySet(),
+            )
+
+            processor.process()
+
+            assertTrue(publicXmlManager.idExists("array", "auto_dark_option_values"), "Expected public ID for array/auto_dark_option_values")
         }
     }
 
@@ -71,7 +99,7 @@ internal object ResourceIdProcessorTest {
         val layoutFile = resDir.resolve("res/layout/activity_main.xml")
         val idsXmlFile = resDir.resolve("res/values/ids.xml")
 
-        try {
+        publicXmlManager.use { publicXmlManager ->
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
@@ -92,8 +120,6 @@ internal object ResourceIdProcessorTest {
             // The ids.xml should have a new <id> entry
             val idsResult = idsXmlFile.readText(Charsets.UTF_8)
             assertContains(idsResult, "my_button")
-        } finally {
-            publicXmlManager.close()
         }
     }
 
@@ -110,7 +136,7 @@ internal object ResourceIdProcessorTest {
             Charsets.UTF_8,
         )
 
-        try {
+        publicXmlManager.use { publicXmlManager ->
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
@@ -124,8 +150,6 @@ internal object ResourceIdProcessorTest {
                 publicXmlManager.idExists("drawable", "ic_launcher"),
                 "Expected public ID for drawable/ic_launcher",
             )
-        } finally {
-            publicXmlManager.close()
         }
     }
 
@@ -144,7 +168,7 @@ internal object ResourceIdProcessorTest {
             ),
         )
 
-        try {
+        publicXmlManager.use { publicXmlManager ->
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
@@ -156,8 +180,6 @@ internal object ResourceIdProcessorTest {
 
             // Should still exist, but not be duplicated
             assertTrue(publicXmlManager.idExists("string", "existing_name"))
-        } finally {
-            publicXmlManager.close()
         }
 
         // Verify the public.xml file doesn't have duplicate entries
@@ -174,7 +196,7 @@ internal object ResourceIdProcessorTest {
             ),
         )
 
-        try {
+        publicXmlManager.use { publicXmlManager ->
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
@@ -188,8 +210,6 @@ internal object ResourceIdProcessorTest {
                 publicXmlManager.idExists("string", "grüße"),
                 "Expected public ID for non-ASCII resource name",
             )
-        } finally {
-            publicXmlManager.close()
         }
     }
 
@@ -216,7 +236,7 @@ internal object ResourceIdProcessorTest {
         }
         val publicXml = valuesDir.resolve("public.xml")
         publicXml.writeText(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<resources>\n$publicEntries\n</resources>",
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<resources package=\"com.example.app\" id=\"0x7f\">\n$publicEntries\n</resources>",
             Charsets.UTF_8,
         )
 

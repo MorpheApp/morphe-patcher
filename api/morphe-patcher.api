@@ -732,7 +732,8 @@ public final class app/morphe/patcher/resource/PublicXmlManager : java/io/Closea
 	public fun <init> (Ljava/io/File;)V
 	public fun close ()V
 	public final fun createPublicId (Ljava/lang/String;Ljava/lang/String;)V
-	public final fun getPublicNode ()Lorg/w3c/dom/Element;
+	public final fun getDefinedIds ()Ljava/util/Map;
+	public final fun getHighestResourceIds ()Ljava/util/Map;
 	public final fun idExists (Ljava/lang/String;Ljava/lang/String;)Z
 }
 
@@ -743,6 +744,17 @@ public final class app/morphe/patcher/resource/ResourceMode : java/lang/Enum {
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/resource/ResourceMode;
 	public static fun values ()[Lapp/morphe/patcher/resource/ResourceMode;
+}
+
+public final class app/morphe/patcher/resource/XmlPullParserUtilsKt {
+	public static final fun copyAttributes (Lorg/xmlpull/v1/XmlSerializer;Lorg/xmlpull/v1/XmlPullParser;Lkotlin/jvm/functions/Function3;)V
+	public static synthetic fun copyAttributes$default (Lorg/xmlpull/v1/XmlSerializer;Lorg/xmlpull/v1/XmlPullParser;Lkotlin/jvm/functions/Function3;ILjava/lang/Object;)V
+	public static final fun copyNamespaces (Lorg/xmlpull/v1/XmlSerializer;Lorg/xmlpull/v1/XmlPullParser;)V
+	public static final fun getAttributesAsMap (Lorg/xmlpull/v1/XmlPullParser;)Ljava/util/Map;
+	public static final fun getXPP_FACTORY ()Lorg/xmlpull/v1/XmlPullParserFactory;
+	public static final fun parseXml (Ljava/io/File;Lkotlin/jvm/functions/Function1;)V
+	public static final fun skipTag (Lorg/xmlpull/v1/XmlPullParser;)V
+	public static final fun writeXml (Ljava/io/File;Lkotlin/jvm/functions/Function1;)V
 }
 
 public final class app/morphe/patcher/resource/coder/ApkToolResourceCoder : app/morphe/patcher/resource/coder/ResourceCoder {
