@@ -23,6 +23,9 @@ internal object AaptMacroProcessorTest {
     fun `process extracts aapt attr drawable into a new file`() {
         val addedResources = mutableSetOf<File>()
         val xmlContent = """<?xml version="1.0" encoding="UTF-8"?>
+            <!--
+                Placeholder comment to ensure processor handles comments
+            -->
             <vector xmlns:aapt="http://schemas.android.com/aapt"
                     xmlns:android="http://schemas.android.com/apk/res/android">
                 <path>
@@ -48,6 +51,12 @@ internal object AaptMacroProcessorTest {
             "Expected aapt:attr to be removed from source, got: $resultText",
         )
 
+        // Verify comment is preserved
+        assertContains(resultText, "Placeholder comment to ensure processor handles comments")
+
+        // Verify aapt namespace was removed
+        assertFalse(resultText.contains("xmlns:aapt"), "Expected aapt namespace to be removed from source, got: $resultText")
+
         // Verify the extracted file was created
         assertTrue(addedResources.isNotEmpty(), "Expected extracted drawable file")
         val extractedFile = addedResources.first()
@@ -63,6 +72,9 @@ internal object AaptMacroProcessorTest {
     fun `process handles multiple aapt attrs in same file`() {
         val addedResources = mutableSetOf<File>()
         val xmlContent = """<?xml version="1.0" encoding="UTF-8"?>
+            <!--
+                Placeholder comment to ensure processor handles comments
+            -->
             <vector xmlns:aapt="http://schemas.android.com/aapt"
                     xmlns:android="http://schemas.android.com/apk/res/android">
                 <path>
@@ -101,6 +113,9 @@ internal object AaptMacroProcessorTest {
     fun `process skips elements without xmlns aapt`() {
         val addedResources = mutableSetOf<File>()
         val xmlContent = """<?xml version="1.0" encoding="UTF-8"?>
+            <!--
+                Placeholder comment to ensure processor handles comments
+            -->
             <vector xmlns:android="http://schemas.android.com/apk/res/android">
                 <path android:fillColor="#FF0000"/>
             </vector>
@@ -119,6 +134,9 @@ internal object AaptMacroProcessorTest {
         val addedResources = mutableSetOf<File>()
         // Use a non-ASCII character in an attribute value inside the aapt:attr
         val xmlContent = """<?xml version="1.0" encoding="UTF-8"?>
+            <!--
+                Placeholder comment to ensure processor handles comments
+            -->
             <vector xmlns:aapt="http://schemas.android.com/aapt"
                     xmlns:android="http://schemas.android.com/apk/res/android">
                 <path>

@@ -7,9 +7,11 @@ package app.morphe.patcher.resource.processor
 
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.fileResourceTypes
+import app.morphe.patcher.resource.parseXml
 import app.morphe.patcher.resource.utf8Writer
 import app.morphe.patcher.util.Document
 import org.w3c.dom.Element
+import org.xmlpull.v1.XmlPullParser
 import java.io.File
 import java.util.ArrayDeque
 import java.util.logging.Logger
@@ -68,13 +70,36 @@ internal class AaptMacroProcessor(
 
     private fun processDocument(file: File): Set<File> {
         val newlyCreatedFiles = mutableSetOf<File>()
+
+        // First pass: check if the file contains aapt namespace at all (quick scan).
+        var hasAaptNamespace = false
+        file.parseXml { parser ->
+            var event = parser.eventType
+            while (event != XmlPullParser.END_DOCUMENT) {
+                if (event == XmlPullParser.START_TAG && parser.depth == 1) {
+                    // Check if the root element declares the aapt namespace
+                    val nsCount = parser.getNamespaceCount(1)
+                    for (i in 0 until nsCount) {
+                        if (parser.getNamespaceUri(i) == "http://schemas.android.com/aapt") {
+                            hasAaptNamespace = true
+                            break
+                        }
+                    }
+                    break
+                }
+                event = parser.next()
+            }
+        }
+
+        if (!hasAaptNamespace) return emptySet()
+
         var aaptCounter = 0
 
         Document(file).use { doc ->
             val topNodes = doc.childNodes
             for (i in 0 until topNodes.length) {
                 val topLevelElem = topNodes.item(i) as? Element ?: continue
-                if (!topLevelElem.hasAttribute("xmlns:aapt")) continue
+                topLevelElem.removeAttribute("xmlns:aapt")
 
                 // Replace recursive postOrderTraverse with iterative stack-based version
                 iterativePostOrder(topLevelElem) { element ->
