@@ -14,7 +14,7 @@ val XPP_FACTORY = XmlPullParserFactory.newInstance().apply { isNamespaceAware = 
 
 fun File.parseXml(action: (XmlPullParser) -> Unit) {
     val parser = XPP_FACTORY.newPullParser()
-    utf8Reader().let { reader ->
+    utf8Reader().use { reader ->
         parser.setInput(reader)
         action(parser)
     }
@@ -22,7 +22,7 @@ fun File.parseXml(action: (XmlPullParser) -> Unit) {
 
 fun File.writeXml(action: (XmlSerializer) -> Unit) {
     val serializer = XPP_FACTORY.newSerializer()
-    utf8Writer().let { writer ->
+    utf8Writer().use { writer ->
         serializer.setOutput(writer)
         action(serializer)
     }
