@@ -754,7 +754,9 @@ public final class app/morphe/patcher/resource/XmlPullParserUtilsKt {
 	public static final fun copyNamespaces (Lorg/xmlpull/v1/XmlSerializer;Lorg/xmlpull/v1/XmlPullParser;)V
 	public static final fun getAttributesAsMap (Lorg/xmlpull/v1/XmlPullParser;)Ljava/util/Map;
 	public static final fun getXPP_FACTORY ()Lorg/xmlpull/v1/XmlPullParserFactory;
+	public static final fun parseXml (Ljava/io/File;Lkotlin/jvm/functions/Function1;)V
 	public static final fun skipTag (Lorg/xmlpull/v1/XmlPullParser;)V
+	public static final fun writeXml (Ljava/io/File;Lkotlin/jvm/functions/Function1;)V
 }
 
 public final class app/morphe/patcher/resource/coder/ApkToolResourceCoder : app/morphe/patcher/resource/coder/ResourceCoder {

@@ -8,8 +8,25 @@ package app.morphe.patcher.resource
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import org.xmlpull.v1.XmlSerializer
+import java.io.File
 
 val XPP_FACTORY = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }!!
+
+fun File.parseXml(action: (XmlPullParser) -> Unit) {
+    val parser = XPP_FACTORY.newPullParser()
+    utf8Reader().let { reader ->
+        parser.setInput(reader)
+        action(parser)
+    }
+}
+
+fun File.writeXml(action: (XmlSerializer) -> Unit) {
+    val serializer = XPP_FACTORY.newSerializer()
+    utf8Writer().let { writer ->
+        serializer.setOutput(writer)
+        action(serializer)
+    }
+}
 
 /**
  * Skips the current tag and all of its nested content. This is useful for ignoring irrelevant tags.

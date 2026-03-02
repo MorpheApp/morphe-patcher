@@ -7,16 +7,15 @@ package app.morphe.patcher.resource.processor
 
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.PublicXmlManager
-import app.morphe.patcher.resource.XPP_FACTORY
 import app.morphe.patcher.resource.fileResourceTypes
+import app.morphe.patcher.resource.parseXml
 import app.morphe.patcher.resource.resourceToTagOverrideMapping
-import app.morphe.patcher.resource.utf8Reader
 import app.morphe.patcher.util.Document
 import org.w3c.dom.Element
 import org.w3c.dom.Node
 import org.xmlpull.v1.XmlPullParser
 import java.io.File
-import java.util.ArrayDeque
+import java.util.*
 import java.util.logging.Logger
 
 internal class ResourceIdProcessor(
@@ -108,9 +107,7 @@ internal class ResourceIdProcessor(
     }
 
     private fun createPublicIdsFromValuesXml(file: File) {
-        val parser = XPP_FACTORY.newPullParser()
-        file.utf8Reader().use { reader ->
-            parser.setInput(reader)
+        file.parseXml { parser ->
             var eventType = parser.eventType
             var depth = 0
             while (eventType != XmlPullParser.END_DOCUMENT) {
