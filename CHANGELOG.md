@@ -1,3 +1,10 @@
+# [1.2.0-dev.11](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.10...v1.2.0-dev.11) (2026-03-02)
+
+
+### Bug Fixes
+
+* additional use of streaming XML parser to speed up XML processing ([#66](https://github.com/MorpheApp/morphe-patcher/issues/66)) ([b2d45df](https://github.com/MorpheApp/morphe-patcher/commit/b2d45dffab5f903556e16179bdc63a381cd6d363))
+
 # [1.2.0-dev.10](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.9...v1.2.0-dev.10) (2026-03-02)
 
 
