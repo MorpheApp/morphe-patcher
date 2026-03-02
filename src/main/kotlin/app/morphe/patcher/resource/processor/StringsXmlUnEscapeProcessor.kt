@@ -67,26 +67,9 @@ internal class StringsXmlUnEscapeProcessor(
                         XmlPullParser.START_TAG -> {
                             val tagName = parser.name
 
-                            // Declare namespace prefixes introduced at this depth
-                            val depth = parser.depth
-                            val nsStart = if (depth > 1) parser.getNamespaceCount(depth - 1) else 0
-                            val nsEnd = parser.getNamespaceCount(depth)
-                            for (i in nsStart until nsEnd) {
-                                serializer.setPrefix(
-                                    parser.getNamespacePrefix(i) ?: "",
-                                    parser.getNamespaceUri(i)
-                                )
-                            }
-
+                            serializer.copyNamespaces(parser)
                             serializer.startTag(parser.namespace, tagName)
-
-                            for (i in 0 until parser.attributeCount) {
-                                serializer.attribute(
-                                    parser.getAttributeNamespace(i),
-                                    parser.getAttributeName(i),
-                                    parser.getAttributeValue(i)
-                                )
-                            }
+                            serializer.copyAttributes(parser)
 
                             if (tagName == "string") {
                                 insideString = true
