@@ -99,6 +99,49 @@ internal object PackageRenamingProcessorTest {
         assertFalse(result.contains("com.original.app"))
     }
 
+    // ==================== Namespace preservation tests ====================
+
+    @Test
+    fun `processFile preserves XML namespace prefix declarations`() {
+        val result = processFileAndRead(
+            xmlContent = """<?xml version="1.0" encoding="utf-8" standalone="no"?><selector xmlns:android="http://schemas.android.com/apk/res/android">
+  <item android:color="?com.original.app:attr/rdt_ds_color_tone2" android:state_enabled="false"/>
+  <item android:color="?com.original.app:attr/rdt_ds_color_primary"/>
+</selector>""",
+        )
+
+        // Namespace prefix must be preserved as "android", not renamed to "n0", "n1", etc.
+        assertContains(result, "xmlns:android=\"http://schemas.android.com/apk/res/android\"")
+        assertContains(result, "android:color=\"?com.new.app:attr/rdt_ds_color_tone2\"")
+        assertContains(result, "android:state_enabled=")
+        assertContains(result, "android:color=\"?com.new.app:attr/rdt_ds_color_primary\"")
+        assertFalse(result.contains("com.original.app"), "Original package name should be replaced")
+        assertFalse(result.contains("xmlns:n0"), "Namespace prefix should not be auto-generated as n0")
+        assertFalse(result.contains("xmlns:n1"), "Namespace prefix should not be auto-generated as n1")
+    }
+
+    @Test
+    fun `processFile preserves multiple namespace prefixes`() {
+        val result = processFileAndRead(
+            xmlContent = """<?xml version="1.0" encoding="UTF-8"?>
+                <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                    xmlns:app="http://schemas.android.com/apk/res-auto"
+                    android:layout_width="match_parent"
+                    app:layout_constraintTop_toTopOf="parent">
+                    <TextView android:text="@com.original.app:string/hello"
+                        app:someAttr="@com.original.app:attr/custom"/>
+                </LinearLayout>
+            """.trimIndent(),
+        )
+
+        assertContains(result, "xmlns:android=")
+        assertContains(result, "xmlns:app=")
+        assertContains(result, "android:layout_width=")
+        assertContains(result, "app:layout_constraintTop_toTopOf=")
+        assertContains(result, "@com.new.app:string/hello")
+        assertContains(result, "@com.new.app:attr/custom")
+    }
+
     // ==================== UTF-8 encoding tests ====================
 
     @Test
