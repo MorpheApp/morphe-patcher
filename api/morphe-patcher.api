@@ -730,8 +730,6 @@ public final class app/morphe/patcher/resource/NodeUtilsKt {
 
 public final class app/morphe/patcher/resource/PublicXmlManager : java/io/Closeable {
 	public fun <init> (Ljava/io/File;)V
-	public final fun changePackageId (I)V
-	public final fun changePackageName (Ljava/lang/String;)V
 	public fun close ()V
 	public final fun createPublicId (Ljava/lang/String;Ljava/lang/String;)V
 	public final fun getDefinedIds ()Ljava/util/Map;

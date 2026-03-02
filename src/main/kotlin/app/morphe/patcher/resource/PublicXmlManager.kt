@@ -89,11 +89,11 @@ class PublicXmlManager(
         definedIds[Pair(type, name)] = resourceId
     }
 
-    fun changePackageName(packageName: String) {
+    internal fun changePackageName(packageName: String) {
         this.packageName = packageName
     }
 
-    fun changePackageId(packageId: Int) {
+    internal fun changePackageId(packageId: Int) {
         this.packageId = "0x${packageId.toString(16)}"
     }
 
