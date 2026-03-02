@@ -6,11 +6,13 @@
 package app.morphe.patcher.resource.processor
 
 import app.morphe.patcher.resource.PublicXmlManager
+import app.morphe.patcher.resource.XPP_FACTORY
+import app.morphe.patcher.resource.copyAttributes
+import app.morphe.patcher.resource.copyNamespaces
 import app.morphe.patcher.resource.utf8Reader
 import app.morphe.patcher.resource.utf8Writer
 import com.reandroid.json.JSONObject
 import org.xmlpull.v1.XmlPullParser
-import org.xmlpull.v1.XmlPullParserFactory
 import java.io.File
 import java.util.logging.Logger
 
@@ -30,7 +32,7 @@ internal class PackageRenamingProcessor(
         logger.info("Post-processing package name change")
 
         // Update public.xml package
-        publicXmlManager.getPublicNode().setAttribute("package", newPackageName)
+        publicXmlManager.changePackageName(newPackageName)
 
         // Update package.json
         get("package.json", originalPackageName).apply {
@@ -50,16 +52,14 @@ internal class PackageRenamingProcessor(
     }
 
     private fun processFile(file: File) {
-        val factory = XmlPullParserFactory.newInstance()
-        factory.isNamespaceAware = true
-        val parser = factory.newPullParser()
+        val parser = XPP_FACTORY.newPullParser()
         val tempFile = File(file.parentFile, file.name + ".tmp")
 
         file.utf8Reader().use { reader ->
             parser.setInput(reader)
 
             tempFile.utf8Writer().use { writer ->
-                val serializer = factory.newSerializer()
+                val serializer = XPP_FACTORY.newSerializer()
                 serializer.setOutput(writer)
                 serializer.startDocument("UTF-8", true)
 

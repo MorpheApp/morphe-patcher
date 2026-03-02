@@ -62,7 +62,7 @@ internal object PackageRenamingProcessorTest {
     fun `processFile replaces package name in text content`() {
         val result = processFileAndRead(
             xmlContent = """<?xml version="1.0" encoding="UTF-8"?>
-                <resources>
+                <resources package="com.example.package" id="0x7f">
                     <item>@com.original.app:id/myId</item>
                 </resources>
             """.trimIndent(),
@@ -75,7 +75,7 @@ internal object PackageRenamingProcessorTest {
     fun `processFile is a no-op when text does not match pattern`() {
         val result = processFileAndRead(
             xmlContent = """<?xml version="1.0" encoding="UTF-8"?>
-                <resources>
+                <resources package="com.example.package" id="0x7f">
                     <item>plain text no refs</item>
                 </resources>
             """.trimIndent(),
@@ -148,7 +148,7 @@ internal object PackageRenamingProcessorTest {
     fun `processFile preserves UTF-8 characters in text and attributes`() {
         val (_, bytes) = processFileAndReadBytes(
             xmlContent = """<?xml version="1.0" encoding="UTF-8"?>
-                <resources>
+                <resources package="com.example.package" id="0x7f">
                     <item name="café">@com.original.app:string/héllo</item>
                 </resources>
             """.trimIndent(),
@@ -165,7 +165,7 @@ internal object PackageRenamingProcessorTest {
     @Test
     fun `processFile preserves U+2190 in UTF-8 output`() {
         val (text, bytes) = processFileAndReadBytes(
-            xmlContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<resources><item name=\"\u2190\">@com.original.app:string/back</item></resources>",
+            xmlContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<resources package=\"com.example.package\" id=\"0x7f\"><item name=\"\u2190\">@com.original.app:string/back</item></resources>",
         )
 
         // ← (U+2190) in UTF-8 is E2 86 90
@@ -182,7 +182,7 @@ internal object PackageRenamingProcessorTest {
     @Test
     fun `emulate Windows default charset corruption and verify fix`() {
         val xmlContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-            "<resources><item name=\"café\">\u2190 text</item></resources>"
+            "<resources package=\"com.example.package\" id=\"0x7f\"><item name=\"café\">\u2190 text</item></resources>"
 
         // Step 1: Write UTF-8.
         val corruptedFile = tempDir.resolve("corrupted_rename.xml")
@@ -243,7 +243,7 @@ internal object PackageRenamingProcessorTest {
         publicXmlDir.mkdirs()
         val publicXmlFile = publicXmlDir.resolve("public.xml")
         publicXmlFile.writeText(
-            """<?xml version="1.0" encoding="UTF-8"?><resources package="$originalPackageName"></resources>""",
+            """<?xml version="1.0" encoding="UTF-8"?><resources package="$originalPackageName" id="0x7f"></resources>""",
             Charsets.UTF_8,
         )
 

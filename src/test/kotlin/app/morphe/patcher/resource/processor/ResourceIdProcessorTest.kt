@@ -216,7 +216,7 @@ internal object ResourceIdProcessorTest {
         }
         val publicXml = valuesDir.resolve("public.xml")
         publicXml.writeText(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<resources>\n$publicEntries\n</resources>",
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<resources package=\"com.example.app\" id=\"0x7f\">\n$publicEntries\n</resources>",
             Charsets.UTF_8,
         )
 
