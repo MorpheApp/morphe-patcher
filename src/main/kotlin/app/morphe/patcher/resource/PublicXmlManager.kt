@@ -77,8 +77,8 @@ class PublicXmlManager(
         return definedIds
     }
 
-    fun createPublicId(type: String, name: String) {
-        if (idExists(type, name)) {
+    fun createPublicId(type: String, name: String?) {
+        if (name == null || idExists(type, name)) {
             return
         }
 

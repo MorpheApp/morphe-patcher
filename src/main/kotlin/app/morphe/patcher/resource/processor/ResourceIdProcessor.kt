@@ -116,7 +116,6 @@ internal class ResourceIdProcessor(
                         val tagName = parser.name
                         if (depth >= 1) {
                             val idName = parser.getAttributeValue(null, "name")
-                                ?: throw IllegalStateException("Missing 'name' attribute in <$tagName> element in ${file.name}")
 
                             val publicTagName = resourceToTagOverrideMapping[tagName] ?: tagName
                             publicIdManager.createPublicId(publicTagName, idName)
