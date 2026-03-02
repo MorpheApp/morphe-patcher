@@ -5,15 +5,10 @@
 
 package app.morphe.patcher.resource
 
-import app.morphe.patcher.patch.PackageName
-import app.morphe.patcher.util.Document
-import org.w3c.dom.Element
 import org.xmlpull.v1.XmlPullParser
-import java.io.BufferedWriter
 import java.io.Closeable
 import java.io.File
 import java.util.logging.Logger
-import kotlin.text.toString
 
 class PublicXmlManager(
     private val publicDocPath: File
@@ -32,10 +27,7 @@ class PublicXmlManager(
     }
 
     private fun readPublicXml() {
-        val parser = XPP_FACTORY.newPullParser()
-        publicDocPath.utf8Reader().use { reader ->
-            parser.setInput(reader)
-
+        publicDocPath.parseXml { parser ->
             var eventType = parser.eventType
 
             while (eventType != XmlPullParser.END_DOCUMENT) {
@@ -107,9 +99,7 @@ class PublicXmlManager(
 
     override fun close() {
         val tempFile = File(publicDocPath.parentFile, publicDocPath.name + ".tmp")
-        tempFile.utf8Writer().use { writer ->
-            val serializer = XPP_FACTORY.newSerializer()
-            serializer.setOutput(writer)
+        tempFile.writeXml { serializer ->
             serializer.startDocument("UTF-8", true)
 
             // Write <resources> start tag with package and id attributes
