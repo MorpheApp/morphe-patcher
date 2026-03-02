@@ -1,3 +1,10 @@
+# [1.2.0-dev.10](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.9...v1.2.0-dev.10) (2026-03-02)
+
+
+### Bug Fixes
+
+* Add missing XML namespaces when renaming package ([#65](https://github.com/MorpheApp/morphe-patcher/issues/65)) ([6568009](https://github.com/MorpheApp/morphe-patcher/commit/6568009327c2d106ca8c194adbd473623abc03e4))
+
 # [1.2.0-dev.9](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.8...v1.2.0-dev.9) (2026-02-28)
 
 
