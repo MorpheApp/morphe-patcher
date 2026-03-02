@@ -77,6 +77,18 @@ internal class PackageRenamingProcessor(
                     when (eventType) {
                         XmlPullParser.START_TAG -> {
                             currentTag = parser.name
+
+                            // Declare namespace prefixes introduced at this depth
+                            val depth = parser.depth
+                            val nsStart = if (depth > 1) parser.getNamespaceCount(depth - 1) else 0
+                            val nsEnd = parser.getNamespaceCount(depth)
+                            for (i in nsStart until nsEnd) {
+                                serializer.setPrefix(
+                                    parser.getNamespacePrefix(i) ?: "",
+                                    parser.getNamespaceUri(i)
+                                )
+                            }
+
                             serializer.startTag(parser.namespace, currentTag)
                             for (i in 0 until parser.attributeCount) {
                                 var value = parser.getAttributeValue(i)
