@@ -189,6 +189,115 @@ internal object ResourceIdProcessorTest {
     }
 
     @Test
+    fun `process resolves item tag with type attribute to correct resource type`() {
+        val (publicXmlManager, resDir) = setupEnvironment(
+            valuesXml = mapOf(
+                "dimens.xml" to """<?xml version="1.0" encoding="UTF-8"?>
+                    <resources>
+                        <item type="dimen" name="morphed_zero_padding">0.0dip</item>
+                    </resources>
+                """.trimIndent(),
+            ),
+        )
+
+        publicXmlManager.use { publicXmlManager ->
+            val processor = ResourceIdProcessor(
+                get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
+                publicIdManager = publicXmlManager,
+                modifiedResources = emptySet(),
+                addedResources = emptySet(),
+            )
+
+            processor.process()
+
+            assertTrue(
+                publicXmlManager.idExists("dimen", "morphed_zero_padding"),
+                "Expected public ID for dimen/morphed_zero_padding but it was not created",
+            )
+            assertFalse(
+                publicXmlManager.idExists("item", "morphed_zero_padding"),
+                "Resource should NOT be registered under type 'item'",
+            )
+        }
+    }
+
+    @Test
+    fun `process resolves item tag with bool type attribute`() {
+        val (publicXmlManager, resDir) = setupEnvironment(
+            valuesXml = mapOf(
+                "bools.xml" to """<?xml version="1.0" encoding="UTF-8"?>
+                    <resources>
+                        <item type="bool" name="is_feature_enabled">true</item>
+                    </resources>
+                """.trimIndent(),
+            ),
+        )
+
+        publicXmlManager.use { publicXmlManager ->
+            val processor = ResourceIdProcessor(
+                get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
+                publicIdManager = publicXmlManager,
+                modifiedResources = emptySet(),
+                addedResources = emptySet(),
+            )
+
+            processor.process()
+
+            assertTrue(
+                publicXmlManager.idExists("bool", "is_feature_enabled"),
+                "Expected public ID for bool/is_feature_enabled",
+            )
+            assertFalse(
+                publicXmlManager.idExists("item", "is_feature_enabled"),
+                "Resource should NOT be registered under type 'item'",
+            )
+        }
+    }
+
+    @Test
+    fun `process handles mix of regular tags and item tags with type attribute`() {
+        val (publicXmlManager, resDir) = setupEnvironment(
+            valuesXml = mapOf(
+                "dimens.xml" to """<?xml version="1.0" encoding="UTF-8"?>
+                    <resources>
+                        <dimen name="regular_dimen">16dp</dimen>
+                        <item type="dimen" name="item_dimen">0.0dip</item>
+                        <item type="dimen" name="another_item_dimen">8dp</item>
+                    </resources>
+                """.trimIndent(),
+            ),
+        )
+
+        publicXmlManager.use { publicXmlManager ->
+            val processor = ResourceIdProcessor(
+                get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
+                publicIdManager = publicXmlManager,
+                modifiedResources = emptySet(),
+                addedResources = emptySet(),
+            )
+
+            processor.process()
+
+            assertTrue(
+                publicXmlManager.idExists("dimen", "regular_dimen"),
+                "Expected public ID for dimen/regular_dimen",
+            )
+            assertTrue(
+                publicXmlManager.idExists("dimen", "item_dimen"),
+                "Expected public ID for dimen/item_dimen",
+            )
+            assertTrue(
+                publicXmlManager.idExists("dimen", "another_item_dimen"),
+                "Expected public ID for dimen/another_item_dimen",
+            )
+            assertFalse(
+                publicXmlManager.idExists("item", "item_dimen"),
+                "Resource should NOT be registered under type 'item'",
+            )
+        }
+    }
+
+    @Test
     fun `process handles values XML with non-ASCII resource names`() {
         val (publicXmlManager, resDir) = setupEnvironment(
             valuesXml = mapOf(

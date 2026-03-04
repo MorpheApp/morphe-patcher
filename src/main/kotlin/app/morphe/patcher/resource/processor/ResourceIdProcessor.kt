@@ -117,7 +117,12 @@ internal class ResourceIdProcessor(
                         if (depth >= 1) {
                             val idName = parser.getAttributeValue(null, "name")
 
-                            val publicTagName = resourceToTagOverrideMapping[tagName] ?: tagName
+                            val resolvedTagName = if (tagName == "item") {
+                                parser.getAttributeValue(null, "type") ?: tagName
+                            } else {
+                                tagName
+                            }
+                            val publicTagName = resourceToTagOverrideMapping[resolvedTagName] ?: resolvedTagName
                             publicIdManager.createPublicId(publicTagName, idName)
                         }
                         depth += 1
