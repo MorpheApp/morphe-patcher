@@ -71,7 +71,7 @@ class ArsclibResourceCoder(
 
         packageDirectories.forEach { (_, packageDir) ->
             packageDir.resolve("res").walkTopDown().filter { it.isFile }.forEach { file ->
-                val relativePath = file.relativeTo(packageDir).path
+                val relativePath = file.relativeTo(packageDir).invariantSeparatorsPath
                 if (excludedPaths.contains(relativePath)) return@forEach
 
                 val cached = fileSnapshotCache[file]
