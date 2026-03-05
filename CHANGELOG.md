@@ -1,3 +1,10 @@
+# [1.2.0-dev.13](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.12...v1.2.0-dev.13) (2026-03-05)
+
+
+### Bug Fixes
+
+* Expand theme attribute references during XML processing ([#69](https://github.com/MorpheApp/morphe-patcher/issues/69)) ([9a2f1ff](https://github.com/MorpheApp/morphe-patcher/commit/9a2f1ffce7c0d34f701104f7227273ff28edf492))
+
 # [1.2.0-dev.12](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.11...v1.2.0-dev.12) (2026-03-05)
 
 
