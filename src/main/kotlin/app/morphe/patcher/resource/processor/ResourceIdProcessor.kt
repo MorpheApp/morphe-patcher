@@ -40,26 +40,14 @@ internal class ResourceIdProcessor(
 
             (modifiedResources + addedResources)
                 .filter { it.exists() && it.extension == "xml" }
-                .forEach { processNewIdDeclarations(it, idNode) }
+                .forEach {
+                    processNewIdDeclarations(it, idNode)
+                    // Update publicIdManager from values XML files (later, including the newly modified ids.xml)
+                    createPublicIdsFromValuesXml(it)
+                }
         }
-
-        // Step 2: Update publicIdManager from values XML files (including the newly modified ids.xml)
-        /*
-        val valuesDirectories = resDirectories.filter { it.name.startsWith("values") }
-        for (dir in valuesDirectories) {
-            val files = dir.listFiles { file -> file.isFile } ?: continue
-            for (file in files) {
-                if (file.extension != "xml" || file.name == "public.xml") continue
-                createPublicIdsFromValuesXml(file)
-            }
-        }
-        */
-
-        (
-            modifiedResources + addedResources + get("res/values/ids.xml")
-        ).filter { it.exists() && it.extension == "xml" }.forEach { file ->
-            createPublicIdsFromValuesXml(file)
-        }
+        
+        createPublicIdsFromValuesXml(get("res/values/ids.xml"))
 
         // Step 3: Ensure all other resources have a public ID
         // TODO: Only enumerate through files that have been modified by patches.
