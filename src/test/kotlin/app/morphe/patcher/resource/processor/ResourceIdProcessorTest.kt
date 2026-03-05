@@ -322,6 +322,183 @@ internal object ResourceIdProcessorTest {
         }
     }
 
+    // ==================== Theme attribute reference expansion tests ====================
+
+    @Test
+    fun `process expands shorthand theme attribute references without package prefix`() {
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
+            layoutXml = mapOf(
+                "activity_main.xml" to """<?xml version="1.0" encoding="UTF-8"?>
+                    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                        android:background="?myThemeColor">
+                    </LinearLayout>
+                """.trimIndent(),
+            ),
+        )
+
+        val layoutFile = resDir.resolve("res/layout/activity_main.xml")
+
+        publicXmlManager.use { publicXmlManager ->
+            val processor = ResourceIdProcessor(
+                get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
+                publicIdManager = publicXmlManager,
+                modifiedResources = emptySet(),
+                addedResources = createdResourceFiles,
+            )
+
+            processor.process()
+
+            val layoutResult = layoutFile.readText(Charsets.UTF_8)
+            assertContains(layoutResult, "?attr/myThemeColor")
+            assertFalse(
+                Regex("""\?myThemeColor(?![a-zA-Z0-9_])""").containsMatchIn(layoutResult),
+                "Expected shorthand ?myThemeColor to be expanded to ?attr/myThemeColor",
+            )
+        }
+    }
+
+    @Test
+    fun `process expands shorthand theme attribute references with android package prefix`() {
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
+            layoutXml = mapOf(
+                "activity_main.xml" to """<?xml version="1.0" encoding="UTF-8"?>
+                    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                        android:background="?android:windowBackground">
+                    </LinearLayout>
+                """.trimIndent(),
+            ),
+        )
+
+        val layoutFile = resDir.resolve("res/layout/activity_main.xml")
+
+        publicXmlManager.use { publicXmlManager ->
+            val processor = ResourceIdProcessor(
+                get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
+                publicIdManager = publicXmlManager,
+                modifiedResources = emptySet(),
+                addedResources = createdResourceFiles,
+            )
+
+            processor.process()
+
+            val layoutResult = layoutFile.readText(Charsets.UTF_8)
+            assertContains(layoutResult, "?android:attr/windowBackground")
+            assertFalse(
+                layoutResult.contains("?android:windowBackground"),
+                "Expected shorthand ?android:windowBackground to be expanded to ?android:attr/windowBackground",
+            )
+        }
+    }
+
+    @Test
+    fun `process does not modify already expanded theme attribute references`() {
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
+            layoutXml = mapOf(
+                "activity_main.xml" to """<?xml version="1.0" encoding="UTF-8"?>
+                    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                        android:background="?attr/myThemeColor"
+                        android:textColor="?android:attr/textColorPrimary">
+                    </LinearLayout>
+                """.trimIndent(),
+            ),
+        )
+
+        val layoutFile = resDir.resolve("res/layout/activity_main.xml")
+
+        publicXmlManager.use { publicXmlManager ->
+            val processor = ResourceIdProcessor(
+                get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
+                publicIdManager = publicXmlManager,
+                modifiedResources = emptySet(),
+                addedResources = createdResourceFiles,
+            )
+
+            processor.process()
+
+            val layoutResult = layoutFile.readText(Charsets.UTF_8)
+            assertContains(layoutResult, "?attr/myThemeColor")
+            assertContains(layoutResult, "?android:attr/textColorPrimary")
+            // Ensure no double-expansion like ?attr/attr/myThemeColor
+            assertFalse(
+                layoutResult.contains("?attr/attr/"),
+                "Should not double-expand already expanded theme attribute references",
+            )
+            assertFalse(
+                layoutResult.contains("?android:attr/attr/"),
+                "Should not double-expand already expanded theme attribute references",
+            )
+        }
+    }
+
+    @Test
+    fun `process expands multiple shorthand theme attribute references in same file`() {
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
+            layoutXml = mapOf(
+                "activity_main.xml" to """<?xml version="1.0" encoding="UTF-8"?>
+                    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                        android:background="?colorPrimary">
+                        <TextView
+                            android:textColor="?android:textColorPrimary"
+                            android:background="?colorAccent"/>
+                    </LinearLayout>
+                """.trimIndent(),
+            ),
+        )
+
+        val layoutFile = resDir.resolve("res/layout/activity_main.xml")
+
+        publicXmlManager.use { publicXmlManager ->
+            val processor = ResourceIdProcessor(
+                get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
+                publicIdManager = publicXmlManager,
+                modifiedResources = emptySet(),
+                addedResources = createdResourceFiles,
+            )
+
+            processor.process()
+
+            val layoutResult = layoutFile.readText(Charsets.UTF_8)
+            assertContains(layoutResult, "?attr/colorPrimary")
+            assertContains(layoutResult, "?android:attr/textColorPrimary")
+            assertContains(layoutResult, "?attr/colorAccent")
+        }
+    }
+
+    @Test
+    fun `process handles both @+id and shorthand theme attribute references in same element`() {
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
+            layoutXml = mapOf(
+                "activity_main.xml" to """<?xml version="1.0" encoding="UTF-8"?>
+                    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android">
+                        <Button
+                            android:id="@+id/my_button"
+                            android:background="?selectableItemBackground"/>
+                    </LinearLayout>
+                """.trimIndent(),
+            ),
+        )
+
+        val layoutFile = resDir.resolve("res/layout/activity_main.xml")
+
+        publicXmlManager.use { publicXmlManager ->
+            val processor = ResourceIdProcessor(
+                get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
+                publicIdManager = publicXmlManager,
+                modifiedResources = emptySet(),
+                addedResources = createdResourceFiles,
+            )
+
+            processor.process()
+
+            val layoutResult = layoutFile.readText(Charsets.UTF_8)
+            // Check @+id was handled
+            assertContains(layoutResult, "@id/my_button")
+            assertFalse(layoutResult.contains("@+id/my_button"))
+            // Check theme attr was expanded
+            assertContains(layoutResult, "?attr/selectableItemBackground")
+        }
+    }
+
     // ==================== Helpers ====================
 
     private data class TestEnvironment(

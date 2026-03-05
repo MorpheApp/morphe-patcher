@@ -7,6 +7,7 @@ package app.morphe.patcher.resource
 
 import app.morphe.patcher.util.Document
 import org.w3c.dom.Element
+import org.w3c.dom.NamedNodeMap
 import org.w3c.dom.Node
 import org.w3c.dom.NodeList
 
@@ -61,6 +62,14 @@ fun NodeList.forEachElement(action: (Element) -> Unit) {
         if (it is Element) {
             action(it)
         }
+    }
+}
+
+fun Element.forEachAttribute(action: (Node) -> Unit) {
+    val attributes = this.attributes ?: return
+    for (i in 0 until attributes.length) {
+        val attr = attributes.item(i)
+        action(attr)
     }
 }
 
