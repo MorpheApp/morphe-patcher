@@ -8,6 +8,7 @@ package app.morphe.patcher.resource.processor
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.PublicXmlManager
 import app.morphe.patcher.resource.fileResourceTypes
+import app.morphe.patcher.resource.forEachAttribute
 import app.morphe.patcher.resource.parseXml
 import app.morphe.patcher.resource.resourceToTagOverrideMapping
 import app.morphe.patcher.util.Document
@@ -41,12 +42,12 @@ internal class ResourceIdProcessor(
             (modifiedResources + addedResources)
                 .filter { it.exists() && it.extension == "xml" }
                 .forEach {
-                    processNewIdDeclarations(it, idNode)
+                    processIdAndAttrDeclarations(it, idNode)
                     // Update publicIdManager from values XML files (later, including the newly modified ids.xml)
                     createPublicIdsFromValuesXml(it)
                 }
         }
-        
+
         createPublicIdsFromValuesXml(get("res/values/ids.xml"))
 
         // Step 3: Ensure all other resources have a public ID
@@ -62,7 +63,7 @@ internal class ResourceIdProcessor(
         }
     }
 
-    private fun processNewIdDeclarations(file: File, idNode: Node): Set<String> {
+    private fun processIdAndAttrDeclarations(file: File, idNode: Node): Set<String> {
         val createdIds = mutableSetOf<String>()
         Document(file).use { doc ->
             iterativeTraverse(doc.documentElement) { element ->
@@ -78,9 +79,37 @@ internal class ResourceIdProcessor(
                     element.setAttribute("android:id", "@id/$idName")
                     createdIds += "@id/$idName"
                 }
+
+                // Expand shorthand theme attribute references in all attributes.
+                // e.g. ?someValue -> ?attr/someValue, ?android:someValue -> ?android:attr/someValue
+                element.forEachAttribute { attr ->
+                    val value = attr.nodeValue
+                    if (value.startsWith("?") && !value.contains("/")) {
+                        val expanded = expandThemeAttrReference(value)
+                        if (expanded != value) {
+                            logger.fine { "Expanding theme attr reference '${attr.nodeName}'='$value' to '$expanded'" }
+                            attr.nodeValue = expanded
+                        }
+                    }
+                }
             }
         }
         return createdIds
+    }
+
+    private fun expandThemeAttrReference(value: String): String {
+        // value starts with '?' and has no '/'
+        val afterQuestion = value.substring(1)
+        val colonIndex = afterQuestion.indexOf(':')
+        return if (colonIndex >= 0) {
+            // Has package prefix, e.g. ?android:someValue -> ?android:attr/someValue
+            val packagePrefix = afterQuestion.substring(0, colonIndex)
+            val attrName = afterQuestion.substring(colonIndex + 1)
+            "?$packagePrefix:attr/$attrName"
+        } else {
+            // No package prefix, e.g. ?someValue -> ?attr/someValue
+            "?attr/$afterQuestion"
+        }
     }
 
     private fun createPublicIdsFromValuesXml(file: File) {
