@@ -42,6 +42,50 @@ class ArsclibResourceCoder(
     private val modifiedResources = mutableSetOf<File>()
     private val addedResources = mutableSetOf<File>()
 
+    /**
+     * Snapshot of file metadata (modification time and size) captured after decoding resources.
+     * Used to detect which files were added or modified between decoding and encoding.
+     */
+    private data class FileSnapshot(val lastModified: Long, val size: Long)
+
+    private var fileSnapshotCache: Map<File, FileSnapshot> = emptyMap()
+
+    /**
+     * Recursively scan the working directory and build a map of file paths to their metadata.
+     */
+    private fun buildFileSnapshot(): Map<File, FileSnapshot> {
+        val snapshot = mutableMapOf<File, FileSnapshot>()
+        workingDir.walkTopDown().filter { it.isFile }.forEach { file ->
+            snapshot[file] = FileSnapshot(file.lastModified(), file.length())
+        }
+        return snapshot
+    }
+
+    /**
+     * Compare the current file state against the cached snapshot to populate
+     * [addedResources] and [modifiedResources].
+     */
+    private fun detectFileChanges() {
+        addedResources.clear()
+        modifiedResources.clear()
+
+        packageDirectories.forEach { (_, packageDir) ->
+            packageDir.resolve("res").walkTopDown().filter { it.isFile }.forEach { file ->
+                val relativePath = file.relativeTo(packageDir).invariantSeparatorsPath
+                if (excludedPaths.contains(relativePath)) return@forEach
+
+                val cached = fileSnapshotCache[file]
+                if (cached == null) {
+                    // File did not exist in the snapshot — it was added.
+                    addedResources.add(file)
+                } else if (file.lastModified() != cached.lastModified || file.length() != cached.size) {
+                    // File existed but was changed.
+                    modifiedResources.add(file)
+                }
+            }
+        }
+    }
+
     // Exclude these files from being tracked by modification/adding to prevent issues during resource encoding.
     private val excludedPaths = setOf(
         "AndroidManifest.xml",
@@ -120,11 +164,18 @@ class ArsclibResourceCoder(
             packageDirectories,
         ).process()
 
+        // Build a snapshot of all file metadata after decoding, so we can detect
+        // which files are added or modified when it's time to encode.
+        fileSnapshotCache = buildFileSnapshot()
+
         return getPackageMetadata()
     }
 
     override fun encodeResources(outputDir: File): File {
         val outputApk = outputDir.resolve("resources.apk")
+
+        // Detect which files were added or modified since decoding.
+        detectFileChanges()
 
         val newPackageName = Document(getFile("AndroidManifest.xml")).use { manifest ->
             val manifestNode = manifest.getElementsByTagName("manifest").item(0) as Element
@@ -147,7 +198,6 @@ class ArsclibResourceCoder(
             ).process()
 
             // Post process all aapt:attr macros in XML files.
-            // TODO: We should only need to do this in new files, have a way of tracking those.
             AaptMacroProcessor(
                 this@ArsclibResourceCoder::getFile,
                 modifiedResources,
@@ -270,15 +320,11 @@ class ArsclibResourceCoder(
             retval = workingDir.resolve("root").resolve(path)
         }
 
-        if (!excludedPaths.contains(path)) {
-            modifiedResources.add(retval)
-        }
-
         return retval
     }
 
     /**
-     * Add a file to the working directory. The file will be tracked for inclusion in the final resources.apk.
+     * Add a file to the working directory.
      *
      * @param destPath The path of the file to add, relative to the package directory.
      * @param srcFile The file to add.
@@ -289,10 +335,6 @@ class ArsclibResourceCoder(
         val pkgName = packageName ?: lazyPackageInfo.value.packageName
         val destFile =
             packageDirectories[pkgName]?.resolve(destPath) ?: throw PatchException("Package $pkgName not found")
-        addedResources.add(destFile)
-        if (!excludedPaths.contains(destPath)) {
-            modifiedResources.add(destFile)
-        }
         Files.copy(srcFile.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
 
         return destFile

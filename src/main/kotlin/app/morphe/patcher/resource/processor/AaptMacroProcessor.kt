@@ -41,31 +41,12 @@ internal class AaptMacroProcessor(
     fun process() {
         logger.info("Processing aapt macros")
 
-        // TODO: Only handle newly added resource files here. (This is a breaking change.)
         // Additionally, handle the process of creating new IDs here so we don't have to read the same files again.
         // (This will require refactoring of the code that handles public.xml id generation.)
         val newlyCreatedFiles = mutableSetOf<File>()
         (modifiedResources + addedResources)
             .filter { it.exists() && it.extension == "xml" }
             .forEach { newlyCreatedFiles += processDocument(it) }
-
-        val nonTrackedFiles = mutableSetOf<File>()
-        fileResourceTypes
-            .map { get("res/$it") }
-            .filter { it.exists() && it.isDirectory }
-            .forEach { dir ->
-                dir.listFiles { file -> file.isFile && file.extension == "xml" && !file.name.startsWith("$") }
-                    ?.forEach { file ->
-                        if (file in newlyCreatedFiles || file in modifiedResources || file in addedResources) return@forEach
-                        val res = processDocument(file)
-                        if (res.isNotEmpty()) nonTrackedFiles += file
-                    }
-            }
-
-        if (nonTrackedFiles.isNotEmpty()) {
-            val fileNames = nonTrackedFiles.map { it.name }
-            logger.fine { "Found ${nonTrackedFiles.size} modified files that were not tracked: $fileNames" }
-        }
     }
 
     private fun processDocument(file: File): Set<File> {
