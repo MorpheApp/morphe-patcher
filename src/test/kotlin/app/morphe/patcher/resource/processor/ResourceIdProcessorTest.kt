@@ -23,7 +23,7 @@ internal object ResourceIdProcessorTest {
 
     @Test
     fun `process creates public ID entries for resources in values XML`() {
-        val (publicXmlManager, resDir) = setupEnvironment(
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
             valuesXml = mapOf(
                 "strings.xml" to """<?xml version="1.0" encoding="UTF-8"?>
                     <resources>
@@ -39,7 +39,7 @@ internal object ResourceIdProcessorTest {
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
                 modifiedResources = emptySet(),
-                addedResources = emptySet(),
+                addedResources = createdResourceFiles,
             )
 
             processor.process()
@@ -51,7 +51,7 @@ internal object ResourceIdProcessorTest {
 
     @Test
     fun `process handles arrays`() {
-        val (publicXmlManager, resDir) = setupEnvironment(
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
             valuesXml = mapOf(
                 "arrays.xml" to """<?xml version="1.0" encoding="UTF-8"?>
                     <resources>
@@ -70,7 +70,7 @@ internal object ResourceIdProcessorTest {
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
                 modifiedResources = emptySet(),
-                addedResources = emptySet(),
+                addedResources = createdResourceFiles,
             )
 
             processor.process()
@@ -81,7 +81,7 @@ internal object ResourceIdProcessorTest {
 
     @Test
     fun `process converts @+id references to @id references and adds to ids xml`() {
-        val (publicXmlManager, resDir) = setupEnvironment(
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
             valuesXml = mapOf(
                 "ids.xml" to """<?xml version="1.0" encoding="UTF-8"?>
                     <resources></resources>
@@ -103,8 +103,8 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = setOf(layoutFile),
-                addedResources = emptySet(),
+                modifiedResources = emptySet(),
+                addedResources = createdResourceFiles,
             )
 
             processor.process()
@@ -125,7 +125,7 @@ internal object ResourceIdProcessorTest {
 
     @Test
     fun `process creates public IDs for file-based resources`() {
-        val (publicXmlManager, resDir) = setupEnvironment()
+        val (publicXmlManager, resDir, _) = setupEnvironment()
 
         // Create a drawable file resource
         val drawableDir = resDir.resolve("res/drawable")
@@ -141,7 +141,7 @@ internal object ResourceIdProcessorTest {
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
                 modifiedResources = emptySet(),
-                addedResources = emptySet(),
+                addedResources = setOf(drawableFile),
             )
 
             processor.process()
@@ -155,7 +155,7 @@ internal object ResourceIdProcessorTest {
 
     @Test
     fun `process does not duplicate existing public IDs`() {
-        val (publicXmlManager, resDir) = setupEnvironment(
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
             publicXmlEntries = listOf(
                 Triple("string", "existing_name", "0x1"),
             ),
@@ -173,7 +173,7 @@ internal object ResourceIdProcessorTest {
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
                 modifiedResources = emptySet(),
-                addedResources = emptySet(),
+                addedResources = createdResourceFiles,
             )
 
             processor.process()
@@ -190,7 +190,7 @@ internal object ResourceIdProcessorTest {
 
     @Test
     fun `process resolves item tag with type attribute to correct resource type`() {
-        val (publicXmlManager, resDir) = setupEnvironment(
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
             valuesXml = mapOf(
                 "dimens.xml" to """<?xml version="1.0" encoding="UTF-8"?>
                     <resources>
@@ -205,7 +205,7 @@ internal object ResourceIdProcessorTest {
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
                 modifiedResources = emptySet(),
-                addedResources = emptySet(),
+                addedResources = createdResourceFiles,
             )
 
             processor.process()
@@ -223,7 +223,7 @@ internal object ResourceIdProcessorTest {
 
     @Test
     fun `process resolves item tag with bool type attribute`() {
-        val (publicXmlManager, resDir) = setupEnvironment(
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
             valuesXml = mapOf(
                 "bools.xml" to """<?xml version="1.0" encoding="UTF-8"?>
                     <resources>
@@ -238,7 +238,7 @@ internal object ResourceIdProcessorTest {
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
                 modifiedResources = emptySet(),
-                addedResources = emptySet(),
+                addedResources = createdResourceFiles,
             )
 
             processor.process()
@@ -256,7 +256,7 @@ internal object ResourceIdProcessorTest {
 
     @Test
     fun `process handles mix of regular tags and item tags with type attribute`() {
-        val (publicXmlManager, resDir) = setupEnvironment(
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
             valuesXml = mapOf(
                 "dimens.xml" to """<?xml version="1.0" encoding="UTF-8"?>
                     <resources>
@@ -273,7 +273,7 @@ internal object ResourceIdProcessorTest {
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
                 modifiedResources = emptySet(),
-                addedResources = emptySet(),
+                addedResources = createdResourceFiles,
             )
 
             processor.process()
@@ -299,7 +299,7 @@ internal object ResourceIdProcessorTest {
 
     @Test
     fun `process handles values XML with non-ASCII resource names`() {
-        val (publicXmlManager, resDir) = setupEnvironment(
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
             valuesXml = mapOf(
                 "strings.xml" to "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<resources><string name=\"grüße\">Hello</string></resources>",
             ),
@@ -310,7 +310,7 @@ internal object ResourceIdProcessorTest {
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
                 modifiedResources = emptySet(),
-                addedResources = emptySet(),
+                addedResources = createdResourceFiles,
             )
 
             processor.process()
@@ -327,6 +327,7 @@ internal object ResourceIdProcessorTest {
     private data class TestEnvironment(
         val publicXmlManager: PublicXmlManager,
         val resDir: File,
+        val createdResourceFiles: Set<File>,
     )
 
     private fun setupEnvironment(
@@ -338,6 +339,8 @@ internal object ResourceIdProcessorTest {
         val resDir = baseDir.resolve("res")
         val valuesDir = resDir.resolve("values")
         valuesDir.mkdirs()
+
+        val createdResourceFiles = mutableSetOf<File>()
 
         // Create public.xml
         val publicEntries = publicXmlEntries.joinToString("\n") { (type, name, id) ->
@@ -351,7 +354,13 @@ internal object ResourceIdProcessorTest {
 
         // Create values XML files
         valuesXml.forEach { (name, content) ->
-            valuesDir.resolve(name).writeText(content, Charsets.UTF_8)
+            val file = valuesDir.resolve(name)
+            file.writeText(content, Charsets.UTF_8)
+            // ids.xml is always opened directly by ResourceIdProcessor via get("res/values/ids.xml"),
+            // so it must not also appear in addedResources (which would cause a concurrent Document access).
+            if (name != "ids.xml") {
+                createdResourceFiles.add(file)
+            }
         }
 
         // Always create ids.xml if not explicitly provided, since process() always opens it
@@ -367,7 +376,9 @@ internal object ResourceIdProcessorTest {
             val layoutDir = resDir.resolve("layout")
             layoutDir.mkdirs()
             layoutXml.forEach { (name, content) ->
-                layoutDir.resolve(name).writeText(content, Charsets.UTF_8)
+                val file = layoutDir.resolve(name)
+                file.writeText(content, Charsets.UTF_8)
+                createdResourceFiles.add(file)
             }
         }
 
@@ -376,6 +387,7 @@ internal object ResourceIdProcessorTest {
             // The get lambda receives paths like "res" or "res/values/ids.xml",
             // so resolve them relative to baseDir.
             resDir = baseDir,
+            createdResourceFiles = createdResourceFiles,
         )
     }
 }

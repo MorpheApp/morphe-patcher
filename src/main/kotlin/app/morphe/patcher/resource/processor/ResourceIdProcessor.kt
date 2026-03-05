@@ -31,11 +31,9 @@ internal class ResourceIdProcessor(
 
         val resDirectories =
             get("res").listFiles { file -> file.isDirectory } ?: throw PatchException("Resource directory not found")
-        val nonTrackedFiles = mutableSetOf<File>()
 
-        // Find all new ID declarations in layout/menu files so we can create a corresponding entry in ids.xml
+        // Find all new ID declarations in XML files so we can create a corresponding entry in ids.xml
         // They will get added to public.xml later
-        // TODO: Only handle this for newly added files (this is a breaking change).
         Document(get("res/values/ids.xml")).use { idDoc ->
             val idNode = idDoc.getElementsByTagName("resources").item(0)
                 ?: throw IllegalStateException("ids.xml is missing the <resources> root element.")
@@ -43,21 +41,10 @@ internal class ResourceIdProcessor(
             (modifiedResources + addedResources)
                 .filter { it.exists() && it.extension == "xml" }
                 .forEach { processNewIdDeclarations(it, idNode) }
-
-            // TODO: Check if we need to look through any other XML files for new ID declarations.
-            resDirectories
-                .filter { it.name.startsWith("layout") || it.name.startsWith("menu") }
-                .forEach { dir ->
-                    val files = dir.listFiles { file -> file.isFile } ?: return@forEach
-                    for (file in files) {
-                        if (file in modifiedResources || file in addedResources) continue
-                        val nonTrackedIds = processNewIdDeclarations(file, idNode)
-                        if (nonTrackedIds.isNotEmpty()) nonTrackedFiles += file
-                    }
-                }
         }
 
         // Step 2: Update publicIdManager from values XML files (including the newly modified ids.xml)
+        /*
         val valuesDirectories = resDirectories.filter { it.name.startsWith("values") }
         for (dir in valuesDirectories) {
             val files = dir.listFiles { file -> file.isFile } ?: continue
@@ -65,6 +52,13 @@ internal class ResourceIdProcessor(
                 if (file.extension != "xml" || file.name == "public.xml") continue
                 createPublicIdsFromValuesXml(file)
             }
+        }
+        */
+
+        (
+            modifiedResources + addedResources + get("res/values/ids.xml")
+        ).filter { it.exists() && it.extension == "xml" }.forEach { file ->
+            createPublicIdsFromValuesXml(file)
         }
 
         // Step 3: Ensure all other resources have a public ID
@@ -77,11 +71,6 @@ internal class ResourceIdProcessor(
                     publicIdManager.createPublicId(type, file.nameWithoutExtension)
                 }
             }
-        }
-
-        if (nonTrackedFiles.isNotEmpty()) {
-            val fileNames = nonTrackedFiles.map { it.name }
-            logger.fine { "Found ${nonTrackedFiles.size} modified files that were not tracked: $fileNames" }
         }
     }
 
