@@ -84,7 +84,7 @@ internal class ResourceIdProcessor(
                 // e.g. ?someValue -> ?attr/someValue, ?android:someValue -> ?android:attr/someValue
                 element.forEachAttribute { attr ->
                     val value = attr.nodeValue
-                    if (value.startsWith("?") && !value.contains("/")) {
+                    if (value.startsWith('?') && !value.contains('/')) {
                         val expanded = expandThemeAttrReference(value)
                         if (expanded != value) {
                             logger.fine { "Expanding theme attr reference '${attr.nodeName}'='$value' to '$expanded'" }
