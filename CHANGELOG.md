@@ -1,3 +1,26 @@
+# [1.2.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.1.1...v1.2.0) (2026-03-07)
+
+
+### Bug Fixes
+
+* Add missing XML namespaces when renaming package ([#65](https://github.com/MorpheApp/morphe-patcher/issues/65)) ([6568009](https://github.com/MorpheApp/morphe-patcher/commit/6568009327c2d106ca8c194adbd473623abc03e4))
+* Add some extension methods from morphe-library ([c2b667b](https://github.com/MorpheApp/morphe-patcher/commit/c2b667b2eb249598260f721924e2bbd7ed20dca4))
+* additional use of streaming XML parser to speed up XML processing ([#66](https://github.com/MorpheApp/morphe-patcher/issues/66)) ([b2d45df](https://github.com/MorpheApp/morphe-patcher/commit/b2d45dffab5f903556e16179bdc63a381cd6d363))
+* Expand theme attribute references during XML processing ([#69](https://github.com/MorpheApp/morphe-patcher/issues/69)) ([9a2f1ff](https://github.com/MorpheApp/morphe-patcher/commit/9a2f1ffce7c0d34f701104f7227273ff28edf492))
+* process generic item XML tags, only process modified XMLs instead of all XMLs ([#67](https://github.com/MorpheApp/morphe-patcher/issues/67)) ([91e9624](https://github.com/MorpheApp/morphe-patcher/commit/91e962487dedf73104e23a71b82141d31c21d15d))
+* Sanitize invalid XML characters in unpatched apk ([#54](https://github.com/MorpheApp/morphe-patcher/issues/54)) ([86a4087](https://github.com/MorpheApp/morphe-patcher/commit/86a4087c6345b5150ffa43e3695eba9e96224070))
+* Sanitize strings.xml after decoding resources ([#55](https://github.com/MorpheApp/morphe-patcher/issues/55)) ([4155343](https://github.com/MorpheApp/morphe-patcher/commit/41553432f784dda34ddc3c2364279c6d2d87c3df))
+* Specify UTF-8 during XML processing to prevent encoding issues on Windows ([#58](https://github.com/MorpheApp/morphe-patcher/issues/58)) ([842604d](https://github.com/MorpheApp/morphe-patcher/commit/842604d0504c904ac2abd6f2b268c164388384fc))
+* Use streaming XML processing ([#56](https://github.com/MorpheApp/morphe-patcher/issues/56)) ([e9d56d0](https://github.com/MorpheApp/morphe-patcher/commit/e9d56d0a1f06e04a72ff031974c894bd113985f5))
+
+
+### Features
+
+* Add a version code field to `PackageMetadata` ([#47](https://github.com/MorpheApp/morphe-patcher/issues/47)) ([c8800fd](https://github.com/MorpheApp/morphe-patcher/commit/c8800fd725a32009542e45743dc533b73f97d747))
+* Add public packageMetadata to `ResourcePatchContext` ([b2e7df8](https://github.com/MorpheApp/morphe-patcher/commit/b2e7df87c5b40a73c654e9d618d84d6d6ede77ac))
+* Decouple morphe-library and morphe-patcher ([#60](https://github.com/MorpheApp/morphe-patcher/issues/60)) ([1785631](https://github.com/MorpheApp/morphe-patcher/commit/1785631d74e32475e6128713ab9c51d3a33645e1))
+* Use arsclib during resource encoding/decoding and fix memory leaks ([#48](https://github.com/MorpheApp/morphe-patcher/issues/48)) ([7d0f837](https://github.com/MorpheApp/morphe-patcher/commit/7d0f837c939df44b78d81fff6c4f100c6afada49))
+
 # [1.2.0-dev.13](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0-dev.12...v1.2.0-dev.13) (2026-03-05)
 
 
