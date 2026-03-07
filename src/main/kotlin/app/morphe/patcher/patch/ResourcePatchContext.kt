@@ -1,114 +1,73 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ *
+ * Original forked code:
+ * https://github.com/LisoUseInAIKyrios/revanced-patcher
+ */
+
 package app.morphe.patcher.patch
 
 import app.morphe.patcher.InternalApi
 import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherResult
+import app.morphe.patcher.resource.ResourceMode
+import app.morphe.patcher.resource.coder.ApkToolResourceCoder
+import app.morphe.patcher.resource.coder.ArsclibResourceCoder
+import app.morphe.patcher.resource.coder.ResourceCoder
 import app.morphe.patcher.util.Document
-import brut.androlib.AaptInvoker
-import brut.androlib.ApkDecoder
-import brut.androlib.apk.UsesFramework
-import brut.androlib.res.Framework
-import brut.androlib.res.ResourcesDecoder
-import brut.androlib.res.decoder.AndroidManifestPullStreamDecoder
-import brut.androlib.res.decoder.AndroidManifestResourceParser
-import brut.androlib.res.xml.ResXmlUtils
-import brut.directory.ExtFile
 import java.io.InputStream
-import java.io.OutputStream
-import java.nio.file.Files
 import java.util.logging.Logger
+
 
 /**
  * A context for patches containing the current state of resources.
  *
- * @param packageMetadata The [PackageMetadata] of the apk file.
- * @param config The [PatcherConfig] used to create this context.
+ * @param packageMetadata The [PackageMetadata] of the target apk.
  */
 class ResourcePatchContext internal constructor(
-    private val packageMetadata: PackageMetadata,
     private val config: PatcherConfig,
 ) : PatchContext<PatcherResult.PatchedResources?> {
     private val logger = Logger.getLogger(ResourcePatchContext::class.java.name)
 
+    private val resourceCoder: ResourceCoder = if (config.useArsclib) {
+        ArsclibResourceCoder(config.apkFiles, config.apkFile)
+    } else {
+        ApkToolResourceCoder(config.apkFiles, config.resourceConfig, config.apkFile)
+    }
+
+    val packageMetadata = resourceCoder.getPackageMetadata()
+
     /**
      * Read a document from an [InputStream].
      */
+    @Suppress("unused")
     fun document(inputStream: InputStream) = Document(inputStream)
 
     /**
      * Read and write documents in the [PatcherConfig.apkFiles].
      */
-    fun document(path: String) = Document(get(path))
-
-    /**
-     * Set of resources from [PatcherConfig.apkFiles] to delete.
-     */
-    private val deleteResources = mutableSetOf<String>()
+    @Suppress("unused")
+    fun document(path: String) = Document(resourceCoder.getFile(path))
+    @Suppress("unused")
+    fun document(path: String, packageName: String) = Document(resourceCoder.getFile(path, packageName))
 
     /**
      * Decode resources of [PatcherConfig.apkFile].
      *
      * @param mode The [ResourceMode] to use.
      */
-    internal fun decodeResources(mode: ResourceMode) =
-        with(packageMetadata.apkInfo) {
-            config.initializeTemporaryFilesDirectories()
-
-            // Needed to decode resources.
-            val resourcesDecoder = ResourcesDecoder(this, config.resourceConfig)
-
-            if (mode == ResourceMode.FULL) {
-                logger.info("Decoding resources")
-
-                resourcesDecoder.decodeResources(config.apkFiles)
-                resourcesDecoder.decodeManifest(config.apkFiles)
-
-                // Needed to record uncompressed files.
-                val apkDecoder = ApkDecoder(this, config.resourceConfig)
-                apkDecoder.recordUncompressedFiles(resourcesDecoder.resFileMapping)
-
-                usesFramework =
-                    UsesFramework().apply {
-                        ids = resourcesDecoder.resTable.listFramePackages().map { it.id }
-                    }
-            } else {
-                logger.info("Decoding app manifest")
-
-                // Decode manually instead of using resourceDecoder.decodeManifest
-                // because it does not support decoding to an OutputStream.
-                AndroidManifestPullStreamDecoder(
-                    AndroidManifestResourceParser(resourcesDecoder.resTable),
-                    resourcesDecoder.newXmlSerializer(),
-                ).decode(
-                    apkFile.directory.getFileInput("AndroidManifest.xml"),
-                    // Older Android versions do not support OutputStream.nullOutputStream()
-                    object : OutputStream() {
-                        override fun write(b: Int) { // Do nothing.
-                        }
-                    },
-                )
-
-                // Get the package name and version from the manifest using the XmlPullStreamDecoder.
-                // XmlPullStreamDecoder.decodeManifest() sets metadata.apkInfo.
-                packageMetadata.let { metadata ->
-                    metadata.packageName = resourcesDecoder.resTable.packageRenamed
-                    versionInfo.let {
-                        metadata.packageVersion = it.versionName ?: it.versionCode
-                    }
-
-                    /*
-                     The ResTable if flagged as sparse if the main package is not loaded, which is the case here,
-                     because ResourcesDecoder.decodeResources loads the main package
-                     and not XmlPullStreamDecoder.decodeManifest.
-                     See ARSCDecoder.readTableType for more info.
-
-                     Set this to false again to prevent the ResTable from being flagged as sparse falsely.
-                     */
-                    metadata.apkInfo.sparseResources = false
-                }
-            }
+    internal fun decodeResources(mode: ResourceMode): PackageMetadata {
+        config.initializeTemporaryFilesDirectories()
+        if (mode == ResourceMode.FULL) {
+            logger.info("Decoding all resources")
+            return resourceCoder.decodeResources()
+        } else {
+            logger.info("Decoding resources in raw mode")
+            return resourceCoder.decodeRaw()
         }
+    }
 
     /**
      * Compile resources in [PatcherConfig.apkFiles].
@@ -121,68 +80,18 @@ class ResourcePatchContext internal constructor(
 
         logger.info("Compiling modified resources")
 
-        val resources = config.patchedFiles.resolve("resources").also { it.mkdirs() }
+        val resourcesApkFile = if (config.resourceMode == ResourceMode.FULL) {
+            resourceCoder.encodeResources(config.patchedFiles)
+        } else {
+            null
+        }
 
-        val resourcesApkFile =
-            if (config.resourceMode == ResourceMode.FULL) {
-                resources.resolve("resources.apk").apply {
-                    // Compile the resources.apk file.
-                    AaptInvoker(
-                        packageMetadata.apkInfo,
-                        config.resourceConfig,
-                    ).invoke(
-                        resources.resolve("resources.apk"),
-                        config.apkFiles.resolve("AndroidManifest.xml").also {
-                            ResXmlUtils.fixingPublicAttrsInProviderAttributes(it)
-                        },
-                        config.apkFiles.resolve("res"),
-                        null,
-                        null,
-                        packageMetadata.apkInfo.usesFramework.let { usesFramework ->
-                            usesFramework.ids.map { id ->
-                                Framework(config.resourceConfig).getApkFile(id, usesFramework.tag)
-                            }.toTypedArray()
-                        },
-                    )
-                }
-            } else {
-                null
-            }
-
-        val otherFiles =
-            config.apkFiles.listFiles()!!.filter {
-                // Excluded because present in resources.other.
-                // TODO: We are reusing config.apkFiles as a temporarily directory for extracting resources.
-                //  This is not ideal as it could conflict with files such as the ones that we filter here.
-                //  The problem is that ResourcePatchContext#get returns a File relative to config.apkFiles,
-                //  and we need to extract files to that directory.
-                //  A solution would be to use config.apkFiles as the working directory for the patching process.
-                //  Once all patches have been executed, we can move the decoded resources to a new directory.
-                //  The filters wouldn't be needed anymore.
-                //  For now, we assume that the files we filter here are not needed for the patching process.
-                it.name != "AndroidManifest.xml" &&
-                    it.name != "res" &&
-                    // Generated by Androlib.
-                    it.name != "build"
-            }
-
-        val otherResourceFiles =
-            if (otherFiles.isNotEmpty()) {
-                // Move the other resources files.
-                resources.resolve("other").also { it.mkdirs() }.apply {
-                    otherFiles.forEach { file ->
-                        Files.move(file.toPath(), resolve(file.name).toPath())
-                    }
-                }
-            } else {
-                null
-            }
-
+        // FIXME: All of this stuff is handled by arsclib using metadata files. Clean this up.
         return PatcherResult.PatchedResources(
             resourcesApkFile,
-            otherResourceFiles,
-            packageMetadata.apkInfo.doNotCompress?.toSet() ?: emptySet(),
-            deleteResources,
+            resourceCoder.getOtherResourceFiles(config.patchedFiles, config.resourceMode),
+            resourceCoder.getUncompressedFiles(),
+            resourceCoder.getDeletedFiles(),
         )
     }
 
@@ -195,41 +104,14 @@ class ResourcePatchContext internal constructor(
     operator fun get(
         path: String,
         copy: Boolean = true,
-    ) = config.apkFiles.resolve(path).apply {
-        if (copy && !exists()) {
-            with(ExtFile(config.apkFile).directory) {
-                if (containsFile(path) || containsDir(path)) {
-                    copyToDir(config.apkFiles, path)
-                }
-            }
-        }
-    }
+    ) = resourceCoder.getFile(path, copy = copy)
 
     /**
      * Mark a file for deletion when the APK is rebuilt.
      *
      * @param name The name of the file to delete.
+     * @param packageName The package name the file exists in. Defaults to the package name of the APK.
      */
-    fun delete(name: String) = deleteResources.add(name)
-
-    /**
-     * How to handle resources decoding and compiling.
-     */
-    internal enum class ResourceMode {
-        /**
-         * Decode and compile all resources.
-         */
-        FULL,
-
-        /**
-         * Only extract resources from the APK.
-         * The AndroidManifest.xml and resources inside /res are not decoded or compiled.
-         */
-        RAW_ONLY,
-
-        /**
-         * Do not decode or compile any resources.
-         */
-        NONE,
-    }
+    @Suppress("unused")
+    fun delete(name: String, packageName: String? = null) = resourceCoder.deleteFile(name, packageName)
 }

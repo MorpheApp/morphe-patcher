@@ -1,3 +1,4 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -5,6 +6,7 @@ plugins {
     alias(libs.plugins.binary.compatibility.validator)
     `maven-publish`
     signing
+    jacoco
 }
 
 group = "app.morphe"
@@ -19,17 +21,30 @@ tasks {
         testLogging {
             events("PASSED", "SKIPPED", "FAILED")
         }
+        finalizedBy(jacocoTestReport)
+        testLogging { exceptionFormat = TestExceptionFormat.FULL }
+    }
+
+    jacocoTestReport {
+        dependsOn(test)
+        reports {
+            xml.required.set(true)
+            html.required.set(true)
+        }
     }
 }
 
 repositories {
+    mavenLocal()
     mavenCentral()
+    google()
     // Obtain baksmali/smali from source builds - https://github.com/iBotPeaches/smali
     // Remove when official smali releases come out again.
     maven {
         url = uri("https://jitpack.io")
         content {
             includeGroup("com.github.iBotPeaches.smali")
+            includeGroup("com.github.REAndroid")
         }
     }
     maven {
@@ -48,9 +63,15 @@ dependencies {
         exclude(group = "xerces", module = "xmlParserAPIs")
     }
 
+    implementation(libs.bcpkix.jdk18on)
     implementation(libs.apktool.lib)
+    implementation(libs.apksig)
+    implementation(libs.apkzlib)
+    implementation(libs.arsclib)
+    implementation(libs.guava)
     implementation(libs.kotlin.reflect)
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.multidexlib2)
     implementation(libs.smali)
 

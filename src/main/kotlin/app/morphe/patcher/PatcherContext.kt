@@ -1,10 +1,18 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ *
+ * Original forked code:
+ * https://github.com/LisoUseInAIKyrios/revanced-patcher
+ */
+
 package app.morphe.patcher
 
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.ResourcePatchContext
-import brut.androlib.apk.ApkInfo
-import brut.directory.ExtFile
+import app.morphe.patcher.resource.ResourceMode
+import com.reandroid.apk.ApkModule
 import java.io.Closeable
 
 /**
@@ -14,11 +22,6 @@ import java.io.Closeable
  */
 @Suppress("MemberVisibilityCanBePrivate")
 class PatcherContext internal constructor(config: PatcherConfig): Closeable {
-    /**
-     * [PackageMetadata] of the supplied [PatcherConfig.apkFile].
-     */
-    val packageMetadata = PackageMetadata(ApkInfo(ExtFile(config.apkFile)))
-
     /**
      * The set of [Patch]es.
      */
@@ -32,12 +35,17 @@ class PatcherContext internal constructor(config: PatcherConfig): Closeable {
     /**
      * The context for patches containing the current state of the resources.
      */
-    internal val resourceContext = ResourcePatchContext(packageMetadata, config)
+    internal val resourceContext = ResourcePatchContext(config)
+
+    /**
+     * [PackageMetadata] of the supplied [PatcherConfig.apkFile].
+     */
+    val packageMetadata = resourceContext.packageMetadata
 
     /**
      * The context for patches containing the current state of the bytecode.
      */
-    internal val bytecodeContext = BytecodePatchContext(config)
+    internal val bytecodeContext = BytecodePatchContext(config, packageMetadata)
 
     override fun close() = bytecodeContext.close()
 }

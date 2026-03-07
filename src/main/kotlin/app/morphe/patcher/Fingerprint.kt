@@ -1,3 +1,11 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ *
+ * Original forked code:
+ * https://github.com/LisoUseInAIKyrios/revanced-patcher
+ */
+
 @file:Suppress("unused", "MemberVisibilityCanBePrivate")
 
 package app.morphe.patcher
@@ -14,6 +22,7 @@ import com.android.tools.smali.dexlib2.iface.instruction.Instruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.util.MethodUtil
+import java.lang.ref.WeakReference
 
 /**
  * A fingerprint for a method. A fingerprint is a partial description of a method,
@@ -40,7 +49,6 @@ open class Fingerprint(
     val strings: List<String>? = null,
     val custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
 ) {
-
     // @Deprecated("Here only for backwards compatibility") // TODO: Remove after next major version bump.
     constructor(
         accessFlags: List<AccessFlags>? = null,
@@ -59,6 +67,16 @@ open class Fingerprint(
         strings,
         custom
     )
+
+    // Holds a reference to all constructed fingerprints so that they can be later cleared.
+    internal companion object {
+        private val fingerprintList = mutableListOf<WeakReference<Fingerprint>>()
+
+        fun clearFingerprints() {
+            fingerprintList.forEach { it.get()?.clearMatch() }
+            fingerprintList.clear()
+        }
+    }
 
     private val definingClassComparison = StringComparisonType.typeDeclarationToComparison(definingClass)
 
@@ -80,6 +98,8 @@ open class Fingerprint(
         ) {
             throw IllegalArgumentException("At least one field must be set")
         }
+
+        fingerprintList.add(WeakReference(this))
     }
 
     @Suppress("ktlint:standard:backing-property-naming")

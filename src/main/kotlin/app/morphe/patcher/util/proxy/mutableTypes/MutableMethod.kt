@@ -57,6 +57,17 @@ class MutableMethod(method: Method) :
     override fun getImplementation(): MutableMethodImplementation? = _implementation
 
     companion object {
+        /**
+         * Creates a new mutable copy of this method.
+         *
+         * **Important**
+         * The created mutable method is not automatically added to any classes, and if the
+         * method is not added to a class it will not be saved to the final target apk.
+         *
+         * For many use cases, it's more desirable to use
+         * [app.morphe.patcher.patch.BytecodePatchContext.mutableClassDefBy]
+         * and find/modify the mutable methods from it.
+         */
         fun Method.toMutable(): MutableMethod = MutableMethod(this)
     }
 }

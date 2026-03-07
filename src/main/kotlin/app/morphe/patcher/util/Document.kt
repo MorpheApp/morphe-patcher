@@ -1,5 +1,7 @@
 package app.morphe.patcher.util
 
+import app.morphe.patcher.environment.EnvironmentUtils.isAndroidEnvironment
+import app.morphe.patcher.resource.utf8Writer
 import org.w3c.dom.Document
 import java.io.Closeable
 import java.io.File
@@ -37,10 +39,10 @@ class Document internal constructor(
 
             val transformer = TransformerFactory.newInstance().newTransformer()
             // Set to UTF-16 to prevent surrogate pairs from being escaped to invalid numeric character references, but save as UTF-8.
-            if (isAndroid) {
+            if (isAndroidEnvironment) {
                 transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-16")
                 transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes")
-                it.bufferedWriter(charset = Charsets.UTF_8).use { writer ->
+                it.utf8Writer().use { writer ->
                     transformer.transform(DOMSource(this), StreamResult(writer))
                 }
             } else {
@@ -51,6 +53,5 @@ class Document internal constructor(
 
     private companion object {
         private val readerCount = mutableMapOf<File, Int>()
-        private val isAndroid = System.getProperty("java.runtime.name") == "Android Runtime"
     }
 }
