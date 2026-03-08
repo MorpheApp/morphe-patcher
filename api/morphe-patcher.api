@@ -717,18 +717,6 @@ public final class app/morphe/patcher/resource/FileUtilsKt {
 	public static final fun utf8Writer (Ljava/io/File;)Ljava/io/BufferedWriter;
 }
 
-public final class app/morphe/patcher/resource/NodeUtilsKt {
-	public static final fun filter (Lorg/w3c/dom/NodeList;Lkotlin/jvm/functions/Function1;)Ljava/util/List;
-	public static final fun first (Lorg/w3c/dom/NodeList;Lkotlin/jvm/functions/Function1;)Lorg/w3c/dom/Node;
-	public static final fun forEach (Lorg/w3c/dom/NodeList;Lkotlin/jvm/functions/Function1;)V
-	public static final fun forEachAttribute (Lorg/w3c/dom/Element;Lkotlin/jvm/functions/Function1;)V
-	public static final fun forEachElement (Lorg/w3c/dom/NodeList;Lkotlin/jvm/functions/Function1;)V
-	public static final fun inOrderTraverse (Lapp/morphe/patcher/util/Document;Lkotlin/jvm/functions/Function1;)V
-	public static final fun map (Lorg/w3c/dom/NodeList;Lkotlin/jvm/functions/Function1;)Ljava/util/List;
-	public static final fun mapNotNull (Lorg/w3c/dom/NodeList;Lkotlin/jvm/functions/Function1;)Ljava/util/List;
-	public static final fun postOrderTraverse (Lorg/w3c/dom/Element;Lkotlin/jvm/functions/Function1;)V
-}
-
 public final class app/morphe/patcher/resource/PublicXmlManager : java/io/Closeable {
 	public fun <init> (Ljava/io/File;)V
 	public fun close ()V
