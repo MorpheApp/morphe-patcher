@@ -9,8 +9,8 @@ import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.PublicXmlManager
 import app.morphe.patcher.resource.fileResourceTypes
 import app.morphe.patcher.resource.forEachAttribute
-import app.morphe.patcher.resource.inOrderTraverse
 import app.morphe.patcher.resource.parseXml
+import app.morphe.patcher.resource.preOrderTraverse
 import app.morphe.patcher.resource.resourceToTagOverrideMapping
 import app.morphe.patcher.util.Document
 import org.w3c.dom.Node
@@ -65,7 +65,7 @@ internal class ResourceIdProcessor(
     private fun processIdAndAttrDeclarations(file: File, idNode: Node): Set<String> {
         val createdIds = mutableSetOf<String>()
         Document(file).use { doc ->
-            doc.documentElement.inOrderTraverse { element ->
+            doc.documentElement.preOrderTraverse { element ->
                 val idString = element.getAttribute("android:id")
                 if (idString.startsWith("@+id/")) {
                     logger.fine { "Adding $idString to ids.xml" }

@@ -72,17 +72,32 @@ internal fun Element.forEachAttribute(action: (Node) -> Unit) {
     }
 }
 
-internal fun Element.postOrderTraverse(op: (Element) -> Unit) {
-    // noinspection CheckResult
-    val children = childNodes
-    for (i in 0 until children.length) {
-        val child = children.item(i) as? Element
-        child?.postOrderTraverse(op)
+internal fun Element.postOrderTraverse(action: (Element) -> Unit) {
+    data class StackNode(val element: Element, var visited: Boolean = false)
+
+    val stack = ArrayDeque<StackNode>()
+    stack.add(StackNode(this))
+
+    while (stack.isNotEmpty()) {
+        val node = stack.removeLast()
+        if (node.visited) {
+            action(node.element)
+            continue
+        }
+
+        node.visited = true
+        stack.add(node) // Add back to process after children
+
+        // Add children to stack
+        val children = node.element.childNodes
+        for (i in children.length - 1 downTo 0) {
+            val child = children.item(i)
+            if (child is Element) stack.add(StackNode(child))
+        }
     }
-    op(this)
 }
 
-internal fun Element.inOrderTraverse(action: (Element) -> Unit) {
+internal fun Element.preOrderTraverse(action: (Element) -> Unit) {
     val stack = ArrayDeque<Element>()
     stack.add(this)
 
