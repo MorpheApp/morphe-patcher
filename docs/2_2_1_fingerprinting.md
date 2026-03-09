@@ -376,6 +376,23 @@ Instead, the fingerprint can be matched manually using various overloads of a fi
       val match = showAdsFingerprint.match(adsLoaderClassFingerprint.originalClassDef)
   }
   ```
+  
+  This can be declared as part of the fingerprint itself, using the `classFingerprint` field:
+- ```kt
+    val showAdFingerprint = Fingerprint(
+        // Find class using another fingerprint, such as a method that contains unique strings.
+        classFingerprint = Fingerprint(name = "toString", strings = listOf("classField=")),
+        returnType = "Z",
+        parameters = listOf("Ljava/lang/String;"),
+        filters = listOf(
+            methodCall(
+                name = "getValue",
+                returnType = "Z",
+            ),
+            opcode(Opcode.MOVE_RESULT, MatchAfterImmediately())
+        )
+    )
+  ```
 
 > [!TIP]
 > To see real-world examples of fingerprints,

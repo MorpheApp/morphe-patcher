@@ -24,22 +24,8 @@ import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.util.MethodUtil
 import java.lang.ref.WeakReference
 
-/**
- * A fingerprint for a method. A fingerprint is a partial description of a method,
- * used to uniquely match a method by its characteristics.
- *
- * See the patcher documentation for more detailed explanations and example fingerprinting.
- *
- * @param definingClass Defining class. Type declaration follow the semantics described in [StringComparisonType].
- * @param name Exact method name.
- * @param accessFlags The exact access flags using values of [AccessFlags].
- * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
- * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
- * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
- * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
- * @param custom A custom condition for this fingerprint.
- */
-open class Fingerprint(
+open class Fingerprint private constructor(
+    val classFingerprint: Fingerprint? = null,
     val definingClass: String? = null,
     val name: String? = null,
     accessFlags: List<AccessFlags>? = null,
@@ -49,6 +35,112 @@ open class Fingerprint(
     val strings: List<String>? = null,
     val custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
 ) {
+    /**
+     * A fingerprint for a method. A fingerprint is a partial description of a method,
+     * used to uniquely match a method by its characteristics.
+     *
+     * See the patcher documentation for more detailed explanations and example fingerprinting.
+     *
+     * @param classFingerprint Fingerprint that finds the class this fingerprint resolves against.
+     * @param name Exact method name.
+     * @param accessFlags The exact access flags using values of [AccessFlags].
+     * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
+     * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param custom A custom condition for this fingerprint.
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint,
+        null,
+        name,
+        accessFlags,
+        returnType,
+        parameters,
+        filters,
+        strings,
+        custom
+    )
+
+    /**
+     * A fingerprint for a method. A fingerprint is a partial description of a method,
+     * used to uniquely match a method by its characteristics.
+     *
+     * See the patcher documentation for more detailed explanations and example fingerprinting.
+     *
+     * @param name Exact method name.
+     * @param accessFlags The exact access flags using values of [AccessFlags].
+     * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
+     * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param custom A custom condition for this fingerprint.
+     */
+    constructor(
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        null,
+        null,
+        name,
+        accessFlags,
+        returnType,
+        parameters,
+        filters,
+        strings,
+        custom
+    )
+
+    /**
+     * A fingerprint for a method. A fingerprint is a partial description of a method,
+     * used to uniquely match a method by its characteristics.
+     *
+     * See the patcher documentation for more detailed explanations and example fingerprinting.
+     *
+     * @param definingClass Defining class. Type declaration follow the semantics described in [StringComparisonType].
+     * @param name Exact method name.
+     * @param accessFlags The exact access flags using values of [AccessFlags].
+     * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
+     * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param custom A custom condition for this fingerprint.
+     */
+    constructor( // Required to disambiguate if defining class or class fingerprint is not specified.
+        definingClass: String? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        null,
+        definingClass,
+        name,
+        accessFlags,
+        returnType,
+        parameters,
+        filters,
+        strings,
+        custom
+    )
+
     // @Deprecated("Here only for backwards compatibility") // TODO: Remove after next major version bump.
     constructor(
         accessFlags: List<AccessFlags>? = null,
@@ -58,6 +150,7 @@ open class Fingerprint(
         strings: List<String>? = null,
         custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
     ) : this(
+        null,
         null,
         null,
         accessFlags,
@@ -93,10 +186,14 @@ open class Fingerprint(
 
     init {
         // Verify an empty fingerprint wasn't declared.
-        if (name == null && definingClass == null && accessFlags == null && returnType == null
+        if (definingClass == null  && name == null && accessFlags == null && returnType == null
             && parameters == null && filters == null && strings == null && custom == null
         ) {
             throw IllegalArgumentException("At least one field must be set")
+        }
+
+        if (definingClass != null && classFingerprint != null) {
+            throw IllegalArgumentException("Cannot specify both definingClass and classFingerprint")
         }
 
         fingerprintList.add(WeakReference(this))
@@ -121,6 +218,14 @@ open class Fingerprint(
     context(BytecodePatchContext)
     fun matchOrNull(): Match? {
         if (_matchOrNull != null) return _matchOrNull
+
+        // Must check first.
+        val classFingerprintLocal = classFingerprint
+        if (classFingerprint != null) {
+            val match = match(classFingerprintLocal.originalClassDef)
+            _matchOrNull = match
+            return match
+        }
 
         // Use string declarations to first check only the classes
         // that contain one or more fingerprint strings.
@@ -228,6 +333,28 @@ open class Fingerprint(
         return null
     }
 
+    context(BytecodePatchContext)
+    private fun checkClassFingerprintMatchesDefiningClass(classDef: String) {
+        val classFingerprintLocal = classFingerprint
+        if (classFingerprintLocal != null) {
+            val originalClassDef = classFingerprintLocal.originalClassDef.type
+            if (originalClassDef != classDef) {
+                throw IllegalArgumentException("Fingerprint class fingerprint: $classFingerprintLocal " +
+                        "resolves to a different class: $originalClassDef than the " +
+                        "match classDef parameter: $classDef")
+            }
+
+            val definingClassLocal = definingClass
+            if (definingClassLocal != null) {
+                if (!definingClassComparison.compare(definingClassLocal, originalClassDef)) {
+                    throw IllegalArgumentException("Fingerprint class fingerprint: $classFingerprintLocal " +
+                            "resolves to a different class: $originalClassDef than this fingerprint " +
+                            "definingClass: $definingClassLocal")
+                }
+            }
+        }
+    }
+
     /**
      * Match using a [ClassDef].
      *
@@ -239,6 +366,8 @@ open class Fingerprint(
     fun matchOrNull(
         classDef: ClassDef
     ): Match? {
+        checkClassFingerprintMatchesDefiningClass(classDef.type)
+
         if (_matchOrNull != null) return _matchOrNull
 
         for (method in classDef.methods) {
@@ -264,6 +393,8 @@ open class Fingerprint(
     fun matchOrNull(
         method: Method,
     ): Match? {
+        checkClassFingerprintMatchesDefiningClass(method.definingClass)
+
         if (_matchOrNull != null) return _matchOrNull
 
         return matchOrNull(method, classDefBy(method.definingClass))
@@ -863,6 +994,8 @@ class FingerprintBuilder() {
 
     internal fun build(): Fingerprint {
         return Fingerprint(
+            definingClass = null,
+            name = null,
             accessFlags = accessFlags,
             returnType = returnType,
             parameters = parameters,
