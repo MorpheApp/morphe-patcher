@@ -1,3 +1,10 @@
+# [1.3.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0...v1.3.0-dev.1) (2026-03-10)
+
+
+### Features
+
+* Add `classFingerprint` field to Fingerprint ([#71](https://github.com/MorpheApp/morphe-patcher/issues/71)) ([c808b09](https://github.com/MorpheApp/morphe-patcher/commit/c808b0912e6d889bea8a315936b2ea62ff284ca6))
+
 # [1.2.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.1.1...v1.2.0) (2026-03-07)
 
 
