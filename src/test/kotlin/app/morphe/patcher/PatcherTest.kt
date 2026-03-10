@@ -171,7 +171,7 @@ internal object PatcherTest {
     fun `matches fingerprint`() {
         every { patcher.context.bytecodeContext.patchClasses } returns PatchClasses(
             setOf(ImmutableClassDef(
-                    "class",
+                    "Lclass1;",
                     0,
                     null,
                     null,
@@ -180,10 +180,41 @@ internal object PatcherTest {
                     null,
                     listOf(
                         ImmutableMethod(
-                            "class",
-                            "method",
+                            "Lclass1;",
+                            "method1",
                             emptyList(),
                             "Ljava/lang/String;",
+                            0,
+                            null,
+                            null,
+                            null,
+                        )
+                    )
+                ),
+                ImmutableClassDef(
+                    "Lclass2;",
+                    0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    listOf(
+                        ImmutableMethod(
+                            "Lclass2;",
+                            "method2",
+                            emptyList(),
+                            "Ljava/lang/String;",
+                            0,
+                            null,
+                            null,
+                            null,
+                        ),
+                        ImmutableMethod(
+                            "Lclass2;",
+                            "method3",
+                            emptyList(),
+                            "Ljava/lang/Integer;",
                             0,
                             null,
                             null,
@@ -201,26 +232,81 @@ internal object PatcherTest {
         val fingerprint1 = Fingerprint(returnType = "Ljava/lang/String;")
         val fingerprint2 = Fingerprint(returnType = "String;")
         val fingerprint3 = Fingerprint(returnType = "/lang")
+        val fingerprint4 = Fingerprint(name = "method2")
+        val fingerprint5 = Fingerprint(classFingerprint = fingerprint4, returnType = "Ljava/lang/String;")
+        val fingerprint6 = Fingerprint(name = "method1")
+        val fingerprint7 = Fingerprint(definingClass = "Lclass2;", name = "method1")
+        val fingerprint8 = Fingerprint(definingClass = "Lclass2", name = "method1")
+
+        assertThrows<IllegalArgumentException>("Empty fingerprint") {
+            Fingerprint(classFingerprint = fingerprint1)
+        }
 
         val patches = setOf(
             bytecodePatch {
                 execute {
+                    val class1 = patchClasses.classMap.values.first().classDef
+                    println("class1: $class1")
+                    val class2 = patchClasses.classMap.values.last().classDef
+                    println("class2: $class2")
+
                     fingerprint1.match(patchClasses.classMap.values.first().classDef.methods.first())
                     fingerprint2.match(patchClasses.classMap.values.first().classDef)
                     fingerprint3.originalClassDef
+                    fingerprint4.match()
+                    fingerprint5.match()
+                    fingerprint6.match()
+                    fingerprint7.match()
+                    fingerprint8.match()
                 }
-            },
+            }
         )
 
         patches()
 
         with(patcher.context.bytecodeContext) {
+            println("fingerprint4.originalClassDef.type: ")
+            println(fingerprint4.originalClassDef.type)
+            assertEquals(fingerprint4.originalClassDef.type, "Lclass2;")
+            assertEquals(fingerprint5.originalClassDef.type, "Lclass2;")
+
             assertAll(
                 "Expected fingerprints to match.",
                 { assertNotNull(fingerprint1.originalClassDefOrNull) },
                 { assertNotNull(fingerprint2.originalClassDefOrNull) },
                 { assertNotNull(fingerprint3.originalClassDefOrNull) },
             )
+
+            println("fingerprint5.originalClassDef: ${fingerprint5.originalClassDef}")
+            assertAll(
+                "classFingerprint resolves",
+                {
+                    assertTrue{
+                        fingerprint4.originalClassDef.type == "Lclass2;"
+                    }
+                    assertEquals(
+                        fingerprint5.originalClassDef, fingerprint4.originalClassDef
+                    )
+                }
+            )
+
+            assertThrows<Exception>(
+                "Matching class that differs from classFingerprint"
+            ) {
+                fingerprint5.match(fingerprint6.originalClassDef)
+            }
+
+            assertThrows<Exception>(
+                "Matching method that differs from classFingerprint"
+            ) {
+                fingerprint7.match(fingerprint6.method)
+            }
+
+            assertThrows<Exception>(
+                "Matching method that differs from classFingerprint"
+            ) {
+                fingerprint8.match(fingerprint6.method)
+            }
         }
     }
 
