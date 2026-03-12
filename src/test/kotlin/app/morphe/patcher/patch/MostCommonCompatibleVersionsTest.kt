@@ -176,7 +176,7 @@ internal class MostCommonCompatibleVersionsTest {
                     packageName()
                 } else {
                     packageName(*versions.toTypedArray())
-                },
+                }
             )
         }
 

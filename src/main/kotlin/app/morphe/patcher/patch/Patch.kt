@@ -15,9 +15,13 @@ import java.lang.reflect.Modifier
 import java.net.URLClassLoader
 import java.util.function.Supplier
 import java.util.jar.JarFile
+import kotlin.collections.flatten
 
+@Deprecated("Use Compatibility instead")
 typealias PackageName = String
+@Deprecated("Use Compatibility instead")
 typealias VersionName = String
+@Deprecated("Use Compatibility instead")
 typealias Package = Pair<PackageName, Set<VersionName>?>
 
 /**
@@ -25,12 +29,12 @@ typealias Package = Pair<PackageName, Set<VersionName>?>
  *
  * @param C The [PatchContext] to execute and finalize the patch with.
  * @param name The name of the patch.
- * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
+ *   If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
  * @param use Weather or not the patch should be used.
  * @param dependencies Other patches this patch depends on.
- * @param compatiblePackages The packages the patch is compatible with.
- * If null, the patch is compatible with all packages.
+ * @param compatibility The packages the patch is compatible with.
+ *   If null, the patch is compatible with all packages.
  * @param options The options of the patch.
  * @param executeBlock The execution block of the patch.
  * @param finalizeBlock The finalizing block of the patch. Called after all patches have been executed,
@@ -43,13 +47,43 @@ sealed class Patch<C : PatchContext<*>>(
     val description: String?,
     val use: Boolean,
     val dependencies: Set<Patch<*>>,
-    val compatiblePackages: Set<Package>?,
+    val compatibility: List<Compatibility>?,
     options: Set<Option<*>>,
     private val executeBlock: (C) -> Unit,
     // Must be internal and nullable, so that Patcher.invoke can check,
     // if a patch has a finalizing block in order to not emit it twice.
     internal var finalizeBlock: ((C) -> Unit)?,
 ) {
+
+    @Deprecated("Use constructor with Compatibility object")
+    constructor(
+        name: String?,
+        description: String?,
+        use: Boolean,
+        dependencies: Set<Patch<*>>,
+        compatiblePackages: Set<Package>,
+        options: Set<Option<*>>,
+        executeBlock: (C) -> Unit,
+        finalizeBlock: ((C) -> Unit)?,
+    ) : this(
+        name = name,
+        description = description,
+        use = use,
+        dependencies = dependencies,
+        compatibility = Compatibility.fromLegacy(compatiblePackages),
+        options = options,
+        executeBlock = executeBlock,
+        finalizeBlock = finalizeBlock
+    )
+
+    /**
+     * Legacy format. Experimental app targets are not present in this format.
+     */
+    @Deprecated("Instead use compatibility")
+    val compatiblePackages: Set<Package>? by lazy {
+        compatibility?.mapNotNull { it.toLegacy() }?.toSet()
+    }
+
     /**
      * The options of the patch.
      */
@@ -139,7 +173,7 @@ class BytecodePatch internal constructor(
     name: String?,
     description: String?,
     use: Boolean,
-    compatiblePackages: Set<Package>?,
+    compatibility: List<Compatibility>?,
     dependencies: Set<Patch<*>>,
     options: Set<Option<*>>,
     val extensionInputStream: Supplier<InputStream>?,
@@ -150,11 +184,35 @@ class BytecodePatch internal constructor(
     description,
     use,
     dependencies,
-    compatiblePackages,
+    compatibility,
     options,
     executeBlock,
     finalizeBlock,
 ) {
+
+    @Deprecated("Use constructor with Compatibility object")
+    constructor(
+        name: String?,
+        description: String?,
+        use: Boolean,
+        compatiblePackages: Set<Package>?,
+        dependencies: Set<Patch<*>>,
+        options: Set<Option<*>>,
+        extensionInputStream: Supplier<InputStream>?,
+        executeBlock: (BytecodePatchContext) -> Unit,
+        finalizeBlock: ((BytecodePatchContext) -> Unit)?,
+    ) : this(
+        name = name,
+        description = description,
+        use = use,
+        compatibility = Compatibility.fromLegacy(compatiblePackages),
+        dependencies = dependencies,
+        options = options,
+        extensionInputStream = extensionInputStream,
+        executeBlock = executeBlock,
+        finalizeBlock = finalizeBlock
+    )
+
     override fun execute(context: PatcherContext) = with(context.bytecodeContext) {
         mergeExtension(this@BytecodePatch)
         execute(this)
@@ -186,7 +244,7 @@ class RawResourcePatch internal constructor(
     name: String?,
     description: String?,
     use: Boolean,
-    compatiblePackages: Set<Package>?,
+    compatibility: List<Compatibility>?,
     dependencies: Set<Patch<*>>,
     options: Set<Option<*>>,
     executeBlock: (ResourcePatchContext) -> Unit,
@@ -196,11 +254,33 @@ class RawResourcePatch internal constructor(
     description,
     use,
     dependencies,
-    compatiblePackages,
+    compatibility,
     options,
     executeBlock,
     finalizeBlock,
 ) {
+
+    @Deprecated("Use constructor with Compatibility object")
+    constructor(
+        name: String?,
+        description: String?,
+        use: Boolean,
+        compatiblePackages: Set<Package>?,
+        dependencies: Set<Patch<*>>,
+        options: Set<Option<*>>,
+        executeBlock: (ResourcePatchContext) -> Unit,
+        finalizeBlock: ((ResourcePatchContext) -> Unit)?,
+    ) : this(
+        name = name,
+        description = description,
+        use = use,
+        compatibility = Compatibility.fromLegacy(compatiblePackages),
+        dependencies = dependencies,
+        options = options,
+        executeBlock = executeBlock,
+        finalizeBlock = finalizeBlock
+    )
+
     override fun execute(context: PatcherContext) = execute(context.resourceContext)
 
     override fun finalize(context: PatcherContext) = finalize(context.resourceContext)
@@ -229,7 +309,7 @@ class ResourcePatch internal constructor(
     name: String?,
     description: String?,
     use: Boolean,
-    compatiblePackages: Set<Package>?,
+    compatibility: List<Compatibility>?,
     dependencies: Set<Patch<*>>,
     options: Set<Option<*>>,
     executeBlock: (ResourcePatchContext) -> Unit,
@@ -239,11 +319,33 @@ class ResourcePatch internal constructor(
     description,
     use,
     dependencies,
-    compatiblePackages,
+    compatibility,
     options,
     executeBlock,
     finalizeBlock,
 ) {
+
+    @Deprecated("Use constructor with Compatibility object")
+    constructor(
+        name: String?,
+        description: String?,
+        use: Boolean,
+        compatiblePackages: Set<Package>?,
+        dependencies: Set<Patch<*>>,
+        options: Set<Option<*>>,
+        executeBlock: (ResourcePatchContext) -> Unit,
+        finalizeBlock: ((ResourcePatchContext) -> Unit)?,
+    ) : this(
+        name = name,
+        description = description,
+        use = use,
+        compatibility = Compatibility.fromLegacy(compatiblePackages),
+        dependencies = dependencies,
+        options = options,
+        executeBlock = executeBlock,
+        finalizeBlock = finalizeBlock
+    )
+
     override fun execute(context: PatcherContext) = execute(context.resourceContext)
 
     override fun finalize(context: PatcherContext) = finalize(context.resourceContext)
@@ -259,11 +361,11 @@ class ResourcePatch internal constructor(
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
  * @param use Weather or not the patch should be used.
- * @property compatiblePackages The packages the patch is compatible with.
+ * @property compatibility The packages the patch is compatible with.
  * If null, the patch is compatible with all packages.
  * @property dependencies Other patches this patch depends on.
  * @property options The options of the patch.
- * @property executionBlock The execution block of the patch.
+ * @property executeBlock The execution block of the patch.
  * @property finalizeBlock The finalizing block of the patch. Called after all patches have been executed,
  * in reverse order of execution.
  *
@@ -274,11 +376,11 @@ sealed class PatchBuilder<C : PatchContext<*>>(
     protected val description: String?,
     protected val use: Boolean,
 ) {
-    protected var compatiblePackages: MutableSet<Package>? = null
+    protected var compatibility: MutableList<Compatibility>? = null
     protected var dependencies = mutableSetOf<Patch<*>>()
     protected val options = mutableSetOf<Option<*>>()
 
-    protected var executionBlock: ((C) -> Unit) = { }
+    protected var executeBlock: ((C) -> Unit) = { }
     protected var finalizeBlock: ((C) -> Unit)? = null
 
     /**
@@ -304,17 +406,51 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      */
     private operator fun String.invoke(versions: Set<String>? = null) = this to versions
 
+    @Deprecated("Instead use Compatibility object")
+    protected fun getCompatiblePackages(): Set<Package>? {
+        return compatibility?.mapNotNull { it.toLegacy() }?.toSet()
+    }
+
+    @Deprecated("Instead use Compatibility object")
+    protected fun setCompatiblePackages(packages: Set<Package>?) {
+        compatibility = packages?.map { Compatibility.fromLegacy(it) }?.toMutableList()
+    }
+
+    @Deprecated("Instead use getExecuteBlock()")
+    protected fun getExecutionBlock(): (C) -> Unit {
+        return executeBlock
+    }
+
+    @Deprecated("Instead use setExecuteBlock()")
+    protected fun setExecutionBlock(block: (C) -> Unit) {
+        executeBlock = block
+    }
+
+    /**
+     * Add packages the patch is compatible with.
+     *
+     * @param compatibility The compatibility of this patch.
+     */
+    fun compatibleWith(vararg compatibility: Compatibility) {
+        if (this.compatibility == null) {
+            this.compatibility = mutableListOf()
+        }
+
+        this.compatibility!!.addAll(compatibility)
+    }
+
     /**
      * Add packages the patch is compatible with.
      *
      * @param packages The packages the patch is compatible with.
      */
+    @Deprecated("Instead use Compatibility object")
     fun compatibleWith(vararg packages: Package) {
-        if (compatiblePackages == null) {
-            compatiblePackages = mutableSetOf()
+        if (compatibility == null) {
+            compatibility = mutableListOf()
         }
 
-        compatiblePackages!! += packages
+        compatibility!!.addAll(packages.map { Compatibility.fromLegacy(it) })
     }
 
     /**
@@ -322,7 +458,9 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      *
      * @param packages The packages the patch is compatible with.
      */
-    fun compatibleWith(vararg packages: String) = compatibleWith(*packages.map { it() }.toTypedArray())
+    @Deprecated("Instead use Compatibility object")
+    fun compatibleWith(vararg packages: String) =
+        compatibleWith(*packages.map { it() }.toTypedArray())
 
     /**
      * Add dependencies to the patch.
@@ -339,7 +477,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      * @param block The execution block of the patch.
      */
     fun execute(block: C.() -> Unit) {
-        executionBlock = block
+        executeBlock = block
     }
 
     /**
@@ -407,15 +545,15 @@ class BytecodePatchBuilder internal constructor(
     }
 
     override fun build() = BytecodePatch(
-        name,
-        description,
-        use,
-        compatiblePackages,
-        dependencies,
-        options,
-        extensionInputStream,
-        executionBlock,
-        finalizeBlock,
+        name = name,
+        description = description,
+        use = use,
+        compatibility = compatibility,
+        dependencies = dependencies,
+        options = options,
+        extensionInputStream = extensionInputStream,
+        executeBlock = executeBlock,
+        finalizeBlock = finalizeBlock
     )
 }
 
@@ -456,10 +594,10 @@ class RawResourcePatchBuilder internal constructor(
         name,
         description,
         use,
-        compatiblePackages,
+        compatibility,
         dependencies,
         options,
-        executionBlock,
+        executeBlock,
         finalizeBlock,
     )
 }
@@ -500,10 +638,10 @@ class ResourcePatchBuilder internal constructor(
         name,
         description,
         use,
-        compatiblePackages,
+        compatibility,
         dependencies,
         options,
-        executionBlock,
+        executeBlock,
         finalizeBlock,
     )
 }

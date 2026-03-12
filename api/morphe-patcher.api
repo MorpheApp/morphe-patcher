@@ -430,7 +430,33 @@ public final class app/morphe/patcher/extensions/InstructionExtensions {
 	public final fun replaceInstructions (Lcom/android/tools/smali/dexlib2/builder/MutableMethodImplementation;ILjava/util/List;)V
 }
 
+public final class app/morphe/patcher/patch/ApkFileType : java/lang/Enum {
+	public static final field APK Lapp/morphe/patcher/patch/ApkFileType;
+	public static final field APKM Lapp/morphe/patcher/patch/ApkFileType;
+	public static final field XAPK Lapp/morphe/patcher/patch/ApkFileType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/patch/ApkFileType;
+	public static fun values ()[Lapp/morphe/patcher/patch/ApkFileType;
+}
+
+public final class app/morphe/patcher/patch/AppTarget {
+	public fun <init> (Ljava/lang/String;ZLjava/lang/Integer;)V
+	public synthetic fun <init> (Ljava/lang/String;ZLjava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Z
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun copy (Ljava/lang/String;ZLjava/lang/Integer;)Lapp/morphe/patcher/patch/AppTarget;
+	public static synthetic fun copy$default (Lapp/morphe/patcher/patch/AppTarget;Ljava/lang/String;ZLjava/lang/Integer;ILjava/lang/Object;)Lapp/morphe/patcher/patch/AppTarget;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMinSdk ()Ljava/lang/Integer;
+	public final fun getVersion ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isExperimental ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class app/morphe/patcher/patch/BytecodePatch : app/morphe/patcher/patch/Patch {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Ljava/util/function/Supplier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
 	public final fun getExtensionInputStream ()Ljava/util/function/Supplier;
 	public fun toString ()Ljava/lang/String;
 }
@@ -461,6 +487,31 @@ public final class app/morphe/patcher/patch/BytecodePatchContext : app/morphe/pa
 	public final fun mutableClassDefByOrNull (Ljava/lang/String;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun mutableClassDefByOrNull (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun navigate (Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;)Lapp/morphe/patcher/util/MethodNavigator;
+}
+
+public final class app/morphe/patcher/patch/Compatibility {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/lang/Integer;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/lang/Integer;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Lapp/morphe/patcher/patch/ApkFileType;
+	public final fun component5 ()Ljava/lang/Integer;
+	public final fun component6 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/lang/Integer;Ljava/util/List;)Lapp/morphe/patcher/patch/Compatibility;
+	public static synthetic fun copy$default (Lapp/morphe/patcher/patch/Compatibility;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/lang/Integer;Ljava/util/List;ILjava/lang/Object;)Lapp/morphe/patcher/patch/Compatibility;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getApkFileType ()Lapp/morphe/patcher/patch/ApkFileType;
+	public final fun getAppIconColor ()Ljava/lang/Integer;
+	public final fun getDescription ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getPackageName ()Ljava/lang/String;
+	public final fun getTargets ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class app/morphe/patcher/patch/Option {
@@ -589,9 +640,11 @@ public final class app/morphe/patcher/patch/Options : java/util/Map, kotlin/jvm/
 }
 
 public abstract class app/morphe/patcher/patch/Patch {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun execute (Lapp/morphe/patcher/patch/PatchContext;)V
 	public final fun finalize (Lapp/morphe/patcher/patch/PatchContext;)V
+	public final fun getCompatibility ()Ljava/util/List;
 	public final fun getCompatiblePackages ()Ljava/util/Set;
 	public final fun getDependencies ()Ljava/util/Set;
 	public final fun getDescription ()Ljava/lang/String;
@@ -603,14 +656,17 @@ public abstract class app/morphe/patcher/patch/Patch {
 
 public abstract class app/morphe/patcher/patch/PatchBuilder {
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun compatibleWith ([Lapp/morphe/patcher/patch/Compatibility;)V
 	public final fun compatibleWith ([Ljava/lang/String;)V
 	public final fun compatibleWith ([Lkotlin/Pair;)V
 	public final fun dependsOn ([Lapp/morphe/patcher/patch/Patch;)V
 	public final fun execute (Lkotlin/jvm/functions/Function1;)V
 	public final fun finalize (Lkotlin/jvm/functions/Function1;)V
+	protected final fun getCompatibility ()Ljava/util/List;
 	protected final fun getCompatiblePackages ()Ljava/util/Set;
 	protected final fun getDependencies ()Ljava/util/Set;
 	protected final fun getDescription ()Ljava/lang/String;
+	protected final fun getExecuteBlock ()Lkotlin/jvm/functions/Function1;
 	protected final fun getExecutionBlock ()Lkotlin/jvm/functions/Function1;
 	protected final fun getFinalizeBlock ()Lkotlin/jvm/functions/Function1;
 	protected final fun getName ()Ljava/lang/String;
@@ -618,8 +674,10 @@ public abstract class app/morphe/patcher/patch/PatchBuilder {
 	protected final fun getUse ()Z
 	public final fun invoke (Lapp/morphe/patcher/patch/Option;)Lapp/morphe/patcher/patch/Option;
 	public final fun invoke (Ljava/lang/String;[Ljava/lang/String;)Lkotlin/Pair;
+	protected final fun setCompatibility (Ljava/util/List;)V
 	protected final fun setCompatiblePackages (Ljava/util/Set;)V
 	protected final fun setDependencies (Ljava/util/Set;)V
+	protected final fun setExecuteBlock (Lkotlin/jvm/functions/Function1;)V
 	protected final fun setExecutionBlock (Lkotlin/jvm/functions/Function1;)V
 	protected final fun setFinalizeBlock (Lkotlin/jvm/functions/Function1;)V
 }
@@ -688,6 +746,7 @@ public final class app/morphe/patcher/patch/PatchUtilsKt {
 }
 
 public final class app/morphe/patcher/patch/RawResourcePatch : app/morphe/patcher/patch/Patch {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -696,6 +755,7 @@ public final class app/morphe/patcher/patch/RawResourcePatchBuilder : app/morphe
 }
 
 public final class app/morphe/patcher/patch/ResourcePatch : app/morphe/patcher/patch/Patch {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
 	public fun toString ()Ljava/lang/String;
 }
 
