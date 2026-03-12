@@ -5,6 +5,8 @@
 
 package app.morphe.patcher.patch
 
+import android.graphics.Color.parseColor
+
 enum class ApkFileType {
     APK,
     APKM,
@@ -90,15 +92,18 @@ data class Compatibility(
     internal fun toLegacy(): Pair<String, Set<String>?>? {
         if (packageName == null) return null
 
-        val legacyTargets: Set<String>? = targets?.mapNotNull { target ->
-            if (target.isExperimental) {
-                null
-            } else {
-                target.version
-            }
-        }?.toSet()
+        val legacyTargets = mutableSetOf<String>()
 
-        return packageName to legacyTargets
+        val includeExperimental = targets?.none { !it.isExperimental } == true
+
+        targets?.forEach { target ->
+            // If the declaration only has experimental, then include experimental with legacy versions.
+            if (target.version != null && (includeExperimental || !target.isExperimental)) {
+                legacyTargets += target.version
+            }
+        }
+
+        return packageName to legacyTargets.ifEmpty { null }
     }
 
     internal companion object {

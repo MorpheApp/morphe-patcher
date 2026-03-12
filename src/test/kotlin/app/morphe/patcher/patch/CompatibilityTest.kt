@@ -25,6 +25,38 @@ internal object CompatibilityTest {
     }
 
     @Test
+    fun `legacy experimental only declaration`() {
+        val compatibility = Compatibility(
+            name ="Example app",
+            packageName = "compatible.package",
+            targets = listOf(
+                AppTarget(version = "1.1.0", isExperimental = true),
+                AppTarget(version = "1.0.0", isExperimental = true)
+            )
+        )
+
+        // Experimental is included since no non-experimental declarations exist.
+        assertEquals(setOf("1.1.0", "1.0.0"), compatibility.toLegacy()!!.second)
+    }
+
+
+    @Test
+    fun `legacy experimental declaration`() {
+        val compatibility = Compatibility(
+            name ="Example app",
+            packageName = "compatible.package",
+            targets = listOf(
+                AppTarget(version = "1.1.0", isExperimental = true),
+                AppTarget(version = "1.0.1"),
+                AppTarget(version = "1.0.0")
+            )
+        )
+
+        // Only non-experimental is included.
+        assertEquals(setOf("1.0.1", "1.0.0"), compatibility.toLegacy()!!.second)
+    }
+
+    @Test
     fun `duplicate versions`() {
         assertThrows<Exception> {
             Compatibility(
