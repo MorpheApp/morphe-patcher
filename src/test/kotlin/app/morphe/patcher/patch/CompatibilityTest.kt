@@ -5,7 +5,6 @@
 
 package app.morphe.patcher.patch
 
-import com.android.tools.smali.dexlib2.AccessFlags
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.Test
 import kotlin.test.assertEquals

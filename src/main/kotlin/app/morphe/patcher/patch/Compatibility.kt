@@ -5,7 +5,7 @@
 
 package app.morphe.patcher.patch
 
-import android.graphics.Color.parseColor
+private val SHA_256_REGEX = Regex("^[0-9a-fA-F]{64}$")
 
 enum class ApkFileType {
     APK,
@@ -35,6 +35,9 @@ data class AppTarget(
  * @param apkFileType Target unpatched app type. Currently only used for Manager UI presentation.
  * @param appIconColor #RRGGBB color for the app icon background color. Only used for Manager UI presentation.
  *   Color int has full 0xFF opacity value.
+ * @param signatures Valid SHA-256 signatures of the app. To find a signature, use
+ *   `apksigner verify --print-certs` on an original apk (or base.apk from an unzipped apkm)
+ *    and `certificate SHA-256 digest:` is the signature.
  * @param targets App targets. Null means any version. Versions are declared newest to oldest.
  */
 data class Compatibility(
@@ -43,6 +46,7 @@ data class Compatibility(
     val description: String? = null,
     val apkFileType: ApkFileType? = null,
     val appIconColor: Int? = null,
+    val signatures: Set<String>? = null,
     val targets: List<AppTarget>? = null,
 ) {
 
@@ -52,6 +56,12 @@ data class Compatibility(
 
             require(alpha == 0x00) {
                 "App icon color must be 0xRRGGBB format"
+            }
+        }
+
+        signatures?.forEach { sig ->
+            require(sig.matches(SHA_256_REGEX)) {
+                "Invalid signature SHA-256 fingerprint: $sig"
             }
         }
 
