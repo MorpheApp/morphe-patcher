@@ -7,10 +7,15 @@ package app.morphe.patcher.patch
 
 private val SHA_256_REGEX = Regex("^[0-9a-fA-F]{64}$")
 
+/**
+ * Original app file type.
+ * Currently only used for UI presentation.
+ */
 enum class ApkFileType {
     APK,
     APKM,
     XAPK
+    // TODO? Add types to mandate an app must be patched with a specific type like APK_REQUIRED?
 }
 
 /**
@@ -33,8 +38,8 @@ data class AppTarget(
  * @param name Actual app name.
  * @param description User facing description of the app.
  * @param apkFileType Target unpatched app type. Currently only used for Manager UI presentation.
- * @param appIconColor #RRGGBB color for the app icon background color. Only used for Manager UI presentation.
- *   Color int has full 0xFF opacity value.
+ * @param appIconColor #RRGGBB color for the app icon background color.
+ *   Only used for Manager UI presentation. Color int has full 0xFF opacity value.
  * @param signatures Valid SHA-256 signatures of the app. To find a signature, use
  *   `apksigner verify --print-certs` on an original apk (or base.apk from an unzipped apkm)
  *    and `certificate SHA-256 digest:` is the signature.
@@ -85,17 +90,34 @@ data class Compatibility(
         }
     }
 
+    /**
+     * @param packageName Actual app package name. Null means this is a universal patch and can
+     *   be applied to any app.
+     * @param name Actual app name.
+     * @param description User facing description of the app.
+     * @param apkFileType Target unpatched app type. Currently only used for Manager UI presentation.
+     * @param appIconColor #RRGGBB color for the app icon background color
+     *   Only used for Manager UI presentation. Color int has full 0xFF opacity value.
+     * @param signatures Valid SHA-256 signatures of the app. To find a signature, use
+     *   `apksigner verify --print-certs` on an original apk (or base.apk from an unzipped apkm)
+     *    and `certificate SHA-256 digest:` is the signature.
+     * @param targets App targets. Null means any version. Versions are declared newest to oldest.
+     */
     constructor(
+        packageName: String? = null,
         name: String? = null,
+        description: String? = null,
         apkFileType: ApkFileType? = null,
         appIconColor: String,
-        description: String? = null,
+        signatures: Set<String>? = null,
         targets: List<AppTarget>? = null,
     ) : this(
+        packageName = packageName,
         name = name,
+        description = description,
         apkFileType = apkFileType,
         appIconColor = parseColor(appIconColor),
-        description = description,
+        signatures = signatures,
         targets = targets
     )
 
