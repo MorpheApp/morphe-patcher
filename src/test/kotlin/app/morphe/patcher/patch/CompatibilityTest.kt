@@ -12,7 +12,7 @@ import kotlin.test.assertEquals
 internal object CompatibilityTest {
 
     @Test
-    fun `legacy compatibility`() {
+    fun `legacy usage`() {
         val patch = bytecodePatch(name = "Test") {
             compatibleWith(
                 "compatible.package"("1.0.0"),
@@ -21,6 +21,51 @@ internal object CompatibilityTest {
 
         assertEquals(1, patch.compatiblePackages!!.size)
         assertEquals("compatible.package", patch.compatiblePackages!!.first().first)
+    }
+
+    @Test
+    fun `legacy to Compatibility`() {
+        var patch = bytecodePatch(name = "Test") {
+            compatibleWith(
+                "compatible.package"("1.0.0"),
+            )
+        }
+        assertEquals(
+            listOf(AppTarget(version = "1.0.0")),
+            patch.compatibility!!.first().targets
+        )
+
+        patch = bytecodePatch(name = "Test") {
+            compatibleWith(
+                "compatible.package",
+            )
+        }
+        assertEquals(
+            listOf(AppTarget(version = null)),
+            patch.compatibility!!.first().targets
+        )
+
+        var compatibility = Compatibility(
+            name ="Example app",
+            packageName = "compatible.package",
+            targets = listOf(
+                AppTarget(version = null),
+                AppTarget(version = "1.1.0"),
+                AppTarget(version = "1.0.0")
+            )
+        )
+        assertEquals(null, compatibility.legacy!!.second)
+
+        compatibility = Compatibility(
+            name ="Example app",
+            packageName = "compatible.package",
+            targets = listOf(
+                AppTarget(version = null, isExperimental = true),
+                AppTarget(version = "1.1.0"),
+                AppTarget(version = "1.0.0")
+            )
+        )
+        assertEquals(setOf("1.1.0", "1.0.0"), compatibility.legacy!!.second)
     }
 
     @Test
@@ -35,7 +80,7 @@ internal object CompatibilityTest {
         )
 
         // Experimental is included since no non-experimental declarations exist.
-        assertEquals(setOf("1.1.0", "1.0.0"), compatibility.toLegacy()!!.second)
+        assertEquals(setOf("1.1.0", "1.0.0"), compatibility.legacy!!.second)
     }
 
 
@@ -52,7 +97,7 @@ internal object CompatibilityTest {
         )
 
         // Only non-experimental is included.
-        assertEquals(setOf("1.0.1", "1.0.0"), compatibility.toLegacy()!!.second)
+        assertEquals(setOf("1.0.1", "1.0.0"), compatibility.legacy!!.second)
     }
 
     @Test

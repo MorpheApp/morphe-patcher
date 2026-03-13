@@ -81,7 +81,7 @@ sealed class Patch<C : PatchContext<*>>(
      */
     @Deprecated("Instead use compatibility")
     val compatiblePackages: Set<Package>? by lazy {
-        compatibility?.mapNotNull { it.toLegacy() }?.toSet()
+        compatibility?.mapNotNull { it.legacy }?.toSet()
     }
 
     /**
@@ -408,7 +408,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
 
     @Deprecated("Instead use Compatibility object")
     protected fun getCompatiblePackages(): Set<Package>? {
-        return compatibility?.mapNotNull { it.toLegacy() }?.toSet()
+        return compatibility?.mapNotNull { it.legacy }?.toSet()
     }
 
     @Deprecated("Instead use Compatibility object")

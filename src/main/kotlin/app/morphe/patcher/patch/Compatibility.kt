@@ -19,8 +19,8 @@ enum class ApkFileType {
 }
 
 /**
- * @param version Version string. Null means any version and can be used to indicate any version
- *   is supported experimentally.
+ * @param version Version string. Null means any version and additionally can be used to
+ *   indicate any version is supported experimentally.
  * @param isExperimental If this app target is supported under an experimental capacity.
  * @param minSdk Minimum device SDK version as found in [android.os.Build.VERSION_CODES].
  *   Null means any SDK version.
@@ -43,7 +43,7 @@ data class AppTarget(
  * @param signatures Valid SHA-256 signatures of the app. To find a signature, use
  *   `apksigner verify --print-certs` on an original apk (or base.apk from an unzipped apkm)
  *    and `certificate SHA-256 digest:` is the signature.
- * @param targets App targets. Null means any version. Versions are declared newest to oldest.
+ * @param targets App targets. Versions are declared newest to oldest.
  */
 data class Compatibility(
     val packageName: String? = null,
@@ -52,7 +52,7 @@ data class Compatibility(
     val apkFileType: ApkFileType? = null,
     val appIconColor: Int? = null,
     val signatures: Set<String>? = null,
-    val targets: List<AppTarget>? = null,
+    val targets: List<AppTarget>,
 ) {
 
     init {
@@ -70,22 +70,13 @@ data class Compatibility(
             }
         }
 
-        if (targets != null) {
-            if (targets.isEmpty()) {
+        // Check for duplicate versions.
+        val seen = mutableSetOf<String?>()
+        targets.forEach { target ->
+            if (!seen.add(target.version)) {
                 throw IllegalArgumentException(
-                    "Compatibility list is empty. If compatibility is for any version then" +
-                            " use NULL targets parameter."
+                    "Duplicate AppTarget for package '$packageName' of version '${target.version}'"
                 )
-            }
-
-            // Check for duplicate versions.
-            val seen = mutableSetOf<String?>()
-            targets.forEach { target ->
-                if (!seen.add(target.version)) {
-                    throw IllegalArgumentException(
-                        "Duplicate AppTarget for package '$packageName' of version '${target.version}'"
-                    )
-                }
             }
         }
     }
@@ -101,7 +92,7 @@ data class Compatibility(
      * @param signatures Valid SHA-256 signatures of the app. To find a signature, use
      *   `apksigner verify --print-certs` on an original apk (or base.apk from an unzipped apkm)
      *    and `certificate SHA-256 digest:` is the signature.
-     * @param targets App targets. Null means any version. Versions are declared newest to oldest.
+     * @param targets App targets. Versions are declared newest to oldest.
      */
     constructor(
         packageName: String? = null,
@@ -110,7 +101,7 @@ data class Compatibility(
         apkFileType: ApkFileType? = null,
         appIconColor: String,
         signatures: Set<String>? = null,
-        targets: List<AppTarget>? = null,
+        targets: List<AppTarget>,
     ) : this(
         packageName = packageName,
         name = name,
@@ -121,21 +112,32 @@ data class Compatibility(
         targets = targets
     )
 
-    internal fun toLegacy(): Pair<String, Set<String>?>? {
-        if (packageName == null) return null
+    internal val legacy: Pair<String, Set<String>?>? by lazy {
+        if (packageName == null) return@lazy null
 
         val legacyTargets = mutableSetOf<String>()
 
-        val includeExperimental = targets?.none { !it.isExperimental } == true
+        val includeExperimental = targets.none { !it.isExperimental }
+        var isAnyVersion = false
 
-        targets?.forEach { target ->
+        targets.forEach { target ->
             // If the declaration only has experimental, then include experimental with legacy versions.
-            if (target.version != null && (includeExperimental || !target.isExperimental)) {
-                legacyTargets += target.version
+            if (includeExperimental || !target.isExperimental) {
+                if (target.version == null) {
+                    // Legacy cannot handle any version and recommend specific versions.
+                    // If any version is present then the entire legacy is any version.
+                    isAnyVersion = true
+                } else {
+                    legacyTargets += target.version
+                }
             }
         }
 
-        return packageName to legacyTargets.ifEmpty { null }
+        val legacyStringTargets =
+            if (isAnyVersion || legacyTargets.isEmpty()) null
+            else legacyTargets
+
+        packageName to legacyStringTargets
     }
 
     internal companion object {
@@ -153,11 +155,17 @@ data class Compatibility(
         fun fromLegacy(legacy: Pair<String, Set<String>?>): Compatibility {
             val targets = mutableListOf<AppTarget>()
 
-            legacy.second?.forEach { version ->
-                targets += AppTarget(version = version)
+            legacy.second.let {
+                if (it == null) {
+                    targets += AppTarget(version = null)
+                } else {
+                    it.forEach { version ->
+                        targets += AppTarget(version = version)
+                    }
+                }
             }
 
-            return Compatibility(packageName = legacy.first, targets = targets.ifEmpty { null })
+            return Compatibility(packageName = legacy.first, targets = targets)
         }
 
         fun fromLegacy(legacy: Set<Pair<String, Set<String>?>>?): List<Compatibility>? {
