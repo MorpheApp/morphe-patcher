@@ -1,3 +1,10 @@
+# [1.3.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.1...v1.3.0-dev.2) (2026-03-13)
+
+
+### Bug Fixes
+
+* Speed up slow resource decoding for APKs with duplicate spec strings ([#75](https://github.com/MorpheApp/morphe-patcher/issues/75)) ([6eff16e](https://github.com/MorpheApp/morphe-patcher/commit/6eff16eda5b247b6c3b5bf63f62489e4f1e89268))
+
 # [1.3.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0...v1.3.0-dev.1) (2026-03-10)
 
 
