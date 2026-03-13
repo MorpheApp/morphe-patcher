@@ -2,7 +2,7 @@
 android = "4.1.1.4"
 android-tools = "8.5.2"
 apktool-lib = "2.11.2.r3"
-arsclib = "2664403e24"
+arsclib = "9696ffecda"
 bcpkix-jdk18on = "1.77"
 binary-compatibility-validator = "0.18.1"
 guava = "33.5.0-jre"
@@ -19,7 +19,7 @@ android = { module = "com.google.android:android", version.ref = "android" }
 apktool-lib = { module = "app.morphe:apktool-lib", version.ref = "apktool-lib" }
 apkzlib = { module = "com.android.tools.build:apkzlib", version.ref = "android-tools" }
 apksig = { module = "com.android.tools.build:apksig", version.ref = "android-tools" }
-arsclib = { module = "com.github.REAndroid:arsclib", version.ref = "arsclib" }
+arsclib = { module = "com.github.MorpheApp:ARSCLib", version.ref = "arsclib" }
 bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bcpkix-jdk18on" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
