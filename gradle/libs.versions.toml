@@ -1,5 +1,5 @@
 [versions]
-android = "4.1.1.4"
+android = "8.9.1"
 android-tools = "8.5.2"
 apktool-lib = "2.11.2.r3"
 arsclib = "9696ffecda"
