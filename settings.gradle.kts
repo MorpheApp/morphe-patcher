@@ -2,7 +2,7 @@ rootProject.name = "morphe-patcher"
 
 // Include Morphe forks of libraries as composite builds if they exist locally
 mapOf(
-    "ARSCLib" to "com.github.REAndroid:arsclib",
+    "ARSCLib" to "com.github.MorpheApp:arsclib",
     "multidexlib2" to "app.morphe:multidexlib",
 ).forEach { (libraryPath, libraryName) ->
     val libDir = file("../$libraryPath")
