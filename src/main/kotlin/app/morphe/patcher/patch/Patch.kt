@@ -13,34 +13,36 @@ import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.net.URLClassLoader
+import java.util.Locale
 import java.util.function.Supplier
 import java.util.jar.JarFile
+import java.util.logging.Logger
+import kotlin.text.lowercase
 
 typealias PackageName = String
 typealias VersionName = String
 typealias Package = Pair<PackageName, Set<VersionName>?>
 
 /**
- * A patch.
- *
  * @param C The [PatchContext] to execute and finalize the patch with.
- * @param name The name of the patch.
- * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
+ * @param name The name of the patch. If null then this patch not be loaded by [PatchLoader].
+ * @param nameKey Explicit localized name key for [nameLocalized].
  * @param description The description of the patch.
+ * @param descriptionKey Explicit localized description key for [descriptionLocalized].
  * @param use Weather or not the patch should be used.
  * @param dependencies Other patches this patch depends on.
  * @param compatiblePackages The packages the patch is compatible with.
- * If null, the patch is compatible with all packages.
+ *                           If null, the patch is compatible with all packages.
  * @param options The options of the patch.
  * @param executeBlock The execution block of the patch.
  * @param finalizeBlock The finalizing block of the patch. Called after all patches have been executed,
- * in reverse order of execution.
- *
- * @constructor Create a new patch.
+ *                      in reverse order of execution.
  */
 sealed class Patch<C : PatchContext<*>>(
     val name: String?,
+    val nameKey: String?,
     val description: String?,
+    val descriptionKey: String?,
     val use: Boolean,
     val dependencies: Set<Patch<*>>,
     val compatiblePackages: Set<Package>?,
@@ -50,10 +52,111 @@ sealed class Patch<C : PatchContext<*>>(
     // if a patch has a finalizing block in order to not emit it twice.
     internal var finalizeBlock: ((C) -> Unit)?,
 ) {
+
+    /**
+     * @param C The [PatchContext] to execute and finalize the patch with.
+     * @param name The name of the patch. If null then this patch not be loaded by [PatchLoader].
+     * @param description The description of the patch.
+     * @param use Weather or not the patch should be used.
+     * @param dependencies Other patches this patch depends on.
+     * @param compatiblePackages The packages the patch is compatible with.
+     *                           If null, the patch is compatible with all packages.
+     * @param options The options of the patch.
+     * @param executeBlock The execution block of the patch.
+     * @param finalizeBlock The finalizing block of the patch. Called after all patches have been executed,
+     *                      in reverse order of execution.
+     */
+//    @Deprecated("Here only for binary backwards compatibility")
+    constructor(
+        name: String?,
+        description: String?,
+        use: Boolean,
+        dependencies: Set<Patch<*>>,
+        compatiblePackages: Set<Package>?,
+        options: Set<Option<*>>,
+        executeBlock: (C) -> Unit,
+        finalizeBlock: ((C) -> Unit)?,
+    ) : this(
+        name,
+        null,
+        description,
+        null,
+        use,
+        dependencies,
+        compatiblePackages,
+        options,
+        executeBlock,
+        finalizeBlock
+    )
+
     /**
      * The options of the patch.
      */
     val options = Options(options)
+
+    internal val localizationPropertyKey = name?.let {sanitizeStringToPropertyKey(it)}
+
+    /**
+     * Workaround to fix problems that DSL introduced.
+     * classloader for the patch is needed to easily lookup resources inside the patches mpp file,
+     * but with DSL and functions the class is always this Patch class inside the patcher jar.
+     * To temporarily fix this, the execute or finalize block is used since it's _usually_ declared
+     * and it is inside the mpp file so the correct class loader can be used.
+     *
+     * TODO: Remove the remaining DSL from patcher because:
+     *  1. DSL adds unnecessary complexity.
+     *  2. DSL introduces new problems that class based patches did not have (such as here).
+     *  3. DSL is only used in superficial ways of setting single fields/methods of a patch.
+     *  4. DSL is another layer third party devs must navigate instead of using simple class based declarations.
+     *  5. DSL historically has been unwanted and rejected by many third party patch devs that did not migrate to it.
+     *  6. DSL solves no problems, provides no tangible benefits, and it's use with patches is questionable inappropriate.
+     */
+    internal val resourceClassLoader by lazy {
+        val finalize = finalizeBlock
+        if (finalize != null) return@lazy finalize.javaClass
+
+        val javaClass = executeBlock.javaClass
+        if (javaClass.name.startsWith(PatchBuilder::class.java.name)) {
+            Logger.getLogger(this::class.java.name).warning(
+                "Patch string resource classloader cannot be found for:'$name\'. To fix this, " +
+                        "add an empty execute or finalize block to the patch declaration."
+            )
+            return@lazy null;
+        }
+        javaClass
+    }
+
+    init {
+        options.forEach { option ->
+            option.enclosingPatch = this
+        }
+    }
+
+    /**
+     * @return The localized name using the patch string declarations.
+     * Falls back to non localized [name] if no localized patch name exist.
+     */
+    val nameLocalized by lazy {
+        val instanceClass = resourceClassLoader ?: return@lazy name
+
+        val stringKey = nameKey ?: "$localizationPropertyKey.name"
+        val localized = PatchLocalization.getLocalizedString(instanceClass, stringKey)
+
+        localized ?: name
+    }
+
+    /**
+     * @return The localized description using patch string declarations.
+     * Falls back to non localized [description] if no localized patch description exist.
+     */
+    val descriptionLocalized by lazy {
+        val instanceClass = resourceClassLoader ?: return@lazy description
+
+        val stringKey = descriptionKey ?: "$localizationPropertyKey.description"
+        val localized = PatchLocalization.getLocalizedString(instanceClass, stringKey)
+
+        localized ?: description
+    }
 
     /**
      * Calls the execution block of the patch.
@@ -89,6 +192,10 @@ sealed class Patch<C : PatchContext<*>>(
 
     override fun toString() = name ?: 
         "Patch@${System.identityHashCode(this)}"
+
+    internal companion object {
+        fun sanitizeStringToPropertyKey(text: String) = text.lowercase(Locale.ROOT).replace(' ', '_')
+    }
 }
 
 internal fun Patch<*>.anyRecursively(
@@ -137,7 +244,9 @@ internal fun Iterable<Patch<*>>.forEachRecursively(
  */
 class BytecodePatch internal constructor(
     name: String?,
+    nameKey: String?,
     description: String?,
+    descriptionKey: String?,
     use: Boolean,
     compatiblePackages: Set<Package>?,
     dependencies: Set<Patch<*>>,
@@ -147,7 +256,9 @@ class BytecodePatch internal constructor(
     finalizeBlock: ((BytecodePatchContext) -> Unit)?,
 ) : Patch<BytecodePatchContext>(
     name,
+    nameKey,
     description,
+    descriptionKey,
     use,
     dependencies,
     compatiblePackages,
@@ -184,7 +295,9 @@ class BytecodePatch internal constructor(
  */
 class RawResourcePatch internal constructor(
     name: String?,
+    nameKey: String?,
     description: String?,
+    descriptionKey: String?,
     use: Boolean,
     compatiblePackages: Set<Package>?,
     dependencies: Set<Patch<*>>,
@@ -193,7 +306,9 @@ class RawResourcePatch internal constructor(
     finalizeBlock: ((ResourcePatchContext) -> Unit)?,
 ) : Patch<ResourcePatchContext>(
     name,
+    nameKey,
     description,
+    descriptionKey,
     use,
     dependencies,
     compatiblePackages,
@@ -227,7 +342,9 @@ class RawResourcePatch internal constructor(
  */
 class ResourcePatch internal constructor(
     name: String?,
+    nameKey: String?,
     description: String?,
+    descriptionKey: String?,
     use: Boolean,
     compatiblePackages: Set<Package>?,
     dependencies: Set<Patch<*>>,
@@ -236,7 +353,9 @@ class ResourcePatch internal constructor(
     finalizeBlock: ((ResourcePatchContext) -> Unit)?,
 ) : Patch<ResourcePatchContext>(
     name,
+    nameKey,
     description,
+    descriptionKey,
     use,
     dependencies,
     compatiblePackages,
@@ -271,14 +390,15 @@ class ResourcePatch internal constructor(
  */
 sealed class PatchBuilder<C : PatchContext<*>>(
     protected val name: String?,
+    protected val nameKey: String?,
     protected val description: String?,
+    protected val descriptionKey: String?,
     protected val use: Boolean,
 ) {
     protected var compatiblePackages: MutableSet<Package>? = null
     protected var dependencies = mutableSetOf<Patch<*>>()
     protected val options = mutableSetOf<Option<*>>()
-
-    protected var executionBlock: ((C) -> Unit) = { }
+    protected var executionBlock: ((C) -> Unit) = {} // TODO: rename to executeBlock
     protected var finalizeBlock: ((C) -> Unit)? = null
 
     /**
@@ -370,22 +490,33 @@ sealed class PatchBuilder<C : PatchContext<*>>(
 private fun <B : PatchBuilder<*>> B.buildPatch(block: B.() -> Unit = {}) = apply(block).build()
 
 /**
- * A [BytecodePatchBuilder] builder.
- *
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
  * @param use Weather or not the patch should be used.
  * @property extensionInputStream Getter for the extension input stream of the patch.
  * An extension is a precompiled DEX file that is merged into the patched app before this patch is executed.
- *
- * @constructor Create a new [BytecodePatchBuilder] builder.
  */
 class BytecodePatchBuilder internal constructor(
     name: String?,
+    nameKey: String?,
     description: String?,
+    descriptionKey: String?,
     use: Boolean,
-) : PatchBuilder<BytecodePatchContext>(name, description, use) {
+) : PatchBuilder<BytecodePatchContext>(
+    name,
+    nameKey,
+    description,
+    descriptionKey,
+    use
+) {
+    @Deprecated("Here only for binary backwards compatibility")
+    constructor(
+        name: String?,
+        description: String?,
+        use: Boolean,
+    ) : this(name, null, description, null, use)
+
     // Must be internal for the inlined function "extendWith".
     @PublishedApi
     internal var extensionInputStream: Supplier<InputStream>? = null
@@ -408,7 +539,9 @@ class BytecodePatchBuilder internal constructor(
 
     override fun build() = BytecodePatch(
         name,
+        nameKey,
         description,
+        descriptionKey,
         use,
         compatiblePackages,
         dependencies,
@@ -430,12 +563,40 @@ class BytecodePatchBuilder internal constructor(
  *
  * @return The created [BytecodePatch].
  */
+//@Deprecated("Here only for binary backwards compatibility")
 fun bytecodePatch(
     name: String? = null,
     description: String? = null,
     use: Boolean = true,
     block: BytecodePatchBuilder.() -> Unit = {},
-) = BytecodePatchBuilder(name, description, use).buildPatch(block) as BytecodePatch
+) = BytecodePatchBuilder(
+    name = name,
+    nameKey = null,
+    description = description,
+    descriptionKey = null,
+    use = use,
+).buildPatch(block) as BytecodePatch
+
+
+/**
+ * Create a new [BytecodePatch].
+ *
+ * @param name The name of the patch.
+ * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
+ * @param description The description of the patch.
+ * @param use Weather or not the patch should be used.
+ * @param block The block to build the patch.
+ *
+ * @return The created [BytecodePatch].
+ */
+fun bytecodePatch(
+    name: String? = null,
+    nameKey: String? = null,
+    description: String? = null,
+    descriptionKey: String? = null,
+    use: Boolean = true,
+    block: BytecodePatchBuilder.() -> Unit = {},
+) = BytecodePatchBuilder(name, nameKey, description, descriptionKey, use).buildPatch(block) as BytecodePatch
 
 /**
  * A [RawResourcePatch] builder.
@@ -449,12 +610,24 @@ fun bytecodePatch(
  */
 class RawResourcePatchBuilder internal constructor(
     name: String?,
+    nameKey: String?,
     description: String?,
+    descriptionKey: String?,
     use: Boolean,
-) : PatchBuilder<ResourcePatchContext>(name, description, use) {
+) : PatchBuilder<ResourcePatchContext>(name, nameKey, description, descriptionKey, use) {
+
+    //@Deprecated("Here only for binary backwards compatibility")
+    constructor(
+        name: String?,
+        description: String?,
+        use: Boolean,
+    ) : this(name, null, description, null, use)
+
     override fun build() = RawResourcePatch(
         name,
+        nameKey,
         description,
+        descriptionKey,
         use,
         compatiblePackages,
         dependencies,
@@ -474,12 +647,32 @@ class RawResourcePatchBuilder internal constructor(
  * @param block The block to build the patch.
  * @return The created [RawResourcePatch].
  */
+//@Deprecated("Here only for binary backwards compatibility")
 fun rawResourcePatch(
     name: String? = null,
     description: String? = null,
     use: Boolean = true,
     block: RawResourcePatchBuilder.() -> Unit = {},
 ) = RawResourcePatchBuilder(name, description, use).buildPatch(block) as RawResourcePatch
+
+/**
+ * Create a new [RawResourcePatch].
+ *
+ * @param name The name of the patch.
+ * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
+ * @param description The description of the patch.
+ * @param use Weather or not the patch should be used.
+ * @param block The block to build the patch.
+ * @return The created [RawResourcePatch].
+ */
+fun rawResourcePatch(
+    name: String? = null,
+    nameKey: String? = null,
+    description: String? = null,
+    descriptionKey: String? = null,
+    use: Boolean = true,
+    block: RawResourcePatchBuilder.() -> Unit = {},
+) = RawResourcePatchBuilder(name, nameKey, description, descriptionKey, use).buildPatch(block) as RawResourcePatch
 
 /**
  * A [ResourcePatch] builder.
@@ -493,12 +686,23 @@ fun rawResourcePatch(
  */
 class ResourcePatchBuilder internal constructor(
     name: String?,
+    nameKey: String?,
     description: String?,
+    descriptionKey: String?,
     use: Boolean,
-) : PatchBuilder<ResourcePatchContext>(name, description, use) {
+) : PatchBuilder<ResourcePatchContext>(name, nameKey, description, descriptionKey, use) {
+    @Deprecated("Here only for binary backwards compatibility")
+    constructor(
+        name: String?,
+        description: String?,
+        use: Boolean,
+    ) : this(name, null, description, null, use)
+
     override fun build() = ResourcePatch(
         name,
+        nameKey,
         description,
+        descriptionKey,
         use,
         compatiblePackages,
         dependencies,
@@ -519,12 +723,33 @@ class ResourcePatchBuilder internal constructor(
  *
  * @return The created [ResourcePatch].
  */
+//@Deprecated("Here only for binary backwards compatibility")
 fun resourcePatch(
     name: String? = null,
     description: String? = null,
     use: Boolean = true,
     block: ResourcePatchBuilder.() -> Unit = {},
 ) = ResourcePatchBuilder(name, description, use).buildPatch(block) as ResourcePatch
+
+/**
+ * Create a new [ResourcePatch].
+ *
+ * @param name The name of the patch.
+ * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
+ * @param description The description of the patch.
+ * @param use Weather or not the patch should be used.
+ * @param block The block to build the patch.
+ *
+ * @return The created [ResourcePatch].
+ */
+fun resourcePatch(
+    name: String? = null,
+    nameKey: String? = null,
+    description: String? = null,
+    descriptionKey: String? = null,
+    use: Boolean = true,
+    block: ResourcePatchBuilder.() -> Unit = {},
+) = ResourcePatchBuilder(name, nameKey,description, descriptionKey, use).buildPatch(block) as ResourcePatch
 
 /**
  * An exception thrown when patching.
