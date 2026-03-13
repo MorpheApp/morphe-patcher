@@ -54,33 +54,6 @@ data class Compatibility(
     val signatures: Set<String>? = null,
     val targets: List<AppTarget>,
 ) {
-
-    init {
-        if (appIconColor != null) {
-            val alpha = (appIconColor shr 24) and 0xFF
-
-            require(alpha == 0x00) {
-                "App icon color must be 0xRRGGBB format"
-            }
-        }
-
-        signatures?.forEach { sig ->
-            require(sig.matches(SHA_256_REGEX)) {
-                "Invalid signature SHA-256 fingerprint: $sig"
-            }
-        }
-
-        // Check for duplicate versions.
-        val seen = mutableSetOf<String?>()
-        targets.forEach { target ->
-            if (!seen.add(target.version)) {
-                throw IllegalArgumentException(
-                    "Duplicate AppTarget for package '$packageName' of version '${target.version}'"
-                )
-            }
-        }
-    }
-
     /**
      * @param packageName Actual app package name. Null means this is a universal patch and can
      *   be applied to any app.
@@ -111,6 +84,70 @@ data class Compatibility(
         signatures = signatures,
         targets = targets
     )
+
+    /**
+     * Convenience constructor for universal patches.
+     *
+     * @param name Actual app name.
+     * @param description User facing description of the app.
+     * @param apkFileType Target unpatched app type. Currently only used for Manager UI presentation.
+     * @param targets App targets. Versions are declared newest to oldest.
+     */
+    constructor(
+        name: String? = null,
+        description: String? = null,
+        apkFileType: ApkFileType? = null,
+        targets: List<AppTarget>? = null,
+    ) : this(
+        packageName = null,
+        name = name,
+        description = description,
+        apkFileType = apkFileType,
+        appIconColor = null,
+        signatures = null,
+        targets = targets ?: listOf(AppTarget(version = null))
+    ) {
+        require(this.targets.isNotEmpty()) {
+            "Targets parameter must be null for all app targets, or must declare " +
+                    "an AppTarget with a null version"
+        }
+    }
+
+    init {
+        if (appIconColor != null) {
+            val alpha = (appIconColor shr 24) and 0xFF
+
+            require(alpha == 0x00) {
+                "App icon color must be 0xRRGGBB format"
+            }
+        }
+
+        if (packageName == null && targets.isNotEmpty()) {
+            require(targets.all { it.version == null }) {
+                "Null package name (universal patch) cannot declare any AppTarget versions: $targets"
+            }
+        }
+
+        signatures?.forEach { sig ->
+            require(sig.matches(SHA_256_REGEX)) {
+                "Invalid signature SHA-256 fingerprint: $sig"
+            }
+        }
+
+        require(targets.isNotEmpty()) {
+            "Must declare at least one app target. If any app version is supported then use NULL version"
+        }
+
+        // Check for duplicate versions.
+        val seen = mutableSetOf<String?>()
+        targets.forEach { target ->
+            if (!seen.add(target.version)) {
+                throw IllegalArgumentException(
+                    "Duplicate AppTarget for package '$packageName' of version '${target.version}'"
+                )
+            }
+        }
+    }
 
     internal val legacy: Pair<String, Set<String>?>? by lazy {
         if (packageName == null) return@lazy null
@@ -156,7 +193,7 @@ data class Compatibility(
             val targets = mutableListOf<AppTarget>()
 
             legacy.second.let {
-                if (it == null) {
+                if (it.isNullOrEmpty()) {
                     targets += AppTarget(version = null)
                 } else {
                     it.forEach { version ->

@@ -154,20 +154,17 @@ internal fun Iterable<Patch<*>>.forEachRecursively(
  * A bytecode patch.
  *
  * @param name The name of the patch.
- * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
  * @param use Weather or not the patch should be used.
- * @param compatiblePackages The packages the patch is compatible with.
- * If null, the patch is compatible with all packages.
+ * @property compatibility The packages the patch is compatible with.
+ *   If null, then the patch is universal and could be applied to all apps.
  * @param dependencies Other patches this patch depends on.
  * @param options The options of the patch.
- * @property extensionInputStream Getter for the extension input stream of the patch.
- * An extension is a precompiled DEX file that is merged into the patched app before this patch is executed.
+ * @property extensionInputStream Getter for the extension input stream of the patch. An extension
+ *   is a precompiled DEX file that is merged into the patched app before this patch is executed.
  * @param executeBlock The execution block of the patch.
- * @param finalizeBlock The finalizing block of the patch. Called after all patches have been executed,
- * in reverse order of execution.
- *
- * @constructor Create a new bytecode patch.
+ * @param finalizeBlock The finalizing block of the patch. Called after all patches have
+ *   been executed, in reverse order of execution.
  */
 class BytecodePatch internal constructor(
     name: String?,
@@ -358,16 +355,15 @@ class ResourcePatch internal constructor(
  *
  * @param C The [PatchContext] to execute and finalize the patch with.
  * @param name The name of the patch.
- * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
  * @param use Weather or not the patch should be used.
  * @property compatibility The packages the patch is compatible with.
- * If null, the patch is compatible with all packages.
+ *   If null, then the patch is universal and could be applied to all apps.
  * @property dependencies Other patches this patch depends on.
  * @property options The options of the patch.
  * @property executeBlock The execution block of the patch.
- * @property finalizeBlock The finalizing block of the patch. Called after all patches have been executed,
- * in reverse order of execution.
+ * @property finalizeBlock The finalizing block of the patch. Called after all patches
+ *   have been executed, in reverse order of execution.
  *
  * @constructor Create a new [Patch] builder.
  */

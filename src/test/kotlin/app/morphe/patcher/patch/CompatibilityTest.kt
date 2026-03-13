@@ -71,7 +71,7 @@ internal object CompatibilityTest {
     @Test
     fun `legacy experimental only declaration`() {
         val compatibility = Compatibility(
-            name ="Example app",
+            name = "Example app",
             packageName = "compatible.package",
             targets = listOf(
                 AppTarget(version = "1.1.0", isExperimental = true),
@@ -98,6 +98,47 @@ internal object CompatibilityTest {
 
         // Only non-experimental is included.
         assertEquals(setOf("1.0.1", "1.0.0"), compatibility.legacy!!.second)
+    }
+
+    @Test
+    fun `empty versions`() {
+        assertThrows<Exception> {
+            Compatibility(
+                name = "Example app",
+                packageName = "compatible.package",
+                targets = listOf()
+            )
+        }
+
+        val compatibility = Compatibility(
+            name = "Example app",
+            packageName = "compatible.package",
+            targets = listOf(
+                AppTarget(version = null, minSdk = 26)
+            )
+        )
+        assertEquals(1, compatibility.targets.count())
+        assertEquals(null, compatibility.targets.first().version)
+        assertEquals(26, compatibility.targets.first().minSdk)
+    }
+
+    @Test
+    fun `universal app`() {
+        var compatibility = Compatibility(
+            name ="Example app",
+            targets = listOf(AppTarget(version = null, minSdk = 26))
+        )
+
+        assertEquals(1, compatibility.targets.count())
+        assertEquals(null, compatibility.targets.first().version)
+        assertEquals(null, compatibility.packageName)
+
+        assertThrows<Exception> {
+            Compatibility(
+                name = "Example app",
+                targets = listOf(AppTarget(version = "1.0.0"))
+            )
+        }
     }
 
     @Test
