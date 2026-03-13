@@ -1,6 +1,6 @@
 [versions]
 android = "8.9.1"
-android-tools = "8.5.2"
+android-tools = "9.1.0"
 apktool-lib = "2.11.2.r3"
 arsclib = "9696ffecda"
 bcpkix-jdk18on = "1.77"
