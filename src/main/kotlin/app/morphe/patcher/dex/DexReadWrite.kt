@@ -12,11 +12,20 @@ import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.DexFile
 import com.android.tools.smali.dexlib2.writer.io.FileDataStore
 import com.android.tools.smali.dexlib2.writer.pool.DexPool
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
+import java.io.BufferedInputStream
 import java.io.File
 import java.io.InputStream
 import java.util.logging.Logger
+import kotlin.math.max
+import kotlin.math.min
 
 internal object DexReadWrite {
+    private const val MIN_CLASSES_PER_SEGMENT = 1000
+
     /**
      * Reads a multidex file and returns a [DexFile] containing all classes from all dex files in the multidex file.
      * @param inputFile The multidex file to read.
@@ -33,13 +42,15 @@ internal object DexReadWrite {
             container.getEntry(entry)!!.dexFile
         }
 
+        val opcodes = dexFiles.maxByOrNull { it.opcodes.api }!!.opcodes
+
         return object : DexFile {
             override fun getClasses(): Set<ClassDef> {
                 return dexFiles.flatMap { it.classes }.toSet()
             }
 
             override fun getOpcodes(): Opcodes {
-                return dexFiles.first().opcodes
+                return opcodes
             }
         }
     }
@@ -53,57 +64,129 @@ internal object DexReadWrite {
     internal fun readDexStream(inputStream: InputStream): DexFile {
         // This doesn't handle ODEX/OAT files, but we don't need to handle those for our use case, so it's fine.
         // Normally DexFileFactory would take care of this, but it doesn't support reading from streams, so we have to do it ourselves.
-        return DexBackedDexFile.fromInputStream(null, inputStream);
+        return DexBackedDexFile.fromInputStream(null, BufferedInputStream(inputStream))
     }
 
     /**
-     * Writes a [DexFile] to a multidex file in the specified output directory. The dex file will be split into multiple dex files if it exceeds the dex file size limit.
+     * Writes a [DexFile] to the specified output directory.
+     * The dex file will be split into multiple dex files if it exceeds the dex size limit.
      * @param outputDir The directory to write the multidex file to.
      * @param dexFile The [DexFile] to write.
-     * @param maxThreads The maximum number of threads to use for writing the dex files. (Currently ignored.)
+     * @param maxThreads The maximum number of threads to use for writing the dex files.
      *
      * @return A list of [File]s representing the written dex files.
      */
     internal fun writeMultiDexFile(outputDir: File, dexFile: DexFile, maxThreads: Int = -1, logger: Logger? = null): List<File> {
-        require(!outputDir.exists() || outputDir.isDirectory) { "output path must be a directory: $outputDir" }
+        require(!outputDir.exists() || outputDir.isDirectory) { "Output path must be a directory: $outputDir" }
 
         if (outputDir.exists()) {
             outputDir.deleteRecursively()
         }
         outputDir.mkdirs()
 
-        // TODO: Handle multi threaded writing of dex files
+        val availableProcessors = Runtime.getRuntime().availableProcessors()
+        val actualMaxThreads = if (maxThreads < 1) {
+            min(availableProcessors, 6)
+        } else {
+            min(min(maxThreads, 6), availableProcessors)
+        }
 
-        val sortedClasses = ArrayDeque(dexFile.classes.sortedBy { it.type })
+        val sortedClasses = dexFile.classes.sortedBy { it.type }
 
+        val numSegments = max(1, min(actualMaxThreads, sortedClasses.size / MIN_CLASSES_PER_SEGMENT))
+
+        val segmentResults = if (numSegments == 1) {
+            listOf(processSegment(sortedClasses, dexFile.opcodes, outputDir, 0))
+        } else {
+            val segments = splitIntoSegments(sortedClasses, numSegments)
+
+            logger?.info("Processing ${sortedClasses.size} classes in parallel (${segments.size} threads)")
+
+            val dispatcher = Dispatchers.Default.limitedParallelism(numSegments)
+            runBlocking(dispatcher) {
+                segments.mapIndexed { segmentIndex, classes ->
+                    async {
+                        processSegment(classes, dexFile.opcodes, outputDir, segmentIndex)
+                    }
+                }.awaitAll()
+            }
+        }
+
+        // Rename temp files to final dex files
         val dexFiles = mutableListOf<File>()
-        var currentDexPool = DexPool(dexFile.opcodes)
+        for (tempFiles in segmentResults) {
+            for (tempFile in tempFiles) {
+                val fileName = if (dexFiles.isEmpty()) "classes.dex" else "classes${dexFiles.size + 1}.dex"
+                val finalFile = outputDir.resolve(fileName)
+                tempFile.renameTo(finalFile)
+                dexFiles.add(finalFile)
+            }
+        }
 
-        while (sortedClasses.isNotEmpty()) {
-            val classDef = sortedClasses.first()
+        logger?.info("Wrote ${dexFiles.size} dex files to $outputDir")
+        return dexFiles
+    }
+
+    /**
+     * Splits a list into [numSegments] contiguous segments of roughly equal size.
+     */
+    private fun <T> splitIntoSegments(list: List<T>, numSegments: Int): List<List<T>> {
+        if (numSegments <= 1) return listOf(list)
+
+        val segmentSize = list.size / numSegments
+        val remainder = list.size % numSegments
+        val segments = mutableListOf<List<T>>()
+        var offset = 0
+
+        for (i in 0 until numSegments) {
+            // Distribute the remainder across the first segments (one extra element each).
+            val size = segmentSize + if (i < remainder) 1 else 0
+            segments.add(list.subList(offset, offset + size))
+            offset += size
+        }
+
+        return segments
+    }
+
+    /**
+     * Processes a segment of classes: fills one or more [DexPool]s and writes each to a temp file.
+     * Returns the list of temp files in the order they were produced.
+     */
+    private fun processSegment(
+        classes: List<ClassDef>,
+        opcodes: Opcodes,
+        outputDir: File,
+        segmentIndex: Int,
+    ): List<File> {
+        val tempFiles = mutableListOf<File>()
+        var currentDexPool = DexPool(opcodes)
+        val classQueue = ArrayDeque(classes)
+
+        while (classQueue.isNotEmpty()) {
+            val classDef = classQueue.first()
 
             currentDexPool.mark()
             currentDexPool.internClass(classDef)
             if (currentDexPool.hasOverflowed()) {
                 currentDexPool.reset()
-                dexFiles.add(writeDexPool(currentDexPool, outputDir, dexFiles.size, logger))
-
-                currentDexPool = DexPool(dexFile.opcodes)
+                tempFiles.add(writeDexPoolToTemp(currentDexPool, outputDir, segmentIndex, tempFiles.size))
+                currentDexPool = DexPool(opcodes)
             } else {
-                sortedClasses.removeFirst()
+                classQueue.removeFirst()
             }
         }
 
-        dexFiles.add(writeDexPool(currentDexPool, outputDir, dexFiles.size, logger))
-        logger?.info("Wrote ${dexFiles.size} dex files to $outputDir")
-        return dexFiles
+        tempFiles.add(writeDexPoolToTemp(currentDexPool, outputDir, segmentIndex, tempFiles.size))
+        return tempFiles
     }
 
-    private fun writeDexPool(dexPool: DexPool, outputDir: File, dexNum: Int, logger: Logger?): File {
-        val fileName = if (dexNum == 0) { "classes.dex" } else { "classes${dexNum + 2}.dex" }
-        val file = outputDir.resolve(fileName)
-        logger?.info("Writing $fileName")
-        dexPool.writeTo(FileDataStore(file))
-        return file
+    /**
+     * Writes a [DexPool] to a temporary file within the output directory.
+     * The temp file is named using the segment and pool indices to avoid collisions.
+     */
+    private fun writeDexPoolToTemp(dexPool: DexPool, outputDir: File, segmentIndex: Int, poolIndex: Int): File {
+        val tempFile = outputDir.resolve(".tmp_seg${segmentIndex}_${poolIndex}.dex")
+        dexPool.writeTo(FileDataStore(tempFile))
+        return tempFile
     }
 }
