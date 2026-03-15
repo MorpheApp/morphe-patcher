@@ -44,6 +44,12 @@ internal object DexReadWrite {
         }
     }
 
+    /**
+     * Reads a dex file from an [InputStream] and returns a [DexFile] containing all classes from the dex file.
+     * @param inputStream The [InputStream] to read the dex file from.
+     *
+     * @return A [DexFile] containing all classes from the dex file.
+     */
     internal fun readDexStream(inputStream: InputStream): DexFile {
         // This doesn't handle ODEX/OAT files, but we don't need to handle those for our use case, so it's fine.
         // Normally DexFileFactory would take care of this, but it doesn't support reading from streams, so we have to do it ourselves.
