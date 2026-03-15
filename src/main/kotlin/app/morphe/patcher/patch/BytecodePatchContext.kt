@@ -8,11 +8,8 @@
 
 package app.morphe.patcher.patch
 
-import app.morphe.patcher.InternalApi
-import app.morphe.patcher.PackageMetadata
-import app.morphe.patcher.PatcherConfig
-import app.morphe.patcher.PatcherResult
-import app.morphe.patcher.StringComparisonType
+import app.morphe.patcher.*
+import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.util.ClassMerger.merge
 import app.morphe.patcher.util.MethodNavigator
 import app.morphe.patcher.util.PatchClasses
@@ -20,12 +17,7 @@ import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.DexFile
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
-import lanchon.multidexlib2.BasicDexFileNamer
-import lanchon.multidexlib2.DexIO
-import lanchon.multidexlib2.MultiDexIO
-import lanchon.multidexlib2.RawDexIO
 import java.io.Closeable
-import java.io.FileFilter
 import java.util.logging.Logger
 
 /**
@@ -48,13 +40,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * All classes for the target app and any extension classes.
      */
     internal val patchClasses = PatchClasses(
-        MultiDexIO.readDexFile(
-            true,
-            config.apkFile,
-            BasicDexFileNamer(),
-            null,
-            null,
-        ).also { opcodes = it.opcodes }.classes
+        DexReadWrite.readMultidexFile(config.apkFile).also { opcodes = it.opcodes }.classes
     )
 
     /**
@@ -65,7 +51,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      */
     internal fun mergeExtension(bytecodePatch: BytecodePatch) {
         bytecodePatch.extensionInputStream?.get()?.use { extensionStream ->
-            RawDexIO.readRawDexFile(extensionStream, 0, null).classes.forEach { classDef ->
+            DexReadWrite.readDexStream(extensionStream).classes.forEach { classDef ->
                 val existingClass = patchClasses.classByOrNull(classDef.type) ?: run {
                     logger.fine { "Adding class \"$classDef\"" }
 
@@ -227,11 +213,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                 it.deleteRecursively() // Make sure the directory is empty.
                 it.mkdirs()
             }.apply {
-                MultiDexIO.writeDexFile(
-                    true,
-                    -1,
+                DexReadWrite.writeMultiDexFile(
                     this,
-                    BasicDexFileNamer(),
                     object : DexFile {
                         override fun getClasses(): Set<ClassDef> {
                             val values = this@BytecodePatchContext.patchClasses.classMap.values
@@ -240,9 +223,10 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
                         override fun getOpcodes() = this@BytecodePatchContext.opcodes
                     },
-                    DexIO.DEFAULT_MAX_DEX_POOL_SIZE,
-                ) { _, entryName, _ -> logger.info { "Compiled $entryName" } }
-            }.listFiles(FileFilter { it.isFile })!!.map {
+                    -1,
+                    logger
+                )
+            }.listFiles { it.isFile }!!.map {
                 PatcherResult.PatchedDexFile(it.name, it.inputStream())
             }.toSet()
 
