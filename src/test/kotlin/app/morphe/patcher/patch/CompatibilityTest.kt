@@ -215,4 +215,127 @@ internal object CompatibilityTest {
         assertTrue(AppTarget("v1") < AppTarget("v2"))
         assertEquals(0, AppTarget("foo").compareTo(AppTarget("foo")))
     }
+
+    @Test
+    fun `sortedDescending sorts semantic versions correctly`() {
+        val list = listOf(
+            AppTarget("1.0.0"),
+            AppTarget("1.2.0"),
+            AppTarget("1.1.5"),
+            AppTarget("2.0"),
+            AppTarget("1")
+        )
+
+        val sorted = list.sortedDescending()
+
+        assertEquals(
+            listOf(
+                AppTarget("2.0"),
+                AppTarget("1.2.0"),
+                AppTarget("1.1.5"),
+                AppTarget("1.0.0"),
+                AppTarget("1")
+            ),
+            sorted
+        )
+    }
+
+    @Test
+    fun `sortedDescending sorts non semantic versions alphabetically`() {
+        val list = listOf(
+            AppTarget("beta"),
+            AppTarget("alpha"),
+            AppTarget("gamma"),
+            AppTarget("release")
+        )
+
+        val sorted = list.sortedDescending()
+
+        assertEquals(
+            listOf(
+                AppTarget("release"),
+                AppTarget("gamma"),
+                AppTarget("beta"),
+                AppTarget("alpha")
+            ),
+            sorted
+        )
+    }
+
+    @Test
+    fun `sortedDescending sorts mixed semantic and non semantic alphabetically`() {
+        val list = listOf(
+            AppTarget("1.0"),
+            AppTarget("beta"),
+            AppTarget("2.0"),
+            AppTarget("alpha")
+        )
+
+        val sorted = list.sortedDescending()
+
+        // Alphabetical because mixing semantic + non-semantic
+        assertEquals(
+            listOf(
+                AppTarget("beta"),
+                AppTarget("alpha"),
+                AppTarget("2.0"),
+                AppTarget("1.0")
+            ),
+            sorted
+        )
+    }
+
+    @Test
+    fun `sortedDescending puts null versions last`() {
+        val list = listOf(
+            AppTarget(null),
+            AppTarget("1.0"),
+            AppTarget("beta"),
+            AppTarget("2.0"),
+            AppTarget(null)
+        )
+
+        val sorted = list.sortedDescending()
+
+        assertEquals(
+            listOf(
+                AppTarget(null),
+                AppTarget(null),
+                AppTarget("beta"),
+                AppTarget("2.0"),
+                AppTarget("1.0")
+            ),
+            sorted
+        )
+    }
+
+    @Test
+    fun `sortedDescending handles complex mixed list`() {
+        val list = listOf(
+            AppTarget("1.2.3"),
+            AppTarget("1.10"),
+            AppTarget("alpha"),
+            AppTarget("1.2"),
+            AppTarget("beta"),
+            AppTarget(null),
+            AppTarget("1.2.3.4"),
+            AppTarget("rc1")
+        )
+
+        val sorted = list.sortedDescending()
+
+        assertEquals(
+            listOf(
+                AppTarget(null),
+                AppTarget("rc1"),
+                AppTarget("beta"),
+                AppTarget("alpha"),
+                AppTarget("1.10"),
+                AppTarget("1.2.3.4"),
+                AppTarget("1.2.3"),
+                AppTarget("1.2")
+            ),
+            sorted
+        )
+    }
 }
