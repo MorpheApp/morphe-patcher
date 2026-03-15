@@ -368,6 +368,172 @@ internal class ArsclibResourceCoderTest {
             "Files outside the res directory should not be detected"
         )
     }
+
+    @Test
+    fun `detect modification of binary file change`() {
+        val pkgDir = setupPackageLibDir()
+        val libDir = pkgDir.resolve("lib/arm64-v8a")
+
+        val data = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00)
+        val file = libDir.resolve("libtest.so").also { it.writeBytes(data) }
+
+        val snapshot = callBuildFileSnapshot()
+        setFileSnapshotCache(snapshot)
+
+        data[2] = 0xFF.toByte()
+        file.writeBytes(data)
+        // Ensure the timestamp changes — same-size writes may not update lastModified on fast filesystems.
+        file.setLastModified(System.currentTimeMillis() + 10_000)
+
+        callDetectFileChanges()
+
+        val modified = getModifiedResources()
+        assertTrue(modified.contains(file), "Binary file should be in modifiedResources")
+    }
+
+    private fun setupPackageLibDir(packageName: String = "com.test.app"): File {
+        val pkgDir = workingDir.resolve("root").also { it.mkdirs() }
+        pkgDir.resolve("lib/arm64-v8a").mkdirs()
+        getPackageDirectories()[packageName] = pkgDir
+        return pkgDir
+    }
+
+    // ==================== otherResourcesRootDirectory scanning tests ====================
+
+    @Test
+    fun `detectFileChanges identifies newly added files in otherResourcesRootDirectory`() {
+        // No package directories — simulates FULL mode where files are added to root/.
+        setFileSnapshotCache(emptyMap())
+
+        val rootDir = workingDir.resolve("root").also { it.mkdirs() }
+        val newFile = rootDir.resolve("assets").also { it.mkdirs() }.resolve("config.json")
+        newFile.writeText("{}")
+
+        callDetectFileChanges()
+
+        val added = getAddedResources()
+        val modified = getModifiedResources()
+
+        assertTrue(added.contains(newFile), "New file in root/ should be in addedResources")
+        assertTrue(modified.isEmpty(), "No files should be in modifiedResources")
+    }
+
+    @Test
+    fun `detectFileChanges identifies modified files in otherResourcesRootDirectory`() {
+        val rootDir = workingDir.resolve("root").also { it.mkdirs() }
+        val file = rootDir.resolve("lib").also { it.mkdirs() }.resolve("libfoo.so")
+        file.writeBytes(byteArrayOf(0x01, 0x02, 0x03))
+
+        val snapshot = callBuildFileSnapshot()
+        setFileSnapshotCache(snapshot)
+
+        // Modify the file.
+        file.writeBytes(byteArrayOf(0x01, 0x02, 0x03, 0x04))
+
+        callDetectFileChanges()
+
+        val added = getAddedResources()
+        val modified = getModifiedResources()
+
+        assertTrue(modified.contains(file), "Modified file in root/ should be in modifiedResources")
+        assertTrue(added.isEmpty(), "No files should be in addedResources")
+    }
+
+    @Test
+    fun `detectFileChanges ignores unchanged files in otherResourcesRootDirectory`() {
+        val rootDir = workingDir.resolve("root").also { it.mkdirs() }
+        val file = rootDir.resolve("assets").also { it.mkdirs() }.resolve("data.bin")
+        file.writeBytes(byteArrayOf(0xCA.toByte(), 0xFE.toByte()))
+
+        val snapshot = callBuildFileSnapshot()
+        setFileSnapshotCache(snapshot)
+
+        // Don't change anything.
+        callDetectFileChanges()
+
+        val added = getAddedResources()
+        val modified = getModifiedResources()
+
+        assertTrue(added.isEmpty(), "No files should be added")
+        assertTrue(modified.isEmpty(), "No files should be modified")
+    }
+
+    // ==================== RAW_ONLY mode tests (no packageDirectories) ====================
+
+    @Test
+    fun `detectFileChanges detects added files in RAW_ONLY mode with no package directories`() {
+        // In RAW_ONLY mode, decodeRaw() does not populate packageDirectories.
+        // detectFileChanges must still find new files under root/.
+        val rootDir = workingDir.resolve("root").also { it.mkdirs() }
+
+        // Snapshot is empty — no files existed after raw decoding.
+        setFileSnapshotCache(emptyMap())
+
+        // A patch adds a new file.
+        val newFile = rootDir.resolve("res").also { it.mkdirs() }
+            .resolve("raw").also { it.mkdirs() }
+            .resolve("patch_data.bin")
+        newFile.writeBytes(byteArrayOf(0xDE.toByte(), 0xAD.toByte()))
+
+        callDetectFileChanges()
+
+        val added = getAddedResources()
+
+        assertTrue(added.contains(newFile), "Added file should be detected even with empty packageDirectories")
+    }
+
+    @Test
+    fun `detectFileChanges detects modified files in RAW_ONLY mode with no package directories`() {
+        // In RAW_ONLY mode, decodeRaw() does not populate packageDirectories.
+        // detectFileChanges must still find modified files under root/.
+        val rootDir = workingDir.resolve("root").also { it.mkdirs() }
+        val resDir = rootDir.resolve("res").also { it.mkdirs() }
+        val file = resDir.resolve("raw").also { it.mkdirs() }.resolve("config.xml")
+        file.writeText("<config/>")
+
+        // Snapshot captured after decodeRaw().
+        val snapshot = callBuildFileSnapshot()
+        setFileSnapshotCache(snapshot)
+
+        // A patch modifies the file.
+        Thread.sleep(50)
+        file.writeText("<config><entry>patched</entry></config>")
+        file.setLastModified(System.currentTimeMillis() + 10_000)
+
+        callDetectFileChanges()
+
+        val modified = getModifiedResources()
+
+        assertTrue(modified.contains(file), "Modified file should be detected even with empty packageDirectories")
+    }
+
+    @Test
+    fun `detectFileChanges detects mix of added and modified files in RAW_ONLY mode`() {
+        // Simulate RAW_ONLY: no package directories, files live under root/.
+        val rootDir = workingDir.resolve("root").also { it.mkdirs() }
+        val existingFile = rootDir.resolve("res").also { it.mkdirs() }
+            .resolve("drawable").also { it.mkdirs() }
+            .resolve("icon.png")
+        existingFile.writeBytes(byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47))
+
+        val snapshot = callBuildFileSnapshot()
+        setFileSnapshotCache(snapshot)
+
+        // Modify existing file.
+        existingFile.writeBytes(byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A))
+
+        // Add a new file.
+        val newFile = rootDir.resolve("assets").also { it.mkdirs() }.resolve("new_asset.txt")
+        newFile.writeText("new content")
+
+        callDetectFileChanges()
+
+        val added = getAddedResources()
+        val modified = getModifiedResources()
+
+        assertTrue(added.contains(newFile), "New file under root/ should be in addedResources")
+        assertTrue(modified.contains(existingFile), "Modified file under root/ should be in modifiedResources")
+    }
 }
 
 

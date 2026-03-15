@@ -39,6 +39,7 @@ class ArsclibResourceCoder(
     private val logger = Logger.getLogger(ArsclibResourceCoder::class.java.name)
 
     private val packageDirectories = mutableMapOf<String, File>()
+    private val otherResourcesRootDirectory = workingDir.resolve("root")
     private val modifiedResources = mutableSetOf<File>()
     private val addedResources = mutableSetOf<File>()
 
@@ -82,6 +83,17 @@ class ArsclibResourceCoder(
                     // File existed but was changed.
                     modifiedResources.add(file)
                 }
+            }
+        }
+
+        otherResourcesRootDirectory.walkTopDown().filter { it.isFile }.forEach { file ->
+            val cached = fileSnapshotCache[file]
+            if (cached == null) {
+                // File did not exist in the snapshot — it was added.
+                addedResources.add(file)
+            } else if (file.lastModified() != cached.lastModified || file.length() != cached.size) {
+                // File existed but was changed.
+                modifiedResources.add(file)
             }
         }
     }
@@ -130,6 +142,10 @@ class ArsclibResourceCoder(
         val apkModule = ApkModule.loadApkFile(apkFile)
         val rawDecoder = ApkModuleRawDecoder(apkModule)
         rawDecoder.decode(workingDir)
+
+        // Build a snapshot of all file metadata after decoding, so we can detect
+        // which files are added or modified when it's time to encode.
+        fileSnapshotCache = buildFileSnapshot()
 
         return getPackageMetadata()
     }
@@ -253,6 +269,9 @@ class ArsclibResourceCoder(
 
         // Add all touched files to the other files list in raw only mode since we won't be creating a resources.apk.
         if (resourceMode == ResourceMode.RAW_ONLY) {
+            // Detect which files were added or modified since decoding.
+            detectFileChanges()
+
             (addedResources + modifiedResources).forEach {
                 val path = it.absolutePath.replace(workingDir.absolutePath, "")
                 if (path.startsWith("/root/")) {
@@ -317,7 +336,7 @@ class ArsclibResourceCoder(
             // TODO: Doesn't handle modifications to binary AndroidManifest.xml, but then again neither does apktool in raw mode.
             retval = workingDir.resolve(path)
         } else {
-            retval = workingDir.resolve("root").resolve(path)
+            retval = otherResourcesRootDirectory.resolve(path)
         }
 
         return retval
