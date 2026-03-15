@@ -191,8 +191,6 @@ The same order is followed for multiple patches depending on the patch.
   It is recommended that compatibility is specified to present known compatible packages and versions.
     - If `compatibleWith` is not used, the patch is treated as compatible with any package
 - If a package is specified with no versions, the patch is compatible with any version of the package
-- If an empty array of versions is specified, the patch is not compatible with any version of the package.
-  This is useful for declaring incompatibility with a specific package.
 - A patch can raise a `PatchException` at any time of execution to indicate that the patch failed to execute.
 
 ## ⏭️ What's next
