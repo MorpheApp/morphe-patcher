@@ -25,6 +25,7 @@ import kotlin.math.min
 
 internal object DexReadWrite {
     private const val MIN_CLASSES_PER_SEGMENT = 1000
+    private const val MAX_THREADS = 4
 
     /**
      * Reads a multidex file and returns a [DexFile] containing all classes from all dex files in the multidex file.
@@ -86,21 +87,21 @@ internal object DexReadWrite {
 
         val availableProcessors = Runtime.getRuntime().availableProcessors()
         val actualMaxThreads = if (maxThreads < 1) {
-            min(availableProcessors, 6)
+            min(availableProcessors, MAX_THREADS)
         } else {
-            min(min(maxThreads, 6), availableProcessors)
+            min(min(maxThreads, MAX_THREADS), availableProcessors)
         }
 
-        val sortedClasses = dexFile.classes.sortedBy { it.type }
+        val classesAsList = dexFile.classes.toList()
 
-        val numSegments = max(1, min(actualMaxThreads, sortedClasses.size / MIN_CLASSES_PER_SEGMENT))
+        val numSegments = max(1, min(actualMaxThreads, classesAsList.size / MIN_CLASSES_PER_SEGMENT))
 
         val segmentResults = if (numSegments == 1) {
-            listOf(processSegment(sortedClasses, dexFile.opcodes, outputDir, 0))
+            listOf(processSegment(classesAsList, dexFile.opcodes, outputDir, 0))
         } else {
-            val segments = splitIntoSegments(sortedClasses, numSegments)
+            val segments = splitIntoSegments(classesAsList, numSegments)
 
-            logger?.info("Processing ${sortedClasses.size} classes in parallel (${segments.size} threads)")
+            logger?.info("Processing ${classesAsList.size} classes in parallel (${segments.size} threads)")
 
             val dispatcher = Dispatchers.Default.limitedParallelism(numSegments)
             runBlocking(dispatcher) {
