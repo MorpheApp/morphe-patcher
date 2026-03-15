@@ -487,9 +487,11 @@ public final class app/morphe/patcher/patch/ApkFileType : java/lang/Enum {
 	public static fun values ()[Lapp/morphe/patcher/patch/ApkFileType;
 }
 
-public final class app/morphe/patcher/patch/AppTarget {
+public final class app/morphe/patcher/patch/AppTarget : java/lang/Comparable {
 	public fun <init> (Ljava/lang/String;ZLjava/lang/Integer;)V
 	public synthetic fun <init> (Ljava/lang/String;ZLjava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun compareTo (Lapp/morphe/patcher/patch/AppTarget;)I
+	public synthetic fun compareTo (Ljava/lang/Object;)I
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Z
 	public final fun component3 ()Ljava/lang/Integer;

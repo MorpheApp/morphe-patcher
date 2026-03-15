@@ -8,6 +8,7 @@ package app.morphe.patcher.patch
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 internal object CompatibilityTest {
 
@@ -175,5 +176,43 @@ internal object CompatibilityTest {
                 )
             )
         }
+    }
+
+    @Test
+    fun `AppTarget sorting`() {
+        assertTrue(AppTarget("1.0.0") < AppTarget("1.0.1"))
+        assertTrue(AppTarget("1.0.1") > AppTarget("1.0.0"))
+        assertTrue(AppTarget("1.0.111") > AppTarget("1.0.11"))
+
+        // Null handling
+        assertTrue(AppTarget(null) > AppTarget("0"))
+        assertTrue(AppTarget(null) > AppTarget("1.0"))
+        assertEquals(0, AppTarget(null).compareTo(AppTarget(null)))
+
+        // Single vs multi-segment
+        assertTrue(AppTarget("1") < AppTarget("1.1"))
+        assertTrue(AppTarget("2") > AppTarget("1.9.9"))
+
+        // Uneven segment lengths
+        assertTrue(AppTarget("1.2") < AppTarget("1.2.1"))
+        assertEquals(0, AppTarget("1.2.0").compareTo(AppTarget("1.2")))
+        assertTrue(AppTarget("1.2.3") < AppTarget("1.2.3.1"))
+        assertTrue(AppTarget("1.2.3.10") > AppTarget("1.2.3.4"))
+
+        // Larger numbers
+        assertTrue(AppTarget("10.0.0") > AppTarget("2.999.999"))
+        assertTrue(AppTarget("1.20") > AppTarget("1.3"))
+        assertEquals(0, AppTarget("1.002").compareTo(AppTarget("1.2")))
+
+        // Complex multi-part
+        assertTrue(AppTarget("1.2.3.4") < AppTarget("1.2.3.4.1"))
+        assertTrue(AppTarget("1.2.3.4.5") > AppTarget("1.2.3.4.4"))
+
+        // Non‑semantic vs non‑semantic (alphabetical)
+        assertTrue(AppTarget("beta") < AppTarget("gamma"))
+        assertTrue(AppTarget("release") > AppTarget("alpha"))
+        assertTrue(AppTarget("build-10") < AppTarget("build-2"))   // alphabetical, not numeric
+        assertTrue(AppTarget("v1") < AppTarget("v2"))
+        assertEquals(0, AppTarget("foo").compareTo(AppTarget("foo")))
     }
 }

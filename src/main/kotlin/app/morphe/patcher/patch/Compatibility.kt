@@ -42,6 +42,10 @@ enum class ApkFileType {
 }
 
 /**
+ * Instances are sortable from lowest to highest version, with any version (null) last.
+ * Semantic versioning is handled and sorts correctly in situations such as 1.1.0 > 1.0.02
+ * Non-semantic versioning is sorted alphabetically.
+ *
  * @param version Version string. Null means any version and additionally can be used to
  *   indicate any version is supported experimentally.
  * @param isExperimental If this app target is supported under an experimental capacity.
@@ -53,7 +57,40 @@ data class AppTarget(
     val isExperimental: Boolean = false,
     val minSdk: Int? = null,
     //val description: String? = null // TODO? Allow version descriptions?
-)
+) : Comparable<AppTarget> {
+
+    private val semanticParts: List<Int>? = parseSemantic(version)
+
+    override fun compareTo(other: AppTarget): Int {
+        // Null versions come last
+        if (version == null && other.version == null) return 0
+        if (version == null) return 1
+        if (other.version == null) return -1
+
+        // If both are semantic, compare numerically
+        if (semanticParts != null && other.semanticParts != null) {
+            val maxLen = maxOf(semanticParts.size, other.semanticParts.size)
+            for (i in 0 until maxLen) {
+                val a = semanticParts.getOrNull(i) ?: 0
+                val b = other.semanticParts.getOrNull(i) ?: 0
+                if (a != b) return a - b
+            }
+            return 0
+        }
+
+        // Otherwise compare alphabetically
+        return version.compareTo(other.version)
+    }
+
+    private companion object {
+        fun parseSemantic(v: String?): List<Int>? {
+            if (v == null) return null
+            val parts = v.split(".")
+            if (parts.any { it.toIntOrNull() == null }) return null
+            return parts.map { it.toInt() }
+        }
+    }
+}
 
 /**
  * @param packageName Actual app package name. Null means this is a universal patch and can
