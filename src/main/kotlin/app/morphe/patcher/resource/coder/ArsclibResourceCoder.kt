@@ -267,11 +267,11 @@ class ArsclibResourceCoder(
             }
         }
 
-        // Detect which files were added or modified since decoding.
-        detectFileChanges()
-
         // Add all touched files to the other files list in raw only mode since we won't be creating a resources.apk.
         if (resourceMode == ResourceMode.RAW_ONLY) {
+            // Detect which files were added or modified since decoding.
+            detectFileChanges()
+
             (addedResources + modifiedResources).forEach {
                 val path = it.absolutePath.replace(workingDir.absolutePath, "")
                 if (path.startsWith("/root/")) {
