@@ -1,3 +1,10 @@
+# [1.3.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.3...v1.3.0-dev.4) (2026-03-15)
+
+
+### Features
+
+* Expand Compatibility declaration ([#73](https://github.com/MorpheApp/morphe-patcher/issues/73)) ([ed99716](https://github.com/MorpheApp/morphe-patcher/commit/ed99716309e96ceef1817411314a092601691560))
+
 # [1.3.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.2...v1.3.0-dev.3) (2026-03-15)
 
 
