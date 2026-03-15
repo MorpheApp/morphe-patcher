@@ -1,3 +1,10 @@
+# [1.3.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.2...v1.3.0-dev.3) (2026-03-15)
+
+
+### Bug Fixes
+
+* Changes to resources in RAW_ONLY mode were not being picked up ([#78](https://github.com/MorpheApp/morphe-patcher/issues/78)) ([5dc1c48](https://github.com/MorpheApp/morphe-patcher/commit/5dc1c484c7d134fac7b95912dd842549c63149a7))
+
 # [1.3.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.1...v1.3.0-dev.2) (2026-03-13)
 
 
