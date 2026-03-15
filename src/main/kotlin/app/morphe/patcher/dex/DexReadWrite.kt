@@ -97,6 +97,8 @@ internal object DexReadWrite {
         val numSegments = max(1, min(actualMaxThreads, classesAsList.size / MIN_CLASSES_PER_SEGMENT))
 
         val segmentResults = if (numSegments == 1) {
+            logger?.info("Processing ${classesAsList.size} classes (single threaded mode)")
+
             listOf(processSegment(classesAsList, dexFile.opcodes, outputDir, 0))
         } else {
             val segments = splitIntoSegments(classesAsList, numSegments)
