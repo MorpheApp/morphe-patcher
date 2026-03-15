@@ -9,13 +9,36 @@ private val SHA_256_REGEX = Regex("^[0-9a-fA-F]{64}$")
 
 /**
  * Original app file type.
- * Currently only used for UI presentation.
+ *
+ * Serves two purposes:
+ * 1. Indicate the preferred/default file type for Manager UI presentation.
+ * 2. Indicates a required file type that must be used and all other types fail to patch
+ *    or are undesirable to use.
  */
 enum class ApkFileType {
     APK,
+    APK_REQUIRED,
     APKM,
-    XAPK
-    // TODO? Add types to mandate an app must be patched with a specific type like APK_REQUIRED?
+    APKM_REQUIRED,
+    APKS,
+    APKS_REQUIRED,
+    XAPK,
+    XAPK_REQUIRED;
+
+    val isApk: Boolean
+        get() = this == APK || this == APK_REQUIRED
+
+    val isApkM: Boolean
+        get() = this == APKM || this == APKM_REQUIRED
+
+    val isApkS: Boolean
+        get() = this == APKS || this == APKS_REQUIRED
+
+    val isXApk: Boolean
+        get() = this == XAPK || this == XAPK_REQUIRED
+
+    val isRequired: Boolean
+        get() = name.endsWith("_REQUIRED")
 }
 
 /**
@@ -37,7 +60,8 @@ data class AppTarget(
  *   be applied to any app.
  * @param name Actual app name.
  * @param description User facing description of the app.
- * @param apkFileType Target unpatched app type. Currently only used for Manager UI presentation.
+ * @param apkFileType Target unpatched app type. A non required type is a recommendation
+ *   but not strictly enforced and other types are still accepted.
  * @param appIconColor #RRGGBB color for the app icon background color.
  *   Only used for Manager UI presentation. Color int has full 0xFF opacity value.
  * @param signatures Valid SHA-256 signatures of the app. To find a signature, use

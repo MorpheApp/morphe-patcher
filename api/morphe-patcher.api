@@ -471,8 +471,18 @@ public final class app/morphe/patcher/logging/NoOpLogger : app/morphe/patcher/lo
 public final class app/morphe/patcher/patch/ApkFileType : java/lang/Enum {
 	public static final field APK Lapp/morphe/patcher/patch/ApkFileType;
 	public static final field APKM Lapp/morphe/patcher/patch/ApkFileType;
+	public static final field APKM_REQUIRED Lapp/morphe/patcher/patch/ApkFileType;
+	public static final field APKS Lapp/morphe/patcher/patch/ApkFileType;
+	public static final field APKS_REQUIRED Lapp/morphe/patcher/patch/ApkFileType;
+	public static final field APK_REQUIRED Lapp/morphe/patcher/patch/ApkFileType;
 	public static final field XAPK Lapp/morphe/patcher/patch/ApkFileType;
+	public static final field XAPK_REQUIRED Lapp/morphe/patcher/patch/ApkFileType;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun isApk ()Z
+	public final fun isApkM ()Z
+	public final fun isApkS ()Z
+	public final fun isRequired ()Z
+	public final fun isXApk ()Z
 	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/patch/ApkFileType;
 	public static fun values ()[Lapp/morphe/patcher/patch/ApkFileType;
 }
