@@ -10,12 +10,19 @@ import com.reandroid.json.JSONObject
  * - `extensions`: file extensions (e.g. `.png`, `.webp`) that should not be compressed.
  * - `paths`: specific file paths (e.g. `lib/x86_64/libfoo.so`) that should not be compressed.
  *
+ * The paths in `uncompressed-files.json` use the **original APK entry names** (often
+ * obfuscated, e.g. `res/-5N.png`), but callers typically query with the **on-disk alias**
+ * paths that ARSCLib generates (e.g. `res/drawable-mdpi/drawable_0x7f080695.png`).
+ * A [PathMap] is used to translate alias paths back to original names for lookup.
+ *
  * Implements [Set]<[String]> so it can be used directly with the `in` operator
- * for membership checks. A path is considered a member if it matches an exact
- * entry in [paths] **or** if its extension matches one in [extensions].
+ * for membership checks. A path is considered a member if it (or its original APK
+ * name resolved via the path map) matches an exact entry in [paths], **or** if its
+ * file extension matches one in [extensions].
  */
 internal class UncompressedFiles(
-    uncompressedFilesJson: String
+    uncompressedFilesJson: String,
+    private val pathMap: PathMap = PathMap.EMPTY,
 ) : AbstractSet<String>() {
 
     private val extensions: Set<String>
@@ -51,12 +58,18 @@ internal class UncompressedFiles(
     override val size: Int get() = paths.size
 
     /**
-     * Returns `true` if [element] is an exact path in the uncompressed set,
-     * **or** if its file extension matches one of the uncompressed extensions.
+     * Returns `true` if [element] (or the original APK name it maps to via
+     * the [PathMap]) is an exact path in the uncompressed set, **or** if its
+     * file extension matches one of the uncompressed extensions.
      */
     override fun contains(element: String): Boolean {
         val normalized = sanitizePath(element)
         if (paths.contains(normalized)) return true
+
+        // The element may be an on-disk alias; resolve to original APK name.
+        val originalName = pathMap.getOriginalName(normalized)
+        if (originalName != null && paths.contains(originalName)) return true
+
         return matchesExtension(normalized)
     }
 

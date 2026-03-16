@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.resource.coder
 
+import app.morphe.patcher.resource.PathMap
 import app.morphe.patcher.resource.ResourceMode
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -595,5 +596,228 @@ internal class ArsclibResourceCoderTest {
 
         assertEquals("assets/data/config/settings.json", finalPath,
             "Binary path stripping should preserve nested directory structure under root/")
+    }
+
+    // ==================== getFile PathMap aliasing tests ====================
+
+    @Test
+    fun `getFile resolves aliased res path when path map has mapping`() {
+        val pkgDir = setupPackageDir()
+
+        // On disk the file lives at the alias path
+        val aliasDir = pkgDir.resolve("res/drawable-mdpi").also { it.mkdirs() }
+        val aliasFile = aliasDir.resolve("drawable_0x7f080695.png").also { it.writeText("PNG") }
+
+        coder.pathMap = PathMap("""[
+            {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"}
+        ]""")
+
+        // A caller asks for the original APK name
+        val result = coder.getFile("res/-5N.png", packageName = "com.test.app")
+
+        assertEquals(aliasFile.absolutePath, result.absolutePath,
+            "getFile should resolve the original name to the on-disk alias via the path map")
+    }
+
+    @Test
+    fun `getFile resolves unmapped res path directly`() {
+        val pkgDir = setupPackageDir()
+
+        val valuesDir = pkgDir.resolve("res/values").also { it.mkdirs() }
+        val stringsFile = valuesDir.resolve("strings.xml").also { it.writeText("<resources/>") }
+
+        coder.pathMap = PathMap("""[
+            {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"}
+        ]""")
+
+        // "res/values/strings.xml" has no path map entry — should resolve as-is
+        val result = coder.getFile("res/values/strings.xml", packageName = "com.test.app")
+
+        assertEquals(stringsFile.absolutePath, result.absolutePath,
+            "getFile should resolve unmapped paths directly without aliasing")
+    }
+
+    @Test
+    fun `getFile resolves aliased path already using alias name`() {
+        val pkgDir = setupPackageDir()
+
+        val aliasDir = pkgDir.resolve("res/drawable-mdpi").also { it.mkdirs() }
+        val aliasFile = aliasDir.resolve("drawable_0x7f080695.png").also { it.writeText("PNG") }
+
+        coder.pathMap = PathMap("""[
+            {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"}
+        ]""")
+
+        // A caller directly asks for the alias path — getAlias returns null so it resolves as-is
+        val result = coder.getFile("res/drawable-mdpi/drawable_0x7f080695.png", packageName = "com.test.app")
+
+        assertEquals(aliasFile.absolutePath, result.absolutePath,
+            "getFile should still work when called with the alias path directly")
+    }
+
+    @Test
+    fun `getFile resolves AndroidManifest without aliasing`() {
+        val manifest = workingDir.resolve("AndroidManifest.xml").also { it.writeText("<manifest/>") }
+
+        coder.pathMap = PathMap("""[
+            {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"}
+        ]""")
+
+        val result = coder.getFile("AndroidManifest.xml", packageName = "com.test.app")
+
+        assertEquals(manifest.absolutePath, result.absolutePath,
+            "AndroidManifest.xml should resolve to the working directory")
+    }
+
+    @Test
+    fun `getFile resolves aliased root file via path map`() {
+        val rootDir = workingDir.resolve("root").also { it.mkdirs() }
+        val aliasDir = rootDir.resolve("assets/data").also { it.mkdirs() }
+        val aliasFile = aliasDir.resolve("config_aliased.bin").also { it.writeBytes(byteArrayOf(0x01)) }
+
+        coder.pathMap = PathMap("""[
+            {"name": "assets/config.bin", "alias": "assets/data/config_aliased.bin"}
+        ]""")
+
+        val result = coder.getFile("assets/config.bin", packageName = "com.test.app")
+
+        assertEquals(aliasFile.absolutePath, result.absolutePath,
+            "getFile should resolve root files via path map alias")
+    }
+
+    @Test
+    fun `getFile with empty path map resolves paths directly`() {
+        val pkgDir = setupPackageDir()
+        val drawableDir = pkgDir.resolve("res/drawable").also { it.mkdirs() }
+        val file = drawableDir.resolve("icon.png").also { it.writeText("PNG") }
+
+        coder.pathMap = PathMap.EMPTY
+
+        val result = coder.getFile("res/drawable/icon.png", packageName = "com.test.app")
+
+        assertEquals(file.absolutePath, result.absolutePath,
+            "getFile with empty path map should resolve paths directly")
+    }
+
+    // ==================== getOtherResourceFiles unaliasing tests ====================
+
+    @Test
+    fun `getOtherResourceFiles unaliases modified res resource paths in RAW_ONLY mode`() {
+        val pkgDir = setupPackageDir()
+        val resDir = pkgDir.resolve("res")
+        val drawableDir = resDir.resolve("drawable-mdpi").also { it.mkdirs() }
+        val aliasFile = drawableDir.resolve("drawable_0x7f080695.png").also { it.writeText("PNG") }
+
+        coder.fileSnapshotCache = emptyMap()
+        coder.pathMap = PathMap("""[
+            {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"}
+        ]""")
+
+        val outputDir = workingDir.resolveSibling("output").also { it.mkdirs() }
+        val result = coder.getOtherResourceFiles(outputDir, ResourceMode.RAW_ONLY)!!
+
+        // The file should be moved to the output dir under the original APK name
+        val expectedFile = result.resolve("res/-5N.png")
+        assertTrue(expectedFile.exists(),
+            "Modified res file should be moved to the original APK name path, not the alias. " +
+            "Contents of output: ${result.walkTopDown().filter { it.isFile }.map { it.relativeTo(result).path }.toList()}")
+    }
+
+    @Test
+    fun `getOtherResourceFiles unaliases modified binary resource paths in RAW_ONLY mode`() {
+        setupPackageDir() // Need at least one package dir for the method to work
+        val rootDir = workingDir.resolve("root").also { it.mkdirs() }
+        val aliasDir = rootDir.resolve("assets/data").also { it.mkdirs() }
+        aliasDir.resolve("config_aliased.bin").also { it.writeBytes(byteArrayOf(0x01)) }
+
+        coder.fileSnapshotCache = emptyMap()
+        coder.pathMap = PathMap("""[
+            {"name": "assets/config.bin", "alias": "assets/data/config_aliased.bin"}
+        ]""")
+
+        val outputDir = workingDir.resolveSibling("output").also { it.mkdirs() }
+        val result = coder.getOtherResourceFiles(outputDir, ResourceMode.RAW_ONLY)!!
+
+        val expectedFile = result.resolve("assets/config.bin")
+        assertTrue(expectedFile.exists(),
+            "Modified binary file should be moved to the original APK name path, not the alias. " +
+            "Contents of output: ${result.walkTopDown().filter { it.isFile }.map { it.relativeTo(result).path }.toList()}")
+    }
+
+    @Test
+    fun `getOtherResourceFiles preserves unmapped paths in RAW_ONLY mode`() {
+        val pkgDir = setupPackageDir()
+        val resDir = pkgDir.resolve("res")
+        val valuesDir = resDir.resolve("values").also { it.mkdirs() }
+        valuesDir.resolve("strings.xml").also { it.writeText("<resources/>") }
+
+        coder.fileSnapshotCache = emptyMap()
+        coder.pathMap = PathMap("""[
+            {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"}
+        ]""")
+
+        val outputDir = workingDir.resolveSibling("output").also { it.mkdirs() }
+        val result = coder.getOtherResourceFiles(outputDir, ResourceMode.RAW_ONLY)!!
+
+        // strings.xml has no path map entry — should keep its path as-is
+        val expectedFile = result.resolve("res/values/strings.xml")
+        assertTrue(expectedFile.exists(),
+            "Unmapped file should keep its original path. " +
+            "Contents of output: ${result.walkTopDown().filter { it.isFile }.map { it.relativeTo(result).path }.toList()}")
+    }
+
+    @Test
+    fun `getOtherResourceFiles handles mix of mapped and unmapped paths in RAW_ONLY mode`() {
+        val pkgDir = setupPackageDir()
+        val resDir = pkgDir.resolve("res")
+
+        // Mapped file (alias on disk)
+        val drawableDir = resDir.resolve("drawable-mdpi").also { it.mkdirs() }
+        drawableDir.resolve("drawable_0x7f080695.png").also { it.writeText("PNG") }
+
+        // Unmapped file (same name on disk and in APK)
+        val valuesDir = resDir.resolve("values").also { it.mkdirs() }
+        valuesDir.resolve("strings.xml").also { it.writeText("<resources/>") }
+
+        // Unmapped binary file
+        val rootDir = workingDir.resolve("root").also { it.mkdirs() }
+        val libDir = rootDir.resolve("lib/arm64-v8a").also { it.mkdirs() }
+        libDir.resolve("libfoo.so").also { it.writeBytes(byteArrayOf(0x7F, 0x45, 0x4C, 0x46)) }
+
+        coder.fileSnapshotCache = emptyMap()
+        coder.pathMap = PathMap("""[
+            {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"}
+        ]""")
+
+        val outputDir = workingDir.resolveSibling("output").also { it.mkdirs() }
+        val result = coder.getOtherResourceFiles(outputDir, ResourceMode.RAW_ONLY)!!
+
+        val outputFiles = result.walkTopDown().filter { it.isFile }
+            .map { it.relativeTo(result).invariantSeparatorsPath }.toSet()
+
+        assertTrue("res/-5N.png" in outputFiles,
+            "Mapped res file should be unaliased to original APK name. Output: $outputFiles")
+        assertTrue("res/values/strings.xml" in outputFiles,
+            "Unmapped res file should keep its path. Output: $outputFiles")
+        assertTrue("lib/arm64-v8a/libfoo.so" in outputFiles,
+            "Unmapped binary file should keep its path. Output: $outputFiles")
+    }
+
+    @Test
+    fun `getOtherResourceFiles with empty path map preserves all paths in RAW_ONLY mode`() {
+        val pkgDir = setupPackageDir()
+        val resDir = pkgDir.resolve("res")
+        val drawableDir = resDir.resolve("drawable").also { it.mkdirs() }
+        drawableDir.resolve("icon.png").also { it.writeText("PNG") }
+
+        coder.fileSnapshotCache = emptyMap()
+        coder.pathMap = PathMap.EMPTY
+
+        val outputDir = workingDir.resolveSibling("output").also { it.mkdirs() }
+        val result = coder.getOtherResourceFiles(outputDir, ResourceMode.RAW_ONLY)!!
+
+        val expectedFile = result.resolve("res/drawable/icon.png")
+        assertTrue(expectedFile.exists(),
+            "With empty path map, files should keep their on-disk paths")
     }
 }

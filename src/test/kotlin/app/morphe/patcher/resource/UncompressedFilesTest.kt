@@ -342,5 +342,181 @@ internal object UncompressedFilesTest {
         assertFalse("res/strings.json" in set)
         assertFalse("lib/x86_64/libbar.txt" in set)
     }
-}
 
+    // ==================== PathMap integration tests ====================
+
+    @Test
+    fun `contains resolves alias to original name via path map`() {
+        val uncompressedJson = """
+            {
+                "extensions": [],
+                "paths": ["res/-5N.png"]
+            }
+        """.trimIndent()
+
+        val pathMapJson = """[
+            {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"}
+        ]"""
+
+        val pathMap = PathMap(pathMapJson)
+        val set = UncompressedFiles(uncompressedJson, pathMap)
+
+        // Query with the on-disk alias path — should resolve to the original name
+        assertTrue("res/drawable-mdpi/drawable_0x7f080695.png" in set,
+            "Alias path should match after resolving to original name via path map")
+
+        // Direct original name should also still work
+        assertTrue("res/-5N.png" in set,
+            "Original name should match directly")
+    }
+
+    @Test
+    fun `contains works for unmapped paths with path map present`() {
+        val uncompressedJson = """
+            {
+                "extensions": [],
+                "paths": ["lib/x86_64/libfoo.so", "resources.arsc"]
+            }
+        """.trimIndent()
+
+        val pathMapJson = """[
+            {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"}
+        ]"""
+
+        val pathMap = PathMap(pathMapJson)
+        val set = UncompressedFiles(uncompressedJson, pathMap)
+
+        // Unmapped paths (same name on disk and in APK) should still work
+        assertTrue("lib/x86_64/libfoo.so" in set)
+        assertTrue("resources.arsc" in set)
+    }
+
+    @Test
+    fun `contains still matches extensions when path map has no mapping`() {
+        val uncompressedJson = """
+            {
+                "extensions": [".png"],
+                "paths": []
+            }
+        """.trimIndent()
+
+        val pathMapJson = """[
+            {"name": "res/zzy.xml", "alias": "res/drawable/drawable_0x7f080441.xml"}
+        ]"""
+
+        val pathMap = PathMap(pathMapJson)
+        val set = UncompressedFiles(uncompressedJson, pathMap)
+
+        // Extension matching should work even for alias paths not in the paths set
+        assertTrue("res/drawable-mdpi/drawable_0x7f080695.png" in set,
+            "Extension match should work for alias paths")
+
+        // And for original names too
+        assertTrue("res/-5N.png" in set)
+    }
+
+    @Test
+    fun `contains resolves multiple aliases correctly`() {
+        val uncompressedJson = """
+            {
+                "extensions": [],
+                "paths": ["res/-5N.png", "res/zzy.xml", "res/-v_.webp"]
+            }
+        """.trimIndent()
+
+        val pathMapJson = """[
+            {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"},
+            {"name": "res/zzy.xml", "alias": "res/drawable/drawable_0x7f080441.xml"},
+            {"name": "res/-v_.webp", "alias": "res/drawable-hdpi/drawable_0x7f080123.webp"}
+        ]"""
+
+        val pathMap = PathMap(pathMapJson)
+        val set = UncompressedFiles(uncompressedJson, pathMap)
+
+        assertTrue("res/drawable-mdpi/drawable_0x7f080695.png" in set)
+        assertTrue("res/drawable/drawable_0x7f080441.xml" in set)
+        assertTrue("res/drawable-hdpi/drawable_0x7f080123.webp" in set)
+
+        // Unknown alias should not match
+        assertFalse("res/drawable/unknown.xml" in set)
+    }
+
+    @Test
+    fun `contains does not match alias path that resolves to a name not in paths`() {
+        val uncompressedJson = """
+            {
+                "extensions": [],
+                "paths": ["res/-5N.png"]
+            }
+        """.trimIndent()
+
+        val pathMapJson = """[
+            {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"},
+            {"name": "res/zzH.xml", "alias": "res/layout/layout_0x7f0e0027.xml"}
+        ]"""
+
+        val pathMap = PathMap(pathMapJson)
+        val set = UncompressedFiles(uncompressedJson, pathMap)
+
+        // This alias resolves to res/zzH.xml which is NOT in the uncompressed paths
+        assertFalse("res/layout/layout_0x7f0e0027.xml" in set,
+            "Alias resolving to a name not in the paths set should not match")
+    }
+
+    @Test
+    fun `contains with path map and backslash alias lookup`() {
+        val uncompressedJson = """
+            {
+                "extensions": [],
+                "paths": ["res/-5N.png"]
+            }
+        """.trimIndent()
+
+        val pathMapJson = """[
+            {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"}
+        ]"""
+
+        val pathMap = PathMap(pathMapJson)
+        val set = UncompressedFiles(uncompressedJson, pathMap)
+
+        // Windows-style backslash alias should still resolve
+        assertTrue("res\\drawable-mdpi\\drawable_0x7f080695.png" in set)
+    }
+
+    @Test
+    fun `real-world scenario with mixed mapped and unmapped paths`() {
+        val uncompressedJson = """
+            {
+                "extensions": [".png", ".webp"],
+                "paths": [
+                    "res/-5N.png",
+                    "lib/x86_64/libfoo.so",
+                    "resources.arsc",
+                    "assets/config.bin"
+                ]
+            }
+        """.trimIndent()
+
+        val pathMapJson = """[
+            {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"}
+        ]"""
+
+        val pathMap = PathMap(pathMapJson)
+        val set = UncompressedFiles(uncompressedJson, pathMap)
+
+        // Mapped path: lookup by alias resolves to original name in paths
+        assertTrue("res/drawable-mdpi/drawable_0x7f080695.png" in set)
+
+        // Unmapped paths: same name on disk and in APK
+        assertTrue("lib/x86_64/libfoo.so" in set)
+        assertTrue("resources.arsc" in set)
+        assertTrue("assets/config.bin" in set)
+
+        // Extension match for a newly added file (not in paths, not in path map)
+        assertTrue("res/drawable-xxhdpi/new_icon.png" in set)
+        assertTrue("res/drawable/new_bg.webp" in set)
+
+        // No match
+        assertFalse("res/layout/activity_main.xml" in set)
+    }
+}

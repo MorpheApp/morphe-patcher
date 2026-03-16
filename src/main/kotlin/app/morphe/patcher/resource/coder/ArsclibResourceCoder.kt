@@ -7,6 +7,7 @@ package app.morphe.patcher.resource.coder
 
 import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.resource.PathMap
 import app.morphe.patcher.resource.PublicXmlManager
 import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.resource.UncompressedFiles
@@ -50,6 +51,7 @@ class ArsclibResourceCoder(
      */
     internal data class FileSnapshot(val lastModified: Long, val size: Long)
     internal var fileSnapshotCache: Map<File, FileSnapshot> = emptyMap()
+    internal var pathMap: PathMap = PathMap.EMPTY
 
     /**
      * Recursively scan the working directory and build a map of file paths to their metadata.
@@ -125,6 +127,15 @@ class ArsclibResourceCoder(
         )
     }
 
+    private fun readPathMap(): PathMap {
+        val pathMapJsonFile = workingDir.resolve("path-map.json")
+        return if (pathMapJsonFile.exists()) {
+            PathMap(pathMapJsonFile.readText(Charsets.UTF_8))
+        } else {
+            PathMap.EMPTY
+        }
+    }
+
     override fun getPackageMetadata(): PackageMetadata {
         return PackageMetadata(
             lazyPackageInfo.value.packageName,
@@ -141,6 +152,7 @@ class ArsclibResourceCoder(
         // Build a snapshot of all file metadata after decoding, so we can detect
         // which files are added or modified when it's time to encode.
         fileSnapshotCache = buildFileSnapshot()
+        pathMap = readPathMap()
 
         return getPackageMetadata()
     }
@@ -178,6 +190,7 @@ class ArsclibResourceCoder(
         // Build a snapshot of all file metadata after decoding, so we can detect
         // which files are added or modified when it's time to encode.
         fileSnapshotCache = buildFileSnapshot()
+        pathMap = readPathMap()
 
         return getPackageMetadata()
     }
@@ -270,12 +283,15 @@ class ArsclibResourceCoder(
             modifiedResResources.forEach {
                 val path = it.absoluteFile.invariantSeparatorsPath.replace(workingDirPath, "")
                 val subPath = path.substringAfter("/resources/").substringAfter("/")
-                otherFiles[it] = otherResourcesDir.resolve(subPath)
+                val unaliasedPath = pathMap.getOriginalName(subPath) ?: subPath
+                otherFiles[it] = otherResourcesDir.resolve(unaliasedPath)
             }
 
             modifiedBinaryResources.forEach {
                 val path = it.absoluteFile.invariantSeparatorsPath.replace(workingDirPath, "")
-                otherFiles[it] = otherResourcesDir.resolve(path.replace("/root/", ""))
+                val subPath = path.substringAfter("/root/")
+                val unaliasedPath = pathMap.getOriginalName(subPath) ?: subPath
+                otherFiles[it] = otherResourcesDir.resolve(unaliasedPath)
             }
 
             val binaryManifest = workingDir.resolve("AndroidManifest.xml.bin")
@@ -300,9 +316,10 @@ class ArsclibResourceCoder(
     }
 
     override fun getUncompressedFiles(): Set<String> {
-        val jsonFile = workingDir.resolve("uncompressed-files.json")
-        if (!jsonFile.exists()) return emptySet()
-        return UncompressedFiles(jsonFile.readText(Charsets.UTF_8))
+        val uncompressedJsonFile = workingDir.resolve("uncompressed-files.json")
+        if (!uncompressedJsonFile.exists()) return emptySet()
+
+        return UncompressedFiles(uncompressedJsonFile.readText(Charsets.UTF_8), pathMap)
     }
 
     /**
@@ -327,13 +344,15 @@ class ArsclibResourceCoder(
 
         val retval: File
 
-        if (path == "res" || path.startsWith("res/") || path == "package.json") {
-            retval = packageDirectories[pkgName]?.resolve(path) ?: throw PatchException("Package $pkgName not found")
-        } else if (path == "AndroidManifest.xml") {
+        val aliasedPath = pathMap.getAlias(path) ?: path
+
+        if (aliasedPath == "res" || aliasedPath.startsWith("res/") || aliasedPath == "package.json") {
+            retval = packageDirectories[pkgName]?.resolve(aliasedPath) ?: throw PatchException("Package $pkgName not found")
+        } else if (aliasedPath == "AndroidManifest.xml") {
             // TODO: Doesn't handle modifications to binary AndroidManifest.xml, but then again neither does apktool in raw mode.
-            retval = workingDir.resolve(path)
+            retval = workingDir.resolve(aliasedPath)
         } else {
-            retval = otherResourcesRootDirectory.resolve(path)
+            retval = otherResourcesRootDirectory.resolve(aliasedPath)
         }
 
         return retval
