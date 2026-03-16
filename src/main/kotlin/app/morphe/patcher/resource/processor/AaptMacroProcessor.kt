@@ -23,8 +23,7 @@ import javax.xml.transform.stream.StreamResult
 
 internal class AaptMacroProcessor(
     internal val get: (path: String) -> File,
-    internal val modifiedResources: Set<File>,
-    internal val addedResources: MutableSet<File>,
+    internal val modifiedResResources: MutableSet<File>,
 ) {
     private val logger = Logger.getLogger(AaptMacroProcessor::class.java.name)
 
@@ -45,7 +44,7 @@ internal class AaptMacroProcessor(
         // Additionally, handle the process of creating new IDs here so we don't have to read the same files again.
         // (This will require refactoring of the code that handles public.xml id generation.)
         val newlyCreatedFiles = mutableSetOf<File>()
-        (modifiedResources + addedResources)
+        modifiedResResources
             .filter { it.exists() && it.extension == "xml" }
             .forEach { newlyCreatedFiles += processDocument(it) }
     }
@@ -136,6 +135,6 @@ internal class AaptMacroProcessor(
         file.utf8Writer().use { writer ->
             transformer.transform(DOMSource(doc), StreamResult(writer))
         }
-        addedResources.add(file)
+        modifiedResResources.add(file)
     }
 }

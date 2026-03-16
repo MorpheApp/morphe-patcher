@@ -21,8 +21,7 @@ import java.util.logging.Logger
 internal class ResourceIdProcessor(
     internal val get: (path: String) -> File,
     internal val publicIdManager: PublicXmlManager,
-    internal val modifiedResources: Set<File>,
-    internal val addedResources: Set<File>,
+    internal val modifiedResResources: Set<File>,
 ) {
     private val logger = Logger.getLogger(ResourceIdProcessor::class.java.name)
 
@@ -38,7 +37,7 @@ internal class ResourceIdProcessor(
             val idNode = idDoc.getElementsByTagName("resources").item(0)
                 ?: throw IllegalStateException("ids.xml is missing the <resources> root element.")
 
-            (modifiedResources + addedResources)
+            modifiedResResources
                 .filter { it.exists() && it.extension == "xml" }
                 .forEach {
                     processIdAndAttrDeclarations(it, idNode)

@@ -38,25 +38,27 @@ class ArsclibResourceCoder(
 ) : ResourceCoder {
     private val logger = Logger.getLogger(ArsclibResourceCoder::class.java.name)
 
-    private val packageDirectories = mutableMapOf<String, File>()
-    private val otherResourcesRootDirectory = workingDir.resolve("root")
-    private val modifiedResources = mutableSetOf<File>()
-    private val addedResources = mutableSetOf<File>()
+    internal val packageDirectories = mutableMapOf<String, File>()
+    internal val otherResourcesRootDirectory = workingDir.resolve("root")
+    internal val modifiedResResources = mutableSetOf<File>()
+    internal val modifiedBinaryResources = mutableSetOf<File>()
 
     /**
      * Snapshot of file metadata (modification time and size) captured after decoding resources.
      * Used to detect which files were added or modified between decoding and encoding.
      */
-    private data class FileSnapshot(val lastModified: Long, val size: Long)
-
-    private var fileSnapshotCache: Map<File, FileSnapshot> = emptyMap()
+    internal data class FileSnapshot(val lastModified: Long, val size: Long)
+    internal var fileSnapshotCache: Map<File, FileSnapshot> = emptyMap()
 
     /**
      * Recursively scan the working directory and build a map of file paths to their metadata.
      */
-    private fun buildFileSnapshot(): Map<File, FileSnapshot> {
+    internal fun buildFileSnapshot(): Map<File, FileSnapshot> {
         val snapshot = mutableMapOf<File, FileSnapshot>()
-        workingDir.walkTopDown().filter { it.isFile }.forEach { file ->
+        workingDir.resolve("resources").walkTopDown().filter { it.isFile }.forEach { file ->
+            snapshot[file] = FileSnapshot(file.lastModified(), file.length())
+        }
+        workingDir.resolve("root").walkTopDown().filter { it.isFile }.forEach { file ->
             snapshot[file] = FileSnapshot(file.lastModified(), file.length())
         }
         return snapshot
@@ -64,11 +66,11 @@ class ArsclibResourceCoder(
 
     /**
      * Compare the current file state against the cached snapshot to populate
-     * [addedResources] and [modifiedResources].
+     * [modifiedResResources] and [modifiedBinaryResources].
      */
-    private fun detectFileChanges() {
-        addedResources.clear()
-        modifiedResources.clear()
+    internal fun detectFileChanges() {
+        modifiedResResources.clear()
+        modifiedBinaryResources.clear()
 
         packageDirectories.forEach { (_, packageDir) ->
             packageDir.resolve("res").walkTopDown().filter { it.isFile }.forEach { file ->
@@ -76,24 +78,16 @@ class ArsclibResourceCoder(
                 if (excludedPaths.contains(relativePath)) return@forEach
 
                 val cached = fileSnapshotCache[file]
-                if (cached == null) {
-                    // File did not exist in the snapshot — it was added.
-                    addedResources.add(file)
-                } else if (file.lastModified() != cached.lastModified || file.length() != cached.size) {
-                    // File existed but was changed.
-                    modifiedResources.add(file)
+                if (cached == null || file.lastModified() != cached.lastModified || file.length() != cached.size) {
+                    modifiedResResources.add(file)
                 }
             }
         }
 
         otherResourcesRootDirectory.walkTopDown().filter { it.isFile }.forEach { file ->
             val cached = fileSnapshotCache[file]
-            if (cached == null) {
-                // File did not exist in the snapshot — it was added.
-                addedResources.add(file)
-            } else if (file.lastModified() != cached.lastModified || file.length() != cached.size) {
-                // File existed but was changed.
-                modifiedResources.add(file)
+            if (cached == null || file.lastModified() != cached.lastModified || file.length() != cached.size) {
+                modifiedBinaryResources.add(file)
             }
         }
     }
@@ -216,16 +210,14 @@ class ArsclibResourceCoder(
             // Post process all aapt:attr macros in XML files.
             AaptMacroProcessor(
                 this@ArsclibResourceCoder::getFile,
-                modifiedResources,
-                addedResources
+                modifiedResResources
             ).process()
 
             // Process all XMLs to ensure we have IDs generated for each one.
             ResourceIdProcessor(
                 this@ArsclibResourceCoder::getFile,
                 publicXmlManager,
-                modifiedResources,
-                addedResources
+                modifiedResResources
             ).process()
         }
 
@@ -272,24 +264,27 @@ class ArsclibResourceCoder(
             // Detect which files were added or modified since decoding.
             detectFileChanges()
 
-            (addedResources + modifiedResources).forEach {
-                val path = it.absolutePath.replace(workingDir.absolutePath, "")
-                if (path.startsWith("/root/")) {
-                    otherFiles[it] = otherResourcesDir.resolve(path.replace("/root/", ""))
-                } else {
-                    val subPath = path.substringAfter("/resources/").substringAfter("/")
-                    otherFiles[it] = otherResourcesDir.resolve(subPath)
-                }
+            val workingDirPath = workingDir.absoluteFile.invariantSeparatorsPath
+
+            modifiedResResources.forEach {
+                val path = it.absoluteFile.invariantSeparatorsPath.replace(workingDirPath, "")
+                val subPath = path.substringAfter("/resources/").substringAfter("/")
+                otherFiles[it] = otherResourcesDir.resolve(subPath)
+            }
+
+            modifiedBinaryResources.forEach {
+                val path = it.absoluteFile.invariantSeparatorsPath.replace(workingDirPath, "")
+                otherFiles[it] = otherResourcesDir.resolve(path.replace("/root/", ""))
             }
 
             val binaryManifest = workingDir.resolve("AndroidManifest.xml.bin")
-            val modifiedManifest = workingDir.resolve("AndroidManifest.xml")
             if (binaryManifest.exists()) {
-                otherFiles[binaryManifest] = modifiedManifest
+                otherFiles[binaryManifest] = workingDir.resolve("AndroidManifest.xml")
             }
         }
 
         return if (otherFiles.isNotEmpty()) {
+            logger.info("Moving ${otherFiles.size} resource files")
             otherFiles.forEach { (src, dest) ->
                 dest.parentFile.mkdirs()
                 Files.move(src.toPath(),
