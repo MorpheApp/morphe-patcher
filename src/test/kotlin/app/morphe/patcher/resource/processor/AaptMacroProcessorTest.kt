@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import kotlin.test.assertContains
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -59,7 +60,7 @@ internal object AaptMacroProcessorTest {
 
         // Verify the extracted file was created
         assertTrue(addedResources.isNotEmpty(), "Expected extracted drawable file")
-        val extractedFile = addedResources.first()
+        val extractedFile = addedResources.last()
         assertTrue(extractedFile.exists(), "Extracted file should exist on disk")
 
         // Verify the extracted file contains the gradient
@@ -124,7 +125,7 @@ internal object AaptMacroProcessorTest {
         setupAndProcess(xmlContent, addedResources)
 
         // No files should have been extracted
-        assertTrue(addedResources.isEmpty(), "Expected no extracted files when no aapt namespace")
+        assertEquals(addedResources.size, 1, "Expected no extracted files when no aapt namespace")
     }
 
     // ==================== UTF-8 encoding tests ====================
@@ -150,7 +151,7 @@ internal object AaptMacroProcessorTest {
         setupAndProcess(xmlContent, addedResources)
 
         // Find the extracted file
-        val extractedFile = addedResources.first()
+        val extractedFile = addedResources.last()
         val bytes = extractedFile.readBytes()
 
         // é (U+00E9) in UTF-8 is 0xC3 0xA9
@@ -176,7 +177,7 @@ internal object AaptMacroProcessorTest {
 
         setupAndProcess(xmlContent, addedResources)
 
-        val extractedFile = addedResources.first()
+        val extractedFile = addedResources.last()
         val bytes = extractedFile.readBytes()
 
         // ← (U+2190) in UTF-8 is E2 86 90
@@ -230,7 +231,7 @@ internal object AaptMacroProcessorTest {
 
         setupAndProcess(xmlContent, addedResources)
 
-        val extractedFile = addedResources.first()
+        val extractedFile = addedResources.last()
         val fixedBytes = extractedFile.readBytes()
         val arrowUtf8 = byteArrayOf(0xE2.toByte(), 0x86.toByte(), 0x90.toByte())
 
@@ -257,12 +258,12 @@ internal object AaptMacroProcessorTest {
         val sourceFile = drawableDir.resolve("test_icon.xml")
         sourceFile.writeText(xmlContent, Charsets.UTF_8)
 
+        addedResources.add(sourceFile)
         val processor = AaptMacroProcessor(
             get = { path ->
                 resDir.resolve(path.removePrefix("res/")).also { it.parentFile.mkdirs() }
             },
-            modifiedResources = setOf(sourceFile),
-            addedResources = addedResources,
+            modifiedResResources = addedResources
         )
 
         processor.process()
