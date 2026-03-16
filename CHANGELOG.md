@@ -1,3 +1,10 @@
+# [1.3.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.4...v1.3.0-dev.5) (2026-03-16)
+
+
+### Bug Fixes
+
+* RAW_ONLY handling on Windows, uncompressed files ([#79](https://github.com/MorpheApp/morphe-patcher/issues/79)) ([c25e5f8](https://github.com/MorpheApp/morphe-patcher/commit/c25e5f832e24854805758168359a0ec9c432f9ae))
+
 # [1.3.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.3...v1.3.0-dev.4) (2026-03-15)
 
 
