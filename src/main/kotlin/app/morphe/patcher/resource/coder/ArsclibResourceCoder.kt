@@ -9,6 +9,7 @@ import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.PublicXmlManager
 import app.morphe.patcher.resource.ResourceMode
+import app.morphe.patcher.resource.UncompressedFiles
 import app.morphe.patcher.resource.processor.AaptMacroProcessor
 import app.morphe.patcher.resource.processor.StringsXmlEscapeProcessor
 import app.morphe.patcher.resource.processor.PackageRenamingProcessor
@@ -298,10 +299,11 @@ class ArsclibResourceCoder(
         }
     }
 
-    /**
-     * No-op, this is already handled by arsclib during encoding.
-     */
-    override fun getUncompressedFiles(): Set<String> = emptySet()
+    override fun getUncompressedFiles(): Set<String> {
+        val jsonFile = workingDir.resolve("uncompressed-files.json")
+        if (!jsonFile.exists()) return emptySet()
+        return UncompressedFiles(jsonFile.readText(Charsets.UTF_8))
+    }
 
     /**
      * No-op, not currently supported by ArsclibResourceCoder.
