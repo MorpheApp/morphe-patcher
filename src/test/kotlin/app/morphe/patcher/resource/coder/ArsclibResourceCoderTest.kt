@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.resource.coder
 
+import app.morphe.patcher.resource.ResourceMode
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -178,10 +179,7 @@ internal class ArsclibResourceCoderTest {
         coder.detectFileChanges()
 
         assertTrue(coder.modifiedResResources.isEmpty(), "public.xml should be excluded from modifiedResResources")
-        assertTrue(
-            coder.modifiedBinaryResources.isEmpty(),
-            "public.xml should be excluded from modifiedBinaryResources"
-        )
+        assertTrue(coder.modifiedBinaryResources.isEmpty(), "public.xml should be excluded from modifiedBinaryResources")
     }
 
     @Test
@@ -348,10 +346,7 @@ internal class ArsclibResourceCoderTest {
         coder.detectFileChanges()
 
         assertTrue(coder.modifiedResResources.isEmpty(), "Binary file should not be in modifiedResResources")
-        assertTrue(
-            coder.modifiedBinaryResources.contains(newFile),
-            "New file in root/ should be in modifiedBinaryResources"
-        )
+        assertTrue(coder.modifiedBinaryResources.contains(newFile), "New file in root/ should be in modifiedBinaryResources")
     }
 
     @Test
@@ -369,10 +364,7 @@ internal class ArsclibResourceCoderTest {
         coder.detectFileChanges()
 
         assertTrue(coder.modifiedResResources.isEmpty(), "Binary file should not be in modifiedResResources")
-        assertTrue(
-            coder.modifiedBinaryResources.contains(file),
-            "New file in root/ should be in modifiedBinaryResources"
-        )
+        assertTrue(coder.modifiedBinaryResources.contains(file), "New file in root/ should be in modifiedBinaryResources")
     }
 
     @Test
@@ -410,10 +402,7 @@ internal class ArsclibResourceCoderTest {
         coder.detectFileChanges()
 
         assertTrue(coder.modifiedResResources.isEmpty(), "Binary file should not be in modifiedResResources")
-        assertTrue(
-            coder.modifiedBinaryResources.contains(newFile),
-            "Added file should be detected even with empty packageDirectories"
-        )
+        assertTrue(coder.modifiedBinaryResources.contains(newFile), "Added file should be detected even with empty packageDirectories")
     }
 
     @Test
@@ -435,10 +424,7 @@ internal class ArsclibResourceCoderTest {
 
         coder.detectFileChanges()
 
-        assertTrue(
-            coder.modifiedBinaryResources.contains(file),
-            "Modified file should be detected even with empty packageDirectories"
-        )
+        assertTrue(coder.modifiedBinaryResources.contains(file), "Modified file should be detected even with empty packageDirectories")
     }
 
     @Test
@@ -462,14 +448,8 @@ internal class ArsclibResourceCoderTest {
         coder.detectFileChanges()
 
         assertTrue(coder.modifiedResResources.isEmpty(), "Binary file should not be in modifiedResResources")
-        assertTrue(
-            coder.modifiedBinaryResources.contains(newFile),
-            "New file under root/ should be in modifiedBinaryResources"
-        )
-        assertTrue(
-            coder.modifiedBinaryResources.contains(existingFile),
-            "Modified file under root/ should be in modifiedBinaryResources"
-        )
+        assertTrue(coder.modifiedBinaryResources.contains(newFile), "New file under root/ should be in modifiedBinaryResources")
+        assertTrue(coder.modifiedBinaryResources.contains(existingFile), "Modified file under root/ should be in modifiedBinaryResources")
     }
 
     // ==================== Path separator tests ====================
@@ -510,16 +490,12 @@ internal class ArsclibResourceCoderTest {
         // Verify that the relativeTo().invariantSeparatorsPath output matches
         // the format in excludedPaths (forward slashes)
         val relativePublicPath = publicXml.relativeTo(pkgDir).invariantSeparatorsPath
-        assertEquals(
-            "res/values/public.xml", relativePublicPath,
-            "Relative path should use forward slashes regardless of platform"
-        )
+        assertEquals("res/values/public.xml", relativePublicPath,
+            "Relative path should use forward slashes regardless of platform")
 
         val relativeIdsPath = idsXml.relativeTo(pkgDir).invariantSeparatorsPath
-        assertEquals(
-            "res/values/ids.xml", relativeIdsPath,
-            "Relative path should use forward slashes regardless of platform"
-        )
+        assertEquals("res/values/ids.xml", relativeIdsPath,
+            "Relative path should use forward slashes regardless of platform")
 
         // Non-excluded files should still be detected
         assertTrue(
@@ -550,17 +526,13 @@ internal class ArsclibResourceCoderTest {
         val strippedPath = filePath.replace(workingDirPath, "")
         val subPath = strippedPath.substringAfter("/resources/").substringAfter("/")
 
-        assertEquals(
-            "res/drawable/icon.xml", subPath,
-            "Path stripping should produce a clean forward-slash relative path"
-        )
+        assertEquals("res/drawable/icon.xml", subPath,
+            "Path stripping should produce a clean forward-slash relative path")
 
         // Verify that without invariantSeparatorsPath, the paths would still be
         // consistent on this platform (they are, but on Windows they wouldn't be).
-        assertTrue(
-            filePath.startsWith(workingDirPath),
-            "File path should start with working directory path when using invariantSeparatorsPath"
-        )
+        assertTrue(filePath.startsWith(workingDirPath),
+            "File path should start with working directory path when using invariantSeparatorsPath")
     }
 
     /**
@@ -582,10 +554,8 @@ internal class ArsclibResourceCoderTest {
         val strippedPath = filePath.replace(workingDirPath, "")
         val finalPath = strippedPath.replace("/root/", "")
 
-        assertEquals(
-            "lib/arm64-v8a/libtest.so", finalPath,
-            "Binary path stripping should remove working dir and /root/ prefix using forward slashes"
-        )
+        assertEquals("lib/arm64-v8a/libtest.so", finalPath,
+            "Binary path stripping should remove working dir and /root/ prefix using forward slashes")
     }
 
     /**
@@ -604,9 +574,26 @@ internal class ArsclibResourceCoderTest {
         val strippedPath = filePath.replace(workingDirPath, "")
         val subPath = strippedPath.substringAfter("/resources/").substringAfter("/")
 
-        assertEquals(
-            "res/values-en-rUS/strings.xml", subPath,
-            "Path stripping should handle qualifier directories correctly"
-        )
+        assertEquals("res/values-en-rUS/strings.xml", subPath,
+            "Path stripping should handle qualifier directories correctly")
+    }
+
+    /**
+     * Verify that the path stripping logic for binary resources handles
+     * deeply nested paths under root/ correctly.
+     */
+    @Test
+    fun `binary path stripping handles nested asset directories`() {
+        val rootDir = workingDir.resolve("root").also { it.mkdirs() }
+        val assetDir = rootDir.resolve("assets/data/config").also { it.mkdirs() }
+        val file = assetDir.resolve("settings.json").also { it.writeText("{}") }
+
+        val workingDirPath = workingDir.absoluteFile.invariantSeparatorsPath
+        val filePath = file.absoluteFile.invariantSeparatorsPath
+        val strippedPath = filePath.replace(workingDirPath, "")
+        val finalPath = strippedPath.replace("/root/", "")
+
+        assertEquals("assets/data/config/settings.json", finalPath,
+            "Binary path stripping should preserve nested directory structure under root/")
     }
 }
