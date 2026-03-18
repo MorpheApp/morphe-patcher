@@ -89,7 +89,7 @@ sealed class Patch<C : PatchContext<*>>(
         replaceWith = ReplaceWith("default"),
         level = DeprecationLevel.WARNING
     )
-    protected val use: Boolean get() = default
+    val use: Boolean get() = default
 
     /**
      * The options of the patch.

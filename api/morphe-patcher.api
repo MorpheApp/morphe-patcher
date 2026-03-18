@@ -704,7 +704,7 @@ public abstract class app/morphe/patcher/patch/Patch {
 	public final fun getDescription ()Ljava/lang/String;
 	public final fun getName ()Ljava/lang/String;
 	public final fun getOptions ()Lapp/morphe/patcher/patch/Options;
-	protected final fun getUse ()Z
+	public final fun getUse ()Z
 	public fun toString ()Ljava/lang/String;
 }
 
