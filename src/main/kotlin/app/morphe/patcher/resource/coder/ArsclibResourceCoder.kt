@@ -7,6 +7,7 @@ package app.morphe.patcher.resource.coder
 
 import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.PathMap
 import app.morphe.patcher.resource.PublicXmlManager
 import app.morphe.patcher.resource.ResourceMode
@@ -36,7 +37,8 @@ import java.util.logging.Logger
 
 class ArsclibResourceCoder(
     internal val workingDir: File,
-    internal val apkFile: File
+    internal val apkFile: File,
+    private val keepArchitectures: Set<CpuArchitecture> = emptySet()
 ) : ResourceCoder {
     private val logger = Logger.getLogger(ArsclibResourceCoder::class.java.name)
 
@@ -197,6 +199,24 @@ class ArsclibResourceCoder(
 
     override fun encodeResources(outputDir: File): File {
         val outputApk = outputDir.resolve("resources.apk")
+
+        if (keepArchitectures.isNotEmpty()) {
+            logger.info("Stripping libs (keeping architectures ${keepArchitectures.joinToString(", ")})")
+
+            var strippedLibCount = 0
+            otherResourcesRootDirectory.resolve("lib")
+                .takeIf { it.exists() }
+                ?.listFiles { dir ->
+                    dir.isDirectory && CpuArchitecture.valueOfOrNull(dir.name) !in keepArchitectures
+                }?.forEach { it ->
+                    it.walkTopDown().filter { it.isFile }.forEach { _ -> strippedLibCount++ }
+                    it.deleteRecursively()
+                }
+
+            logger.info("Stripped $strippedLibCount lib files")
+        }
+
+        // TODO: We could potentially remove unused resource splits here as well
 
         // Detect which files were added or modified since decoding.
         detectFileChanges()

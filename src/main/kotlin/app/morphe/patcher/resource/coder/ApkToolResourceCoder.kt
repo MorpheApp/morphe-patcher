@@ -9,6 +9,7 @@
 package app.morphe.patcher.resource.coder
 
 import app.morphe.patcher.PackageMetadata
+import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.ResourceMode
 import brut.androlib.AaptInvoker
 import brut.androlib.ApkDecoder
@@ -20,6 +21,7 @@ import brut.androlib.res.ResourcesDecoder
 import brut.androlib.res.decoder.AndroidManifestPullStreamDecoder
 import brut.androlib.res.decoder.AndroidManifestResourceParser
 import brut.androlib.res.xml.ResXmlUtils
+import brut.directory.Directory
 import brut.directory.ExtFile
 import java.io.File
 import java.io.OutputStream
@@ -30,7 +32,8 @@ import java.util.logging.Logger
 class ApkToolResourceCoder(
     internal val workingDir: File,
     internal val resourceConfig: Config,
-    apkFile: File
+    apkFile: File,
+    private val keepArchitectures: Set<CpuArchitecture> = emptySet()
 ): ResourceCoder {
     internal val apkInfo = ApkInfo(ExtFile(apkFile))
 
@@ -158,7 +161,27 @@ class ApkToolResourceCoder(
     }
 
     override fun getUncompressedFiles(): Set<String> = apkInfo.doNotCompress?.toSet() ?: emptySet()
-    override fun getDeletedFiles(): Set<String> = deletedResources
+    override fun getDeletedFiles(): Set<String> {
+        val extFileDir = apkInfo.apkFile.directory
+
+        fun markDirForDeletion(name: String, dir: Directory) {
+            dir.files.forEach { file ->
+                deletedResources.add("$name/$file")
+            }
+
+            dir.dirs.forEach { (subDirName, subDir) ->
+                markDirForDeletion("$name/$subDirName", subDir)
+            }
+        }
+
+        extFileDir.getDir("lib").dirs.forEach { (dirName, directory) ->
+            if (CpuArchitecture.valueOfOrNull(dirName) !in keepArchitectures) {
+                markDirForDeletion("lib/$dirName", directory)
+            }
+        }
+
+        return deletedResources
+    }
 
     /**
      * Get a file from the working directory.
