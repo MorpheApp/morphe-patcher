@@ -704,6 +704,7 @@ public abstract class app/morphe/patcher/patch/Patch {
 	public final fun getDescription ()Ljava/lang/String;
 	public final fun getName ()Ljava/lang/String;
 	public final fun getOptions ()Lapp/morphe/patcher/patch/Options;
+	protected final fun getUse ()Z
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -725,6 +726,7 @@ public abstract class app/morphe/patcher/patch/PatchBuilder {
 	protected final fun getFinalizeBlock ()Lkotlin/jvm/functions/Function1;
 	protected final fun getName ()Ljava/lang/String;
 	protected final fun getOptions ()Ljava/util/Set;
+	protected final fun getUse ()Z
 	public final fun invoke (Lapp/morphe/patcher/patch/Option;)Lapp/morphe/patcher/patch/Option;
 	public final fun invoke (Ljava/lang/String;[Ljava/lang/String;)Lkotlin/Pair;
 	protected final fun setCompatibility (Ljava/util/List;)V

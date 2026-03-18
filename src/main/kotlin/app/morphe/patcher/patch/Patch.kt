@@ -84,6 +84,13 @@ sealed class Patch<C : PatchContext<*>>(
         compatibility?.mapNotNull { it.legacy }?.toSet()
     }
 
+    @Deprecated(
+        message = "Use 'default' instead of 'use'",
+        replaceWith = ReplaceWith("default"),
+        level = DeprecationLevel.WARNING
+    )
+    protected val use: Boolean get() = default
+
     /**
      * The options of the patch.
      */
@@ -378,6 +385,13 @@ sealed class PatchBuilder<C : PatchContext<*>>(
 
     protected var executeBlock: ((C) -> Unit) = { }
     protected var finalizeBlock: ((C) -> Unit)? = null
+
+    @Deprecated(
+        message = "Use 'default' instead of 'use'",
+        replaceWith = ReplaceWith("default"),
+        level = DeprecationLevel.WARNING
+    )
+    protected val use: Boolean get() = default
 
     /**
      * Add an option to the patch.
