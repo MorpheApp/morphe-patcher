@@ -174,9 +174,11 @@ class ApkToolResourceCoder(
             }
         }
 
-        extFileDir.getDir("lib").dirs.forEach { (dirName, directory) ->
-            if (CpuArchitecture.valueOfOrNull(dirName) !in keepArchitectures) {
-                markDirForDeletion("lib/$dirName", directory)
+        if (keepArchitectures.isNotEmpty()) {
+            extFileDir.getDir("lib").dirs.forEach { (dirName, directory) ->
+                if (CpuArchitecture.valueOfOrNull(dirName) !in keepArchitectures) {
+                    markDirForDeletion("lib/$dirName", directory)
+                }
             }
         }
 

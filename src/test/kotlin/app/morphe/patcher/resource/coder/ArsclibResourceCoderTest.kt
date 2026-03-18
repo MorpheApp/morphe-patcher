@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.resource.coder
 
+import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.PathMap
 import app.morphe.patcher.resource.ResourceMode
 import org.junit.jupiter.api.BeforeEach
@@ -819,5 +820,264 @@ internal class ArsclibResourceCoderTest {
         val expectedFile = result.resolve("res/drawable/icon.png")
         assertTrue(expectedFile.exists(),
             "With empty path map, files should keep their on-disk paths")
+    }
+
+    // ==================== Native library removal tests ====================
+
+    /**
+     * Helper to create a coder with specific keepArchitectures.
+     */
+    private fun createCoderWithKeepArchitectures(
+        tempDir: File,
+        keepArchitectures: Set<CpuArchitecture>
+    ): ArsclibResourceCoder {
+        val dummyApk = tempDir.resolve("dummy2.apk").also { it.createNewFile() }
+        return ArsclibResourceCoder(workingDir, dummyApk, keepArchitectures)
+    }
+
+    /**
+     * Helper to set up native library directories under root/lib/.
+     * Creates .so files in each specified architecture directory.
+     */
+    private fun setupNativeLibDirs(
+        architectures: List<String>,
+        filesPerArch: Int = 2
+    ): Map<String, List<File>> {
+        val rootLibDir = workingDir.resolve("root/lib").also { it.mkdirs() }
+        val result = mutableMapOf<String, List<File>>()
+
+        architectures.forEach { arch ->
+            val archDir = rootLibDir.resolve(arch).also { it.mkdirs() }
+            val files = (1..filesPerArch).map { i ->
+                archDir.resolve("lib$arch$i.so").also {
+                    it.writeBytes(byteArrayOf(0x7F, 0x45, 0x4C, 0x46, i.toByte()))
+                }
+            }
+            result[arch] = files
+        }
+
+        return result
+    }
+
+    @Test
+    fun `stripNativeLibraries removes architectures not in keepArchitectures`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(
+            tempDir, setOf(CpuArchitecture.ARM64_V8A)
+        )
+
+        // Set up libs for arm64-v8a, x86, and x86_64.
+        setupNativeLibDirs(listOf("arm64-v8a", "x86", "x86_64"))
+
+        // Simulate the decode snapshot — all files exist.
+        archCoder.packageDirectories.putAll(coder.packageDirectories)
+        archCoder.fileSnapshotCache = archCoder.buildFileSnapshot()
+
+        // Call stripNativeLibraries.
+        archCoder.stripNativeLibraries()
+
+        // arm64-v8a should be kept.
+        val rootLibDir = workingDir.resolve("root/lib")
+        assertTrue(rootLibDir.resolve("arm64-v8a").exists(),
+            "arm64-v8a directory should be kept")
+        assertTrue(rootLibDir.resolve("arm64-v8a").listFiles()!!.isNotEmpty(),
+            "arm64-v8a should still contain files")
+
+        // x86 and x86_64 should be removed.
+        assertFalse(rootLibDir.resolve("x86").exists(),
+            "x86 directory should be removed")
+        assertFalse(rootLibDir.resolve("x86_64").exists(),
+            "x86_64 directory should be removed")
+    }
+
+    @Test
+    fun `stripNativeLibraries keeps multiple architectures`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(
+            tempDir, setOf(CpuArchitecture.ARM64_V8A, CpuArchitecture.ARMEABI_V7A)
+        )
+
+        setupNativeLibDirs(listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64"))
+
+        archCoder.packageDirectories.putAll(coder.packageDirectories)
+        archCoder.fileSnapshotCache = archCoder.buildFileSnapshot()
+
+        archCoder.stripNativeLibraries()
+
+        val rootLibDir = workingDir.resolve("root/lib")
+        assertTrue(rootLibDir.resolve("arm64-v8a").exists(),
+            "arm64-v8a should be kept")
+        assertTrue(rootLibDir.resolve("armeabi-v7a").exists(),
+            "armeabi-v7a should be kept")
+        assertFalse(rootLibDir.resolve("x86").exists(),
+            "x86 should be removed")
+        assertFalse(rootLibDir.resolve("x86_64").exists(),
+            "x86_64 should be removed")
+    }
+
+    @Test
+    fun `stripNativeLibraries is no-op when keepArchitectures is empty`() {
+        // Default coder has empty keepArchitectures.
+        setupNativeLibDirs(listOf("arm64-v8a", "x86", "x86_64"))
+
+        coder.stripNativeLibraries()
+
+        val rootLibDir = workingDir.resolve("root/lib")
+        assertTrue(rootLibDir.resolve("arm64-v8a").exists(),
+            "arm64-v8a should remain when keepArchitectures is empty")
+        assertTrue(rootLibDir.resolve("x86").exists(),
+            "x86 should remain when keepArchitectures is empty")
+        assertTrue(rootLibDir.resolve("x86_64").exists(),
+            "x86_64 should remain when keepArchitectures is empty")
+    }
+
+    @Test
+    fun `stripNativeLibraries handles missing lib directory gracefully`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(
+            tempDir, setOf(CpuArchitecture.ARM64_V8A)
+        )
+
+        // Don't create any lib directory.
+        archCoder.stripNativeLibraries()
+
+        // Should not throw.
+        assertFalse(workingDir.resolve("root/lib").exists(),
+            "No lib directory should exist")
+    }
+
+    @Test
+    fun `stripNativeLibraries removes all architectures when none match keepArchitectures`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(
+            tempDir, setOf(CpuArchitecture.MIPS)
+        )
+
+        setupNativeLibDirs(listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64"))
+
+        archCoder.stripNativeLibraries()
+
+        val rootLibDir = workingDir.resolve("root/lib")
+        assertFalse(rootLibDir.resolve("arm64-v8a").exists(), "arm64-v8a should be removed")
+        assertFalse(rootLibDir.resolve("armeabi-v7a").exists(), "armeabi-v7a should be removed")
+        assertFalse(rootLibDir.resolve("x86").exists(), "x86 should be removed")
+        assertFalse(rootLibDir.resolve("x86_64").exists(), "x86_64 should be removed")
+    }
+
+    @Test
+    fun `stripNativeLibraries keeps all architectures when all match`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(
+            tempDir, setOf(CpuArchitecture.ARM64_V8A, CpuArchitecture.X86)
+        )
+
+        setupNativeLibDirs(listOf("arm64-v8a", "x86"))
+
+        archCoder.stripNativeLibraries()
+
+        val rootLibDir = workingDir.resolve("root/lib")
+        assertTrue(rootLibDir.resolve("arm64-v8a").exists(), "arm64-v8a should be kept")
+        assertTrue(rootLibDir.resolve("x86").exists(), "x86 should be kept")
+    }
+
+    @Test
+    fun `stripNativeLibraries ignores non-architecture directories under lib`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(
+            tempDir, setOf(CpuArchitecture.ARM64_V8A)
+        )
+
+        setupNativeLibDirs(listOf("arm64-v8a", "x86"))
+
+        // Create a non-architecture directory under lib.
+        val nonArchDir = workingDir.resolve("root/lib/some-other-dir").also { it.mkdirs() }
+        nonArchDir.resolve("somefile.txt").writeText("not a native lib")
+
+        archCoder.stripNativeLibraries()
+
+        val rootLibDir = workingDir.resolve("root/lib")
+        assertTrue(rootLibDir.resolve("arm64-v8a").exists(), "arm64-v8a should be kept")
+        assertFalse(rootLibDir.resolve("x86").exists(), "x86 should be removed")
+        // Non-architecture directories are not recognized as a CpuArchitecture,
+        // so valueOfOrNull returns null and null !in keepArchitectures == true,
+        // meaning they get removed.
+        assertFalse(rootLibDir.resolve("some-other-dir").exists(),
+            "Unrecognized directories under lib/ should be removed")
+    }
+
+    @Test
+    fun `stripped native libraries do not appear in detectFileChanges`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(
+            tempDir, setOf(CpuArchitecture.ARM64_V8A)
+        )
+
+        val libFiles = setupNativeLibDirs(listOf("arm64-v8a", "x86"))
+
+        // Simulate decode: capture snapshot of all files.
+        archCoder.fileSnapshotCache = archCoder.buildFileSnapshot()
+
+        // Strip non-kept architectures.
+        archCoder.stripNativeLibraries()
+
+        // Detect changes after stripping.
+        archCoder.detectFileChanges()
+
+        // The stripped x86 files should not appear in modifiedBinaryResources.
+        libFiles["x86"]!!.forEach { file ->
+            assertFalse(archCoder.modifiedBinaryResources.contains(file),
+                "Stripped x86 file should not appear in modifiedBinaryResources")
+        }
+
+        // arm64-v8a files should also not appear (they are unchanged).
+        libFiles["arm64-v8a"]!!.forEach { file ->
+            assertFalse(archCoder.modifiedBinaryResources.contains(file),
+                "Unchanged arm64-v8a file should not appear in modifiedBinaryResources")
+        }
+
+        assertTrue(archCoder.modifiedResResources.isEmpty(),
+            "No res resources should be modified")
+    }
+
+    @Test
+    fun `modified native library in kept architecture is detected after strip`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(
+            tempDir, setOf(CpuArchitecture.ARM64_V8A)
+        )
+
+        val libFiles = setupNativeLibDirs(listOf("arm64-v8a", "x86"))
+
+        // Capture snapshot.
+        archCoder.fileSnapshotCache = archCoder.buildFileSnapshot()
+
+        // Strip.
+        archCoder.stripNativeLibraries()
+
+        // Modify a file in the kept architecture.
+        val keptFile = libFiles["arm64-v8a"]!![0]
+        keptFile.writeBytes(byteArrayOf(0x00, 0x01, 0x02, 0x03, 0x04, 0x05))
+        keptFile.setLastModified(System.currentTimeMillis() + 10_000)
+
+        archCoder.detectFileChanges()
+
+        assertTrue(archCoder.modifiedBinaryResources.contains(keptFile),
+            "Modified file in kept architecture should be detected")
+    }
+
+    @Test
+    fun `new native library added to kept architecture after strip is detected`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(
+            tempDir, setOf(CpuArchitecture.ARM64_V8A)
+        )
+
+        setupNativeLibDirs(listOf("arm64-v8a", "x86"))
+
+        // Capture snapshot.
+        archCoder.fileSnapshotCache = archCoder.buildFileSnapshot()
+
+        // Strip.
+        archCoder.stripNativeLibraries()
+
+        // Add a new file in the kept architecture.
+        val newFile = workingDir.resolve("root/lib/arm64-v8a/libnew.so")
+        newFile.writeBytes(byteArrayOf(0xDE.toByte(), 0xAD.toByte()))
+
+        archCoder.detectFileChanges()
+
+        assertTrue(archCoder.modifiedBinaryResources.contains(newFile),
+            "New file in kept architecture should be detected")
     }
 }

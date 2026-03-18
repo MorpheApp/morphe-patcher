@@ -12,8 +12,9 @@ enum class CpuArchitecture(val arch: String) {
 
     companion object {
         fun valueOfOrNull(name: String?): CpuArchitecture? {
-            if (name == null) return null // Handle null input string
-            return runCatching { valueOf(name) }.getOrNull()
+            if (name == null) return null
+            return entries.firstOrNull { it.arch == name }
+                ?: runCatching { valueOf(name) }.getOrNull()
         }
     }
 }

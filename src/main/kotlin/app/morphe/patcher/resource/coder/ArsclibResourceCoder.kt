@@ -197,9 +197,11 @@ class ArsclibResourceCoder(
         return getPackageMetadata()
     }
 
-    override fun encodeResources(outputDir: File): File {
-        val outputApk = outputDir.resolve("resources.apk")
-
+    /**
+     * Remove native library directories for architectures not in [keepArchitectures].
+     * This is a no-op if [keepArchitectures] is empty.
+     */
+    internal fun stripNativeLibraries() {
         if (keepArchitectures.isNotEmpty()) {
             logger.info("Stripping libs (keeping architectures ${keepArchitectures.joinToString(", ")})")
 
@@ -215,6 +217,12 @@ class ArsclibResourceCoder(
 
             logger.info("Stripped $strippedLibCount lib files")
         }
+    }
+
+    override fun encodeResources(outputDir: File): File {
+        val outputApk = outputDir.resolve("resources.apk")
+
+        stripNativeLibraries()
 
         // TODO: We could potentially remove unused resource splits here as well
 
