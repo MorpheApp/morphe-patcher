@@ -119,9 +119,12 @@ internal class PatchClasses internal constructor(
             val methodStrings = wrapper.classDef.findMethodStrings()
             if (methodStrings != null) {
                 methodStrings.forEach { stringLiteral ->
-                    map.getOrPut(stringLiteral) {
+                    val list = map.getOrPut(stringLiteral) {
                         LinkedList()
-                    }.add(wrapper)
+                    }
+                    if (!list.contains(wrapper)) {
+                        list += wrapper
+                    }
                 }
 
                 classesWithStrings += wrapper
@@ -133,7 +136,7 @@ internal class PatchClasses internal constructor(
         return map
     }
 
-    internal fun getClassFromOpcodeStringLiteral(stringLiteral: String): List<ClassDefWrapper>? {
+    internal fun getClassesFromOpcodeStringLiteral(stringLiteral: String): List<ClassDefWrapper>? {
         return getClassesByStringMap()[stringLiteral]
     }
 
