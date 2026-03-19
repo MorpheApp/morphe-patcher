@@ -162,19 +162,19 @@ class ApkToolResourceCoder(
 
     override fun getUncompressedFiles(): Set<String> = apkInfo.doNotCompress?.toSet() ?: emptySet()
     override fun getDeletedFiles(): Set<String> {
-        val extFileDir = apkInfo.apkFile.directory
-
-        fun markDirForDeletion(name: String, dir: Directory) {
-            dir.files.forEach { file ->
-                deletedResources.add("$name/$file")
-            }
-
-            dir.dirs.forEach { (subDirName, subDir) ->
-                markDirForDeletion("$name/$subDirName", subDir)
-            }
-        }
-
         if (keepArchitectures.isNotEmpty()) {
+            val extFileDir = apkInfo.apkFile.directory
+
+            fun markDirForDeletion(name: String, dir: Directory) {
+                dir.files.forEach { file ->
+                    deletedResources.add("$name/$file")
+                }
+
+                dir.dirs.forEach { (subDirName, subDir) ->
+                    markDirForDeletion("$name/$subDirName", subDir)
+                }
+            }
+
             extFileDir.getDir("lib").dirs.forEach { (dirName, directory) ->
                 if (CpuArchitecture.valueOfOrNull(dirName) !in keepArchitectures) {
                     markDirForDeletion("lib/$dirName", directory)
