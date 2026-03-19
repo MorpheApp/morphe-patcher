@@ -11,7 +11,8 @@ internal class ArsclibLogger(
     private val logger: Logger = NoOpLogger,
 ) : APKLogger {
     override fun logMessage(msg: String) {
-        logger.info(msg)
+        // We call logger.trace() here too. That way without verbose the terminal shows 1 line only
+        logger.trace(msg)
     }
 
     override fun logError(msg: String, tr: Throwable?) {
