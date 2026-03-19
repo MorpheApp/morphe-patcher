@@ -283,8 +283,8 @@ public final class app/morphe/patcher/Patcher : java/io/Closeable {
 }
 
 public final class app/morphe/patcher/PatcherConfig {
-	public fun <init> (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Ljava/lang/String;Z)V
-	public synthetic fun <init> (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Ljava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;)V
+	public synthetic fun <init> (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 }
 
 public final class app/morphe/patcher/PatcherContext : java/io/Closeable {
@@ -829,6 +829,25 @@ public final class app/morphe/patcher/patch/ResourcePatchContext : app/morphe/pa
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
 }
 
+public final class app/morphe/patcher/resource/CpuArchitecture : java/lang/Enum {
+	public static final field ARM64_V8A Lapp/morphe/patcher/resource/CpuArchitecture;
+	public static final field ARMEABI Lapp/morphe/patcher/resource/CpuArchitecture;
+	public static final field ARMEABI_V7A Lapp/morphe/patcher/resource/CpuArchitecture;
+	public static final field Companion Lapp/morphe/patcher/resource/CpuArchitecture$Companion;
+	public static final field MIPS Lapp/morphe/patcher/resource/CpuArchitecture;
+	public static final field MIPS64 Lapp/morphe/patcher/resource/CpuArchitecture;
+	public static final field X86 Lapp/morphe/patcher/resource/CpuArchitecture;
+	public static final field X86_64 Lapp/morphe/patcher/resource/CpuArchitecture;
+	public final fun getArch ()Ljava/lang/String;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/resource/CpuArchitecture;
+	public static fun values ()[Lapp/morphe/patcher/resource/CpuArchitecture;
+}
+
+public final class app/morphe/patcher/resource/CpuArchitecture$Companion {
+	public final fun valueOfOrNull (Ljava/lang/String;)Lapp/morphe/patcher/resource/CpuArchitecture;
+}
+
 public final class app/morphe/patcher/resource/FileUtilsKt {
 	public static final fun utf8Reader (Ljava/io/File;)Ljava/io/BufferedReader;
 	public static final fun utf8Writer (Ljava/io/File;)Ljava/io/BufferedWriter;
@@ -864,7 +883,8 @@ public final class app/morphe/patcher/resource/XmlPullParserUtilsKt {
 }
 
 public final class app/morphe/patcher/resource/coder/ApkToolResourceCoder : app/morphe/patcher/resource/coder/ResourceCoder {
-	public fun <init> (Ljava/io/File;Lbrut/androlib/Config;Ljava/io/File;)V
+	public fun <init> (Ljava/io/File;Lbrut/androlib/Config;Ljava/io/File;Ljava/util/Set;)V
+	public synthetic fun <init> (Ljava/io/File;Lbrut/androlib/Config;Ljava/io/File;Ljava/util/Set;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun addFile (Ljava/lang/String;Ljava/io/File;Ljava/lang/String;)Ljava/io/File;
 	public fun decodeRaw ()Lapp/morphe/patcher/PackageMetadata;
 	public fun decodeResources ()Lapp/morphe/patcher/PackageMetadata;
@@ -878,7 +898,8 @@ public final class app/morphe/patcher/resource/coder/ApkToolResourceCoder : app/
 }
 
 public final class app/morphe/patcher/resource/coder/ArsclibResourceCoder : app/morphe/patcher/resource/coder/ResourceCoder {
-	public fun <init> (Ljava/io/File;Ljava/io/File;)V
+	public fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;)V
+	public synthetic fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun addFile (Ljava/lang/String;Ljava/io/File;Ljava/lang/String;)Ljava/io/File;
 	public fun decodeRaw ()Lapp/morphe/patcher/PackageMetadata;
 	public fun decodeResources ()Lapp/morphe/patcher/PackageMetadata;
