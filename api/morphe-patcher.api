@@ -340,8 +340,8 @@ public final class app/morphe/patcher/apk/ApkMerger {
 	public fun <init> ()V
 	public fun <init> (Lapp/morphe/patcher/logging/Logger;)V
 	public synthetic fun <init> (Lapp/morphe/patcher/logging/Logger;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun merge (Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZZZ)V
-	public static synthetic fun merge$default (Lapp/morphe/patcher/apk/ApkMerger;Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZZZILjava/lang/Object;)V
+	public final fun merge (Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZLjava/lang/Boolean;Z)V
+	public static synthetic fun merge$default (Lapp/morphe/patcher/apk/ApkMerger;Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZLjava/lang/Boolean;ZILjava/lang/Object;)V
 }
 
 public final class app/morphe/patcher/apk/ApkSigner {
