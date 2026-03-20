@@ -1,3 +1,17 @@
+# [1.3.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.6...v1.3.0-dev.7) (2026-03-19)
+
+
+### Bug Fixes
+
+* Wire keepArchitectures to resource coders ([d3519f8](https://github.com/MorpheApp/morphe-patcher/commit/d3519f8c305fe9327044c4cd37bd4e80360a5356))
+
+# [1.3.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.5...v1.3.0-dev.6) (2026-03-19)
+
+
+### Features
+
+* Add support for stripping native libraries ([#83](https://github.com/MorpheApp/morphe-patcher/issues/83)) ([bc629ed](https://github.com/MorpheApp/morphe-patcher/commit/bc629ed5159bf1d8b4c774870bf1103fe4f0996e))
+
 # [1.3.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.4...v1.3.0-dev.5) (2026-03-16)
 
 

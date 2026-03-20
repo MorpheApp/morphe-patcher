@@ -32,9 +32,9 @@ class ResourcePatchContext internal constructor(
     private val logger = Logger.getLogger(ResourcePatchContext::class.java.name)
 
     private val resourceCoder: ResourceCoder = if (config.useArsclib) {
-        ArsclibResourceCoder(config.apkFiles, config.apkFile)
+        ArsclibResourceCoder(config.apkFiles, config.apkFile, config.keepArchitectures)
     } else {
-        ApkToolResourceCoder(config.apkFiles, config.resourceConfig, config.apkFile)
+        ApkToolResourceCoder(config.apkFiles, config.resourceConfig, config.apkFile, config.keepArchitectures)
     }
 
     val packageMetadata = resourceCoder.getPackageMetadata()

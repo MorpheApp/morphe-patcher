@@ -14,6 +14,7 @@ import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.iface.reference.TypeReference
 import java.util.EnumSet
+import kotlin.reflect.KClass
 
 /**
  * Simple interface to control how much space is allowed between a previous
@@ -152,6 +153,23 @@ fun interface InstructionLocation {
 }
 
 
+/**
+ * All filters here except for [AnyInstruction].
+ * Used to speed up [Fingerprint.matchAll] fingerprints that contain strings.
+ * Custom instruction filters could do logical filtering and will interfere with
+ * faster string matchAll operations.
+ */
+internal var BUNDLED_INSTRUCTION_FILTERS = setOf<KClass<*>>(
+    OpcodeFilter::class,
+    OpcodesFilter::class,
+    LiteralFilter::class,
+    MethodCallFilter::class,
+    FieldAccessFilter::class,
+    StringFilter::class,
+    NewInstanceFilter::class,
+    InstanceOfFilter::class,
+    CheckCastFilter::class
+)
 
 /**
  * Matches method [Instruction] objects, similar to how [Fingerprint] matches entire methods.

@@ -335,6 +335,28 @@ and only then will effectively replace the `original` method or class definition
 > If only read-only access to the class or method is needed, the `originalClassDef` and
 > `originalMethod` properties should be used, to avoid making a mutable copy of the class or method.
 
+
+## Finding all methods a fingerprint matches
+
+Fingerprints support finding all methods that match. A common usage is to change all 
+const-string instructions to a different string literal. 
+
+```kt
+
+// Replace a specific bytecode string in all const-string instructions.
+val stringFilter = string("exact string literal")
+Fingerprint(
+    filters = listOf(stringFilter)
+).matchAllOrNull()?.forEach { match ->
+    match.method.apply { 
+        // See Morphe ByteCodeUtils for findInstructionIndicesReversedOrThrow()
+        findInstructionIndicesReversedOrThrow(stringFilter).forEach { index ->
+        val register = getInstruction<OneRegisterInstruction>(index).registerA
+        replaceInstruction(index, "const-string v$register, \"$toString\"") 
+    }
+}
+```
+
 ## 🏹 Manually matching fingerprints
 
 By default, a fingerprint is matched automatically against all classes when one of the
