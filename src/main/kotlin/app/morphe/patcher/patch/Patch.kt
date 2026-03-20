@@ -31,7 +31,7 @@ typealias Package = Pair<PackageName, Set<VersionName>?>
  * @param name The name of the patch.
  *   If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
+ * @param default Whether the patch is enabled by default.
  * @param dependencies Other patches this patch depends on.
  * @param compatibility The packages the patch is compatible with.
  *   If null, the patch is compatible with all packages.
@@ -45,7 +45,7 @@ typealias Package = Pair<PackageName, Set<VersionName>?>
 sealed class Patch<C : PatchContext<*>>(
     val name: String?,
     val description: String?,
-    val use: Boolean,
+    val default: Boolean,
     val dependencies: Set<Patch<*>>,
     val compatibility: List<Compatibility>?,
     options: Set<Option<*>>,
@@ -68,7 +68,7 @@ sealed class Patch<C : PatchContext<*>>(
     ) : this(
         name = name,
         description = description,
-        use = use,
+        default = use,
         dependencies = dependencies,
         compatibility = Compatibility.fromLegacy(compatiblePackages),
         options = options,
@@ -83,6 +83,13 @@ sealed class Patch<C : PatchContext<*>>(
     val compatiblePackages: Set<Package>? by lazy {
         compatibility?.mapNotNull { it.legacy }?.toSet()
     }
+
+    @Deprecated(
+        message = "Use 'default' instead of 'use'",
+        replaceWith = ReplaceWith("default"),
+        level = DeprecationLevel.WARNING
+    )
+    val use: Boolean get() = default
 
     /**
      * The options of the patch.
@@ -155,7 +162,7 @@ internal fun Iterable<Patch<*>>.forEachRecursively(
  *
  * @param name The name of the patch.
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
+ * @param default Whether the patch is enabled by default.
  * @property compatibility The packages the patch is compatible with.
  *   If null, then the patch is universal and could be applied to all apps.
  * @param dependencies Other patches this patch depends on.
@@ -169,7 +176,7 @@ internal fun Iterable<Patch<*>>.forEachRecursively(
 class BytecodePatch internal constructor(
     name: String?,
     description: String?,
-    use: Boolean,
+    default: Boolean,
     compatibility: List<Compatibility>?,
     dependencies: Set<Patch<*>>,
     options: Set<Option<*>>,
@@ -179,7 +186,7 @@ class BytecodePatch internal constructor(
 ) : Patch<BytecodePatchContext>(
     name,
     description,
-    use,
+    default,
     dependencies,
     compatibility,
     options,
@@ -201,7 +208,7 @@ class BytecodePatch internal constructor(
     ) : this(
         name = name,
         description = description,
-        use = use,
+        default = use,
         compatibility = Compatibility.fromLegacy(compatiblePackages),
         dependencies = dependencies,
         options = options,
@@ -226,8 +233,8 @@ class BytecodePatch internal constructor(
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
- * @param compatiblePackages The packages the patch is compatible with.
+ * @param default Whether the patch is enabled by default.
+ * @param compatibility The packages the patch is compatible with.
  * If null, the patch is compatible with all packages.
  * @param dependencies Other patches this patch depends on.
  * @param options The options of the patch.
@@ -240,7 +247,7 @@ class BytecodePatch internal constructor(
 class RawResourcePatch internal constructor(
     name: String?,
     description: String?,
-    use: Boolean,
+    default: Boolean,
     compatibility: List<Compatibility>?,
     dependencies: Set<Patch<*>>,
     options: Set<Option<*>>,
@@ -249,7 +256,7 @@ class RawResourcePatch internal constructor(
 ) : Patch<ResourcePatchContext>(
     name,
     description,
-    use,
+    default,
     dependencies,
     compatibility,
     options,
@@ -270,7 +277,7 @@ class RawResourcePatch internal constructor(
     ) : this(
         name = name,
         description = description,
-        use = use,
+        default = use,
         compatibility = Compatibility.fromLegacy(compatiblePackages),
         dependencies = dependencies,
         options = options,
@@ -291,8 +298,8 @@ class RawResourcePatch internal constructor(
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
- * @param compatiblePackages The packages the patch is compatible with.
+ * @param default Whether the patch is enabled by default.
+ * @param compatibility The packages the patch is compatible with.
  * If null, the patch is compatible with all packages.
  * @param dependencies Other patches this patch depends on.
  * @param options The options of the patch.
@@ -305,7 +312,7 @@ class RawResourcePatch internal constructor(
 class ResourcePatch internal constructor(
     name: String?,
     description: String?,
-    use: Boolean,
+    default: Boolean,
     compatibility: List<Compatibility>?,
     dependencies: Set<Patch<*>>,
     options: Set<Option<*>>,
@@ -314,7 +321,7 @@ class ResourcePatch internal constructor(
 ) : Patch<ResourcePatchContext>(
     name,
     description,
-    use,
+    default,
     dependencies,
     compatibility,
     options,
@@ -335,7 +342,7 @@ class ResourcePatch internal constructor(
     ) : this(
         name = name,
         description = description,
-        use = use,
+        default = use,
         compatibility = Compatibility.fromLegacy(compatiblePackages),
         dependencies = dependencies,
         options = options,
@@ -356,7 +363,7 @@ class ResourcePatch internal constructor(
  * @param C The [PatchContext] to execute and finalize the patch with.
  * @param name The name of the patch.
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
+ * @param default Whether the patch is enabled by default.
  * @property compatibility The packages the patch is compatible with.
  *   If null, then the patch is universal and could be applied to all apps.
  * @property dependencies Other patches this patch depends on.
@@ -370,7 +377,7 @@ class ResourcePatch internal constructor(
 sealed class PatchBuilder<C : PatchContext<*>>(
     protected val name: String?,
     protected val description: String?,
-    protected val use: Boolean,
+    protected val default: Boolean,
 ) {
     protected var compatibility: MutableList<Compatibility>? = null
     protected var dependencies = mutableSetOf<Patch<*>>()
@@ -378,6 +385,13 @@ sealed class PatchBuilder<C : PatchContext<*>>(
 
     protected var executeBlock: ((C) -> Unit) = { }
     protected var finalizeBlock: ((C) -> Unit)? = null
+
+    @Deprecated(
+        message = "Use 'default' instead of 'use'",
+        replaceWith = ReplaceWith("default"),
+        level = DeprecationLevel.WARNING
+    )
+    protected val use: Boolean get() = default
 
     /**
      * Add an option to the patch.
@@ -504,12 +518,12 @@ sealed class PatchBuilder<C : PatchContext<*>>(
 private fun <B : PatchBuilder<*>> B.buildPatch(block: B.() -> Unit = {}) = apply(block).build()
 
 /**
- * A [BytecodePatchBuilder] builder.
+ * A [BytecodePatch] builder.
  *
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
+ * @param default Whether the patch is enabled by default.
  * @property extensionInputStream Getter for the extension input stream of the patch.
  * An extension is a precompiled DEX file that is merged into the patched app before this patch is executed.
  *
@@ -518,8 +532,8 @@ private fun <B : PatchBuilder<*>> B.buildPatch(block: B.() -> Unit = {}) = apply
 class BytecodePatchBuilder internal constructor(
     name: String?,
     description: String?,
-    use: Boolean,
-) : PatchBuilder<BytecodePatchContext>(name, description, use) {
+    default: Boolean,
+) : PatchBuilder<BytecodePatchContext>(name, description, default) {
     // Must be internal for the inlined function "extendWith".
     @PublishedApi
     internal var extensionInputStream: Supplier<InputStream>? = null
@@ -543,7 +557,7 @@ class BytecodePatchBuilder internal constructor(
     override fun build() = BytecodePatch(
         name = name,
         description = description,
-        use = use,
+        default = default,
         compatibility = compatibility,
         dependencies = dependencies,
         options = options,
@@ -554,22 +568,42 @@ class BytecodePatchBuilder internal constructor(
 }
 
 /**
- * Create a new [BytecodePatch].
- *
- * @param name The name of the patch.
- * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
- * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
- * @param block The block to build the patch.
- *
- * @return The created [BytecodePatch].
+ * @deprecated Use [bytecodePatch] with `default` instead of `use`.
  */
+@JvmName("bytecodePatchLegacy")
+@Suppress("CONFLICTING_OVERLOADS")
+@Deprecated(
+    message = "Use 'default' parameter instead of 'use'",
+    replaceWith = ReplaceWith(
+        expression = "bytecodePatch(name, description, default = use, block)"
+    ),
+    level = DeprecationLevel.WARNING
+)
 fun bytecodePatch(
     name: String? = null,
     description: String? = null,
     use: Boolean = true,
     block: BytecodePatchBuilder.() -> Unit = {},
-) = BytecodePatchBuilder(name, description, use).buildPatch(block) as BytecodePatch
+) = bytecodePatch(name, description, default = use, block)
+
+/**
+ * Create a new [BytecodePatch].
+ *
+ * @param name The name of the patch.
+ * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
+ * @param description The description of the patch.
+ * @param default Whether the patch is enabled by default.
+ * @param block The block to build the patch.
+ *
+ * @return The created [BytecodePatch].
+ */
+@Suppress("CONFLICTING_OVERLOADS")
+fun bytecodePatch(
+    name: String? = null,
+    description: String? = null,
+    default: Boolean,
+    block: BytecodePatchBuilder.() -> Unit = {},
+) = BytecodePatchBuilder(name, description, default).buildPatch(block) as BytecodePatch
 
 /**
  * A [RawResourcePatch] builder.
@@ -577,19 +611,19 @@ fun bytecodePatch(
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
+ * @param default Whether the patch is enabled by default.
  *
  * @constructor Create a new [RawResourcePatch] builder.
  */
 class RawResourcePatchBuilder internal constructor(
     name: String?,
     description: String?,
-    use: Boolean,
-) : PatchBuilder<ResourcePatchContext>(name, description, use) {
+    default: Boolean,
+) : PatchBuilder<ResourcePatchContext>(name, description, default) {
     override fun build() = RawResourcePatch(
         name,
         description,
-        use,
+        default,
         compatibility,
         dependencies,
         options,
@@ -597,6 +631,25 @@ class RawResourcePatchBuilder internal constructor(
         finalizeBlock,
     )
 }
+
+/**
+ * @deprecated Use [rawResourcePatch] with `default` instead of `use`.
+ */
+@JvmName("rawResourcePatchLegacy")
+@Suppress("CONFLICTING_OVERLOADS")
+@Deprecated(
+    message = "Use 'default' parameter instead of 'use'",
+    replaceWith = ReplaceWith(
+        expression = "rawResourcePatch(name, description, default = use, block)"
+    ),
+    level = DeprecationLevel.WARNING
+)
+fun rawResourcePatch(
+    name: String? = null,
+    description: String? = null,
+    use: Boolean = true,
+    block: RawResourcePatchBuilder.() -> Unit = {},
+) = rawResourcePatch(name, description, default = use, block)
 
 /**
  * Create a new [RawResourcePatch].
@@ -604,16 +657,18 @@ class RawResourcePatchBuilder internal constructor(
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
+ * @param default Whether the patch is enabled by default.
  * @param block The block to build the patch.
+ *
  * @return The created [RawResourcePatch].
  */
+@Suppress("CONFLICTING_OVERLOADS")
 fun rawResourcePatch(
     name: String? = null,
     description: String? = null,
-    use: Boolean = true,
+    default: Boolean,
     block: RawResourcePatchBuilder.() -> Unit = {},
-) = RawResourcePatchBuilder(name, description, use).buildPatch(block) as RawResourcePatch
+) = RawResourcePatchBuilder(name, description, default).buildPatch(block) as RawResourcePatch
 
 /**
  * A [ResourcePatch] builder.
@@ -621,19 +676,19 @@ fun rawResourcePatch(
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
+ * @param default Whether the patch is enabled by default.
  *
  * @constructor Create a new [ResourcePatch] builder.
  */
 class ResourcePatchBuilder internal constructor(
     name: String?,
     description: String?,
-    use: Boolean,
-) : PatchBuilder<ResourcePatchContext>(name, description, use) {
+    default: Boolean,
+) : PatchBuilder<ResourcePatchContext>(name, description, default) {
     override fun build() = ResourcePatch(
         name,
         description,
-        use,
+        default,
         compatibility,
         dependencies,
         options,
@@ -643,22 +698,42 @@ class ResourcePatchBuilder internal constructor(
 }
 
 /**
- * Create a new [ResourcePatch].
- *
- * @param name The name of the patch.
- * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
- * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
- * @param block The block to build the patch.
- *
- * @return The created [ResourcePatch].
+ * @deprecated Use [resourcePatch] with `default` instead of `use`.
  */
+@JvmName("resourcePatchLegacy")
+@Suppress("CONFLICTING_OVERLOADS")
+@Deprecated(
+    message = "Use 'default' parameter instead of 'use'",
+    replaceWith = ReplaceWith(
+        expression = "resourcePatch(name, description, default = use, block)"
+    ),
+    level = DeprecationLevel.WARNING
+)
 fun resourcePatch(
     name: String? = null,
     description: String? = null,
     use: Boolean = true,
     block: ResourcePatchBuilder.() -> Unit = {},
-) = ResourcePatchBuilder(name, description, use).buildPatch(block) as ResourcePatch
+) = resourcePatch(name, description, default = use, block)
+
+/**
+ * Create a new [ResourcePatch].
+ *
+ * @param name The name of the patch.
+ * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
+ * @param description The description of the patch.
+ * @param default Whether the patch is enabled by default.
+ * @param block The block to build the patch.
+ *
+ * @return The created [ResourcePatch].
+ */
+@Suppress("CONFLICTING_OVERLOADS")
+fun resourcePatch(
+    name: String? = null,
+    description: String? = null,
+    default: Boolean,
+    block: ResourcePatchBuilder.() -> Unit = {},
+) = ResourcePatchBuilder(name, description, default).buildPatch(block) as ResourcePatch
 
 /**
  * An exception thrown when patching.

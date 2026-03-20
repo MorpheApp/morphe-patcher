@@ -12,23 +12,23 @@ internal class MostCommonCompatibleVersionsTest {
     private val patches =
         arrayOf(
             newPatch("some.package", setOf("a")) { stringOption("string", "value") },
-            newPatch("some.package", setOf("a", "b"), use = false),
-            newPatch("some.package", setOf("a", "b", "c"), use = false),
-            newPatch("some.other.package", setOf("b"), use = false),
+            newPatch("some.package", setOf("a", "b"), default = false),
+            newPatch("some.package", setOf("a", "b", "c"), default = false),
+            newPatch("some.other.package", setOf("b"), default = false),
             newPatch("some.other.package", setOf("b", "c")) { booleanOption("bool", true) },
             newPatch("some.other.package", setOf("b", "c", "d")),
             newPatch("some.other.other.package") { intsOption("intArray", listOf(1, 2, 3)) },
             newPatch("some.other.other.package", setOf("a")),
             newPatch("some.other.other.package", setOf("b")),
-            newPatch("some.other.other.other.package", use = false),
-            newPatch("some.other.other.other.package", use = false),
+            newPatch("some.other.other.other.package", default = false),
+            newPatch("some.other.other.other.package", default = false),
         ).toSet()
 
     @Test
     fun `empty because package is incompatible with any version`() {
         assertEqualsVersions(
             expected = mapOf("some.package" to linkedMapOf()),
-            patches = setOf(newPatch("some.package", emptySet(), use = true)),
+            patches = setOf(newPatch("some.package", emptySet(), default = true)),
             compatiblePackageNames = setOf("some.package"),
         )
     }
@@ -162,11 +162,11 @@ internal class MostCommonCompatibleVersionsTest {
     private fun newPatch(
         packageName: String,
         versions: Set<String>? = null,
-        use: Boolean = true,
+        default: Boolean = true,
         options: PatchBuilder<*>.() -> Unit = {},
     ) = bytecodePatch(
         name = "test",
-        use = use,
+        default = default,
     ) {
         if (versions == null) {
             compatibleWith(packageName)

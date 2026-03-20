@@ -1,3 +1,12 @@
+# [1.3.0-dev.9](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.8...v1.3.0-dev.9) (2026-03-20)
+
+# [1.3.0-dev.8](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.7...v1.3.0-dev.8) (2026-03-20)
+
+
+### Features
+
+* Fingerprint matchAll() functionality ([#87](https://github.com/MorpheApp/morphe-patcher/issues/87)) ([7660630](https://github.com/MorpheApp/morphe-patcher/commit/7660630964de43a0d2f590b9e4f98b347325e8be))
+
 # [1.3.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.6...v1.3.0-dev.7) (2026-03-19)
 
 
