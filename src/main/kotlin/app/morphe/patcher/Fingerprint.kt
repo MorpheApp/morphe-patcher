@@ -575,7 +575,7 @@ open class Fingerprint private constructor(
     }
 
     /**
-     * Matches all methods in the class, or returns NULL if none match.
+     * Matches all methods in the class that match, or returns NULL if none match.
      */
     context(BytecodePatchContext)
     fun matchAllOrNull(classDef: ClassDef): List<Match>? {
@@ -593,7 +593,8 @@ open class Fingerprint private constructor(
     }
 
     /**
-     * Matches all methods in the target app, or returns NULL if none match.
+     * Matches all methods in the target app that match, or returns NULL if none match.
+     * Match method index will be the first match in the method.
      */
     context(BytecodePatchContext)
     fun matchAllOrNull(): List<Match>? {

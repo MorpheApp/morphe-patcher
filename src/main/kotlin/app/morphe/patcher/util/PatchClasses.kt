@@ -112,7 +112,7 @@ internal class PatchClasses internal constructor(
         }
 
         // Default 0.75f load factor works well and a lower value does not improve patching time.
-        val map = HashMap<String, LinkedList<ClassDefWrapper>>()
+        val map = HashMap<String, MutableList<ClassDefWrapper>>()
         val classesWithStrings = mutableListOf<ClassDefWrapper>()
 
         classMap.values.forEach { wrapper ->
@@ -120,7 +120,7 @@ internal class PatchClasses internal constructor(
             if (methodStrings != null) {
                 methodStrings.forEach { stringLiteral ->
                     val list = map.getOrPut(stringLiteral) {
-                        LinkedList()
+                        ArrayList(1)
                     }
                     if (!list.contains(wrapper)) {
                         list += wrapper
