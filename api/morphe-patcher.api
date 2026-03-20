@@ -705,6 +705,7 @@ public abstract class app/morphe/patcher/patch/Patch {
 	public final fun finalize (Lapp/morphe/patcher/patch/PatchContext;)V
 	public final fun getCompatibility ()Ljava/util/List;
 	public final fun getCompatiblePackages ()Ljava/util/Set;
+	public final fun getDefault ()Z
 	public final fun getDependencies ()Ljava/util/Set;
 	public final fun getDescription ()Ljava/lang/String;
 	public final fun getName ()Ljava/lang/String;
@@ -723,6 +724,7 @@ public abstract class app/morphe/patcher/patch/PatchBuilder {
 	public final fun finalize (Lkotlin/jvm/functions/Function1;)V
 	protected final fun getCompatibility ()Ljava/util/List;
 	protected final fun getCompatiblePackages ()Ljava/util/Set;
+	protected final fun getDefault ()Z
 	protected final fun getDependencies ()Ljava/util/Set;
 	protected final fun getDescription ()Ljava/lang/String;
 	protected final fun getExecuteBlock ()Lkotlin/jvm/functions/Function1;
@@ -753,13 +755,19 @@ public final class app/morphe/patcher/patch/PatchException : java/lang/Exception
 public final class app/morphe/patcher/patch/PatchKt {
 	public static final fun bytecodePatch (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/patch/BytecodePatch;
 	public static synthetic fun bytecodePatch$default (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/patch/BytecodePatch;
+	public static final fun bytecodePatchLegacy (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/patch/BytecodePatch;
+	public static synthetic fun bytecodePatchLegacy$default (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/patch/BytecodePatch;
 	public static final fun loadPatchesFromDex (Ljava/util/Set;Ljava/io/File;)Lapp/morphe/patcher/patch/PatchLoader$Dex;
 	public static synthetic fun loadPatchesFromDex$default (Ljava/util/Set;Ljava/io/File;ILjava/lang/Object;)Lapp/morphe/patcher/patch/PatchLoader$Dex;
 	public static final fun loadPatchesFromJar (Ljava/util/Set;)Lapp/morphe/patcher/patch/PatchLoader$Jar;
 	public static final fun rawResourcePatch (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/patch/RawResourcePatch;
 	public static synthetic fun rawResourcePatch$default (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/patch/RawResourcePatch;
+	public static final fun rawResourcePatchLegacy (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/patch/RawResourcePatch;
+	public static synthetic fun rawResourcePatchLegacy$default (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/patch/RawResourcePatch;
 	public static final fun resourcePatch (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/patch/ResourcePatch;
 	public static synthetic fun resourcePatch$default (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/patch/ResourcePatch;
+	public static final fun resourcePatchLegacy (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/patch/ResourcePatch;
+	public static synthetic fun resourcePatchLegacy$default (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/patch/ResourcePatch;
 }
 
 public abstract class app/morphe/patcher/patch/PatchLoader : java/util/Set, kotlin/jvm/internal/markers/KMappedMarker {

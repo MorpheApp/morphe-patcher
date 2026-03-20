@@ -33,7 +33,7 @@ fun Set<Patch<*>>.mostCommonCompatibleVersions(
         return compatiblePackages.filter { (name, _) -> name in wantedPackages }
     }
 
-    this@mostCommonCompatibleVersions.filter { it.use || countUnusedPatches }
+    this@mostCommonCompatibleVersions.filter { it.default || countUnusedPatches }
         .flatMap { it.compatiblePackages ?: emptyList() }
         .let(::filterWantedPackages)
         .forEach { (name, versions) ->
