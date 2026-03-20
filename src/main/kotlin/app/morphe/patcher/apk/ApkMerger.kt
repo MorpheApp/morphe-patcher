@@ -40,6 +40,8 @@ class ApkMerger(
 ) {
     private val arsclibLogger = ArsclibLogger(logger)
 
+    // Also, all logger.info() have been replaced with logger.trace() here. Users get to choose using --verbose flag during patching.
+
     fun merge(
         inputFile: File,
         outputFile: File,
@@ -56,29 +58,29 @@ class ApkMerger(
             dir = extractFile(dir)
             extracted = true
         }
-        logger.info("Searching apk files ...")
+        logger.trace("Searching apk files ...")
         val bundle = ApkBundle()
         bundle.setAPKLogger(arsclibLogger)
         bundle.loadApkDirectory(dir, extracted)
-        logger.info("Found modules: " + bundle.apkModuleList.size)
+        logger.trace("Found modules: " + bundle.apkModuleList.size)
         val mergedModule = bundle.mergeModules(validateModules)
         if (resDirName != null) {
-            logger.info("Renaming resources root dir: $resDirName")
+            logger.trace("Renaming resources root dir: $resDirName")
             mergedModule.setResourcesRootDir(resDirName)
         }
         if (validateResDir) {
-            logger.info("Validating resources dir ...")
+            logger.trace("Validating resources dir ...")
             mergedModule.validateResourcesDir()
         }
         if (cleanMetaInf) {
-            logger.info("Clearing META-INF ...")
+            logger.trace("Clearing META-INF ...")
             clearMeta(mergedModule)
         }
         sanitizeManifest(mergedModule)
         mergedModule.refreshTable()
         mergedModule.refreshManifest()
         mergedModule.setExtractNativeLibs(extractNativeLibs)
-        logger.info("Writing apk ...")
+        logger.trace("Writing apk ...")
         mergedModule.writeApk(outputFile)
         mergedModule.close()
         bundle.close()
@@ -86,15 +88,15 @@ class ApkMerger(
             ApkEditorUtil.deleteDir(dir)
             dir.deleteOnExit()
         }
-        logger.info("Saved to: $outputFile")
+        logger.trace("Saved to: $outputFile")
     }
 
     @Throws(IOException::class)
     private fun extractFile(file: File): File {
         val tmp = toTmpDir(file)
-        logger.info("Extracting to: $tmp")
+        logger.trace("Extracting to: $tmp")
         if (tmp.exists()) {
-            logger.info("Delete: $tmp")
+            logger.trace("Delete: $tmp")
             ApkEditorUtil.deleteDir(tmp)
         }
         tmp.deleteOnExit()
@@ -137,7 +139,7 @@ class ApkMerger(
             return
         }
         val manifest = apkModule.getAndroidManifest()
-        logger.info("Sanitizing manifest ...")
+        logger.trace("Sanitizing manifest ...")
 
         AndroidManifestHelper.removeAttributeFromManifestById(
             manifest,
@@ -173,7 +175,7 @@ class ApkMerger(
             if (!splitsRemoved) {
                 splitsRemoved = removeSplitsTableEntry(meta, apkModule)
             }
-            logger.info(
+            logger.trace(
                 ("Removed-element : <" + meta.name + "> name=\""
                         + AndroidManifestBlock.getAndroidNameValue(meta) + "\"")
             )
@@ -212,7 +214,7 @@ class ApkMerger(
             }
             val resValue = entry.getResValue() ?: continue
             val path = resValue.getValueAsString()
-            logger.info("Removed-table-entry : $path")
+            logger.trace("Removed-table-entry : $path")
             //Remove file entry
             zipEntryMap.remove(path)
             // It's not safe to destroy entry, resource id might be used in dex code.

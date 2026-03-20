@@ -11,7 +11,8 @@ internal class ArsclibLogger(
     private val logger: Logger = NoOpLogger,
 ) : APKLogger {
     override fun logMessage(msg: String) {
-        logger.info(msg)
+        // Category all ARSCLib messages as trace to keep patching logs more tidy.
+        logger.trace(msg)
     }
 
     override fun logError(msg: String, tr: Throwable?) {
