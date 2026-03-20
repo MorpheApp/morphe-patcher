@@ -51,6 +51,10 @@ public class app/morphe/patcher/Fingerprint {
 	public final fun match (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
 	public final fun match (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/Match;
 	public final fun match (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
+	public final fun matchAll (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
+	public final fun matchAll (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Ljava/util/List;
+	public final fun matchAllOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
+	public final fun matchAllOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Ljava/util/List;
 	public final fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/Match;
 	public final fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
 	public final fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/Match;
@@ -216,6 +220,7 @@ public final class app/morphe/patcher/Match {
 	public final fun getOriginalMethod ()Lcom/android/tools/smali/dexlib2/iface/Method;
 	public final fun getStringMatches ()Ljava/util/List;
 	public final fun getStringMatchesOrNull ()Ljava/util/List;
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class app/morphe/patcher/Match$InstructionMatch {
@@ -529,6 +534,7 @@ public final class app/morphe/patcher/patch/BytecodePatchContext : app/morphe/pa
 	public fun close ()V
 	public synthetic fun get ()Ljava/lang/Object;
 	public fun get ()Ljava/util/Set;
+	public final fun getAllClassesWithString (Ljava/lang/String;)Ljava/util/List;
 	public final fun getAllClassesWithStrings ()Ljava/util/List;
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
 	public final fun mutableClassDefBy (Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;

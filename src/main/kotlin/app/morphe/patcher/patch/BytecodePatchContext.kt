@@ -16,6 +16,7 @@ import app.morphe.patcher.StringComparisonType
 import app.morphe.patcher.util.ClassMerger.merge
 import app.morphe.patcher.util.MethodNavigator
 import app.morphe.patcher.util.PatchClasses
+import app.morphe.patcher.util.PatchClasses.ClassDefWrapper
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.DexFile
@@ -193,12 +194,16 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @return All classes that contain at least 1 string.
      */
     fun getAllClassesWithStrings(): List<ClassDef> {
-        val classes = patchClasses.getAllClassesWithStrings()
-        val result = ArrayList<ClassDef>(classes.size)
-        for (wrapper in classes) {
-            result.add(wrapper.classDef)
-        }
-        return result
+        return patchClasses.getAllClassesWithStrings().map { it.classDef }
+    }
+
+    /**
+     * @return All classes that contain the exact string.
+     */
+    fun getAllClassesWithString(stringLiteral: String): List<ClassDef> {
+        val classes = patchClasses.getClassesFromOpcodeStringLiteral(stringLiteral)
+            ?: return emptyList()
+        return classes.map { it.classDef }
     }
 
     /**
