@@ -1,3 +1,10 @@
+# [1.3.0-dev.10](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.9...v1.3.0-dev.10) (2026-03-21)
+
+
+### Bug Fixes
+
+* Set extractNativeLibs to value in manifest by default ([#88](https://github.com/MorpheApp/morphe-patcher/issues/88)) ([5944eef](https://github.com/MorpheApp/morphe-patcher/commit/5944eef0ad7d152f2286fff862ec456ded2bdaad))
+
 # [1.3.0-dev.9](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.8...v1.3.0-dev.9) (2026-03-20)
 
 # [1.3.0-dev.8](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.7...v1.3.0-dev.8) (2026-03-20)
