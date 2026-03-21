@@ -46,7 +46,7 @@ class ApkMerger(
         validateModules: Boolean = true,
         resDirName: String? = null,
         validateResDir: Boolean = true,
-        extractNativeLibs: Boolean = false,
+        extractNativeLibs: Boolean? = null,
         cleanMetaInf: Boolean = true
     ) {
         ApkEditorUtil.delete(outputFile)
@@ -77,7 +77,9 @@ class ApkMerger(
         sanitizeManifest(mergedModule)
         mergedModule.refreshTable()
         mergedModule.refreshManifest()
-        mergedModule.setExtractNativeLibs(extractNativeLibs)
+        val shouldExtractNativeLibs = extractNativeLibs ?: mergedModule.androidManifest?.isExtractNativeLibs
+        logger.info("Setting extractNativeLibs=$shouldExtractNativeLibs")
+        mergedModule.setExtractNativeLibs(shouldExtractNativeLibs)
         logger.info("Writing apk ...")
         mergedModule.writeApk(outputFile)
         mergedModule.close()
