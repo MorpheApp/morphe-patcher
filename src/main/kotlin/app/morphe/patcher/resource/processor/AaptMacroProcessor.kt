@@ -8,6 +8,7 @@ package app.morphe.patcher.resource.processor
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.fileResourceTypes
 import app.morphe.patcher.resource.parseXml
+import app.morphe.patcher.resource.postOrderTraverse
 import app.morphe.patcher.resource.utf8Writer
 import app.morphe.patcher.util.Document
 import org.w3c.dom.Element
@@ -22,8 +23,7 @@ import javax.xml.transform.stream.StreamResult
 
 internal class AaptMacroProcessor(
     internal val get: (path: String) -> File,
-    internal val modifiedResources: Set<File>,
-    internal val addedResources: MutableSet<File>,
+    internal val modifiedResResources: MutableSet<File>,
 ) {
     private val logger = Logger.getLogger(AaptMacroProcessor::class.java.name)
 
@@ -44,7 +44,7 @@ internal class AaptMacroProcessor(
         // Additionally, handle the process of creating new IDs here so we don't have to read the same files again.
         // (This will require refactoring of the code that handles public.xml id generation.)
         val newlyCreatedFiles = mutableSetOf<File>()
-        (modifiedResources + addedResources)
+        modifiedResResources
             .filter { it.exists() && it.extension == "xml" }
             .forEach { newlyCreatedFiles += processDocument(it) }
     }
@@ -82,9 +82,8 @@ internal class AaptMacroProcessor(
                 val topLevelElem = topNodes.item(i) as? Element ?: continue
                 topLevelElem.removeAttribute("xmlns:aapt")
 
-                // Replace recursive postOrderTraverse with iterative stack-based version
-                iterativePostOrder(topLevelElem) { element ->
-                    if (element.nodeName != "aapt:attr") return@iterativePostOrder
+                topLevelElem.postOrderTraverse { element ->
+                    if (element.nodeName != "aapt:attr") return@postOrderTraverse
 
                     val shadowedName = "$${file.nameWithoutExtension}__$aaptCounter"
                     aaptCounter++
@@ -136,35 +135,6 @@ internal class AaptMacroProcessor(
         file.utf8Writer().use { writer ->
             transformer.transform(DOMSource(doc), StreamResult(writer))
         }
-        addedResources.add(file)
-    }
-
-    /**
-     * Iterative post-order traversal for Element nodes.
-     * Preserves original postOrderTraverse behavior without recursion.
-     */
-    private fun iterativePostOrder(root: Element, action: (Element) -> Unit) {
-        data class StackNode(val element: Element, var visited: Boolean = false)
-
-        val stack = ArrayDeque<StackNode>()
-        stack.add(StackNode(root))
-
-        while (stack.isNotEmpty()) {
-            val node = stack.removeLast()
-            if (node.visited) {
-                action(node.element)
-                continue
-            }
-
-            node.visited = true
-            stack.add(node) // Add back to process after children
-
-            // Add children to stack
-            val children = node.element.childNodes
-            for (i in children.length - 1 downTo 0) {
-                val child = children.item(i)
-                if (child is Element) stack.add(StackNode(child))
-            }
-        }
+        modifiedResResources.add(file)
     }
 }

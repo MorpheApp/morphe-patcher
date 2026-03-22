@@ -15,9 +15,13 @@ import java.lang.reflect.Modifier
 import java.net.URLClassLoader
 import java.util.function.Supplier
 import java.util.jar.JarFile
+import kotlin.collections.flatten
 
+@Deprecated("Use Compatibility instead")
 typealias PackageName = String
+@Deprecated("Use Compatibility instead")
 typealias VersionName = String
+@Deprecated("Use Compatibility instead")
 typealias Package = Pair<PackageName, Set<VersionName>?>
 
 /**
@@ -25,12 +29,12 @@ typealias Package = Pair<PackageName, Set<VersionName>?>
  *
  * @param C The [PatchContext] to execute and finalize the patch with.
  * @param name The name of the patch.
- * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
+ *   If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
+ * @param default Whether the patch is enabled by default.
  * @param dependencies Other patches this patch depends on.
- * @param compatiblePackages The packages the patch is compatible with.
- * If null, the patch is compatible with all packages.
+ * @param compatibility The packages the patch is compatible with.
+ *   If null, the patch is compatible with all packages.
  * @param options The options of the patch.
  * @param executeBlock The execution block of the patch.
  * @param finalizeBlock The finalizing block of the patch. Called after all patches have been executed,
@@ -41,15 +45,52 @@ typealias Package = Pair<PackageName, Set<VersionName>?>
 sealed class Patch<C : PatchContext<*>>(
     val name: String?,
     val description: String?,
-    val use: Boolean,
+    val default: Boolean,
     val dependencies: Set<Patch<*>>,
-    val compatiblePackages: Set<Package>?,
+    val compatibility: List<Compatibility>?,
     options: Set<Option<*>>,
     private val executeBlock: (C) -> Unit,
     // Must be internal and nullable, so that Patcher.invoke can check,
     // if a patch has a finalizing block in order to not emit it twice.
     internal var finalizeBlock: ((C) -> Unit)?,
 ) {
+
+    @Deprecated("Use constructor with Compatibility object")
+    constructor(
+        name: String?,
+        description: String?,
+        use: Boolean,
+        dependencies: Set<Patch<*>>,
+        compatiblePackages: Set<Package>,
+        options: Set<Option<*>>,
+        executeBlock: (C) -> Unit,
+        finalizeBlock: ((C) -> Unit)?,
+    ) : this(
+        name = name,
+        description = description,
+        default = use,
+        dependencies = dependencies,
+        compatibility = Compatibility.fromLegacy(compatiblePackages),
+        options = options,
+        executeBlock = executeBlock,
+        finalizeBlock = finalizeBlock
+    )
+
+    /**
+     * Legacy format. Experimental app targets are not present in this format.
+     */
+    @Deprecated("Instead use compatibility")
+    val compatiblePackages: Set<Package>? by lazy {
+        compatibility?.mapNotNull { it.legacy }?.toSet()
+    }
+
+    @Deprecated(
+        message = "Use 'default' instead of 'use'",
+        replaceWith = ReplaceWith("default"),
+        level = DeprecationLevel.WARNING
+    )
+    val use: Boolean get() = default
+
     /**
      * The options of the patch.
      */
@@ -120,26 +161,23 @@ internal fun Iterable<Patch<*>>.forEachRecursively(
  * A bytecode patch.
  *
  * @param name The name of the patch.
- * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
- * @param compatiblePackages The packages the patch is compatible with.
- * If null, the patch is compatible with all packages.
+ * @param default Whether the patch is enabled by default.
+ * @property compatibility The packages the patch is compatible with.
+ *   If null, then the patch is universal and could be applied to all apps.
  * @param dependencies Other patches this patch depends on.
  * @param options The options of the patch.
- * @property extensionInputStream Getter for the extension input stream of the patch.
- * An extension is a precompiled DEX file that is merged into the patched app before this patch is executed.
+ * @property extensionInputStream Getter for the extension input stream of the patch. An extension
+ *   is a precompiled DEX file that is merged into the patched app before this patch is executed.
  * @param executeBlock The execution block of the patch.
- * @param finalizeBlock The finalizing block of the patch. Called after all patches have been executed,
- * in reverse order of execution.
- *
- * @constructor Create a new bytecode patch.
+ * @param finalizeBlock The finalizing block of the patch. Called after all patches have
+ *   been executed, in reverse order of execution.
  */
 class BytecodePatch internal constructor(
     name: String?,
     description: String?,
-    use: Boolean,
-    compatiblePackages: Set<Package>?,
+    default: Boolean,
+    compatibility: List<Compatibility>?,
     dependencies: Set<Patch<*>>,
     options: Set<Option<*>>,
     val extensionInputStream: Supplier<InputStream>?,
@@ -148,13 +186,37 @@ class BytecodePatch internal constructor(
 ) : Patch<BytecodePatchContext>(
     name,
     description,
-    use,
+    default,
     dependencies,
-    compatiblePackages,
+    compatibility,
     options,
     executeBlock,
     finalizeBlock,
 ) {
+
+    @Deprecated("Use constructor with Compatibility object")
+    constructor(
+        name: String?,
+        description: String?,
+        use: Boolean,
+        compatiblePackages: Set<Package>?,
+        dependencies: Set<Patch<*>>,
+        options: Set<Option<*>>,
+        extensionInputStream: Supplier<InputStream>?,
+        executeBlock: (BytecodePatchContext) -> Unit,
+        finalizeBlock: ((BytecodePatchContext) -> Unit)?,
+    ) : this(
+        name = name,
+        description = description,
+        default = use,
+        compatibility = Compatibility.fromLegacy(compatiblePackages),
+        dependencies = dependencies,
+        options = options,
+        extensionInputStream = extensionInputStream,
+        executeBlock = executeBlock,
+        finalizeBlock = finalizeBlock
+    )
+
     override fun execute(context: PatcherContext) = with(context.bytecodeContext) {
         mergeExtension(this@BytecodePatch)
         execute(this)
@@ -171,8 +233,8 @@ class BytecodePatch internal constructor(
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
- * @param compatiblePackages The packages the patch is compatible with.
+ * @param default Whether the patch is enabled by default.
+ * @param compatibility The packages the patch is compatible with.
  * If null, the patch is compatible with all packages.
  * @param dependencies Other patches this patch depends on.
  * @param options The options of the patch.
@@ -185,8 +247,8 @@ class BytecodePatch internal constructor(
 class RawResourcePatch internal constructor(
     name: String?,
     description: String?,
-    use: Boolean,
-    compatiblePackages: Set<Package>?,
+    default: Boolean,
+    compatibility: List<Compatibility>?,
     dependencies: Set<Patch<*>>,
     options: Set<Option<*>>,
     executeBlock: (ResourcePatchContext) -> Unit,
@@ -194,13 +256,35 @@ class RawResourcePatch internal constructor(
 ) : Patch<ResourcePatchContext>(
     name,
     description,
-    use,
+    default,
     dependencies,
-    compatiblePackages,
+    compatibility,
     options,
     executeBlock,
     finalizeBlock,
 ) {
+
+    @Deprecated("Use constructor with Compatibility object")
+    constructor(
+        name: String?,
+        description: String?,
+        use: Boolean,
+        compatiblePackages: Set<Package>?,
+        dependencies: Set<Patch<*>>,
+        options: Set<Option<*>>,
+        executeBlock: (ResourcePatchContext) -> Unit,
+        finalizeBlock: ((ResourcePatchContext) -> Unit)?,
+    ) : this(
+        name = name,
+        description = description,
+        default = use,
+        compatibility = Compatibility.fromLegacy(compatiblePackages),
+        dependencies = dependencies,
+        options = options,
+        executeBlock = executeBlock,
+        finalizeBlock = finalizeBlock
+    )
+
     override fun execute(context: PatcherContext) = execute(context.resourceContext)
 
     override fun finalize(context: PatcherContext) = finalize(context.resourceContext)
@@ -214,8 +298,8 @@ class RawResourcePatch internal constructor(
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
- * @param compatiblePackages The packages the patch is compatible with.
+ * @param default Whether the patch is enabled by default.
+ * @param compatibility The packages the patch is compatible with.
  * If null, the patch is compatible with all packages.
  * @param dependencies Other patches this patch depends on.
  * @param options The options of the patch.
@@ -228,8 +312,8 @@ class RawResourcePatch internal constructor(
 class ResourcePatch internal constructor(
     name: String?,
     description: String?,
-    use: Boolean,
-    compatiblePackages: Set<Package>?,
+    default: Boolean,
+    compatibility: List<Compatibility>?,
     dependencies: Set<Patch<*>>,
     options: Set<Option<*>>,
     executeBlock: (ResourcePatchContext) -> Unit,
@@ -237,13 +321,35 @@ class ResourcePatch internal constructor(
 ) : Patch<ResourcePatchContext>(
     name,
     description,
-    use,
+    default,
     dependencies,
-    compatiblePackages,
+    compatibility,
     options,
     executeBlock,
     finalizeBlock,
 ) {
+
+    @Deprecated("Use constructor with Compatibility object")
+    constructor(
+        name: String?,
+        description: String?,
+        use: Boolean,
+        compatiblePackages: Set<Package>?,
+        dependencies: Set<Patch<*>>,
+        options: Set<Option<*>>,
+        executeBlock: (ResourcePatchContext) -> Unit,
+        finalizeBlock: ((ResourcePatchContext) -> Unit)?,
+    ) : this(
+        name = name,
+        description = description,
+        default = use,
+        compatibility = Compatibility.fromLegacy(compatiblePackages),
+        dependencies = dependencies,
+        options = options,
+        executeBlock = executeBlock,
+        finalizeBlock = finalizeBlock
+    )
+
     override fun execute(context: PatcherContext) = execute(context.resourceContext)
 
     override fun finalize(context: PatcherContext) = finalize(context.resourceContext)
@@ -256,30 +362,36 @@ class ResourcePatch internal constructor(
  *
  * @param C The [PatchContext] to execute and finalize the patch with.
  * @param name The name of the patch.
- * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
- * @property compatiblePackages The packages the patch is compatible with.
- * If null, the patch is compatible with all packages.
+ * @param default Whether the patch is enabled by default.
+ * @property compatibility The packages the patch is compatible with.
+ *   If null, then the patch is universal and could be applied to all apps.
  * @property dependencies Other patches this patch depends on.
  * @property options The options of the patch.
- * @property executionBlock The execution block of the patch.
- * @property finalizeBlock The finalizing block of the patch. Called after all patches have been executed,
- * in reverse order of execution.
+ * @property executeBlock The execution block of the patch.
+ * @property finalizeBlock The finalizing block of the patch. Called after all patches
+ *   have been executed, in reverse order of execution.
  *
  * @constructor Create a new [Patch] builder.
  */
 sealed class PatchBuilder<C : PatchContext<*>>(
     protected val name: String?,
     protected val description: String?,
-    protected val use: Boolean,
+    protected val default: Boolean,
 ) {
-    protected var compatiblePackages: MutableSet<Package>? = null
+    protected var compatibility: MutableList<Compatibility>? = null
     protected var dependencies = mutableSetOf<Patch<*>>()
     protected val options = mutableSetOf<Option<*>>()
 
-    protected var executionBlock: ((C) -> Unit) = { }
+    protected var executeBlock: ((C) -> Unit) = { }
     protected var finalizeBlock: ((C) -> Unit)? = null
+
+    @Deprecated(
+        message = "Use 'default' instead of 'use'",
+        replaceWith = ReplaceWith("default"),
+        level = DeprecationLevel.WARNING
+    )
+    protected val use: Boolean get() = default
 
     /**
      * Add an option to the patch.
@@ -304,17 +416,51 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      */
     private operator fun String.invoke(versions: Set<String>? = null) = this to versions
 
+    @Deprecated("Instead use Compatibility object")
+    protected fun getCompatiblePackages(): Set<Package>? {
+        return compatibility?.mapNotNull { it.legacy }?.toSet()
+    }
+
+    @Deprecated("Instead use Compatibility object")
+    protected fun setCompatiblePackages(packages: Set<Package>?) {
+        compatibility = packages?.map { Compatibility.fromLegacy(it) }?.toMutableList()
+    }
+
+    @Deprecated("Instead use getExecuteBlock()")
+    protected fun getExecutionBlock(): (C) -> Unit {
+        return executeBlock
+    }
+
+    @Deprecated("Instead use setExecuteBlock()")
+    protected fun setExecutionBlock(block: (C) -> Unit) {
+        executeBlock = block
+    }
+
+    /**
+     * Add packages the patch is compatible with.
+     *
+     * @param compatibility The compatibility of this patch.
+     */
+    fun compatibleWith(vararg compatibility: Compatibility) {
+        if (this.compatibility == null) {
+            this.compatibility = mutableListOf()
+        }
+
+        this.compatibility!!.addAll(compatibility)
+    }
+
     /**
      * Add packages the patch is compatible with.
      *
      * @param packages The packages the patch is compatible with.
      */
+    @Deprecated("Instead use Compatibility object")
     fun compatibleWith(vararg packages: Package) {
-        if (compatiblePackages == null) {
-            compatiblePackages = mutableSetOf()
+        if (compatibility == null) {
+            compatibility = mutableListOf()
         }
 
-        compatiblePackages!! += packages
+        compatibility!!.addAll(packages.map { Compatibility.fromLegacy(it) })
     }
 
     /**
@@ -322,7 +468,9 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      *
      * @param packages The packages the patch is compatible with.
      */
-    fun compatibleWith(vararg packages: String) = compatibleWith(*packages.map { it() }.toTypedArray())
+    @Deprecated("Instead use Compatibility object")
+    fun compatibleWith(vararg packages: String) =
+        compatibleWith(*packages.map { it() }.toTypedArray())
 
     /**
      * Add dependencies to the patch.
@@ -339,7 +487,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      * @param block The execution block of the patch.
      */
     fun execute(block: C.() -> Unit) {
-        executionBlock = block
+        executeBlock = block
     }
 
     /**
@@ -370,12 +518,12 @@ sealed class PatchBuilder<C : PatchContext<*>>(
 private fun <B : PatchBuilder<*>> B.buildPatch(block: B.() -> Unit = {}) = apply(block).build()
 
 /**
- * A [BytecodePatchBuilder] builder.
+ * A [BytecodePatch] builder.
  *
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
+ * @param default Whether the patch is enabled by default.
  * @property extensionInputStream Getter for the extension input stream of the patch.
  * An extension is a precompiled DEX file that is merged into the patched app before this patch is executed.
  *
@@ -384,8 +532,8 @@ private fun <B : PatchBuilder<*>> B.buildPatch(block: B.() -> Unit = {}) = apply
 class BytecodePatchBuilder internal constructor(
     name: String?,
     description: String?,
-    use: Boolean,
-) : PatchBuilder<BytecodePatchContext>(name, description, use) {
+    default: Boolean,
+) : PatchBuilder<BytecodePatchContext>(name, description, default) {
     // Must be internal for the inlined function "extendWith".
     @PublishedApi
     internal var extensionInputStream: Supplier<InputStream>? = null
@@ -407,17 +555,36 @@ class BytecodePatchBuilder internal constructor(
     }
 
     override fun build() = BytecodePatch(
-        name,
-        description,
-        use,
-        compatiblePackages,
-        dependencies,
-        options,
-        extensionInputStream,
-        executionBlock,
-        finalizeBlock,
+        name = name,
+        description = description,
+        default = default,
+        compatibility = compatibility,
+        dependencies = dependencies,
+        options = options,
+        extensionInputStream = extensionInputStream,
+        executeBlock = executeBlock,
+        finalizeBlock = finalizeBlock
     )
 }
+
+/**
+ * @deprecated Use [bytecodePatch] with `default` instead of `use`.
+ */
+@JvmName("bytecodePatchLegacy")
+@Suppress("CONFLICTING_OVERLOADS")
+@Deprecated(
+    message = "Use 'default' parameter instead of 'use'",
+    replaceWith = ReplaceWith(
+        expression = "bytecodePatch(name, description, default = use, block)"
+    ),
+    level = DeprecationLevel.WARNING
+)
+fun bytecodePatch(
+    name: String? = null,
+    description: String? = null,
+    use: Boolean = true,
+    block: BytecodePatchBuilder.() -> Unit = {},
+) = bytecodePatch(name, description, default = use, block)
 
 /**
  * Create a new [BytecodePatch].
@@ -425,17 +592,18 @@ class BytecodePatchBuilder internal constructor(
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
+ * @param default Whether the patch is enabled by default.
  * @param block The block to build the patch.
  *
  * @return The created [BytecodePatch].
  */
+@Suppress("CONFLICTING_OVERLOADS")
 fun bytecodePatch(
     name: String? = null,
     description: String? = null,
-    use: Boolean = true,
+    default: Boolean,
     block: BytecodePatchBuilder.() -> Unit = {},
-) = BytecodePatchBuilder(name, description, use).buildPatch(block) as BytecodePatch
+) = BytecodePatchBuilder(name, description, default).buildPatch(block) as BytecodePatch
 
 /**
  * A [RawResourcePatch] builder.
@@ -443,26 +611,45 @@ fun bytecodePatch(
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
+ * @param default Whether the patch is enabled by default.
  *
  * @constructor Create a new [RawResourcePatch] builder.
  */
 class RawResourcePatchBuilder internal constructor(
     name: String?,
     description: String?,
-    use: Boolean,
-) : PatchBuilder<ResourcePatchContext>(name, description, use) {
+    default: Boolean,
+) : PatchBuilder<ResourcePatchContext>(name, description, default) {
     override fun build() = RawResourcePatch(
         name,
         description,
-        use,
-        compatiblePackages,
+        default,
+        compatibility,
         dependencies,
         options,
-        executionBlock,
+        executeBlock,
         finalizeBlock,
     )
 }
+
+/**
+ * @deprecated Use [rawResourcePatch] with `default` instead of `use`.
+ */
+@JvmName("rawResourcePatchLegacy")
+@Suppress("CONFLICTING_OVERLOADS")
+@Deprecated(
+    message = "Use 'default' parameter instead of 'use'",
+    replaceWith = ReplaceWith(
+        expression = "rawResourcePatch(name, description, default = use, block)"
+    ),
+    level = DeprecationLevel.WARNING
+)
+fun rawResourcePatch(
+    name: String? = null,
+    description: String? = null,
+    use: Boolean = true,
+    block: RawResourcePatchBuilder.() -> Unit = {},
+) = rawResourcePatch(name, description, default = use, block)
 
 /**
  * Create a new [RawResourcePatch].
@@ -470,16 +657,18 @@ class RawResourcePatchBuilder internal constructor(
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
+ * @param default Whether the patch is enabled by default.
  * @param block The block to build the patch.
+ *
  * @return The created [RawResourcePatch].
  */
+@Suppress("CONFLICTING_OVERLOADS")
 fun rawResourcePatch(
     name: String? = null,
     description: String? = null,
-    use: Boolean = true,
+    default: Boolean,
     block: RawResourcePatchBuilder.() -> Unit = {},
-) = RawResourcePatchBuilder(name, description, use).buildPatch(block) as RawResourcePatch
+) = RawResourcePatchBuilder(name, description, default).buildPatch(block) as RawResourcePatch
 
 /**
  * A [ResourcePatch] builder.
@@ -487,26 +676,45 @@ fun rawResourcePatch(
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
+ * @param default Whether the patch is enabled by default.
  *
  * @constructor Create a new [ResourcePatch] builder.
  */
 class ResourcePatchBuilder internal constructor(
     name: String?,
     description: String?,
-    use: Boolean,
-) : PatchBuilder<ResourcePatchContext>(name, description, use) {
+    default: Boolean,
+) : PatchBuilder<ResourcePatchContext>(name, description, default) {
     override fun build() = ResourcePatch(
         name,
         description,
-        use,
-        compatiblePackages,
+        default,
+        compatibility,
         dependencies,
         options,
-        executionBlock,
+        executeBlock,
         finalizeBlock,
     )
 }
+
+/**
+ * @deprecated Use [resourcePatch] with `default` instead of `use`.
+ */
+@JvmName("resourcePatchLegacy")
+@Suppress("CONFLICTING_OVERLOADS")
+@Deprecated(
+    message = "Use 'default' parameter instead of 'use'",
+    replaceWith = ReplaceWith(
+        expression = "resourcePatch(name, description, default = use, block)"
+    ),
+    level = DeprecationLevel.WARNING
+)
+fun resourcePatch(
+    name: String? = null,
+    description: String? = null,
+    use: Boolean = true,
+    block: ResourcePatchBuilder.() -> Unit = {},
+) = resourcePatch(name, description, default = use, block)
 
 /**
  * Create a new [ResourcePatch].
@@ -514,17 +722,18 @@ class ResourcePatchBuilder internal constructor(
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
- * @param use Weather or not the patch should be used.
+ * @param default Whether the patch is enabled by default.
  * @param block The block to build the patch.
  *
  * @return The created [ResourcePatch].
  */
+@Suppress("CONFLICTING_OVERLOADS")
 fun resourcePatch(
     name: String? = null,
     description: String? = null,
-    use: Boolean = true,
+    default: Boolean,
     block: ResourcePatchBuilder.() -> Unit = {},
-) = ResourcePatchBuilder(name, description, use).buildPatch(block) as ResourcePatch
+) = ResourcePatchBuilder(name, description, default).buildPatch(block) as ResourcePatch
 
 /**
  * An exception thrown when patching.

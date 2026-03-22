@@ -24,22 +24,8 @@ import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.util.MethodUtil
 import java.lang.ref.WeakReference
 
-/**
- * A fingerprint for a method. A fingerprint is a partial description of a method,
- * used to uniquely match a method by its characteristics.
- *
- * See the patcher documentation for more detailed explanations and example fingerprinting.
- *
- * @param definingClass Defining class. Type declaration follow the semantics described in [StringComparisonType].
- * @param name Exact method name.
- * @param accessFlags The exact access flags using values of [AccessFlags].
- * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
- * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
- * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
- * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
- * @param custom A custom condition for this fingerprint.
- */
-open class Fingerprint(
+open class Fingerprint private constructor(
+    val classFingerprint: Fingerprint? = null,
     val definingClass: String? = null,
     val name: String? = null,
     accessFlags: List<AccessFlags>? = null,
@@ -49,6 +35,112 @@ open class Fingerprint(
     val strings: List<String>? = null,
     val custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
 ) {
+    /**
+     * A fingerprint for a method. A fingerprint is a partial description of a method,
+     * used to uniquely match a method by its characteristics.
+     *
+     * See the patcher documentation for more detailed explanations and example fingerprinting.
+     *
+     * @param classFingerprint Fingerprint that finds the class this fingerprint resolves against.
+     * @param name Exact method name.
+     * @param accessFlags The exact access flags using values of [AccessFlags].
+     * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
+     * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param custom A custom condition for this fingerprint.
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint,
+        null,
+        name,
+        accessFlags,
+        returnType,
+        parameters,
+        filters,
+        strings,
+        custom
+    )
+
+    /**
+     * A fingerprint for a method. A fingerprint is a partial description of a method,
+     * used to uniquely match a method by its characteristics.
+     *
+     * See the patcher documentation for more detailed explanations and example fingerprinting.
+     *
+     * @param name Exact method name.
+     * @param accessFlags The exact access flags using values of [AccessFlags].
+     * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
+     * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param custom A custom condition for this fingerprint.
+     */
+    constructor(
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        null,
+        null,
+        name,
+        accessFlags,
+        returnType,
+        parameters,
+        filters,
+        strings,
+        custom
+    )
+
+    /**
+     * A fingerprint for a method. A fingerprint is a partial description of a method,
+     * used to uniquely match a method by its characteristics.
+     *
+     * See the patcher documentation for more detailed explanations and example fingerprinting.
+     *
+     * @param definingClass Defining class. Type declaration follow the semantics described in [StringComparisonType].
+     * @param name Exact method name.
+     * @param accessFlags The exact access flags using values of [AccessFlags].
+     * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
+     * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param custom A custom condition for this fingerprint.
+     */
+    constructor( // Required to disambiguate if defining class or class fingerprint is not specified.
+        definingClass: String? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        null,
+        definingClass,
+        name,
+        accessFlags,
+        returnType,
+        parameters,
+        filters,
+        strings,
+        custom
+    )
+
     // @Deprecated("Here only for backwards compatibility") // TODO: Remove after next major version bump.
     constructor(
         accessFlags: List<AccessFlags>? = null,
@@ -58,6 +150,7 @@ open class Fingerprint(
         strings: List<String>? = null,
         custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
     ) : this(
+        null,
         null,
         null,
         accessFlags,
@@ -93,10 +186,14 @@ open class Fingerprint(
 
     init {
         // Verify an empty fingerprint wasn't declared.
-        if (name == null && definingClass == null && accessFlags == null && returnType == null
+        if (definingClass == null  && name == null && accessFlags == null && returnType == null
             && parameters == null && filters == null && strings == null && custom == null
         ) {
             throw IllegalArgumentException("At least one field must be set")
+        }
+
+        if (definingClass != null && classFingerprint != null) {
+            throw IllegalArgumentException("Cannot specify both definingClass and classFingerprint")
         }
 
         fingerprintList.add(WeakReference(this))
@@ -122,44 +219,18 @@ open class Fingerprint(
     fun matchOrNull(): Match? {
         if (_matchOrNull != null) return _matchOrNull
 
+        // Must check first.
+        val classFingerprintLocal = classFingerprint
+        if (classFingerprint != null) {
+            val match = match(classFingerprintLocal.originalClassDef)
+            _matchOrNull = match
+            return match
+        }
+
         // Use string declarations to first check only the classes
         // that contain one or more fingerprint strings.
-        val stringEqualMatch = mutableListOf<String>()
-        var hasPartialMatchStrings = false
-
-        // Store local to avoid more than one field access.
-        val stringsLocal = strings
-        if (stringsLocal != null) {
-            // Old unordered string declarations.
-            // Can be either equal or partial matches.
-            stringEqualMatch.addAll(stringsLocal)
-            hasPartialMatchStrings = true
-        }
-
-        val filtersLocal = filters
-        if (filtersLocal != null) {
-            fun filterStringFilterInstances(list: List<InstructionFilter>) =
-                list.filterIsInstance<StringFilter>()
-
-            fun addStringFilterLiterals(list: List<StringFilter>) {
-                list.forEach { filter ->
-                    val stringValue = filter.stringValue
-
-                    if (filter.comparison == StringComparisonType.EQUALS) {
-                        stringEqualMatch.add(stringValue)
-                    } else {
-                        hasPartialMatchStrings = true
-                    }
-                }
-            }
-
-            addStringFilterLiterals(filterStringFilterInstances(filtersLocal))
-
-            // Use strings declared inside anyInstruction.
-            filtersLocal.filterIsInstance<AnyInstruction>().forEach { anyFilter ->
-                addStringFilterLiterals(filterStringFilterInstances(anyFilter.filters))
-            }
-        }
+        val filterStrings = mutableListOf<String>()
+        findFilterStrings(filterStrings)
 
         fun machAllClassMethods(value: PatchClasses.ClassDefWrapper): Match? {
             val classDef = value.classDef
@@ -198,9 +269,9 @@ open class Fingerprint(
             return null
         }
 
-        if (stringEqualMatch.isNotEmpty() || hasPartialMatchStrings) {
-            stringEqualMatch.forEach { string ->
-                patchClasses.getClassFromOpcodeStringLiteral(string)?.forEach { stringClass ->
+        if (filterStrings.isNotEmpty()) {
+            filterStrings.forEach { string ->
+                patchClasses.getClassesFromOpcodeStringLiteral(string)?.forEach { stringClass ->
                     val value = machAllClassMethods(stringClass)
                     if (value != null) {
                         return value
@@ -209,8 +280,8 @@ open class Fingerprint(
             }
 
             // Fingerprint has partial string matches. Check all classes with strings.
-            patchClasses.getAllClassesWithStrings().forEach { value ->
-                val value = machAllClassMethods(value)
+            patchClasses.getAllClassesWithStrings().forEach { stringClass ->
+                val value = machAllClassMethods(stringClass)
                 if (value != null) {
                     return value
                 }
@@ -228,6 +299,28 @@ open class Fingerprint(
         return null
     }
 
+    context(BytecodePatchContext)
+    private fun checkClassFingerprintMatchesDefiningClass(classDef: String) {
+        val classFingerprintLocal = classFingerprint
+        if (classFingerprintLocal != null) {
+            val originalClassDef = classFingerprintLocal.originalClassDef.type
+            if (originalClassDef != classDef) {
+                throw IllegalArgumentException("Fingerprint class fingerprint: $classFingerprintLocal " +
+                        "resolves to a different class: $originalClassDef than the " +
+                        "match classDef parameter: $classDef")
+            }
+
+            val definingClassLocal = definingClass
+            if (definingClassLocal != null) {
+                if (!definingClassComparison.compare(definingClassLocal, originalClassDef)) {
+                    throw IllegalArgumentException("Fingerprint class fingerprint: $classFingerprintLocal " +
+                            "resolves to a different class: $originalClassDef than this fingerprint " +
+                            "definingClass: $definingClassLocal")
+                }
+            }
+        }
+    }
+
     /**
      * Match using a [ClassDef].
      *
@@ -239,6 +332,8 @@ open class Fingerprint(
     fun matchOrNull(
         classDef: ClassDef
     ): Match? {
+        checkClassFingerprintMatchesDefiningClass(classDef.type)
+
         if (_matchOrNull != null) return _matchOrNull
 
         for (method in classDef.methods) {
@@ -264,6 +359,8 @@ open class Fingerprint(
     fun matchOrNull(
         method: Method,
     ): Match? {
+        checkClassFingerprintMatchesDefiningClass(method.definingClass)
+
         if (_matchOrNull != null) return _matchOrNull
 
         return matchOrNull(method, classDefBy(method.definingClass))
@@ -323,7 +420,7 @@ open class Fingerprint(
 
         // Legacy string declarations.
         val stringsLocal = strings
-        val stringMatches: List<Match.StringMatch>? = if (stringsLocal == null) {
+        var stringMatches: List<Match.StringMatch>? = if (stringsLocal == null) {
             null
         } else {
             buildList {
@@ -422,6 +519,16 @@ open class Fingerprint(
             matchFilters() ?: return null
         }
 
+        // Sort legacy string match results to the same order declared in the fingerprint.
+        if (stringMatches != null) {
+            val map = stringMatches.groupBy { it.string }
+                .mapValues { it.value.toMutableList() }
+
+            stringMatches = strings!!.mapNotNull { key ->
+                map[key]?.removeFirstOrNull()
+            }
+        }
+
         _matchOrNull = Match(
             classDef,
             method,
@@ -430,6 +537,110 @@ open class Fingerprint(
         )
 
         return _matchOrNull
+    }
+
+    private fun findFilterStrings(stringEqualMatch: MutableList<String>): Boolean {
+        var hasPartialMatchStrings = false
+
+        if (strings != null) {
+            // Old unordered string declarations.
+            // Can be either equal or partial matches.
+            stringEqualMatch.addAll(strings)
+            hasPartialMatchStrings = true
+        }
+
+        if (filters != null) {
+            fun filterStringFilterInstances(list: List<InstructionFilter>) =
+                list.filterIsInstance<StringFilter>()
+
+            fun addStringFilterLiterals(list: List<StringFilter>) {
+                list.forEach { filter ->
+                    stringEqualMatch.add(filter.stringValue)
+
+                    if (filter.comparison != StringComparisonType.EQUALS) {
+                        hasPartialMatchStrings = true
+                    }
+                }
+            }
+
+            addStringFilterLiterals(filterStringFilterInstances(filters))
+
+            // Use strings declared inside anyInstruction.
+            filters.filterIsInstance<AnyInstruction>().forEach { anyFilter ->
+                addStringFilterLiterals(filterStringFilterInstances(anyFilter.filters))
+            }
+        }
+
+        return hasPartialMatchStrings
+    }
+
+    /**
+     * Matches all methods in the class that match, or returns NULL if none match.
+     */
+    context(BytecodePatchContext)
+    fun matchAllOrNull(classDef: ClassDef): List<Match>? {
+        val matches = mutableListOf<Match>()
+
+        for (method in classDef.methods) {
+            val match = matchOrNull(method, classDef)
+            if (match != null) {
+                matches += match
+                clearMatch()
+            }
+        }
+
+        return matches.ifEmpty { null }
+    }
+
+    /**
+     * Matches all methods in the target app that match, or returns NULL if none match.
+     * Match method index will be the first match in the method.
+     */
+    context(BytecodePatchContext)
+    fun matchAllOrNull(): List<Match>? {
+        val matches = mutableListOf<Match>()
+
+        fun machAllClassMethods(value: PatchClasses.ClassDefWrapper) {
+            val classDef = value.classDef
+            classDef.methods.forEach { method ->
+                val match = matchOrNull(method, classDef)
+                if (match != null) {
+                    matches += match
+                    clearMatch()
+                }
+            }
+        }
+
+        // If using built-in filters and not using anyFilter, and contain String literals,
+        // then can speed up matching by only checking classes with matching strings.
+        if (filters?.all { BUNDLED_INSTRUCTION_FILTERS.contains(it::class)} == true) {
+            val filterStrings = mutableListOf<String>()
+            val hasPartialMatchStrings = findFilterStrings(filterStrings)
+
+            if (filterStrings.isNotEmpty()) {
+                if (hasPartialMatchStrings) {
+                    patchClasses.getAllClassesWithStrings().forEach { stringClass ->
+                        machAllClassMethods(stringClass)
+                    }
+                } else {
+                    filterStrings.forEach { string ->
+                        patchClasses.getClassesFromOpcodeStringLiteral(string)
+                            ?.forEach { stringClass ->
+                                machAllClassMethods(stringClass)
+                            }
+                    }
+                }
+
+                return matches.ifEmpty { null }
+            }
+        }
+
+        // Check all classes.
+        patchClasses.classMap.values.forEach { value ->
+            machAllClassMethods(value)
+        }
+
+        return matches.ifEmpty { null }
     }
 
     fun patchException() = PatchException("Failed to match the fingerprint: $this")
@@ -481,6 +692,27 @@ open class Fingerprint(
         method: Method,
         classDef: ClassDef,
     ) = matchOrNull(method, classDef) ?: throw patchException()
+
+    /**
+     * Matches all methods in the target app.
+     *
+     * @param classDef The class the method is a member of.
+     * @return All methods that match.
+     * @throws PatchException If the fingerprint failed to match.
+     */
+    context(BytecodePatchContext)
+    fun matchAll(
+        classDef: ClassDef,
+    ) = matchAllOrNull(classDef) ?: throw patchException()
+
+    /**
+     * Match all methods in the target app.
+     *
+     * @return All methods that match.
+     * @throws PatchException If the fingerprint failed to match.
+     */
+    context(BytecodePatchContext)
+    fun matchAll() = matchAllOrNull() ?: throw patchException()
 
     /**
      * The class the matching method is a member of, or null if this fingerprint did not match.
@@ -665,6 +897,8 @@ class Match internal constructor(
     /**
      * The matches for strings declared in [Fingerprint.strings].
      *
+     * Match results will be in the same order declared in the fingerprint string list.
+     *
      * **Note**: Strings declared as instruction filters are not included in these legacy match results.
      *
      * This property may be deprecated in the future.
@@ -688,6 +922,12 @@ class Match internal constructor(
      */
     // TODO: Possibly deprecate this in the future.
     class StringMatch internal constructor(val string: String, val index: Int)
+
+    override fun toString(): String {
+        return "Match(originalMethod=$originalMethod, " +
+                "instructionMatches=$_instructionMatches, " +
+                "stringMatches=$_stringMatches)"
+    }
 }
 
 /**
@@ -863,6 +1103,8 @@ class FingerprintBuilder() {
 
     internal fun build(): Fingerprint {
         return Fingerprint(
+            definingClass = null,
+            name = null,
             accessFlags = accessFlags,
             returnType = returnType,
             parameters = parameters,

@@ -262,7 +262,7 @@ internal object PatchClassesTest {
 
     @Test
     fun `getClassFromOpcodeStringLiteral returns classes containing string`() {
-        val classes = patchClasses.getClassFromOpcodeStringLiteral("hello")
+        val classes = patchClasses.getClassesFromOpcodeStringLiteral("hello")
 
         assertNotNull(classes)
         assertEquals(2, classes.size)  // Class1 and Class3 both have "hello"
@@ -270,7 +270,7 @@ internal object PatchClassesTest {
 
     @Test
     fun `getClassFromOpcodeStringLiteral returns null for non-existent string`() {
-        val classes = patchClasses.getClassFromOpcodeStringLiteral("nonexistent")
+        val classes = patchClasses.getClassesFromOpcodeStringLiteral("nonexistent")
 
         assertNull(classes)
     }

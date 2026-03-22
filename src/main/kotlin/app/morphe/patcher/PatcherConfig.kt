@@ -8,6 +8,7 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.ResourceMode
 import brut.androlib.Config
 import java.io.File
@@ -27,7 +28,8 @@ class PatcherConfig(
     private val temporaryFilesPath: File = File("morphe-temporary-files"),
     private val aaptBinaryPath: String? = null,
     private val frameworkFileDirectory: String? = null,
-    internal val useArsclib: Boolean = true
+    internal val useArsclib: Boolean = true,
+    internal val keepArchitectures: Set<CpuArchitecture> = emptySet(),
 ) {
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
 

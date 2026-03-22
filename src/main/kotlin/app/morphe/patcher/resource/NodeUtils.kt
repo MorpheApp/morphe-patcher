@@ -5,13 +5,12 @@
 
 package app.morphe.patcher.resource
 
-import app.morphe.patcher.util.Document
 import org.w3c.dom.Element
-import org.w3c.dom.NamedNodeMap
 import org.w3c.dom.Node
 import org.w3c.dom.NodeList
+import java.util.ArrayDeque
 
-fun NodeList.first(predicate: (Node) -> Boolean): Node {
+internal fun NodeList.first(predicate: (Node) -> Boolean): Node {
     for (i in 0 until length) {
         val node = item(i)
         if (predicate(node)) {
@@ -21,14 +20,14 @@ fun NodeList.first(predicate: (Node) -> Boolean): Node {
     throw NoSuchElementException("Could not find element matching predicate")
 }
 
-fun NodeList.forEach(action: (Node) -> Unit) {
+internal fun NodeList.forEach(action: (Node) -> Unit) {
     for (i in 0 until length) {
         val node = item(i)
         action(node)
     }
 }
 
-fun NodeList.filter(predicate: (Node) -> Boolean): List<Node> {
+internal fun NodeList.filter(predicate: (Node) -> Boolean): List<Node> {
     val result = mutableListOf<Node>()
     this.forEach {
         if (predicate(it)) {
@@ -38,7 +37,7 @@ fun NodeList.filter(predicate: (Node) -> Boolean): List<Node> {
     return result
 }
 
-fun <T> NodeList.map(action: (Node) -> T): List<T> {
+internal fun <T> NodeList.map(action: (Node) -> T): List<T> {
     val result = mutableListOf<T>()
     this.forEach {
         result.add(action(it))
@@ -46,7 +45,7 @@ fun <T> NodeList.map(action: (Node) -> T): List<T> {
     return result
 }
 
-fun <T> NodeList.mapNotNull(action: (Node) -> T?): List<T> {
+internal fun <T> NodeList.mapNotNull(action: (Node) -> T?): List<T> {
     val result = mutableListOf<T>()
     this.forEach {
         val element = action(it)
@@ -57,7 +56,7 @@ fun <T> NodeList.mapNotNull(action: (Node) -> T?): List<T> {
     return result
 }
 
-fun NodeList.forEachElement(action: (Element) -> Unit) {
+internal fun NodeList.forEachElement(action: (Element) -> Unit) {
     this.forEach {
         if (it is Element) {
             action(it)
@@ -65,7 +64,7 @@ fun NodeList.forEachElement(action: (Element) -> Unit) {
     }
 }
 
-fun Element.forEachAttribute(action: (Node) -> Unit) {
+internal fun Element.forEachAttribute(action: (Node) -> Unit) {
     val attributes = this.attributes ?: return
     for (i in 0 until attributes.length) {
         val attr = attributes.item(i)
@@ -73,31 +72,44 @@ fun Element.forEachAttribute(action: (Node) -> Unit) {
     }
 }
 
-fun Element.postOrderTraverse(op: (Element) -> Unit) {
-    for (i in 0 until childNodes.length) {
-        val child = childNodes.item(i) as? Element
-        child?.postOrderTraverse(op)
+internal fun Element.postOrderTraverse(action: (Element) -> Unit) {
+    data class StackNode(val element: Element, var visited: Boolean = false)
+
+    val stack = ArrayDeque<StackNode>()
+    stack.add(StackNode(this))
+
+    while (stack.isNotEmpty()) {
+        val node = stack.removeLast()
+        if (node.visited) {
+            action(node.element)
+            continue
+        }
+
+        node.visited = true
+        stack.add(node) // Add back to process after children
+
+        // Add children to stack
+        val children = node.element.childNodes
+        for (i in children.length - 1 downTo 0) {
+            val child = children.item(i)
+            if (child is Element) stack.add(StackNode(child))
+        }
     }
-    op(this)
 }
 
-fun Document.inOrderTraverse(op: (Element) -> Unit) {
-    val deque = ArrayDeque<Element>()
-    for (i in 0 until childNodes.length) {
-        val childElem = childNodes.item(i) as? Element
-        if (childElem != null) {
-            deque.add(childElem)
-        }
-    }
-    while (deque.isNotEmpty()) {
-        val element = deque.removeFirst()
-        for (i in 0 until element.childNodes.length) {
-            val childElem = element.childNodes.item(i) as? Element
-            if (childElem != null) {
-                deque.add(childElem)
-            }
-        }
+internal fun Element.preOrderTraverse(action: (Element) -> Unit) {
+    val stack = ArrayDeque<Element>()
+    stack.add(this)
 
-        op(element)
+    while (stack.isNotEmpty()) {
+        val elem = stack.removeLast()
+        action(elem)
+
+        // Add children to stack in reverse order to maintain order
+        val children = elem.childNodes
+        for (i in children.length - 1 downTo 0) {
+            val child = children.item(i)
+            if (child is Element) stack.add(child)
+        }
     }
 }

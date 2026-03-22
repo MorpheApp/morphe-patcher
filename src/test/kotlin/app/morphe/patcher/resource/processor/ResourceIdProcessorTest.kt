@@ -38,8 +38,7 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = emptySet(),
-                addedResources = createdResourceFiles,
+                modifiedResResources = createdResourceFiles,
             )
 
             processor.process()
@@ -69,8 +68,7 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = emptySet(),
-                addedResources = createdResourceFiles,
+                modifiedResResources = createdResourceFiles,
             )
 
             processor.process()
@@ -103,8 +101,7 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = emptySet(),
-                addedResources = createdResourceFiles,
+                modifiedResResources = createdResourceFiles,
             )
 
             processor.process()
@@ -140,8 +137,7 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = emptySet(),
-                addedResources = setOf(drawableFile),
+                modifiedResResources = setOf(drawableFile),
             )
 
             processor.process()
@@ -172,8 +168,7 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = emptySet(),
-                addedResources = createdResourceFiles,
+                modifiedResResources = createdResourceFiles,
             )
 
             processor.process()
@@ -204,8 +199,7 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = emptySet(),
-                addedResources = createdResourceFiles,
+                modifiedResResources = createdResourceFiles,
             )
 
             processor.process()
@@ -237,8 +231,7 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = emptySet(),
-                addedResources = createdResourceFiles,
+                modifiedResResources = createdResourceFiles,
             )
 
             processor.process()
@@ -272,8 +265,7 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = emptySet(),
-                addedResources = createdResourceFiles,
+                modifiedResResources = createdResourceFiles,
             )
 
             processor.process()
@@ -309,8 +301,7 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = emptySet(),
-                addedResources = createdResourceFiles,
+                modifiedResResources = createdResourceFiles,
             )
 
             processor.process()
@@ -342,8 +333,7 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = emptySet(),
-                addedResources = createdResourceFiles,
+                modifiedResResources = createdResourceFiles,
             )
 
             processor.process()
@@ -375,8 +365,7 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = emptySet(),
-                addedResources = createdResourceFiles,
+                modifiedResResources = createdResourceFiles,
             )
 
             processor.process()
@@ -409,8 +398,7 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = emptySet(),
-                addedResources = createdResourceFiles,
+                modifiedResResources = createdResourceFiles,
             )
 
             processor.process()
@@ -451,8 +439,7 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = emptySet(),
-                addedResources = createdResourceFiles,
+                modifiedResResources = createdResourceFiles,
             )
 
             processor.process()
@@ -484,8 +471,7 @@ internal object ResourceIdProcessorTest {
             val processor = ResourceIdProcessor(
                 get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
                 publicIdManager = publicXmlManager,
-                modifiedResources = emptySet(),
-                addedResources = createdResourceFiles,
+                modifiedResResources = createdResourceFiles,
             )
 
             processor.process()
