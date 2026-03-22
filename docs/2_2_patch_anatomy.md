@@ -8,13 +8,28 @@ The following example patch disables ads in an app.
 In the following sections, each part of the patch will be explained in detail.
 
 ```kt
-package app.Morphe.patches.ads
+
+// App compatibility declaration. See Compatibility class.
+val COMPATIBILITY_XYZ = Compatibility(
+  name = "XYZ App",
+  packageName = "app.xyz.mobile",
+  appIconColor = 0xFF3300, // App icon background color
+  targets = listOf(
+    AppTarget(
+      version = "2.0.0",
+    ),
+    AppTarget(
+      version = "1.0.42",
+    )
+  )
+)
 
 val disableAdsPatch = bytecodePatch(
     name = "Disable ads",
     description = "Disable ads in the app.",
+    default = true
 ) {
-    compatibleWith("com.some.app"("1.0.0"))
+    compatibleWith(COMPATIBILITY_XYZ)
 
     // Patches can depend on other patches, executing them first.
     dependsOn(disableAdsResourcePatch)
@@ -60,7 +75,7 @@ Multiple types are already built into Morphe Patcher and are supported by any ap
 To define an option, use the available `option` functions:
 
 ```kt
-val patch = bytecodePatch(name = "Patch") {
+val patch = bytecodePatch(name = "Patch", default = true) {
     // Add an inbuilt option and delegate it to a property.
     val value by stringOption(name = "Inbuilt option")
 
@@ -121,7 +136,7 @@ After compiling the above code as a DEX file, you can add the DEX file as a reso
 and use it in a patch:
 
 ```kt
-val complexPatch = bytecodePatch(name = "Complex patch") {
+val complexPatch = bytecodePatch(name = "Complex patch", default = true) {
     extendWith("complex-patch.mpe")
 
     execute {
@@ -151,7 +166,7 @@ A simple real-world example would be a patch that opens a resource file of the a
 Other patches that depend on this patch can write to the file, and the finalization block can close the file.
 
 ```kt
-val patch = bytecodePatch(name = "Patch") {
+val patch = bytecodePatch(name = "Patch", default = true) {
     dependsOn(
         bytecodePatch(name = "Dependency") {
             execute {

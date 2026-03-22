@@ -149,19 +149,17 @@ data class Compatibility(
     /**
      * Convenience constructor for universal patches.
      *
-     * @param name Actual app name.
      * @param description User facing description of the app.
      * @param apkFileType Target unpatched app type. Currently only used for Manager UI presentation.
      * @param targets App targets. Versions are declared newest to oldest.
      */
     constructor(
-        name: String? = null,
         description: String? = null,
         apkFileType: ApkFileType? = null,
         targets: List<AppTarget>? = null,
     ) : this(
         packageName = null,
-        name = name,
+        name = null,
         description = description,
         apkFileType = apkFileType,
         appIconColor = null,
