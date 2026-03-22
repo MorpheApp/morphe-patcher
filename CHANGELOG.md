@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0...v1.3.1) (2026-03-22)
+
+
+### Bug Fixes
+
+* Remove overloaded deprecated patch 'use' constructor ([#89](https://github.com/MorpheApp/morphe-patcher/issues/89)) ([c4db0ca](https://github.com/MorpheApp/morphe-patcher/commit/c4db0cac9ecbaced8b25e4443db6a19a61830e2f))
+
 ## [1.3.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0...v1.3.1-dev.1) (2026-03-22)
 
 
