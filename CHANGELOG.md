@@ -1,3 +1,22 @@
+# [1.3.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.2.0...v1.3.0) (2026-03-22)
+
+
+### Bug Fixes
+
+* Changes to resources in RAW_ONLY mode were not being picked up ([#78](https://github.com/MorpheApp/morphe-patcher/issues/78)) ([5dc1c48](https://github.com/MorpheApp/morphe-patcher/commit/5dc1c484c7d134fac7b95912dd842549c63149a7))
+* RAW_ONLY handling on Windows, uncompressed files ([#79](https://github.com/MorpheApp/morphe-patcher/issues/79)) ([c25e5f8](https://github.com/MorpheApp/morphe-patcher/commit/c25e5f832e24854805758168359a0ec9c432f9ae))
+* Set extractNativeLibs to value in manifest by default ([#88](https://github.com/MorpheApp/morphe-patcher/issues/88)) ([5944eef](https://github.com/MorpheApp/morphe-patcher/commit/5944eef0ad7d152f2286fff862ec456ded2bdaad))
+* Speed up slow resource decoding for APKs with duplicate spec strings ([#75](https://github.com/MorpheApp/morphe-patcher/issues/75)) ([6eff16e](https://github.com/MorpheApp/morphe-patcher/commit/6eff16eda5b247b6c3b5bf63f62489e4f1e89268))
+* Wire keepArchitectures to resource coders ([d3519f8](https://github.com/MorpheApp/morphe-patcher/commit/d3519f8c305fe9327044c4cd37bd4e80360a5356))
+
+
+### Features
+
+* Add `classFingerprint` field to Fingerprint ([#71](https://github.com/MorpheApp/morphe-patcher/issues/71)) ([c808b09](https://github.com/MorpheApp/morphe-patcher/commit/c808b0912e6d889bea8a315936b2ea62ff284ca6))
+* Add support for stripping native libraries ([#83](https://github.com/MorpheApp/morphe-patcher/issues/83)) ([bc629ed](https://github.com/MorpheApp/morphe-patcher/commit/bc629ed5159bf1d8b4c774870bf1103fe4f0996e))
+* Expand Compatibility declaration ([#73](https://github.com/MorpheApp/morphe-patcher/issues/73)) ([ed99716](https://github.com/MorpheApp/morphe-patcher/commit/ed99716309e96ceef1817411314a092601691560))
+* Fingerprint matchAll() functionality ([#87](https://github.com/MorpheApp/morphe-patcher/issues/87)) ([7660630](https://github.com/MorpheApp/morphe-patcher/commit/7660630964de43a0d2f590b9e4f98b347325e8be))
+
 # [1.3.0-dev.10](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0-dev.9...v1.3.0-dev.10) (2026-03-21)
 
 
