@@ -28,7 +28,7 @@ internal class MostCommonCompatibleVersionsTest {
     fun `empty because package is incompatible with any version`() {
         assertEqualsVersions(
             expected = mapOf("some.package" to linkedMapOf()),
-            patches = setOf(newPatch("some.package", emptySet(), default = true)),
+            patches = setOf(newPatch("some.package", emptySet())),
             compatiblePackageNames = setOf("some.package"),
         )
     }

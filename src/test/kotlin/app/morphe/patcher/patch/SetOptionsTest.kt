@@ -15,11 +15,11 @@ internal class OptionsTest {
             "Test patch" to mapOf("key1" to "test", "key2" to false),
         )
 
-        val patch = bytecodePatch("Test patch", default = true) {
+        val patch = bytecodePatch("Test patch") {
             stringOption("key1")
             booleanOption("key2", true)
         }
-        val duplicatePatch = bytecodePatch("Test patch", default = true) {
+        val duplicatePatch = bytecodePatch("Test patch") {
             stringOption("key1")
         }
         val unnamedPatch = bytecodePatch(default = true) {
