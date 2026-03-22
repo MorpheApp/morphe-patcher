@@ -198,7 +198,7 @@ class BytecodePatch internal constructor(
     constructor(
         name: String?,
         description: String?,
-        use: Boolean,
+        use: Boolean = true,
         compatiblePackages: Set<Package>?,
         dependencies: Set<Patch<*>>,
         options: Set<Option<*>>,
@@ -568,22 +568,6 @@ class BytecodePatchBuilder internal constructor(
 }
 
 /**
- * @deprecated Use [bytecodePatch] with `default` instead of `use`.
- */
-@Deprecated(
-    message = "Use constructor with 'default' parameter",
-    replaceWith = ReplaceWith(
-        expression = "bytecodePatch(name, description, default = use, block)"
-    ),
-    level = DeprecationLevel.WARNING
-)
-fun bytecodePatch(
-    name: String? = null,
-    description: String? = null,
-    block: BytecodePatchBuilder.() -> Unit = {},
-) = bytecodePatch(name, description, default = true, block)
-
-/**
  * Create a new [BytecodePatch].
  *
  * @param name The name of the patch.
@@ -597,7 +581,7 @@ fun bytecodePatch(
 fun bytecodePatch(
     name: String? = null,
     description: String? = null,
-    default: Boolean,
+    default: Boolean = true,
     block: BytecodePatchBuilder.() -> Unit = {},
 ) = BytecodePatchBuilder(name, description, default).buildPatch(block) as BytecodePatch
 
@@ -614,7 +598,7 @@ fun bytecodePatch(
 class RawResourcePatchBuilder internal constructor(
     name: String?,
     description: String?,
-    default: Boolean,
+    default: Boolean = true,
 ) : PatchBuilder<ResourcePatchContext>(name, description, default) {
     override fun build() = RawResourcePatch(
         name,
@@ -627,22 +611,6 @@ class RawResourcePatchBuilder internal constructor(
         finalizeBlock,
     )
 }
-
-/**
- * @deprecated Use [rawResourcePatch] with `default` instead of `use`.
- */
-@Deprecated(
-    message = "Use constructor with 'default' parameter",
-    replaceWith = ReplaceWith(
-        expression = "rawResourcePatch(name, description, default = use, block)"
-    ),
-    level = DeprecationLevel.WARNING
-)
-fun rawResourcePatch(
-    name: String? = null,
-    description: String? = null,
-    block: RawResourcePatchBuilder.() -> Unit = {},
-) = rawResourcePatch(name, description, default = true, block)
 
 /**
  * Create a new [RawResourcePatch].
@@ -658,7 +626,7 @@ fun rawResourcePatch(
 fun rawResourcePatch(
     name: String? = null,
     description: String? = null,
-    default: Boolean,
+    default: Boolean = true,
     block: RawResourcePatchBuilder.() -> Unit = {},
 ) = RawResourcePatchBuilder(name, description, default).buildPatch(block) as RawResourcePatch
 
@@ -675,7 +643,7 @@ fun rawResourcePatch(
 class ResourcePatchBuilder internal constructor(
     name: String?,
     description: String?,
-    default: Boolean,
+    default: Boolean = true,
 ) : PatchBuilder<ResourcePatchContext>(name, description, default) {
     override fun build() = ResourcePatch(
         name,
@@ -688,22 +656,6 @@ class ResourcePatchBuilder internal constructor(
         finalizeBlock,
     )
 }
-
-/**
- * @deprecated Use [resourcePatch] with `default` instead of `use`.
- */
-@Deprecated(
-    message = "Use constructor with 'default' parameter",
-    replaceWith = ReplaceWith(
-        expression = "resourcePatch(name, description, default = use, block)"
-    ),
-    level = DeprecationLevel.WARNING
-)
-fun resourcePatch(
-    name: String? = null,
-    description: String? = null,
-    block: ResourcePatchBuilder.() -> Unit = {},
-) = resourcePatch(name, description, default = true, block)
 
 /**
  * Create a new [ResourcePatch].
@@ -719,7 +671,7 @@ fun resourcePatch(
 fun resourcePatch(
     name: String? = null,
     description: String? = null,
-    default: Boolean,
+    default: Boolean = true,
     block: ResourcePatchBuilder.() -> Unit = {},
 ) = ResourcePatchBuilder(name, description, default).buildPatch(block) as ResourcePatch
 

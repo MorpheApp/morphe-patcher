@@ -18,7 +18,7 @@ val publicUnnamedPatch = bytecodePatch(default = true) {
 }
 
 // Loaded, because it's named.
-val publicPatch = bytecodePatch("Public", default = true) {
+val publicPatch = bytecodePatch("Public") {
 }
 
 // Not loaded, because it's private.
@@ -26,14 +26,14 @@ private val privateUnnamedPatch = bytecodePatch(default = true) {
 }
 
 // Not loaded, because it's private.
-private val privatePatch = bytecodePatch("Private", default = true) {
+private val privatePatch = bytecodePatch("Private") {
 }
 
 // Not loaded, because it's unnamed.
 fun publicUnnamedPatchFunction() = publicUnnamedPatch
 
 // Loaded, because it's named.
-fun publicNamedPatchFunction() = bytecodePatch("Public", default = true) { }
+fun publicNamedPatchFunction() = bytecodePatch("Public") { }
 
 // Not loaded, because it's parameterized.
 fun parameterizedFunction(@Suppress("UNUSED_PARAMETER") param: Any) = publicNamedPatchFunction()
