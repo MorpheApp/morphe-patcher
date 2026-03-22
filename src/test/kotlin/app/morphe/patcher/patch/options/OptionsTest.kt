@@ -9,7 +9,7 @@ import kotlin.test.*
 internal object OptionsTest {
     private val externalOption = stringOption("external", "default")
 
-    private val optionsTestPatch = bytecodePatch {
+    private val optionsTestPatch = bytecodePatch(default = true) {
         externalOption()
 
         booleanOption("bool", true)
@@ -72,7 +72,7 @@ internal object OptionsTest {
     @Test
     fun `should be able to add options manually`() = options {
         assertDoesNotThrow {
-            bytecodePatch {
+            bytecodePatch(default = true) {
                 get("list")()
             }.options["list"]
         }

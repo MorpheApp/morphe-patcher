@@ -73,14 +73,14 @@ internal object PatcherTest {
         val executed = mutableListOf<String>()
 
         val patches = setOf(
-            bytecodePatch { execute { executed += "1" } },
-            bytecodePatch {
+            bytecodePatch(default = true) {  execute { executed += "1" } },
+            bytecodePatch(default = true)  {
                 dependsOn(
-                    bytecodePatch {
+                    bytecodePatch(default = true)  {
                         execute { executed += "2" }
                         finalize { executed += "-2" }
                     },
-                    bytecodePatch { execute { executed += "3" } },
+                    bytecodePatch(default = true)  { execute { executed += "3" } },
                 )
 
                 execute { executed += "4" }
@@ -116,9 +116,9 @@ internal object PatcherTest {
 
         // No patches execute successfully,
         // because the dependency patch throws an exception inside the execute block.
-        bytecodePatch {
+        bytecodePatch(default = true)  {
             dependsOn(
-                bytecodePatch {
+                bytecodePatch(default = true)  {
                     execute { throw PatchException("1") }
                     finalize { executed += "-2" }
                 },
@@ -132,9 +132,9 @@ internal object PatcherTest {
         // because only the dependant patch throws an exception inside the finalize block.
         // Patches that depend on a failed patch should not be executed,
         // but patches that are depended on by a failed patch should be executed.
-        bytecodePatch {
+        bytecodePatch(default = true)  {
             dependsOn(
-                bytecodePatch {
+                bytecodePatch(default = true)  {
                     execute { executed += "1" }
                     finalize { executed += "-2" }
                 },
@@ -146,9 +146,9 @@ internal object PatcherTest {
 
         // Because the finalize block of the dependency patch is executed after the finalize block of the dependant patch,
         // the dependant patch executes successfully, but the dependency patch raises an exception in the finalize block.
-        bytecodePatch {
+        bytecodePatch(default = true)  {
             dependsOn(
-                bytecodePatch {
+                bytecodePatch(default = true)  {
                     execute { executed += "1" }
                     finalize { throw PatchException("-2") }
                 },
@@ -162,9 +162,9 @@ internal object PatcherTest {
         // because the dependant patch raises an exception in the finalize block.
         // Patches that depend on a failed patch should not be executed,
         // but patches that are depended on by a failed patch should be executed.
-        bytecodePatch {
+        bytecodePatch(default = true)  {
             dependsOn(
-                bytecodePatch {
+                bytecodePatch(default = true)  {
                     execute { executed += "1" }
                     finalize { executed += "-2" }
                 },
@@ -251,7 +251,7 @@ internal object PatcherTest {
         }
 
         val patches = setOf(
-            bytecodePatch {
+            bytecodePatch(default = true)  {
                 execute {
                     val class1 = patchClasses.classMap.values.first().classDef
                     println("class1: $class1")
@@ -656,7 +656,7 @@ internal object PatcherTest {
         )
 
         val patches = setOf(
-            bytecodePatch {
+            bytecodePatch(default = true)  {
                 execute {
                     val fingerprint1 = Fingerprint(
                         strings = listOf(

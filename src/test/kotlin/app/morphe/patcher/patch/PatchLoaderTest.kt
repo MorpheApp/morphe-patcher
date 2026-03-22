@@ -14,26 +14,26 @@ import kotlin.test.assertEquals
 // region Test patches.
 
 // Not loaded, because it's unnamed.
-val publicUnnamedPatch = bytecodePatch {
+val publicUnnamedPatch = bytecodePatch(default = true) {
 }
 
 // Loaded, because it's named.
-val publicPatch = bytecodePatch("Public") {
+val publicPatch = bytecodePatch("Public", default = true) {
 }
 
 // Not loaded, because it's private.
-private val privateUnnamedPatch = bytecodePatch {
+private val privateUnnamedPatch = bytecodePatch(default = true) {
 }
 
 // Not loaded, because it's private.
-private val privatePatch = bytecodePatch("Private") {
+private val privatePatch = bytecodePatch("Private", default = true) {
 }
 
 // Not loaded, because it's unnamed.
 fun publicUnnamedPatchFunction() = publicUnnamedPatch
 
 // Loaded, because it's named.
-fun publicNamedPatchFunction() = bytecodePatch("Public") { }
+fun publicNamedPatchFunction() = bytecodePatch("Public", default = true) { }
 
 // Not loaded, because it's parameterized.
 fun parameterizedFunction(@Suppress("UNUSED_PARAMETER") param: Any) = publicNamedPatchFunction()
