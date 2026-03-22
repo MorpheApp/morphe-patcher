@@ -6,14 +6,14 @@ import kotlin.test.assertEquals
 internal object PatchTest {
     @Test
     fun `can create patch with name`() {
-        val patch = bytecodePatch(name = "Test") {}
+        val patch = bytecodePatch(name = "Test", default = true) {}
 
         assertEquals("Test", patch.name)
     }
 
     @Test
     fun `can create patch with compatible packages`() {
-        val patch = bytecodePatch(name = "Test") {
+        val patch = bytecodePatch(name = "Test", default = true) {
             compatibleWith(
                 "compatible.package"("1.0.0"),
             )
@@ -25,8 +25,8 @@ internal object PatchTest {
 
     @Test
     fun `can create patch with dependencies`() {
-        val patch = bytecodePatch(name = "Test") {
-            dependsOn(resourcePatch {})
+        val patch = bytecodePatch(name = "Test", default = true) {
+            dependsOn(resourcePatch(default = true) {})
         }
 
         assertEquals(1, patch.dependencies.size)
@@ -34,7 +34,7 @@ internal object PatchTest {
 
     @Test
     fun `can create patch with options`() {
-        val patch = bytecodePatch(name = "Test") {
+        val patch = bytecodePatch(name = "Test", default = true) {
             val print by stringOption("print")
             val custom = option<String>("custom")()
 

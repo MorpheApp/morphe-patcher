@@ -14,7 +14,7 @@ internal object CompatibilityTest {
 
     @Test
     fun `legacy usage`() {
-        val patch = bytecodePatch(name = "Test") {
+        val patch = bytecodePatch(name = "Test", default = true) {
             compatibleWith(
                 "compatible.package"("1.0.0"),
             )
@@ -26,7 +26,7 @@ internal object CompatibilityTest {
 
     @Test
     fun `legacy to Compatibility`() {
-        var patch = bytecodePatch(name = "Test") {
+        var patch = bytecodePatch(name = "Test", default = true) {
             compatibleWith(
                 "compatible.package"("1.0.0"),
             )
@@ -36,7 +36,7 @@ internal object CompatibilityTest {
             patch.compatibility!!.first().targets
         )
 
-        patch = bytecodePatch(name = "Test") {
+        patch = bytecodePatch(name = "Test", default = true) {
             compatibleWith(
                 "compatible.package",
             )

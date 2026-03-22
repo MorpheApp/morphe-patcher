@@ -570,10 +570,8 @@ class BytecodePatchBuilder internal constructor(
 /**
  * @deprecated Use [bytecodePatch] with `default` instead of `use`.
  */
-@JvmName("bytecodePatchLegacy")
-@Suppress("CONFLICTING_OVERLOADS")
 @Deprecated(
-    message = "Use 'default' parameter instead of 'use'",
+    message = "Use constructor with 'default' parameter",
     replaceWith = ReplaceWith(
         expression = "bytecodePatch(name, description, default = use, block)"
     ),
@@ -582,9 +580,8 @@ class BytecodePatchBuilder internal constructor(
 fun bytecodePatch(
     name: String? = null,
     description: String? = null,
-    use: Boolean = true,
     block: BytecodePatchBuilder.() -> Unit = {},
-) = bytecodePatch(name, description, default = use, block)
+) = bytecodePatch(name, description, default = true, block)
 
 /**
  * Create a new [BytecodePatch].
@@ -597,7 +594,6 @@ fun bytecodePatch(
  *
  * @return The created [BytecodePatch].
  */
-@Suppress("CONFLICTING_OVERLOADS")
 fun bytecodePatch(
     name: String? = null,
     description: String? = null,
@@ -635,10 +631,8 @@ class RawResourcePatchBuilder internal constructor(
 /**
  * @deprecated Use [rawResourcePatch] with `default` instead of `use`.
  */
-@JvmName("rawResourcePatchLegacy")
-@Suppress("CONFLICTING_OVERLOADS")
 @Deprecated(
-    message = "Use 'default' parameter instead of 'use'",
+    message = "Use constructor with 'default' parameter",
     replaceWith = ReplaceWith(
         expression = "rawResourcePatch(name, description, default = use, block)"
     ),
@@ -647,9 +641,8 @@ class RawResourcePatchBuilder internal constructor(
 fun rawResourcePatch(
     name: String? = null,
     description: String? = null,
-    use: Boolean = true,
     block: RawResourcePatchBuilder.() -> Unit = {},
-) = rawResourcePatch(name, description, default = use, block)
+) = rawResourcePatch(name, description, default = true, block)
 
 /**
  * Create a new [RawResourcePatch].
@@ -662,7 +655,6 @@ fun rawResourcePatch(
  *
  * @return The created [RawResourcePatch].
  */
-@Suppress("CONFLICTING_OVERLOADS")
 fun rawResourcePatch(
     name: String? = null,
     description: String? = null,
@@ -700,10 +692,8 @@ class ResourcePatchBuilder internal constructor(
 /**
  * @deprecated Use [resourcePatch] with `default` instead of `use`.
  */
-@JvmName("resourcePatchLegacy")
-@Suppress("CONFLICTING_OVERLOADS")
 @Deprecated(
-    message = "Use 'default' parameter instead of 'use'",
+    message = "Use constructor with 'default' parameter",
     replaceWith = ReplaceWith(
         expression = "resourcePatch(name, description, default = use, block)"
     ),
@@ -712,9 +702,8 @@ class ResourcePatchBuilder internal constructor(
 fun resourcePatch(
     name: String? = null,
     description: String? = null,
-    use: Boolean = true,
     block: ResourcePatchBuilder.() -> Unit = {},
-) = resourcePatch(name, description, default = use, block)
+) = resourcePatch(name, description, default = true, block)
 
 /**
  * Create a new [ResourcePatch].
@@ -727,7 +716,6 @@ fun resourcePatch(
  *
  * @return The created [ResourcePatch].
  */
-@Suppress("CONFLICTING_OVERLOADS")
 fun resourcePatch(
     name: String? = null,
     description: String? = null,
