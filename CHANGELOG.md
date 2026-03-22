@@ -1,3 +1,10 @@
+## [1.3.2-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.1...v1.3.2-dev.1) (2026-03-22)
+
+
+### Bug Fixes
+
+* Restore binary backwards compatibility ([#91](https://github.com/MorpheApp/morphe-patcher/issues/91)) ([a556413](https://github.com/MorpheApp/morphe-patcher/commit/a556413455539d534f129430a5145d6c62756884))
+
 ## [1.3.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.0...v1.3.1) (2026-03-22)
 
 
