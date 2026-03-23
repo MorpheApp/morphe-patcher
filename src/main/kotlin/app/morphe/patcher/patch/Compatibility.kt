@@ -12,8 +12,8 @@ private val SHA_256_REGEX = Regex("^[0-9a-fA-F]{64}$")
  *
  * Serves two purposes:
  * 1. Indicate the preferred/default file type for Manager UI presentation.
- * 2. Indicates a required file type that must be used and all other types fail to patch
- *    or are undesirable to use.
+ * 2. Indicates a required file type that must be used and all other types may
+ *    to fail to patch or are undesirable to use.
  */
 enum class ApkFileType {
     APK,
