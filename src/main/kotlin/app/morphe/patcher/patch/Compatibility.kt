@@ -104,7 +104,7 @@ data class AppTarget(
  * @param signatures Valid SHA-256 signatures of the app. To find a signature, use
  *   `apksigner verify --print-certs` on an original apk (or base.apk from an unzipped apkm)
  *    and `certificate SHA-256 digest:` is the signature.
- * @param targets App targets. Versions are declared newest to oldest.
+ * @param targets App targets. Versions are declared newest to oldest. Default is any app target.
  */
 data class Compatibility(
     val packageName: String? = null,
@@ -113,7 +113,7 @@ data class Compatibility(
     val apkFileType: ApkFileType? = null,
     val appIconColor: Int? = null,
     val signatures: Set<String>? = null,
-    val targets: List<AppTarget>,
+    val targets: List<AppTarget> = listOf(AppTarget(version = null)),
 ) {
     /**
      * @param packageName Actual app package name. Null means this is a universal patch and can
@@ -145,32 +145,6 @@ data class Compatibility(
         signatures = signatures,
         targets = targets
     )
-
-    /**
-     * Convenience constructor for universal patches.
-     *
-     * @param description User facing description of the app.
-     * @param apkFileType Target unpatched app type. Currently only used for Manager UI presentation.
-     * @param targets App targets. Versions are declared newest to oldest.
-     */
-    constructor(
-        description: String? = null,
-        apkFileType: ApkFileType? = null,
-        targets: List<AppTarget>? = null,
-    ) : this(
-        packageName = null,
-        name = null,
-        description = description,
-        apkFileType = apkFileType,
-        appIconColor = null,
-        signatures = null,
-        targets = targets ?: listOf(AppTarget(version = null))
-    ) {
-        require(this.targets.isNotEmpty()) {
-            "Targets parameter must be null for all app targets, or must declare " +
-                    "an AppTarget with a null version"
-        }
-    }
 
     init {
         if (appIconColor != null) {

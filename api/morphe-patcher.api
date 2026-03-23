@@ -547,8 +547,7 @@ public final class app/morphe/patcher/patch/BytecodePatchContext : app/morphe/pa
 }
 
 public final class app/morphe/patcher/patch/Compatibility {
-	public fun <init> (Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/util/List;)V
-	public synthetic fun <init> (Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> ()V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/lang/Integer;Ljava/util/Set;Ljava/util/List;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/lang/Integer;Ljava/util/Set;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/lang/String;Ljava/util/Set;Ljava/util/List;)V
