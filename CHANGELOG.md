@@ -1,3 +1,10 @@
+## [1.3.3-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.3-dev.1...v1.3.3-dev.2) (2026-03-24)
+
+
+### Bug Fixes
+
+* Handle matchAll when a class fingerprint exists ([107f168](https://github.com/MorpheApp/morphe-patcher/commit/107f16825d61adb79c7f42206d4444d5929845a2))
+
 ## [1.3.3-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.2...v1.3.3-dev.1) (2026-03-23)
 
 
