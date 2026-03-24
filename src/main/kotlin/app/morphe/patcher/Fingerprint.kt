@@ -598,6 +598,10 @@ open class Fingerprint private constructor(
      */
     context(BytecodePatchContext)
     fun matchAllOrNull(): List<Match>? {
+        if (classFingerprint != null) {
+            return matchAll(classFingerprint.classDef)
+        }
+
         val matches = mutableListOf<Match>()
 
         fun machAllClassMethods(value: PatchClasses.ClassDefWrapper) {
