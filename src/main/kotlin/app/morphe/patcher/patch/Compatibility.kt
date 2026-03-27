@@ -13,7 +13,7 @@ private val SHA_256_REGEX = Regex("^[0-9a-fA-F]{64}$")
  * Serves two purposes:
  * 1. Indicate the preferred/default file type for Manager UI presentation.
  * 2. Indicates a required file type that must be used and all other types may
- *    to fail to patch or are undesirable to use.
+ *    fail to patch or are undesirable to use.
  */
 enum class ApkFileType {
     APK,
@@ -51,16 +51,28 @@ enum class ApkFileType {
  * @param isExperimental If this app target is supported under an experimental capacity.
  * @param minSdk Minimum device SDK version as found in [android.os.Build.VERSION_CODES].
  *   Null means any SDK version.
+ * @param description User facing description of the app target, such as why the user may want
+ *   to patch this specific app version.
  */
 data class AppTarget(
     val version: String?,
     val isExperimental: Boolean = false,
     val minSdk: Int? = null,
-    //val description: String? = null // TODO? Allow version descriptions?
+    val description: String? = null
 ) : Comparable<AppTarget> {
 
     private val semanticParts: List<Int>? = parseSemantic(version)
 
+    // @Deprecated("Here only for binary backwards compatibility") // TODO: Remove after next major version bump.
+    constructor(
+        version: String?,
+        isExperimental: Boolean = false,
+        minSdk: Int? = null,
+    ) : this(version = version, isExperimental = isExperimental, minSdk = minSdk, description = null)
+
+    /**
+     * Comparison using only the version field.
+     */
     override fun compareTo(other: AppTarget): Int {
         // Null versions come last
         if (version == null && other.version == null) return 0
