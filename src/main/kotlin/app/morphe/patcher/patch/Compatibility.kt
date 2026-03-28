@@ -12,8 +12,8 @@ private val SHA_256_REGEX = Regex("^[0-9a-fA-F]{64}$")
  *
  * Serves two purposes:
  * 1. Indicate the preferred/default file type for Manager UI presentation.
- * 2. Indicates a required file type that must be used and all other types fail to patch
- *    or are undesirable to use.
+ * 2. Indicates a required file type that must be used and all other types may
+ *    fail to patch or are undesirable to use.
  */
 enum class ApkFileType {
     APK,
@@ -51,16 +51,28 @@ enum class ApkFileType {
  * @param isExperimental If this app target is supported under an experimental capacity.
  * @param minSdk Minimum device SDK version as found in [android.os.Build.VERSION_CODES].
  *   Null means any SDK version.
+ * @param description User facing description of the app target, such as why the user may want
+ *   to patch this specific app version.
  */
 data class AppTarget(
     val version: String?,
     val isExperimental: Boolean = false,
     val minSdk: Int? = null,
-    //val description: String? = null // TODO? Allow version descriptions?
+    val description: String? = null
 ) : Comparable<AppTarget> {
 
     private val semanticParts: List<Int>? = parseSemantic(version)
 
+    // @Deprecated("Here only for binary backwards compatibility") // TODO: Remove after next major version bump.
+    constructor(
+        version: String?,
+        isExperimental: Boolean = false,
+        minSdk: Int? = null,
+    ) : this(version = version, isExperimental = isExperimental, minSdk = minSdk, description = null)
+
+    /**
+     * Comparison using only the version field.
+     */
     override fun compareTo(other: AppTarget): Int {
         // Null versions come last
         if (version == null && other.version == null) return 0
@@ -104,7 +116,7 @@ data class AppTarget(
  * @param signatures Valid SHA-256 signatures of the app. To find a signature, use
  *   `apksigner verify --print-certs` on an original apk (or base.apk from an unzipped apkm)
  *    and `certificate SHA-256 digest:` is the signature.
- * @param targets App targets. Versions are declared newest to oldest.
+ * @param targets App targets. Versions are declared newest to oldest. Default is any app target.
  */
 data class Compatibility(
     val packageName: String? = null,
@@ -113,7 +125,7 @@ data class Compatibility(
     val apkFileType: ApkFileType? = null,
     val appIconColor: Int? = null,
     val signatures: Set<String>? = null,
-    val targets: List<AppTarget>,
+    val targets: List<AppTarget> = listOf(AppTarget(version = null)),
 ) {
     /**
      * @param packageName Actual app package name. Null means this is a universal patch and can
@@ -145,32 +157,6 @@ data class Compatibility(
         signatures = signatures,
         targets = targets
     )
-
-    /**
-     * Convenience constructor for universal patches.
-     *
-     * @param description User facing description of the app.
-     * @param apkFileType Target unpatched app type. Currently only used for Manager UI presentation.
-     * @param targets App targets. Versions are declared newest to oldest.
-     */
-    constructor(
-        description: String? = null,
-        apkFileType: ApkFileType? = null,
-        targets: List<AppTarget>? = null,
-    ) : this(
-        packageName = null,
-        name = null,
-        description = description,
-        apkFileType = apkFileType,
-        appIconColor = null,
-        signatures = null,
-        targets = targets ?: listOf(AppTarget(version = null))
-    ) {
-        require(this.targets.isNotEmpty()) {
-            "Targets parameter must be null for all app targets, or must declare " +
-                    "an AppTarget with a null version"
-        }
-    }
 
     init {
         if (appIconColor != null) {

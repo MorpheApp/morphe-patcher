@@ -351,8 +351,9 @@ Fingerprint(
     match.method.apply { 
         // See Morphe ByteCodeUtils for findInstructionIndicesReversedOrThrow()
         findInstructionIndicesReversedOrThrow(stringFilter).forEach { index ->
-        val register = getInstruction<OneRegisterInstruction>(index).registerA
-        replaceInstruction(index, "const-string v$register, \"$toString\"") 
+            val register = getInstruction<OneRegisterInstruction>(index).registerA
+            replaceInstruction(index, "const-string v$register, \"$toString\"")
+        }
     }
 }
 ```

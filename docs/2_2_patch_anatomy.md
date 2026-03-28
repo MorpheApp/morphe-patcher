@@ -13,7 +13,9 @@ In the following sections, each part of the patch will be explained in detail.
 val COMPATIBILITY_XYZ = Compatibility(
   name = "XYZ App",
   packageName = "app.xyz.mobile",
-  appIconColor = 0xFF3300, // App icon background color
+  // App icon background color
+  appIconColor = 0xFF3300,
+  // Specific app targets. Do not include any app targets to indicate 'any' app version.
   targets = listOf(
     AppTarget(
       version = "2.0.0",
