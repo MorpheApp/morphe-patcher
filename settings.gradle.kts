@@ -3,7 +3,7 @@ rootProject.name = "morphe-patcher"
 // Include Morphe forks of libraries as composite builds if they exist locally
 mapOf(
     "ARSCLib" to "com.github.MorpheApp:arsclib",
-    "multidexlib2" to "app.morphe:multidexlib",
+//    "multidexlib2" to "app.morphe:multidexlib", // FIXME: multidexlib needs a gradle update to use this
 ).forEach { (libraryPath, libraryName) ->
     val libDir = file("../$libraryPath")
     if (libDir.exists()) {

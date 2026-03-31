@@ -203,7 +203,8 @@ class ArsclibResourceCoder(
      */
     internal fun stripNativeLibraries() {
         if (keepArchitectures.isNotEmpty()) {
-            logger.info("Stripping libs (keeping architectures ${keepArchitectures.joinToString(", ")})")
+            logger.info("Stripping libs (keeping architectures " +
+                    "${keepArchitectures.joinToString(", ") { it.arch }})")
 
             var strippedLibCount = 0
             otherResourcesRootDirectory.resolve("lib")
