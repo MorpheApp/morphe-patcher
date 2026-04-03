@@ -141,6 +141,9 @@ class ArsclibResourceCoder(
     override fun decodeRaw(): PackageMetadata {
         ApkModule.loadApkFile(apkFile).use { apkModule ->
             val rawDecoder = ApkModuleRawDecoder(apkModule)
+            // Skip DEX extraction — handled separately by BytecodePatchContext.
+            rawDecoder.setDexDecoder { _, _ -> }
+            rawDecoder.dexProfileDecoder = null
             rawDecoder.decode(workingDir)
         }
 
@@ -158,12 +161,13 @@ class ArsclibResourceCoder(
                 it.setKeepResPath(false)
             }
 
-            xmlDecoder.decode(workingDir)
-            xmlDecoder.dexDecoder = null
+            // Disable DEX decoding before decode() runs. The patcher loads DEX files
+            // separately in BytecodePatchContext, so extracting them here is redundant
+            // and wastes memory + I/O.
+            xmlDecoder.setDexDecoder { _, _ -> }
             xmlDecoder.dexProfileDecoder = null
 
-            // Delete all the dex files so they don't get built into the final resources.apk.
-            workingDir.resolve("dex").deleteRecursively()
+            xmlDecoder.decode(workingDir)
 
             // Update ARSCLib package metadata so the resources will be accessible under the correct package name.
             workingDir.resolve("resources").listFiles { it.isDirectory }?.forEach { dir ->

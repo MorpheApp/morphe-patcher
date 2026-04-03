@@ -221,16 +221,11 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                 it.deleteRecursively() // Make sure the directory is empty.
                 it.mkdirs()
             }.apply {
+                val classDefs = patchClasses.classMap.values.map { it.classDef }.toMutableList()
                 DexReadWrite.writeMultiDexFile(
                     this,
-                    object : DexFile {
-                        override fun getClasses(): Set<ClassDef> {
-                            val values = this@BytecodePatchContext.patchClasses.classMap.values
-                            return values.mapTo(HashSet(values.size * 3 / 2)) { it.classDef }
-                        }
-
-                        override fun getOpcodes() = this@BytecodePatchContext.opcodes
-                    },
+                    classDefs,
+                    opcodes,
                     -1,
                     logger
                 )

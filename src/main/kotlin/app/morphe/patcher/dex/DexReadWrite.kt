@@ -72,12 +72,13 @@ internal object DexReadWrite {
      * Writes a [DexFile] to the specified output directory.
      * The dex file will be split into multiple dex files if it exceeds the dex size limit.
      * @param outputDir The directory to write the multidex file to.
-     * @param dexFile The [DexFile] to write.
+     * @param classDefs The class definitions to write. This collection will be cleared after splitting into segments.
+     * @param opcodes The [Opcodes] to use for the dex files.
      * @param maxThreads The maximum number of threads to use for writing the dex files.
      *
      * @return A list of [File]s representing the written dex files.
      */
-    internal fun writeMultiDexFile(outputDir: File, dexFile: DexFile, maxThreads: Int = -1, logger: Logger? = null): List<File> {
+    internal fun writeMultiDexFile(outputDir: File, classDefs: MutableCollection<ClassDef>, opcodes: Opcodes, maxThreads: Int = -1, logger: Logger? = null): List<File> {
         require(!outputDir.exists() || outputDir.isDirectory) { "Output path must be a directory: $outputDir" }
 
         if (outputDir.exists()) {
@@ -92,24 +93,27 @@ internal object DexReadWrite {
             min(min(maxThreads, MAX_THREADS), availableProcessors)
         }
 
-        val classesAsList = dexFile.classes.toList()
+        val numClasses = classDefs.size
 
-        val numSegments = max(1, min(actualMaxThreads, classesAsList.size / MIN_CLASSES_PER_SEGMENT))
+        val numSegments = max(1, min(actualMaxThreads, numClasses / MIN_CLASSES_PER_SEGMENT))
+
+        // Split into independent mutable lists and clear the original collection to reduce memory usage.
+        val segments = splitIntoMutableSegments(classDefs, numSegments)
+        classDefs.clear()
 
         val segmentResults = if (numSegments == 1) {
-            logger?.info("Processing ${classesAsList.size} classes (single threaded mode)")
+            logger?.info("Processing $numClasses classes (single threaded mode)")
 
-            listOf(processSegment(classesAsList, dexFile.opcodes, outputDir, 0))
+            listOf(processSegment(segments[0], opcodes, outputDir, 0))
         } else {
-            val segments = splitIntoSegments(classesAsList, numSegments)
 
-            logger?.info("Processing ${classesAsList.size} classes in parallel (${segments.size} threads)")
+            logger?.info("Processing $numClasses classes in parallel (${segments.size} threads)")
 
             val dispatcher = Dispatchers.Default.limitedParallelism(numSegments)
             runBlocking(dispatcher) {
-                segments.mapIndexed { segmentIndex, classes ->
+                segments.mapIndexed { segmentIndex, classQueue ->
                     async {
-                        processSegment(classes, dexFile.opcodes, outputDir, segmentIndex)
+                        processSegment(classQueue, opcodes, outputDir, segmentIndex)
                     }
                 }.awaitAll()
             }
@@ -131,20 +135,23 @@ internal object DexReadWrite {
     }
 
     /**
-     * Splits a list into [numSegments] contiguous segments of roughly equal size.
+     * Splits a collection into [numSegments] independent mutable lists of roughly equal size.
+     * Unlike [List.subList], the returned lists do not share backing storage with each other
+     * or the source collection, so they can be independently cleared to free memory.
      */
-    private fun <T> splitIntoSegments(list: List<T>, numSegments: Int): List<List<T>> {
-        if (numSegments <= 1) return listOf(list)
+    private fun <T> splitIntoMutableSegments(collection: Collection<T>, numSegments: Int): List<ArrayDeque<T>> {
+        if (numSegments <= 1) return mutableListOf(ArrayDeque(collection))
 
+        val list = collection as? List<T> ?: collection.toList()
         val segmentSize = list.size / numSegments
         val remainder = list.size % numSegments
-        val segments = mutableListOf<List<T>>()
+        val segments = mutableListOf<ArrayDeque<T>>()
         var offset = 0
 
         for (i in 0 until numSegments) {
             // Distribute the remainder across the first segments (one extra element each).
             val size = segmentSize + if (i < remainder) 1 else 0
-            segments.add(list.subList(offset, offset + size))
+            segments.add(ArrayDeque(list.subList(offset, offset + size)))
             offset += size
         }
 
@@ -156,14 +163,13 @@ internal object DexReadWrite {
      * Returns the list of temp files in the order they were produced.
      */
     private fun processSegment(
-        classes: List<ClassDef>,
+        classQueue: ArrayDeque<ClassDef>,
         opcodes: Opcodes,
         outputDir: File,
         segmentIndex: Int,
     ): List<File> {
         val tempFiles = mutableListOf<File>()
         var currentDexPool = DexPool(opcodes)
-        val classQueue = ArrayDeque(classes)
 
         while (classQueue.isNotEmpty()) {
             val classDef = classQueue.first()
@@ -190,6 +196,7 @@ internal object DexReadWrite {
     private fun writeDexPoolToTemp(dexPool: DexPool, outputDir: File, segmentIndex: Int, poolIndex: Int): File {
         val tempFile = outputDir.resolve(".tmp_seg${segmentIndex}_${poolIndex}.dex")
         dexPool.writeTo(FileDataStore(tempFile))
+        println("Wrote $tempFile")
         return tempFile
     }
 }
