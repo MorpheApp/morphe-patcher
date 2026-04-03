@@ -1,3 +1,11 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ *
+ * Original forked code:
+ * https://github.com/LisoUseInAIKyrios/revanced-patcher
+ */
+
 package app.morphe.patcher.util
 
 import app.morphe.patcher.extensions.InstructionExtensions.instructionsOrNull

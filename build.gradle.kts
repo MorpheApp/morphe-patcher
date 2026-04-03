@@ -72,7 +72,6 @@ dependencies {
     implementation(libs.kotlin.reflect)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.multidexlib2)
     implementation(libs.smali)
 
     testImplementation(libs.mockk)
