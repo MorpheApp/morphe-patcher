@@ -370,13 +370,11 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         originalDexFiles.forEachIndexed { i, originalDex ->
             val entryDescriptors = classDescriptorsByEntry[originalDex.name] ?: emptySet()
             val hasModifiedClasses = entryDescriptors.any { it in modifiedOriginalDescriptors }
-            val newIndex = newDexCount + i
-            val newDexName = if (newIndex == 0) "classes.dex" else "classes${newIndex + 1}.dex"
 
             if (!hasModifiedClasses) {
                 // No modified classes — copy the original file as-is.
                 logger.fine { "Passing through unmodified DEX: ${originalDex.name}" }
-                originalDex.renameTo(dexOutputDir.resolve(newDexName))
+                originalDex.renameTo(dexOutputDir.resolve(getDexName(newDexCount + i)))
             } else {
                 // Rebuild this DEX via DexPool with only the unmodified classes.
                 val unmodifiedClasses = entryDescriptors
@@ -390,15 +388,15 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                     } modified classes, keeping ${unmodifiedClasses.size})")
 
                     // Write to a temp dir to avoid naming collisions.
-                    val tempDir = config.patchedFiles.resolve("dex_rebuild").apply {
+                    val tempDir = config.patchedFiles.resolve("dex_rebuild_$i").apply {
                         deleteRecursively()
                         mkdirs()
                     }
-                    DexReadWrite.writeMultiDexFile(tempDir, unmodifiedClasses, opcodes, -1, logger)
-                    // Move the rebuilt file (first output) to match the original entry name.
-                    val rebuiltFile = tempDir.listFiles { it.isFile }!!.sorted().first()
-                    rebuiltFile.renameTo(dexOutputDir.resolve(newDexName))
-                    tempDir.deleteRecursively()
+                    val rebuiltFiles = DexReadWrite.writeMultiDexFile(tempDir, unmodifiedClasses, opcodes, -1, null)
+                    rebuiltFiles.forEachIndexed { j, rebuiltFile ->
+                        val newName = getDexName(newDexCount + i + j)
+                        rebuiltFile.renameTo(dexOutputDir.resolve(newName))
+                    }
                 } else {
                     logger.info("Skipping DEX: ${originalDex.name} (all classes were modified)")
                     // All classes in this DEX were modified — no file needed.
@@ -412,6 +410,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         return results
     }
+
+    internal fun getDexName(index: Int): String = if (index == 0) "classes.dex" else "classes${index + 1}.dex"
 
     override fun close() {
         patchClasses.close()

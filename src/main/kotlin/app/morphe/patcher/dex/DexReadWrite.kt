@@ -158,7 +158,6 @@ internal object DexReadWrite {
 
             listOf(processSegment(segments[0], opcodes, outputDir, 0))
         } else {
-
             logger?.info("Processing $numClasses classes in parallel (${segments.size} threads)")
 
             val dispatcher = Dispatchers.Default.limitedParallelism(numSegments)

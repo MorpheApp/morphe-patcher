@@ -31,7 +31,7 @@ class PatcherConfig(
     private val frameworkFileDirectory: String? = null,
     internal val useArsclib: Boolean = true,
     internal val keepArchitectures: Set<CpuArchitecture> = emptySet(),
-    internal val useBytecodeMode: BytecodeMode = BytecodeMode.STRIP_FAST
+    internal val useBytecodeMode: BytecodeMode = BytecodeMode.STRIP_SAFE
 ) {
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
 
