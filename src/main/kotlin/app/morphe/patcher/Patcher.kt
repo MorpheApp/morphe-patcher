@@ -158,10 +158,10 @@ class Patcher(private val config: PatcherConfig) : Closeable {
     @OptIn(InternalApi::class)
     fun get(): PatcherResult {
         Fingerprint.clearFingerprints()
-        val dexFiles = context.bytecodeContext.get()
-        context.bytecodeContext.close()
         context.allPatches.clear()
         context.executablePatches.clear()
+        val dexFiles = context.bytecodeContext.get()
+        context.bytecodeContext.close()
         val resFiles = context.resourceContext.get()
         return PatcherResult(dexFiles, resFiles)
     }

@@ -14,14 +14,16 @@ import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.StringComparisonType
 import app.morphe.patcher.dex.DexReadWrite
+import app.morphe.patcher.dex.DexStripper
 import app.morphe.patcher.util.ClassMerger.merge
 import app.morphe.patcher.util.MethodNavigator
 import app.morphe.patcher.util.PatchClasses
+import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.iface.ClassDef
-import com.android.tools.smali.dexlib2.iface.DexFile
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import java.io.Closeable
+import java.io.File
 import java.util.logging.Logger
 
 /**
@@ -41,11 +43,36 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     internal val opcodes: Opcodes
 
     /**
+     * Original DEX files extracted from the APK to the dex output directory.
+     * These files are edited in-place during compilation via [DexStripper].
+     */
+    private val originalDexFiles: List<File>
+
+    /**
+     * Class descriptors that existed in the original APK (before any extensions or patches).
+     */
+    private val originalClassDescriptors: Set<String>
+
+    /**
      * All classes for the target app and any extension classes.
      */
-    internal val patchClasses = PatchClasses(
-        DexReadWrite.readMultidexFile(config.apkFile).also { opcodes = it.opcodes }.classes
-    )
+    internal val patchClasses: PatchClasses
+
+    /**
+     * The directory where DEX files are written during compilation.
+     */
+    private val dexOutputDir = config.patchedFiles.resolve("dex")
+
+    init {
+        val readResult = DexReadWrite.readMultidexFile(config.apkFile)
+        opcodes = readResult.dexFile.opcodes
+        originalClassDescriptors = readResult.dexFile.classes.mapTo(HashSet()) { it.type }
+        patchClasses = PatchClasses(readResult.dexFile.classes)
+
+        // Extract original DEX files from the APK to disk for later in-place editing.
+        dexOutputDir.apply { deleteRecursively(); mkdirs() }
+        originalDexFiles = DexReadWrite.extractDexEntries(config.apkFile, readResult.dexEntryNames, dexOutputDir)
+    }
 
     /**
      * Merge the extension of [bytecodePatch] into the [BytecodePatchContext].
@@ -207,6 +234,11 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     /**
      * Compile bytecode from the [BytecodePatchContext].
      *
+     * Uses an optimized approach: original DEX files (already on disk) are binary-stripped
+     * of modified class definitions in-place via memory-mapped I/O, and only modified/new
+     * classes are written through DexPool. This avoids the expensive intern+encode pass
+     * for the vast majority of unmodified classes.
+     *
      * @return The compiled bytecode.
      */
     @InternalApi
@@ -216,24 +248,86 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         // Free up memory before compiling the dex files.
         patchClasses.closeStringMap()
 
-        val patchedDexFileResults =
-            config.patchedFiles.resolve("dex").also {
-                it.deleteRecursively() // Make sure the directory is empty.
-                it.mkdirs()
-            }.apply {
-                val classDefs = patchClasses.classMap.values.map { it.classDef }.toMutableList()
-                DexReadWrite.writeMultiDexFile(
-                    this,
-                    classDefs,
-                    opcodes,
-                    -1,
-                    logger
-                )
-            }.listFiles { it.isFile }!!.map {
-                PatcherResult.PatchedDexFile(it.name, it.inputStream())
-            }.toSet()
+        // Identify which original classes were modified (converted to MutableClass).
+        val modifiedOriginalDescriptors = patchClasses.classMap.values
+            .filter { it.classDef is MutableClass && it.classDef.type in originalClassDescriptors }
+            .mapTo(HashSet()) { it.classDef.type }
 
-        return patchedDexFileResults
+        // Collect classes that need DexPool: modified originals + all new classes (extensions).
+        val classesForNewDex = patchClasses.classMap.values
+            .filter { it.classDef is MutableClass || it.classDef.type !in originalClassDescriptors }
+            .map { it.classDef }
+            .toMutableList()
+
+        // Close patchClasses to free the parsed class data before writing.
+        patchClasses.close()
+
+        val results = mutableSetOf<PatcherResult.PatchedDexFile>()
+
+        // 1. Strip modified classes from original DEX files in-place via memory-mapped I/O.
+        if (modifiedOriginalDescriptors.isNotEmpty()) {
+            logger.info(
+                "Stripping ${modifiedOriginalDescriptors.size} modified classes from original DEX files"
+            )
+            for (originalDex in originalDexFiles) {
+                DexStripper.stripInPlace(originalDex, modifiedOriginalDescriptors)
+            }
+        }
+
+        // 2. Write modified + new classes through DexPool into new DEX files.
+        var newDexCount = 0
+        if (classesForNewDex.isNotEmpty()) {
+            logger.info(
+                "Writing ${classesForNewDex.size} new classes to new DEX files"
+            )
+            val newDexDir = config.patchedFiles.resolve("dex_new").apply {
+                deleteRecursively()
+                mkdirs()
+            }
+
+            DexReadWrite.writeMultiDexFile(newDexDir, classesForNewDex, opcodes, -1, logger)
+
+            val newDexFiles = newDexDir.listFiles { it.isFile }!!.sorted()
+            newDexCount = newDexFiles.size
+
+            // Move new DEX files into the output dir with temporary names to avoid collisions.
+            newDexFiles.forEachIndexed { i, file ->
+                file.renameTo(dexOutputDir.resolve(".new_$i.dex"))
+            }
+
+            newDexDir.delete()
+        }
+
+        // 3. Rename all DEX files to final names.
+        //    New DEX files get the lowest-numbered slots so they are loaded first by the classloader.
+        //    Original (stripped) DEX files are shifted up.
+
+        // Rename originals to temporary names first to avoid collisions during renumbering.
+        val tempOriginals = originalDexFiles.mapIndexed { i, file ->
+            val tempName = dexOutputDir.resolve(".orig_$i.dex")
+            file.renameTo(tempName)
+            tempName
+        }
+
+        // New DEX files: slots 0 .. newDexCount-1
+        for (i in 0 until newDexCount) {
+            val dexName = if (i == 0) "classes.dex" else "classes${i + 1}.dex"
+            val src = dexOutputDir.resolve(".new_$i.dex")
+            val dst = dexOutputDir.resolve(dexName)
+            src.renameTo(dst)
+            results.add(PatcherResult.PatchedDexFile(dexName, dst.inputStream()))
+        }
+
+        // Original DEX files: slots newDexCount .. newDexCount+origCount-1
+        tempOriginals.forEachIndexed { i, tempFile ->
+            val newIndex = newDexCount + i
+            val dexName = if (newIndex == 0) "classes.dex" else "classes${newIndex + 1}.dex"
+            val dst = dexOutputDir.resolve(dexName)
+            tempFile.renameTo(dst)
+            results.add(PatcherResult.PatchedDexFile(dexName, dst.inputStream()))
+        }
+
+        return results
     }
 
     override fun close() {

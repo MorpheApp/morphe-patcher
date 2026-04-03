@@ -746,7 +746,7 @@ sealed class PatchLoader(
             patchesFiles,
             { patchBundle ->
                 DexReadWrite.readMultidexFile(patchBundle)
-                    .classes
+                    .dexFile.classes
                     .map { classDef ->
                         classDef.type.substring(1, classDef.length - 1)
                     }

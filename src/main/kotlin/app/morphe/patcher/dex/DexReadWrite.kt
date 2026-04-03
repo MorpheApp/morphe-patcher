@@ -20,38 +20,83 @@ import java.io.BufferedInputStream
 import java.io.File
 import java.io.InputStream
 import java.util.logging.Logger
+import java.util.zip.ZipFile
 import kotlin.math.max
 import kotlin.math.min
+
+/**
+ * The result of reading a multidex file, containing both the merged [DexFile] view
+ * and the names of each individual DEX entry within the container.
+ *
+ * @param dexFile A merged [DexFile] containing all classes from all DEX entries.
+ * @param dexEntryNames The names of each original DEX entry (e.g., "classes.dex", "classes2.dex").
+ */
+internal class MultidexReadResult(
+    val dexFile: DexFile,
+    val dexEntryNames: List<String>,
+)
 
 internal object DexReadWrite {
     private const val MIN_CLASSES_PER_SEGMENT = 1000
     private const val MAX_THREADS = 4
 
     /**
-     * Reads a multidex file and returns a [DexFile] containing all classes from all dex files in the multidex file.
+     * Reads a multidex file and returns a [MultidexReadResult] containing a merged [DexFile]
+     * with all classes and the names of each DEX entry within the container.
+     *
      * @param inputFile The multidex file to read.
      * @param logger An optional logger to log the loading process.
      *
-     * @return A [DexFile] containing all classes from all dex files in the multidex file.
+     * @return A [MultidexReadResult] with the merged DexFile and entry names.
      */
-    internal fun readMultidexFile(inputFile: File, logger: Logger? = null): DexFile {
+    internal fun readMultidexFile(inputFile: File, logger: Logger? = null): MultidexReadResult {
         require(inputFile.exists()) { "input file does not exist: $inputFile" }
 
         val container = DexFileFactory.loadDexContainer(inputFile, null)
-        logger?.info("Loaded multidex file: $inputFile with ${container.dexEntryNames.size} dex files")
-        val dexFiles = container.dexEntryNames.map { entry ->
+        val entryNames = container.dexEntryNames.toList()
+        logger?.info("Loaded multidex file: $inputFile with ${entryNames.size} dex files")
+        val dexFiles = entryNames.map { entry ->
             container.getEntry(entry)!!.dexFile
         }
 
         val opcodes = dexFiles.maxByOrNull { it.opcodes.api }!!.opcodes
 
-        return object : DexFile {
+        val mergedDexFile = object : DexFile {
             override fun getClasses(): Set<ClassDef> {
                 return dexFiles.flatMap { it.classes }.toSet()
             }
 
             override fun getOpcodes(): Opcodes {
                 return opcodes
+            }
+        }
+
+        return MultidexReadResult(mergedDexFile, entryNames)
+    }
+
+    /**
+     * Extracts raw DEX entries from an APK/ZIP file directly to an output directory.
+     * This reads from the zip without dexlib2 parsing, so the output files are
+     * byte-identical to the original DEX data in the APK.
+     *
+     * @param apkFile The APK file to extract from.
+     * @param entryNames The names of the DEX entries to extract (e.g., "classes.dex").
+     * @param outputDir The directory to write the extracted DEX files to.
+     * @return A list of extracted files in the same order as [entryNames].
+     */
+    internal fun extractDexEntries(apkFile: File, entryNames: List<String>, outputDir: File): List<File> {
+        outputDir.mkdirs()
+        return ZipFile(apkFile).use { zip ->
+            entryNames.map { entryName ->
+                val zipEntry = zip.getEntry(entryName)
+                    ?: throw IllegalArgumentException("DEX entry not found in APK: $entryName")
+                val outputFile = outputDir.resolve(entryName)
+                zip.getInputStream(zipEntry).use { input ->
+                    outputFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                outputFile
             }
         }
     }
@@ -196,7 +241,6 @@ internal object DexReadWrite {
     private fun writeDexPoolToTemp(dexPool: DexPool, outputDir: File, segmentIndex: Int, poolIndex: Int): File {
         val tempFile = outputDir.resolve(".tmp_seg${segmentIndex}_${poolIndex}.dex")
         dexPool.writeTo(FileDataStore(tempFile))
-        println("Wrote $tempFile")
         return tempFile
     }
 }
