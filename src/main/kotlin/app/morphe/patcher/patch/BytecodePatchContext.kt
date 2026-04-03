@@ -247,9 +247,6 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     override fun get(): Set<PatcherResult.PatchedDexFile> {
         logger.info("Compiling patched dex files")
 
-        // Free up memory before compiling the dex files.
-        patchClasses.closeStringMap()
-
         // Identify which original classes were modified (converted to MutableClass).
         val modifiedOriginalDescriptors = patchClasses.classMap.values
             .filter { it.classDef is MutableClass && it.classDef.type in originalClassDescriptors }
@@ -296,7 +293,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         // Original DEX files: slots newDexCount .. newDexCount+origCount-1
         dexWorkingDir.listFiles { it.isFile }.forEachIndexed { i, tempFile ->
             val newIndex = newDexCount + i
-            val dexName = if (newIndex == 0) "classes.dex" else "classes${i + 1}.dex"
+            val dexName = if (newIndex == 0) "classes.dex" else "classes${newIndex + 1}.dex"
             val dst = dexOutputDir.resolve(dexName)
             tempFile.renameTo(dst)
         }
