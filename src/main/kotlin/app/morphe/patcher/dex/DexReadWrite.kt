@@ -57,7 +57,7 @@ internal object DexReadWrite {
         val container = DexFileFactory.loadDexContainer(inputFile, null)
         val entryNames = container.dexEntryNames.toList()
         logger?.info("Loaded multidex file: $inputFile with ${entryNames.size} dex files")
-        val dexFiles = entryNames.map { entry ->
+        val dexFiles = entryNames.filter { it.endsWith(".dex") }.map { entry ->
             container.getEntry(entry)!!.dexFile
         }
 
