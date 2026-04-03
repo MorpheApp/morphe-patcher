@@ -30,10 +30,12 @@ import kotlin.math.min
  *
  * @param dexFile A merged [DexFile] containing all classes from all DEX entries.
  * @param dexEntryNames The names of each original DEX entry (e.g., "classes.dex", "classes2.dex").
+ * @param classDescriptorsByEntry Maps each DEX entry name to the set of class descriptors it contains.
  */
 internal class MultidexReadResult(
     val dexFile: DexFile,
     val dexEntryNames: List<String>,
+    val classDescriptorsByEntry: Map<String, Set<String>>,
 )
 
 internal object DexReadWrite {
@@ -59,6 +61,11 @@ internal object DexReadWrite {
             container.getEntry(entry)!!.dexFile
         }
 
+        // Track which class descriptors belong to which DEX entry.
+        val classDescriptorsByEntry = entryNames.zip(dexFiles).associate { (name, dex) ->
+            name to dex.classes.mapTo(HashSet()) { it.type }
+        }
+
         val opcodes = dexFiles.maxByOrNull { it.opcodes.api }!!.opcodes
 
         val mergedDexFile = object : DexFile {
@@ -71,7 +78,7 @@ internal object DexReadWrite {
             }
         }
 
-        return MultidexReadResult(mergedDexFile, entryNames)
+        return MultidexReadResult(mergedDexFile, entryNames, classDescriptorsByEntry)
     }
 
     /**
