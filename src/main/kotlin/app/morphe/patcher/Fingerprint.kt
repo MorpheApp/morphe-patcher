@@ -702,7 +702,7 @@ open class Fingerprint private constructor(
      *
      * @param classDef The class the method is a member of.
      * @return All methods that match.
-     * @throws PatchException If the fingerprint failed to match.
+     * @throws PatchException If the fingerprint failed to match methods.
      */
     context(BytecodePatchContext)
     fun matchAll(
@@ -710,13 +710,63 @@ open class Fingerprint private constructor(
     ) = matchAllOrNull(classDef) ?: throw patchException()
 
     /**
-     * Match all methods in the target app.
+     * Matches all methods in the target app, requiring the number of matches
+     * to be in the specified range. A range including zero is allowed and
+     * returns an empty list if no matches exist.
      *
+     * @param classDef The class the method is a member of.
      * @return All methods that match.
      * @throws PatchException If the fingerprint failed to match.
      */
     context(BytecodePatchContext)
+    fun matchAll(classDef: ClassDef, range: IntRange): List<Match> {
+        val matches = matchAllOrNull(classDef)
+
+        return checkMatchesRange(matches, range)
+    }
+
+    /**
+     * Match all methods in the target app.
+     *
+     * @return All methods that match.
+     * @throws PatchException If the fingerprint failed to match any methods.
+     */
+    context(BytecodePatchContext)
     fun matchAll() = matchAllOrNull() ?: throw patchException()
+
+    /**
+     * Match all methods in the target app, requiring the number of matches to be
+     * in the specified range. A range including zero is allowed and returns an
+     * empty list if no matches exist.
+     *
+     * @return All methods that match.
+     * @throws PatchException If the number of matches is outside the range of [range].
+     */
+    context(BytecodePatchContext)
+    fun matchAll(range: IntRange): List<Match> {
+        val matches = matchAllOrNull()
+
+        return checkMatchesRange(matches, range)
+    }
+
+    private fun checkMatchesRange(
+        matches: List<Match>?,
+        range: IntRange
+    ): List<Match> {
+        if (matches == null) {
+            if (range.first == 0) {
+                return emptyList()
+            }
+            throw patchException()
+        }
+
+        if (matches.size !in range) {
+            throw PatchException("Expected a number of matches in $range but instead found ${matches.size}: $this")
+        }
+
+        return matches
+    }
+
 
     /**
      * The class the matching method is a member of, or null if this fingerprint did not match.
