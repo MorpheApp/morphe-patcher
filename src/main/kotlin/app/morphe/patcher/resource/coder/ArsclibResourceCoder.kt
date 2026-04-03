@@ -23,13 +23,11 @@ import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
-import com.reandroid.arsc.chunk.TableBlock
 import com.reandroid.arsc.coder.CoderSetting
 import com.reandroid.arsc.coder.xml.AaptXmlStringDecoder
 import com.reandroid.arsc.coder.xml.XmlCoder
 import com.reandroid.json.JSONObject
 import org.w3c.dom.Element
-import java.io.Closeable
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -109,24 +107,18 @@ class ArsclibResourceCoder(
         val versionName: String,
         val versionCode: String,
         val frameworkVersion: Int,
-        val externalFrameworks: MutableList<TableBlock>
-    ) : Closeable {
-        // No way to reload this once closed. Might not be a real issue though.
-        override fun close() {
-            externalFrameworks.clear()
-        }
-    }
+    )
 
     private val lazyPackageInfo = lazy {
-        val module = ApkModule.loadApkFile(apkFile)
-        val manifest = module.androidManifest
-        PackageInfo(
-            manifest.packageName,
-            manifest.versionName,
-            manifest.versionCode.toString(),
-            module.androidFrameworkVersion,
-            module.loadedFrameworks
-        )
+        ApkModule.loadApkFile(apkFile).use { module ->
+            val manifest = module.androidManifest
+            PackageInfo(
+                manifest.packageName,
+                manifest.versionName,
+                manifest.versionCode.toString(),
+                module.androidFrameworkVersion,
+            )
+        }
     }
 
     private fun readPathMap(): PathMap {
@@ -147,9 +139,10 @@ class ArsclibResourceCoder(
     }
 
     override fun decodeRaw(): PackageMetadata {
-        val apkModule = ApkModule.loadApkFile(apkFile)
-        val rawDecoder = ApkModuleRawDecoder(apkModule)
-        rawDecoder.decode(workingDir)
+        ApkModule.loadApkFile(apkFile).use { apkModule ->
+            val rawDecoder = ApkModuleRawDecoder(apkModule)
+            rawDecoder.decode(workingDir)
+        }
 
         // Build a snapshot of all file metadata after decoding, so we can detect
         // which files are added or modified when it's time to encode.
@@ -160,23 +153,24 @@ class ArsclibResourceCoder(
     }
 
     override fun decodeResources(): PackageMetadata {
-        val apkModule = ApkModule.loadApkFile(apkFile)
-        val xmlDecoder = ApkModuleXmlDecoder(apkModule).also {
-            it.setKeepResPath(false)
-        }
+        ApkModule.loadApkFile(apkFile).use { apkModule ->
+            val xmlDecoder = ApkModuleXmlDecoder(apkModule).also {
+                it.setKeepResPath(false)
+            }
 
-        xmlDecoder.decode(workingDir)
-        xmlDecoder.dexDecoder = null
-        xmlDecoder.dexProfileDecoder = null
+            xmlDecoder.decode(workingDir)
+            xmlDecoder.dexDecoder = null
+            xmlDecoder.dexProfileDecoder = null
 
-        // Delete all the dex files so they don't get built into the final resources.apk.
-        workingDir.resolve("dex").deleteRecursively()
+            // Delete all the dex files so they don't get built into the final resources.apk.
+            workingDir.resolve("dex").deleteRecursively()
 
-        // Update ARSCLib package metadata so the resources will be accessible under the correct package name.
-        workingDir.resolve("resources").listFiles { it.isDirectory }?.forEach { dir ->
-            val packageJson = JSONObject(dir.resolve("package.json"))
-            val packageName = packageJson.getString("package_name")
-            packageDirectories[packageName] = dir
+            // Update ARSCLib package metadata so the resources will be accessible under the correct package name.
+            workingDir.resolve("resources").listFiles { it.isDirectory }?.forEach { dir ->
+                val packageJson = JSONObject(dir.resolve("package.json"))
+                val packageName = packageJson.getString("package_name")
+                packageDirectories[packageName] = dir
+            }
         }
 
         StringsXmlSanitizeProcessor(
@@ -272,7 +266,6 @@ class ArsclibResourceCoder(
         val encoder = ApkModuleXmlEncoder()
         encoder.apkModule.use { loadedModule ->
             loadedModule.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
-            lazyPackageInfo.value.externalFrameworks.forEach { loadedModule.addExternalFramework(it) }
             encoder.scanDirectory(workingDir)
             loadedModule.writeApk(outputApk)
         }
@@ -409,5 +402,12 @@ class ArsclibResourceCoder(
         val file = packageDirectories[pkgName]?.resolve(path) ?: throw PatchException("Package $pkgName not found")
 
         Files.deleteIfExists(file.toPath())
+    }
+
+    override fun close() {
+        packageDirectories.clear()
+        modifiedResResources.clear()
+        modifiedBinaryResources.clear()
+        fileSnapshotCache = emptyMap()
     }
 }

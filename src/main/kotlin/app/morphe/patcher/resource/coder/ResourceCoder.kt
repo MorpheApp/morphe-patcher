@@ -7,9 +7,14 @@ package app.morphe.patcher.resource.coder
 
 import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.resource.ResourceMode
+import java.io.Closeable
 import java.io.File
 
-interface ResourceCoder {
+interface ResourceCoder : Closeable {
+    /**
+     * No-op default implementation. Override to release resources held by the coder.
+     */
+    override fun close() {}
     /**
      * Get package metadata from the APK.
      *

@@ -17,6 +17,7 @@ import app.morphe.patcher.resource.coder.ApkToolResourceCoder
 import app.morphe.patcher.resource.coder.ArsclibResourceCoder
 import app.morphe.patcher.resource.coder.ResourceCoder
 import app.morphe.patcher.util.Document
+import java.io.Closeable
 import java.io.InputStream
 import java.util.logging.Logger
 
@@ -28,7 +29,7 @@ import java.util.logging.Logger
  */
 class ResourcePatchContext internal constructor(
     private val config: PatcherConfig,
-) : PatchContext<PatcherResult.PatchedResources?> {
+) : PatchContext<PatcherResult.PatchedResources?>, Closeable {
     private val logger = Logger.getLogger(ResourcePatchContext::class.java.name)
 
     private val resourceCoder: ResourceCoder = if (config.useArsclib) {
@@ -114,4 +115,6 @@ class ResourcePatchContext internal constructor(
      */
     @Suppress("unused")
     fun delete(name: String, packageName: String? = null) = resourceCoder.deleteFile(name, packageName)
+
+    override fun close() = resourceCoder.close()
 }

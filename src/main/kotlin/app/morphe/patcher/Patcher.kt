@@ -159,7 +159,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
     fun get(): PatcherResult {
         Fingerprint.clearFingerprints()
         val dexFiles = context.bytecodeContext.get()
-        context.close()
+        context.bytecodeContext.close()
         context.allPatches.clear()
         context.executablePatches.clear()
         val resFiles = context.resourceContext.get()
