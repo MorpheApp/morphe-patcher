@@ -8,6 +8,7 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.patch.*
 import app.morphe.patcher.resource.ResourceMode
 import kotlinx.coroutines.flow.flow
@@ -52,6 +53,12 @@ class Patcher(private val config: PatcherConfig) : Closeable {
                 ResourceMode.RAW_ONLY
             } else {
                 ResourceMode.NONE
+            }
+
+            config.bytecodeMode = if (allPatches.any { patch -> patch.anyRecursively { it is BytecodePatch } }) {
+                config.useBytecodeMode
+            } else {
+                BytecodeMode.NONE
             }
         }
     }

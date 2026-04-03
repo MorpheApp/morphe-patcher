@@ -8,6 +8,7 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.ResourceMode
 import brut.androlib.Config
@@ -30,6 +31,7 @@ class PatcherConfig(
     private val frameworkFileDirectory: String? = null,
     internal val useArsclib: Boolean = true,
     internal val keepArchitectures: Set<CpuArchitecture> = emptySet(),
+    internal val useBytecodeMode: BytecodeMode = BytecodeMode.STRIP_SAFE
 ) {
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
 
@@ -39,6 +41,13 @@ class PatcherConfig(
      * @see ResourceMode
      */
     internal var resourceMode = ResourceMode.NONE
+
+    /**
+     * The mode to use for resource decoding and compiling.
+     *
+     * @see BytecodeMode
+     */
+    internal var bytecodeMode = BytecodeMode.NONE
 
     /**
      * The path to the temporary apk files directory.
