@@ -40,30 +40,31 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     /**
      * [Opcodes] of the supplied [PatcherConfig.apkFile].
      */
-    internal val opcodes: Opcodes
+    internal lateinit var opcodes: Opcodes
 
     /**
      * Original DEX files extracted from the APK to the dex output directory.
      * These files are edited in-place during compilation via [DexStripper].
      */
-    private val originalDexFiles: List<File>
+    private lateinit var originalDexFiles: List<File>
 
     /**
      * Class descriptors that existed in the original APK (before any extensions or patches).
      */
-    private val originalClassDescriptors: Set<String>
+    private lateinit var originalClassDescriptors: Set<String>
 
     /**
      * All classes for the target app and any extension classes.
      */
-    internal val patchClasses: PatchClasses
+    internal lateinit var patchClasses: PatchClasses
 
     /**
      * The directory where DEX files are written during compilation.
      */
     private val dexOutputDir = config.patchedFiles.resolve("dex")
+    private val dexWorkingDir = config.apkFiles.resolve("dex")
 
-    init {
+    internal fun decodeDexFiles() {
         val readResult = DexReadWrite.readMultidexFile(config.apkFile)
         opcodes = readResult.dexFile.opcodes
         originalClassDescriptors = readResult.dexFile.classes.mapTo(HashSet()) { it.type }
@@ -71,7 +72,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         // Extract original DEX files from the APK to disk for later in-place editing.
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
-        originalDexFiles = DexReadWrite.extractDexEntries(config.apkFile, readResult.dexEntryNames, dexOutputDir)
+        dexWorkingDir.apply { deleteRecursively(); mkdirs()}
+        originalDexFiles = DexReadWrite.extractDexEntries(config.apkFile, readResult.dexEntryNames, dexWorkingDir)
     }
 
     /**
@@ -280,51 +282,27 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
             logger.info(
                 "Writing ${classesForNewDex.size} new classes to new DEX files"
             )
-            val newDexDir = config.patchedFiles.resolve("dex_new").apply {
-                deleteRecursively()
-                mkdirs()
-            }
 
-            DexReadWrite.writeMultiDexFile(newDexDir, classesForNewDex, opcodes, -1, logger)
+            DexReadWrite.writeMultiDexFile(dexOutputDir, classesForNewDex, opcodes, -1, logger)
 
-            val newDexFiles = newDexDir.listFiles { it.isFile }!!.sorted()
+            val newDexFiles = dexOutputDir.listFiles { it.isFile }!!.sorted()
             newDexCount = newDexFiles.size
-
-            // Move new DEX files into the output dir with temporary names to avoid collisions.
-            newDexFiles.forEachIndexed { i, file ->
-                file.renameTo(dexOutputDir.resolve(".new_$i.dex"))
-            }
-
-            newDexDir.delete()
         }
 
         // 3. Rename all DEX files to final names.
         //    New DEX files get the lowest-numbered slots so they are loaded first by the classloader.
         //    Original (stripped) DEX files are shifted up.
 
-        // Rename originals to temporary names first to avoid collisions during renumbering.
-        val tempOriginals = originalDexFiles.mapIndexed { i, file ->
-            val tempName = dexOutputDir.resolve(".orig_$i.dex")
-            file.renameTo(tempName)
-            tempName
-        }
-
-        // New DEX files: slots 0 .. newDexCount-1
-        for (i in 0 until newDexCount) {
-            val dexName = if (i == 0) "classes.dex" else "classes${i + 1}.dex"
-            val src = dexOutputDir.resolve(".new_$i.dex")
-            val dst = dexOutputDir.resolve(dexName)
-            src.renameTo(dst)
-            results.add(PatcherResult.PatchedDexFile(dexName, dst.inputStream()))
-        }
-
         // Original DEX files: slots newDexCount .. newDexCount+origCount-1
-        tempOriginals.forEachIndexed { i, tempFile ->
+        dexWorkingDir.listFiles { it.isFile }.forEachIndexed { i, tempFile ->
             val newIndex = newDexCount + i
-            val dexName = if (newIndex == 0) "classes.dex" else "classes${newIndex + 1}.dex"
+            val dexName = if (newIndex == 0) "classes.dex" else "classes${i + 1}.dex"
             val dst = dexOutputDir.resolve(dexName)
             tempFile.renameTo(dst)
-            results.add(PatcherResult.PatchedDexFile(dexName, dst.inputStream()))
+        }
+
+        dexOutputDir.listFiles { it.isFile }.forEachIndexed { i, dexFile ->
+            results.add(PatcherResult.PatchedDexFile(dexFile.name, dexFile.inputStream()))
         }
 
         return results

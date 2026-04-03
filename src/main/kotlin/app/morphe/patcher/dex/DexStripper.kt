@@ -15,12 +15,16 @@ import java.security.MessageDigest
 import java.util.zip.Adler32
 
 /**
- * Binary DEX file editor that removes class_def entries without re-encoding the file.
+ * Binary DEX file editor that hollows out class_def entries without re-encoding the file.
  *
- * This operates directly on memory-mapped files, removing class definitions by shifting
- * remaining entries and updating only the header, map_list, and checksums.
- * All other sections (string_ids, type_ids, method_ids, code items, etc.)
- * remain byte-identical, since class_def entries are never referenced by index.
+ * Instead of removing class_def entries (which would leave orphaned class_data_items
+ * that ART's verifier rejects), this zeroes out the data-referencing fields
+ * (class_data_off, annotations_off, static_values_off, interfaces_off) of matched
+ * class_defs, turning them into empty shells. The class_def entry itself remains in the
+ * array so ART's verifier still finds a declaring class for every class_data_item.
+ *
+ * The real implementations of hollowed classes live in a separate DEX file that is
+ * loaded first (lower-numbered classesN.dex), so ART uses those instead.
  */
 internal object DexStripper {
 
@@ -28,9 +32,6 @@ internal object DexStripper {
     private const val CHECKSUM_OFF = 8          // uint: Adler32 checksum
     private const val SIGNATURE_OFF = 12        // ubyte[20]: SHA-1 signature
     private const val SIGNATURE_SIZE = 20
-    private const val FILE_SIZE_OFF = 32        // uint: total file size
-    private const val MAP_OFF_OFF = 52          // uint: offset to map_list
-    private const val STRING_IDS_SIZE_OFF = 56  // uint: count of string_ids
     private const val STRING_IDS_OFF_OFF = 60   // uint: offset to string_ids
     private const val TYPE_IDS_OFF_OFF = 68     // uint: offset to type_ids
     private const val CLASS_DEFS_SIZE_OFF = 96  // uint: count of class_defs
@@ -38,22 +39,24 @@ internal object DexStripper {
 
     private const val CLASS_DEF_ITEM_SIZE = 32  // each class_def_item is 32 bytes
 
-    // map_item type code for class_def_item
-    private const val TYPE_CLASS_DEF_ITEM: Short = 0x0006
-
-    // map_item struct: ushort type, ushort unused, uint size, uint offset = 12 bytes
-    private const val MAP_ITEM_SIZE = 12
+    // Offsets within a class_def_item.
+    private const val CLASS_DEF_INTERFACES_OFF = 12
+    private const val CLASS_DEF_ANNOTATIONS_OFF = 20
+    private const val CLASS_DEF_CLASS_DATA_OFF = 24
+    private const val CLASS_DEF_STATIC_VALUES_OFF = 28
 
     /**
-     * Strips the given class definitions from a DEX file on disk, editing it in-place
-     * via a memory-mapped buffer. No heap-allocated copy of the full file is needed.
+     * Hollows out the given class definitions in a DEX file on disk, editing it in-place
+     * via a memory-mapped buffer. Matched class_defs have their data-referencing fields
+     * zeroed out, turning them into empty shells while preserving the class_def entry
+     * for ART verifier compatibility.
      *
      * @param dexFile The DEX file to edit in-place.
-     * @param classDescriptorsToRemove Set of class descriptors to remove (e.g., "Lcom/example/Foo;").
-     * @return true if any classes were removed, false otherwise.
+     * @param classDescriptorsToHollow Set of class descriptors to hollow out (e.g., "Lcom/example/Foo;").
+     * @return true if any classes were hollowed out, false otherwise.
      */
-    fun stripInPlace(dexFile: File, classDescriptorsToRemove: Set<String>): Boolean {
-        if (classDescriptorsToRemove.isEmpty()) return false
+    fun stripInPlace(dexFile: File, classDescriptorsToHollow: Set<String>): Boolean {
+        if (classDescriptorsToHollow.isEmpty()) return false
 
         RandomAccessFile(dexFile, "rw").use { raf ->
             val channel = raf.channel
@@ -67,51 +70,22 @@ internal object DexStripper {
 
             if (classDefsSize == 0) return false
 
-            // Identify which class_def indices to remove.
-            val indicesToRemove = mutableListOf<Int>()
+            var hollowedCount = 0
             for (i in 0 until classDefsSize) {
                 val entryOff = classDefsOff + i * CLASS_DEF_ITEM_SIZE
                 val classIdx = buf.getInt(entryOff)  // type_ids index
                 val descriptor = resolveDescriptor(buf, classIdx, typeIdsOff, stringIdsOff)
-                if (descriptor in classDescriptorsToRemove) {
-                    indicesToRemove.add(i)
+                if (descriptor in classDescriptorsToHollow) {
+                    // Zero out all data-referencing fields, turning this into an empty shell.
+                    buf.putInt(entryOff + CLASS_DEF_INTERFACES_OFF, 0)
+                    buf.putInt(entryOff + CLASS_DEF_ANNOTATIONS_OFF, 0)
+                    buf.putInt(entryOff + CLASS_DEF_CLASS_DATA_OFF, 0)
+                    buf.putInt(entryOff + CLASS_DEF_STATIC_VALUES_OFF, 0)
+                    hollowedCount++
                 }
             }
 
-            if (indicesToRemove.isEmpty()) return false
-
-            // Remove class_def entries by compacting: shift remaining entries left.
-            val newClassDefsSize = classDefsSize - indicesToRemove.size
-
-            // Build compacted class_defs in-place.
-            // Use a temporary 32-byte array for copying entries within the mapped buffer.
-            val temp = ByteArray(CLASS_DEF_ITEM_SIZE)
-            var writeIdx = 0
-            for (readIdx in 0 until classDefsSize) {
-                if (readIdx in indicesToRemove) continue
-                if (writeIdx != readIdx) {
-                    val srcOff = classDefsOff + readIdx * CLASS_DEF_ITEM_SIZE
-                    val dstOff = classDefsOff + writeIdx * CLASS_DEF_ITEM_SIZE
-                    buf.position(srcOff)
-                    buf.get(temp)
-                    buf.position(dstOff)
-                    buf.put(temp)
-                }
-                writeIdx++
-            }
-
-            // Zero-fill the freed space at the end of the class_defs section.
-            val freedStart = classDefsOff + newClassDefsSize * CLASS_DEF_ITEM_SIZE
-            val freedEnd = classDefsOff + classDefsSize * CLASS_DEF_ITEM_SIZE
-            val zeros = ByteArray(freedEnd - freedStart)
-            buf.position(freedStart)
-            buf.put(zeros)
-
-            // Update header: class_defs_size.
-            buf.putInt(CLASS_DEFS_SIZE_OFF, newClassDefsSize)
-
-            // Update map_list entry for TYPE_CLASS_DEF_ITEM.
-            updateMapListClassDefsSize(buf, newClassDefsSize)
+            if (hollowedCount == 0) return false
 
             // Recompute checksums.
             recomputeSignature(buf, raf.length().toInt())
@@ -170,24 +144,6 @@ internal object DexStripper {
             }
         }
         return sb.toString()
-    }
-
-    /**
-     * Finds and updates the size field of the TYPE_CLASS_DEF_ITEM entry in the map_list.
-     */
-    private fun updateMapListClassDefsSize(buf: ByteBuffer, newSize: Int) {
-        val mapOff = buf.getInt(MAP_OFF_OFF)
-        val mapSize = buf.getInt(mapOff)
-
-        for (i in 0 until mapSize) {
-            val itemOff = mapOff + 4 + i * MAP_ITEM_SIZE  // 4 bytes for the map size uint
-            val type = buf.getShort(itemOff)
-            if (type == TYPE_CLASS_DEF_ITEM) {
-                // map_item: ushort type (0), ushort unused (2), uint size (4), uint offset (8)
-                buf.putInt(itemOff + 4, newSize)
-                return
-            }
-        }
     }
 
     /**

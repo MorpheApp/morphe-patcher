@@ -101,6 +101,8 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             context.resourceContext.decodeResources(config.resourceMode)
         }
 
+        context.bytecodeContext.decodeDexFiles()
+
         logger.info("Executing patches")
 
         val executedPatches = LinkedHashMap<Patch<*>, PatchResult>()
