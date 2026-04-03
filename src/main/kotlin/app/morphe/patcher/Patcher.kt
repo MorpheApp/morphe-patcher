@@ -108,7 +108,9 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             context.resourceContext.decodeResources(config.resourceMode)
         }
 
-        context.bytecodeContext.decodeDexFiles()
+        if (config.bytecodeMode != BytecodeMode.NONE) {
+            context.bytecodeContext.decodeDexFiles()
+        }
 
         logger.info("Executing patches")
 
