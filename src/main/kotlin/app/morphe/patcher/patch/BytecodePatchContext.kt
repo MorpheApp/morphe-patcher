@@ -374,7 +374,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
             if (!hasModifiedClasses) {
                 // No modified classes — copy the original file as-is.
                 logger.fine { "Passing through unmodified DEX: ${originalDex.name}" }
-                originalDex.renameTo(dexOutputDir.resolve(getDexName(newDexCount + i)))
+                originalDex.renameTo(dexOutputDir.resolve(getDexName(newDexCount)))
+                newDexCount++
             } else {
                 // Rebuild this DEX via DexPool with only the unmodified classes.
                 val unmodifiedClasses = entryDescriptors
@@ -392,10 +393,12 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                         deleteRecursively()
                         mkdirs()
                     }
-                    val rebuiltFiles = DexReadWrite.writeMultiDexFile(tempDir, unmodifiedClasses, opcodes, -1, null)
-                    rebuiltFiles.forEachIndexed { j, rebuiltFile ->
-                        val newName = getDexName(newDexCount + i + j)
+                    val rebuiltFiles = DexReadWrite.writeMultiDexFile(tempDir, unmodifiedClasses, opcodes, 1, null)
+                    rebuiltFiles.forEach { rebuiltFile ->
+                        val newName = getDexName(newDexCount)
+                        logger.info("${rebuiltFile.name} -> $newName")
                         rebuiltFile.renameTo(dexOutputDir.resolve(newName))
+                        newDexCount++
                     }
                 } else {
                     logger.info("Skipping DEX: ${originalDex.name} (all classes were modified)")
