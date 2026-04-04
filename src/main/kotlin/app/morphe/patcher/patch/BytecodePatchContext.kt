@@ -69,7 +69,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * The directory where DEX files are written during compilation.
      */
     private val dexOutputDir = config.patchedFiles.resolve("dex")
-    private val dexWorkingDir = config.apkFiles.resolve("dex")
+    private val dexWorkingDir = config.patchedFiles.resolve("originalDex")
 
     internal fun decodeDexFiles() {
         val readResult = DexReadWrite.readMultidexFile(config.apkFile)
@@ -393,7 +393,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                         deleteRecursively()
                         mkdirs()
                     }
-                    val rebuiltFiles = DexReadWrite.writeMultiDexFile(tempDir, unmodifiedClasses, opcodes, 1, null)
+                    val rebuiltFiles = DexReadWrite.writeMultiDexFile(tempDir, unmodifiedClasses, opcodes, -1, null)
                     rebuiltFiles.forEach { rebuiltFile ->
                         val newName = getDexName(newDexCount)
                         logger.info("${rebuiltFile.name} -> $newName")
