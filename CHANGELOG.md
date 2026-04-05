@@ -1,3 +1,10 @@
+# [1.4.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.3...v1.4.0-dev.1) (2026-04-05)
+
+
+### Features
+
+* Add `matchAll(range)` to validate the number of matches ([#104](https://github.com/MorpheApp/morphe-patcher/issues/104)) ([b28d21a](https://github.com/MorpheApp/morphe-patcher/commit/b28d21aadd8f6f4505a19885acb2fb399b2f882c))
+
 ## [1.3.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.2...v1.3.3) (2026-03-28)
 
 
