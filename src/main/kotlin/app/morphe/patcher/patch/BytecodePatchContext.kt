@@ -74,14 +74,18 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     internal fun decodeDexFiles() {
         val readResult = DexReadWrite.readMultidexFile(config.apkFile)
         opcodes = readResult.dexFile.opcodes
-        originalClassDescriptors = readResult.dexFile.classes.mapTo(HashSet()) { it.type }
+        originalClassDescriptors = readResult.dexFile.classes.let { classes ->
+            classes.mapTo(HashSet(2 * classes.size)) { it.type }
+        }
         classDescriptorsByEntry = readResult.classDescriptorsByEntry
         patchClasses = PatchClasses(readResult.dexFile.classes)
 
         // Extract original DEX files from the APK to disk for later in-place editing.
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
         dexWorkingDir.apply { deleteRecursively(); mkdirs()}
-        originalDexFiles = DexReadWrite.extractDexEntries(config.apkFile, readResult.dexEntryNames, dexWorkingDir)
+        originalDexFiles = DexReadWrite.extractDexEntries(
+            config.apkFile, readResult.dexEntryNames, dexWorkingDir
+        )
     }
 
     /**
@@ -265,7 +269,9 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * Slowest but most space-efficient since no dead data remains.
      */
     private fun compileFull(): Set<PatcherResult.PatchedDexFile> {
-        val classDefs = patchClasses.classMap.values.map { it.classDef }.toMutableList()
+        val classDefs = patchClasses.classMap.values.let { values ->
+            values.mapTo(ArrayList(values.size)) { it.classDef }
+        }
         patchClasses.close()
 
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
@@ -283,14 +289,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * Fastest, but leaves dead data in original DEX files (orphaned class_data, annotations, etc.).
      */
     private fun compileStripFast(): Set<PatcherResult.PatchedDexFile> {
-        val modifiedOriginalDescriptors = patchClasses.classMap.values
-            .filter { it.classDef is MutableClass && it.classDef.type in originalClassDescriptors }
-            .mapTo(HashSet()) { it.classDef.type }
-
-        val classesForNewDex = patchClasses.classMap.values
-            .filter { it.classDef is MutableClass || it.classDef.type !in originalClassDescriptors }
-            .map { it.classDef }
-            .toMutableList()
+        val (modifiedOriginalDescriptors, classesForNewDex)
+                = getModifiedOriginalDescriptorsAndClassesForNewDex()
 
         patchClasses.close()
 
@@ -338,21 +338,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * with no dead data or duplicate class definitions.
      */
     private fun compileStripSafe(): Set<PatcherResult.PatchedDexFile> {
-        // Build a lookup from class descriptor to its (possibly modified) ClassDef.
-        val classLookup = patchClasses.classMap.mapValues { it.value.classDef }
-
-        // Identify modified original class descriptors.
-        val modifiedOriginalDescriptors = patchClasses.classMap.values
-            .filter { it.classDef is MutableClass && it.classDef.type in originalClassDescriptors }
-            .mapTo(HashSet()) { it.classDef.type }
-
-        // Collect classes for the new DEX: modified originals + brand-new extension classes.
-        val classesForNewDex = patchClasses.classMap.values
-            .filter { it.classDef is MutableClass || it.classDef.type !in originalClassDescriptors }
-            .map { it.classDef }
-            .toMutableList()
-
-        patchClasses.close()
+        val (modifiedOriginalDescriptors, classesForNewDex)
+                = getModifiedOriginalDescriptorsAndClassesForNewDex()
 
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
 
@@ -380,7 +367,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                 // Rebuild this DEX via DexPool with only the unmodified classes.
                 val unmodifiedClasses = entryDescriptors
                     .filter { it !in modifiedOriginalDescriptors }
-                    .mapNotNull { classLookup[it] }
+                    .mapNotNull { patchClasses.classMap[it]?.classDef }
                     .toMutableList()
 
                 if (unmodifiedClasses.isNotEmpty()) {
@@ -407,11 +394,36 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
             }
         }
 
+        patchClasses.close()
+
         dexOutputDir.listFiles { it.isFile }!!.sorted().forEach { dexFile ->
             results.add(PatcherResult.PatchedDexFile(dexFile.name, dexFile.inputStream()))
         }
 
         return results
+    }
+
+     private fun getModifiedOriginalDescriptorsAndClassesForNewDex(): Pair<HashSet<String>, MutableList<ClassDef>> {
+        // Identify modified original class descriptors.
+        val modifiedOriginalDescriptors = HashSet<String>(1024, 0.5f)
+        // Collect classes for the new DEX: modified originals + brand-new extension classes.
+        val classesForNewDex = ArrayList<ClassDef>(1024)
+
+        for (entry in patchClasses.classMap.values) {
+            val def = entry.classDef
+            val inOriginalClassDescriptors = def.type in originalClassDescriptors
+
+            if (def is MutableClass) {
+                classesForNewDex.add(def)
+                if (inOriginalClassDescriptors) {
+                    modifiedOriginalDescriptors.add(def.type)
+                }
+            } else if (!inOriginalClassDescriptors) {
+                classesForNewDex.add(def)
+            }
+        }
+
+        return modifiedOriginalDescriptors to classesForNewDex
     }
 
     internal fun getDexName(index: Int): String = if (index == 0) "classes.dex" else "classes${index + 1}.dex"
