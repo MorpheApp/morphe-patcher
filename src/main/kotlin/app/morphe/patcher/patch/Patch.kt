@@ -4,9 +4,8 @@ package app.morphe.patcher.patch
 
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherContext
+import app.morphe.patcher.dex.DexReadWrite
 import dalvik.system.DexClassLoader
-import lanchon.multidexlib2.BasicDexFileNamer
-import lanchon.multidexlib2.MultiDexIO
 import java.io.File
 import java.io.InputStream
 import java.lang.reflect.Member
@@ -746,7 +745,8 @@ sealed class PatchLoader(
         PatchLoader(
             patchesFiles,
             { patchBundle ->
-                MultiDexIO.readDexFile(true, patchBundle, BasicDexFileNamer(), null, null).classes
+                DexReadWrite.readMultidexFile(patchBundle)
+                    .dexFile.classes
                     .map { classDef ->
                         classDef.type.substring(1, classDef.length - 1)
                     }

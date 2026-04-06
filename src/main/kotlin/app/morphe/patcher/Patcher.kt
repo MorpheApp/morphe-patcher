@@ -8,6 +8,7 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.patch.*
 import app.morphe.patcher.resource.ResourceMode
 import kotlinx.coroutines.flow.flow
@@ -52,6 +53,12 @@ class Patcher(private val config: PatcherConfig) : Closeable {
                 ResourceMode.RAW_ONLY
             } else {
                 ResourceMode.NONE
+            }
+
+            config.bytecodeMode = if (allPatches.any { patch -> patch.anyRecursively { it is BytecodePatch } }) {
+                config.useBytecodeMode
+            } else {
+                BytecodeMode.NONE
             }
         }
     }
@@ -99,6 +106,10 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         // Prevent decoding the app manifest twice if it is not needed.
         if (config.resourceMode != ResourceMode.NONE) {
             context.resourceContext.decodeResources(config.resourceMode)
+        }
+
+        if (config.bytecodeMode != BytecodeMode.NONE) {
+            context.bytecodeContext.decodeDexFiles()
         }
 
         logger.info("Executing patches")
@@ -158,10 +169,10 @@ class Patcher(private val config: PatcherConfig) : Closeable {
     @OptIn(InternalApi::class)
     fun get(): PatcherResult {
         Fingerprint.clearFingerprints()
-        val dexFiles = context.bytecodeContext.get()
-        context.close()
         context.allPatches.clear()
         context.executablePatches.clear()
+        val dexFiles = context.bytecodeContext.get()
+        context.bytecodeContext.close()
         val resFiles = context.resourceContext.get()
         return PatcherResult(dexFiles, resFiles)
     }

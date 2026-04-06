@@ -59,11 +59,6 @@ object ApkUtils {
      */
     fun PatcherResult.applyTo(apkFile: File) {
         ZFile.openReadWrite(apkFile, zFileOptions).use { targetApkZFile ->
-            dexFiles.forEach { dexFile ->
-                targetApkZFile.add(dexFile.name, dexFile.stream)
-                dexFile.stream.close()
-            }
-
             resources?.let { resources ->
                 // Add resources compiled by AAPT.
                 resources.resourcesApk?.let { resourcesApk ->
@@ -76,8 +71,17 @@ object ApkUtils {
                             entry.centralDirectoryHeader.name.startsWith(RES_PREFIX)
                         }.forEach(StoredEntry::delete)
 
-                        targetApkZFile.mergeFrom(resourcesApkZFile) { false }
+                        targetApkZFile.mergeFrom(resourcesApkZFile) { entry ->
+                            // Filter any dex files in case they were packaged inside resources.apk for some reason.
+                            entry.startsWith("classes") && entry.endsWith(".dex")
+                        }
                     }
+                }
+
+                // Run this after merging the resources.apk to ensure our dex files don't get overwritten
+                dexFiles.forEach { dexFile ->
+                    targetApkZFile.add(dexFile.name, dexFile.stream)
+                    dexFile.stream.close()
                 }
 
                 // Add resources not compiled by AAPT.

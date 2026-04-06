@@ -8,6 +8,7 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatch
 import app.morphe.patcher.patch.Patch
@@ -56,6 +57,7 @@ internal object PatcherTest {
                 "config",
                 mockk<PatcherConfig> {
                     every { resourceMode } returns ResourceMode.NONE
+                    every { bytecodeMode } returns BytecodeMode.NONE
                 },
             )
             setPrivateField(
@@ -64,6 +66,7 @@ internal object PatcherTest {
             )
 
             every { context.bytecodeContext.patchClasses } returns mockk(relaxed = true)
+            every { context.bytecodeContext.decodeDexFiles() } just runs
             every { this@mockk() } answers { callOriginal() }
         }
     }
