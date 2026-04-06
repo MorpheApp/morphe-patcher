@@ -72,7 +72,11 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     private val dexWorkingDir = config.patchedFiles.resolve("originalDex")
 
     internal fun decodeDexFiles() {
-        val readResult = DexReadWrite.readMultidexFile(config.apkFile)
+        // Extract original DEX files from the APK to disk for later in-place editing.
+        dexOutputDir.apply { deleteRecursively(); mkdirs() }
+        dexWorkingDir.apply { deleteRecursively(); mkdirs()}
+
+        val readResult = DexReadWrite.readMultidexFileFromZip(config.apkFile, dexWorkingDir)
         opcodes = readResult.dexFile.opcodes
         originalClassDescriptors = readResult.dexFile.classes.let { classes ->
             classes.mapTo(HashSet(2 * classes.size)) { it.type }
@@ -80,12 +84,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         classDescriptorsByEntry = readResult.classDescriptorsByEntry
         patchClasses = PatchClasses(readResult.dexFile.classes)
 
-        // Extract original DEX files from the APK to disk for later in-place editing.
-        dexOutputDir.apply { deleteRecursively(); mkdirs() }
-        dexWorkingDir.apply { deleteRecursively(); mkdirs()}
-        originalDexFiles = DexReadWrite.extractDexEntries(
-            config.apkFile, readResult.dexEntryNames, dexWorkingDir
-        )
+        originalDexFiles = readResult.extractedDexFiles
     }
 
     /**
