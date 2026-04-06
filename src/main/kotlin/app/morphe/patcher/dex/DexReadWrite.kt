@@ -9,7 +9,6 @@ import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
 import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.DexFile
-import com.android.tools.smali.dexlib2.util.DexUtil
 import com.android.tools.smali.dexlib2.writer.io.FileDataStore
 import com.android.tools.smali.dexlib2.writer.pool.DexPool
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +32,7 @@ import kotlin.collections.Map
 import kotlin.collections.MutableCollection
 import kotlin.collections.Set
 import kotlin.collections.associate
+import kotlin.collections.first
 import kotlin.collections.flatMap
 import kotlin.collections.isNotEmpty
 import kotlin.collections.listOf
@@ -41,6 +41,7 @@ import kotlin.collections.mapIndexed
 import kotlin.collections.mapTo
 import kotlin.collections.maxByOrNull
 import kotlin.collections.mutableListOf
+import kotlin.collections.plusAssign
 import kotlin.collections.toList
 import kotlin.collections.toSet
 import kotlin.collections.zip
@@ -80,11 +81,11 @@ internal object DexReadWrite {
         val extractedFiles = extractDexEntries(inputFile, outputDir)
         logger?.info("Loaded multidex file: $inputFile with ${extractedFiles.size} dex files")
 
-        val randomAccessFiles = extractedFiles.map { file -> RandomAccessFile(file, "rw") }
-        val memoryMappedBuffers = randomAccessFiles.map { file ->
-            file.channel.map(FileChannel.MapMode.READ_WRITE, 0, file.channel.size())
+        val memoryMappedDexFiles = extractedFiles.map { file ->
+            val rwFile = RandomAccessFile(file, "rw")
+            val mappedByteBuffer = rwFile.channel.map(FileChannel.MapMode.READ_WRITE, 0, rwFile.channel.size())
+            DexBackedDexFile(null, mappedByteBuffer)
         }
-        val memoryMappedDexFiles = memoryMappedBuffers.map { buf -> DexBackedDexFile(null, buf) }
         val entryNames = extractedFiles.map { file -> file.name }
 
         // Track which class descriptors belong to which DEX entry.
