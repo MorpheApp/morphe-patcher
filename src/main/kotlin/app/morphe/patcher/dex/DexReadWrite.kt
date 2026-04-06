@@ -132,7 +132,13 @@ internal object DexReadWrite {
      *
      * @return A list of [File]s representing the written dex files.
      */
-    internal fun writeMultiDexFile(outputDir: File, classDefs: MutableCollection<ClassDef>, opcodes: Opcodes, maxThreads: Int = -1, logger: Logger? = null): List<File> {
+    internal fun writeMultiDexFile(
+        outputDir: File,
+        classDefs: MutableCollection<ClassDef>,
+        opcodes: Opcodes,
+        maxThreads: Int = -1,
+        logger: Logger? = null
+    ): List<File> {
         require(!outputDir.exists() || outputDir.isDirectory) { "Output path must be a directory: $outputDir" }
 
         if (outputDir.exists()) {

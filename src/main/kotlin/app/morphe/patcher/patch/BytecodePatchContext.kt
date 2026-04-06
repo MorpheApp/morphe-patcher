@@ -63,7 +63,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     /**
      * All classes for the target app and any extension classes.
      */
-    internal lateinit var patchClasses: PatchClasses
+    internal var patchClasses: PatchClasses = PatchClasses(emptySet())
 
     /**
      * The directory where DEX files are written during compilation.
@@ -343,8 +343,6 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
 
-        val results = mutableSetOf<PatcherResult.PatchedDexFile>()
-
         // 1. Write modified + new classes through DexPool first so we know how many files they produce.
         var newDexCount = 0
         if (classesForNewDex.isNotEmpty()) {
@@ -380,7 +378,9 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                         deleteRecursively()
                         mkdirs()
                     }
-                    val rebuiltFiles = DexReadWrite.writeMultiDexFile(tempDir, unmodifiedClasses, opcodes, -1, null)
+                    val rebuiltFiles = DexReadWrite.writeMultiDexFile(
+                        tempDir, unmodifiedClasses, opcodes, -1, null
+                    )
                     rebuiltFiles.forEach { rebuiltFile ->
                         val newName = getDexName(newDexCount)
                         rebuiltFile.renameTo(dexOutputDir.resolve(newName))
@@ -394,6 +394,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         }
 
         patchClasses.close()
+
+        val results = mutableSetOf<PatcherResult.PatchedDexFile>()
 
         dexOutputDir.listFiles { it.isFile }!!.sorted().forEach { dexFile ->
             results.add(PatcherResult.PatchedDexFile(dexFile.name, dexFile.inputStream()))
