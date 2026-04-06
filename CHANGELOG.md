@@ -1,3 +1,10 @@
+# [1.4.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.1...v1.4.0-dev.2) (2026-04-06)
+
+
+### Features
+
+* Optimize dex patching ([#105](https://github.com/MorpheApp/morphe-patcher/issues/105)) ([4e70edb](https://github.com/MorpheApp/morphe-patcher/commit/4e70edb7d3e0568dd32cddb10a55ddfbc13edb05))
+
 # [1.4.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.3...v1.4.0-dev.1) (2026-04-05)
 
 
