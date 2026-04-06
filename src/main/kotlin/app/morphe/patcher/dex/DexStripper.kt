@@ -59,6 +59,7 @@ internal object DexStripper {
         if (classDescriptorsToHollow.isEmpty()) return false
 
         RandomAccessFile(dexFile, "rw").use { raf ->
+            val fileSize = raf.length().toInt()
             val channel = raf.channel
             val mappedBuf = channel.map(FileChannel.MapMode.READ_WRITE, 0, raf.length())
             val buf = mappedBuf.order(ByteOrder.LITTLE_ENDIAN)
@@ -70,31 +71,45 @@ internal object DexStripper {
 
             if (classDefsSize == 0) return false
 
+            val descriptorCache = HashMap<Int, String>(2 * classDefsSize)
+
             var hollowedCount = 0
-            for (i in 0 until classDefsSize) {
-                val entryOff = classDefsOff + i * CLASS_DEF_ITEM_SIZE
-                val classIdx = buf.getInt(entryOff)  // type_ids index
-                val descriptor = resolveDescriptor(buf, classIdx, typeIdsOff, stringIdsOff)
+            var remaining = classDefsSize
+            var entryOff = classDefsOff
+
+            while (remaining > 0) {
+                val classIdx = buf.getInt(entryOff)
+
+                val descriptor = descriptorCache.getOrPut(classIdx) {
+                    resolveDescriptor(buf, classIdx, typeIdsOff, stringIdsOff)
+                }
+
                 if (descriptor in classDescriptorsToHollow) {
-                    // Zero out all data-referencing fields, turning this into an empty shell.
-                    buf.putInt(entryOff + CLASS_DEF_INTERFACES_OFF, 0)
-                    buf.putInt(entryOff + CLASS_DEF_ANNOTATIONS_OFF, 0)
-                    buf.putInt(entryOff + CLASS_DEF_CLASS_DATA_OFF, 0)
-                    buf.putInt(entryOff + CLASS_DEF_STATIC_VALUES_OFF, 0)
+                    zeroClassDef(buf, entryOff)
                     hollowedCount++
                 }
+
+                entryOff += CLASS_DEF_ITEM_SIZE
+                remaining--
             }
 
             if (hollowedCount == 0) return false
 
             // Recompute checksums.
-            recomputeSignature(buf, raf.length().toInt())
-            recomputeChecksum(buf, raf.length().toInt())
+            recomputeSignature(buf, fileSize)
+            recomputeChecksum(buf, fileSize)
 
             mappedBuf.force()
         }
 
         return true
+    }
+
+    private fun zeroClassDef(buf: ByteBuffer, base: Int) {
+        buf.putInt(base + CLASS_DEF_INTERFACES_OFF, 0)
+        buf.putInt(base + CLASS_DEF_ANNOTATIONS_OFF, 0)
+        buf.putInt(base + CLASS_DEF_CLASS_DATA_OFF, 0)
+        buf.putInt(base + CLASS_DEF_STATIC_VALUES_OFF, 0)
     }
 
     /**

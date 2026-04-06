@@ -63,7 +63,9 @@ internal object DexReadWrite {
 
         // Track which class descriptors belong to which DEX entry.
         val classDescriptorsByEntry = entryNames.zip(dexFiles).associate { (name, dex) ->
-            name to dex.classes.mapTo(HashSet()) { it.type }
+            name to dex.classes.let { classes ->
+                classes.mapTo(HashSet(2 * classes.size)) { it.type }
+            }
         }
 
         val opcodes = dexFiles.maxByOrNull { it.opcodes.api }!!.opcodes
@@ -156,7 +158,7 @@ internal object DexReadWrite {
         val segmentResults = if (numSegments == 1) {
             logger?.info("Processing $numClasses classes (single threaded mode)")
 
-            listOf(processSegment(segments[0], opcodes, outputDir, 0))
+            listOf(processSegment(segments.first(), opcodes, outputDir, 0))
         } else {
             logger?.info("Processing $numClasses classes in parallel (${segments.size} threads)")
 
