@@ -1,7 +1,6 @@
 [versions]
 android = "4.1.1.4"
 android-tools = "8.5.2"
-apktool-lib = "2.11.2.r3"
 arsclib = "9696ffecda"
 bcpkix-jdk18on = "1.77"
 binary-compatibility-validator = "0.18.1"
@@ -15,7 +14,6 @@ smali = "d92701d947"
 
 [libraries]
 android = { module = "com.google.android:android", version.ref = "android" }
-apktool-lib = { module = "app.morphe:apktool-lib", version.ref = "apktool-lib" }
 apkzlib = { module = "com.android.tools.build:apkzlib", version.ref = "android-tools" }
 apksig = { module = "com.android.tools.build:apksig", version.ref = "android-tools" }
 arsclib = { module = "com.github.MorpheApp:ARSCLib", version.ref = "arsclib" }

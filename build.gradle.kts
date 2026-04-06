@@ -43,7 +43,6 @@ repositories {
     maven {
         url = uri("https://jitpack.io")
         content {
-            includeGroup("com.github.iBotPeaches.smali")
             includeGroup("com.github.MorpheApp.smali")
             includeGroup("com.github.MorpheApp")
         }
@@ -65,7 +64,6 @@ dependencies {
     }
 
     implementation(libs.bcpkix.jdk18on)
-    //implementation(libs.apktool.lib)
     implementation(libs.apksig)
     implementation(libs.apkzlib)
     implementation(libs.arsclib)

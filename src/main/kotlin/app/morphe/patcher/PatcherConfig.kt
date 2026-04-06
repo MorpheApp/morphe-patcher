@@ -26,13 +26,19 @@ import java.util.logging.Logger
 class PatcherConfig(
     internal val apkFile: File,
     private val temporaryFilesPath: File = File("morphe-temporary-files"),
-    private val aaptBinaryPath: String? = null,
-    private val frameworkFileDirectory: String? = null,
-    internal val useArsclib: Boolean = true,
+    @Deprecated("apktool support is deprecated") private val aaptBinaryPath: String? = null,
+    @Deprecated("apktool support is deprecated") private val frameworkFileDirectory: String? = null,
+    @Deprecated("apktool support is deprecated") internal val useArsclib: Boolean = true,
     internal val keepArchitectures: Set<CpuArchitecture> = emptySet(),
     internal val useBytecodeMode: BytecodeMode = BytecodeMode.STRIP_SAFE
 ) {
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
+
+    init {
+        if (!useArsclib) {
+            logger.warning { "apktool support is deprecated. arsclib will be used." }
+        }
+    }
 
     /**
      * The mode to use for resource decoding and compiling.
