@@ -346,7 +346,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         var newDexCount = 0
         if (classesForNewDex.isNotEmpty()) {
             logger.info("Writing ${classesForNewDex.size} modified/new classes to new DEX files")
-            DexReadWrite.writeMultiDexFile(dexOutputDir, classesForNewDex, opcodes, -1, logger)
+            DexReadWrite.writeMultiDexFile(dexOutputDir, classesForNewDex, opcodes, -1, null)
             newDexCount = dexOutputDir.listFiles { it.isFile }!!.size
         }
 
