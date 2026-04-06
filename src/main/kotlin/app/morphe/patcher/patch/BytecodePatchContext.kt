@@ -383,7 +383,6 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                     val rebuiltFiles = DexReadWrite.writeMultiDexFile(tempDir, unmodifiedClasses, opcodes, -1, null)
                     rebuiltFiles.forEach { rebuiltFile ->
                         val newName = getDexName(newDexCount)
-                        logger.info("${rebuiltFile.name} -> $newName")
                         rebuiltFile.renameTo(dexOutputDir.resolve(newName))
                         newDexCount++
                     }
