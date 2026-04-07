@@ -46,6 +46,14 @@ class ArsclibResourceCoder(
     internal val modifiedBinaryResources = mutableSetOf<File>()
 
     /**
+     * Set of file paths (relative to the APK root e.g: "lib/armeabi-v7a/libfoo.so")
+     * that existed at decode time but no longer exist on disk after patches and
+     * other transformations have run. Populated by [detectFileChanges] and returned
+     * by [getDeletedFiles] so [PatcherResult.applyTo] can exclude them from the rebuilt APK.
+     */
+    internal val deletedFiles = mutableSetOf<String>()
+
+    /**
      * Snapshot of file metadata (modification time and size) captured after decoding resources.
      * Used to detect which files were added or modified between decoding and encoding.
      */
@@ -74,6 +82,7 @@ class ArsclibResourceCoder(
     internal fun detectFileChanges() {
         modifiedResResources.clear()
         modifiedBinaryResources.clear()
+        deletedFiles.clear()
 
         packageDirectories.forEach { (_, packageDir) ->
             packageDir.resolve("res").walkTopDown().filter { it.isFile }.forEach { file ->
@@ -91,6 +100,18 @@ class ArsclibResourceCoder(
             val cached = fileSnapshotCache[file]
             if (cached == null || file.lastModified() != cached.lastModified || file.length() != cached.size) {
                 modifiedBinaryResources.add(file)
+            }
+        }
+
+        // Detect files that existed at decode time but are now removed.
+        // These need to be communicated to applyTo() so that they're excluded from the rebuilt APK.
+        val rootPathPrefix = otherResourcesRootDirectory.absoluteFile.invariantSeparatorsPath
+        fileSnapshotCache.keys.forEach { snapshotFile ->
+            if (snapshotFile.exists()) return@forEach
+            val absPath = snapshotFile.absoluteFile.invariantSeparatorsPath
+            if (absPath.startsWith("$rootPathPrefix/")) {
+                val relativePath = snapshotFile.relativeTo(otherResourcesRootDirectory).invariantSeparatorsPath
+                deletedFiles += relativePath
             }
         }
     }
@@ -345,9 +366,12 @@ class ArsclibResourceCoder(
     }
 
     /**
-     * No-op, not currently supported by ArsclibResourceCoder.
+     * Returns the relative paths (in-zip APK paths, e.g: "lib/armeabi-v7a/libfoo.so")
+     * of files that existed at decode time but are no longer present on disk after
+     * patches and resource transformations have run. Populated by [detectFileChanges].
+     * [PatcherResult.applyTo] uses this set to exclude entries from the rebuilt apk when assembling the output from the original input.
      */
-    override fun getDeletedFiles(): Set<String> = emptySet()
+    override fun getDeletedFiles(): Set<String> = deletedFiles
 
     /**
      * Get a file from the working directory.
@@ -408,6 +432,7 @@ class ArsclibResourceCoder(
         packageDirectories.clear()
         modifiedResResources.clear()
         modifiedBinaryResources.clear()
+        deletedFiles.clear()
         fileSnapshotCache = emptyMap()
     }
 }
