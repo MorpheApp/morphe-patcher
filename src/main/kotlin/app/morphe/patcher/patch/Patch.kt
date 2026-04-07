@@ -12,6 +12,7 @@ import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.net.URLClassLoader
+import java.nio.file.Files
 import java.util.function.Supplier
 import java.util.jar.JarFile
 import kotlin.collections.flatten
@@ -745,7 +746,8 @@ sealed class PatchLoader(
         PatchLoader(
             patchesFiles,
             { patchBundle ->
-                DexReadWrite.readMultidexFile(patchBundle)
+                val tempDir = Files.createTempDirectory("morphe-extracted-patches").toFile()
+                DexReadWrite.readMultidexFileFromZip(patchBundle, tempDir)
                     .dexFile.classes
                     .map { classDef ->
                         classDef.type.substring(1, classDef.length - 1)

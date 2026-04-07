@@ -5,7 +5,6 @@
 
 package app.morphe.patcher.dex
 
-import com.android.tools.smali.dexlib2.DexFileFactory
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
 import com.android.tools.smali.dexlib2.iface.ClassDef
@@ -19,8 +18,33 @@ import kotlinx.coroutines.runBlocking
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.InputStream
+import java.io.RandomAccessFile
+import java.nio.channels.FileChannel
+import java.util.Enumeration
 import java.util.logging.Logger
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
+import kotlin.collections.ArrayDeque
+import kotlin.collections.Collection
+import kotlin.collections.HashSet
+import kotlin.collections.List
+import kotlin.collections.Map
+import kotlin.collections.MutableCollection
+import kotlin.collections.Set
+import kotlin.collections.associate
+import kotlin.collections.first
+import kotlin.collections.flatMap
+import kotlin.collections.isNotEmpty
+import kotlin.collections.listOf
+import kotlin.collections.map
+import kotlin.collections.mapIndexed
+import kotlin.collections.mapTo
+import kotlin.collections.maxByOrNull
+import kotlin.collections.mutableListOf
+import kotlin.collections.plusAssign
+import kotlin.collections.toList
+import kotlin.collections.toSet
+import kotlin.collections.zip
 import kotlin.math.max
 import kotlin.math.min
 
@@ -29,12 +53,12 @@ import kotlin.math.min
  * and the names of each individual DEX entry within the container.
  *
  * @param dexFile A merged [DexFile] containing all classes from all DEX entries.
- * @param dexEntryNames The names of each original DEX entry (e.g., "classes.dex", "classes2.dex").
+ * @param extractedDexFiles The names of each original DEX entry (e.g., "classes.dex", "classes2.dex").
  * @param classDescriptorsByEntry Maps each DEX entry name to the set of class descriptors it contains.
  */
 internal class MultidexReadResult(
     val dexFile: DexFile,
-    val dexEntryNames: List<String>,
+    val extractedDexFiles: List<File>,
     val classDescriptorsByEntry: Map<String, Set<String>>,
 )
 
@@ -51,28 +75,31 @@ internal object DexReadWrite {
      *
      * @return A [MultidexReadResult] with the merged DexFile and entry names.
      */
-    internal fun readMultidexFile(inputFile: File, logger: Logger? = null): MultidexReadResult {
+    internal fun readMultidexFileFromZip(inputFile: File, outputDir: File, logger: Logger? = null): MultidexReadResult {
         require(inputFile.exists()) { "input file does not exist: $inputFile" }
 
-        val container = DexFileFactory.loadDexContainer(inputFile, null)
-        val entryNames = container.dexEntryNames.toList()
-        logger?.info("Loaded multidex file: $inputFile with ${entryNames.size} dex files")
-        val dexFiles = entryNames.filter { it.endsWith(".dex") }.map { entry ->
-            container.getEntry(entry)!!.dexFile
+        val extractedFiles = extractDexEntries(inputFile, outputDir)
+        logger?.info("Loaded multidex file: $inputFile with ${extractedFiles.size} dex files")
+
+        val memoryMappedDexFiles = extractedFiles.map { file ->
+            val rwFile = RandomAccessFile(file, "rw")
+            val mappedByteBuffer = rwFile.channel.map(FileChannel.MapMode.READ_WRITE, 0, rwFile.channel.size())
+            DexBackedDexFile(null, mappedByteBuffer)
         }
+        val entryNames = extractedFiles.map { file -> file.name }
 
         // Track which class descriptors belong to which DEX entry.
-        val classDescriptorsByEntry = entryNames.zip(dexFiles).associate { (name, dex) ->
+        val classDescriptorsByEntry = entryNames.zip(memoryMappedDexFiles).associate { (name, dex) ->
             name to dex.classes.let { classes ->
                 classes.mapTo(HashSet(2 * classes.size)) { it.type }
             }
         }
 
-        val opcodes = dexFiles.maxByOrNull { it.opcodes.api }!!.opcodes
+        val opcodes = memoryMappedDexFiles.maxByOrNull { it.opcodes.api }!!.opcodes
 
         val mergedDexFile = object : DexFile {
             override fun getClasses(): Set<ClassDef> {
-                return dexFiles.flatMap { it.classes }.toSet()
+                return memoryMappedDexFiles.flatMap { it.classes }.toSet()
             }
 
             override fun getOpcodes(): Opcodes {
@@ -80,7 +107,7 @@ internal object DexReadWrite {
             }
         }
 
-        return MultidexReadResult(mergedDexFile, entryNames, classDescriptorsByEntry)
+        return MultidexReadResult(mergedDexFile, extractedFiles, classDescriptorsByEntry)
     }
 
     /**
@@ -89,24 +116,31 @@ internal object DexReadWrite {
      * byte-identical to the original DEX data in the APK.
      *
      * @param apkFile The APK file to extract from.
-     * @param entryNames The names of the DEX entries to extract (e.g., "classes.dex").
      * @param outputDir The directory to write the extracted DEX files to.
-     * @return A list of extracted files in the same order as [entryNames].
+     * @return A list of extracted files.
      */
-    internal fun extractDexEntries(apkFile: File, entryNames: List<String>, outputDir: File): List<File> {
+    internal fun extractDexEntries(apkFile: File, outputDir: File): List<File> {
         outputDir.mkdirs()
         return ZipFile(apkFile).use { zip ->
-            entryNames.map { entryName ->
-                val zipEntry = zip.getEntry(entryName)
-                    ?: throw IllegalArgumentException("DEX entry not found in APK: $entryName")
-                val outputFile = outputDir.resolve(entryName)
-                zip.getInputStream(zipEntry).use { input ->
+            val outputFiles = mutableListOf<File>()
+            val entriesEnumeration: Enumeration<out ZipEntry> = zip.entries()
+            while (entriesEnumeration.hasMoreElements()) {
+                val entry: ZipEntry = entriesEnumeration.nextElement()
+                val name = entry.name
+                if (!name.startsWith("classes") || !name.endsWith(".dex")) {
+                    continue
+                }
+
+                val outputFile = outputDir.resolve(entry.name)
+                zip.getInputStream(entry).use { input ->
                     outputFile.outputStream().use { output ->
                         input.copyTo(output)
                     }
+                    outputFiles += outputFile
                 }
-                outputFile
             }
+
+            outputFiles
         }
     }
 
@@ -119,6 +153,8 @@ internal object DexReadWrite {
     internal fun readDexStream(inputStream: InputStream): DexFile {
         // This doesn't handle ODEX/OAT files, but we don't need to handle those for our use case, so it's fine.
         // Normally DexFileFactory would take care of this, but it doesn't support reading from streams, so we have to do it ourselves.
+
+        // TODO: Load extensions in memory mapped fashion?
         return DexBackedDexFile.fromInputStream(null, BufferedInputStream(inputStream))
     }
 
