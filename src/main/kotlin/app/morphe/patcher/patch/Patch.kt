@@ -746,7 +746,7 @@ sealed class PatchLoader(
         PatchLoader(
             patchesFiles,
             { patchBundle ->
-                val tempDir = Files.createTempDirectory("morphe-patches").toFile()
+                val tempDir = Files.createTempDirectory("morphe-extracted-patches").toFile()
                 DexReadWrite.readMultidexFileFromZip(patchBundle, tempDir)
                     .dexFile.classes
                     .map { classDef ->
