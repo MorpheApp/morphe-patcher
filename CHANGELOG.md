@@ -1,3 +1,10 @@
+# [1.4.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.2...v1.4.0-dev.3) (2026-04-07)
+
+
+### Features
+
+* Map dex files in memory to reduce memory requirements ([#106](https://github.com/MorpheApp/morphe-patcher/issues/106)) ([85df75e](https://github.com/MorpheApp/morphe-patcher/commit/85df75ef8b4614f5cf89d8ba1700335559cb0c9b))
+
 # [1.4.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.1...v1.4.0-dev.2) (2026-04-06)
 
 
