@@ -1080,4 +1080,294 @@ internal class ArsclibResourceCoderTest {
         assertTrue(archCoder.modifiedBinaryResources.contains(newFile),
             "New file in kept architecture should be detected")
     }
+
+    // ==================== getDeletedFiles regression tests ====================
+    /**
+     * These tests cover the regression introduced in cli v1.6.4-dev.1,
+     * when we switched to using patcher implementation of strip libs, where ArsclibResourceCoder.getDeletedFiles()
+     * was a 'No-op' (emptySet()). As a result, files removed from the working directory by
+     * stripNativeLibraries() (or by patches via deleteFile()) were never reported back to PatcherResult.applyto(),
+     * so the entries survived never get removed in the rebuilt APK that applyTo() assembled.
+     *
+     * The fix populates a deletedFiles set inside detectFileChanges() by walking the snapshot cache and
+     * recording any file that existed at decode time but no longer exists on disk under
+     * otherResourcesRootDirectory. getDeletedFiles() returns that set.
+     */
+
+    @Test
+    fun `getDeletedFiles is empty before detectFileChanges runs`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(tempDir, setOf(CpuArchitecture.ARM64_V8A))
+
+        setupNativeLibDirs(listOf("arm64-v8a", "x86"))
+        archCoder.fileSnapshotCache = archCoder.buildFileSnapshot()
+        archCoder.stripNativeLibraries()
+
+        // Intentionally do NOT call detectFileChanges() here.
+
+        assertTrue(
+            archCoder.getDeletedFiles().isEmpty(),
+            "getDeletedFiles should be empty until detectFileChanges populates it"
+        )
+    }
+
+    @Test
+    fun `getDeletedFiles reports stripped lib files after detectFileChanges`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(tempDir, setOf(CpuArchitecture.ARM64_V8A))
+
+        val libFiles = setupNativeLibDirs(listOf("arm64-v8a", "x86","x86_64"))
+
+        // Snapshot before strip. This shows all the lib files.
+        archCoder.fileSnapshotCache = archCoder.buildFileSnapshot()
+
+        archCoder.stripNativeLibraries()
+        archCoder.detectFileChanges()
+
+        val deleted = archCoder.getDeletedFiles()
+
+        // arm64-v8a SHOULD NOT be reported as deleted here.
+        libFiles["arm64-v8a"]!!.forEach { file ->
+            val rel = file.relativeTo(workingDir.resolve("root")).invariantSeparatorsPath
+            assertFalse(
+                deleted.contains(rel),
+                "Kept architecture file $rel should not be in getDeletedFiles"
+            )
+        }
+
+
+        // x86 and x86_64 files SHOULD be reported as deleted here.
+        libFiles["x86"]!!.forEach { file ->
+            val rel = file.relativeTo(workingDir.resolve("root")).invariantSeparatorsPath
+            assertTrue(
+                deleted.contains(rel),
+                "Stripped x86 file $rel should be in getDeletedFiles"
+            )
+        }
+
+        libFiles["x86_64"]!!.forEach { file ->
+            val rel = file.relativeTo(workingDir.resolve("root")).invariantSeparatorsPath
+            assertTrue(
+                deleted.contains(rel),
+                "Stripped x86_64 file $rel should be in getDeletedFiles"
+            )
+        }
+
+        assertEquals(
+            4,
+            deleted.size,
+            "getDeletedFiles should contain exactly the 4 stripped lib files"
+        )
+    }
+
+    @Test
+    fun `getDeletedFiles reports paths in apk-relative posix format`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(tempDir, setOf(CpuArchitecture.ARM64_V8A))
+
+        setupNativeLibDirs(listOf("arm64-v8a", "x86"))
+        archCoder.fileSnapshotCache = archCoder.buildFileSnapshot()
+        archCoder.stripNativeLibraries()
+        archCoder.detectFileChanges()
+
+        val deleted = archCoder.getDeletedFiles()
+
+        // PatcherResult.applyTo() expects in-zip APK paths:
+        // posix-style, no leading slash, starting with "lib/<arch>/...".
+        // Verify the path shape regardless of host OS path separator.
+
+        // ApkToolResourceCoder.getDeletedFiles() emits paths in this same format because both coders need to agree.
+        deleted.forEach { path ->
+            assertTrue(
+                path.startsWith("lib/x86/"),
+                "Stripped path '$path' should be a lib/x86/ entry"
+            )
+            assertFalse(
+                path.contains("\\"),
+                "Stripped path '$path' should use posix separators"
+            )
+            assertFalse(
+                path.startsWith("/"),
+                "Stripped path '$path' should not have a leading slash"
+            )
+        }
+    }
+
+    @Test
+    fun `getDeletedFiles is empty when keepArchitectures is empty`() {
+        // Default coder has no keepArchitectures, so stripNativeLibraries() is a no-op.
+        setupNativeLibDirs(listOf("arm64-v8a", "x86"))
+
+        coder.fileSnapshotCache = coder.buildFileSnapshot()
+        coder.stripNativeLibraries()
+        coder.detectFileChanges()
+
+        assertTrue(
+            coder.getDeletedFiles().isEmpty(),
+            "getDeletedFiles should be empty when nothing was stripped"
+        )
+    }
+
+    @Test
+    fun `getDeletedFiles is empty when no files were deleted`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(
+            tempDir,
+            setOf(CpuArchitecture.ARM64_V8A, CpuArchitecture.X86, CpuArchitecture.X86_64)
+        )
+
+        // All architectures present in keepArchitectures — strip should be a no-op.
+        setupNativeLibDirs(listOf("arm64-v8a", "x86", "x86_64"))
+        archCoder.fileSnapshotCache = archCoder.buildFileSnapshot()
+        archCoder.stripNativeLibraries()
+        archCoder.detectFileChanges()
+
+        assertTrue(
+            archCoder.getDeletedFiles().isEmpty(),
+            "getDeletedFiles should be empty when no files were stripped"
+        )
+    }
+
+    @Test
+    fun `getDeletedFiles is cleared between detectFileChanges calls`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(tempDir, setOf(CpuArchitecture.ARM64_V8A))
+
+        setupNativeLibDirs(listOf("arm64-v8a", "x86"))
+        archCoder.fileSnapshotCache = archCoder.buildFileSnapshot()
+        archCoder.stripNativeLibraries()
+        archCoder.detectFileChanges()
+
+        assertTrue(
+            archCoder.getDeletedFiles().isNotEmpty(),
+            "Sanity check: first detectFileChanges should populate deletedFiles"
+        )
+
+        // Restore the deleted files to disk so the second snapshot scan finds them.
+        // (Snapshot still references their original File handles.)
+        workingDir.resolve("root/lib/x86").mkdirs()
+        workingDir.resolve("root/lib/x86/libx861.so").writeBytes(
+            byteArrayOf(0x7F, 0x45, 0x4C, 0x46, 0x01)
+        )
+        workingDir.resolve("root/lib/x86/libx862.so").writeBytes(
+            byteArrayOf(0x7F, 0x45, 0x4C, 0x46, 0x02)
+        )
+
+        // Second pass: nothing is missing now, deletedFiles should be reset.
+        archCoder.detectFileChanges()
+
+        assertTrue(
+            archCoder.getDeletedFiles().isEmpty(),
+            "deletedFiles should be cleared at the start of each detectFileChanges call"
+        )
+    }
+
+    // ==================== Files deleted by patches (deleteFile) tests ====================
+    /**
+     * Patches can delete files via ResourceCoder.deleteFile(path).
+     * Those deletions need to make it into the output APK the same way strip-libs deletions do,
+     * i.e via getDeletedFiles() being populated by detectFileChanges()
+     * noticing the file is no longer present from the snapshot.
+     */
+
+    @Test
+    fun `getDeletedFiles reports root-level files removed by patches`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(tempDir, emptySet())
+
+        // Simulate decode: a few files exist under root/ at decode time.
+        val rootDir = workingDir.resolve("root").also { it.mkdirs() }
+        val keepFile = rootDir.resolve("assets").also { it.mkdirs() }.resolve("keep.json")
+        keepFile.writeText("{\"keep\": true}")
+        val removeFile = rootDir.resolve("assets").resolve("remove.json")
+        removeFile.writeText("{\"removed\": true}")
+
+        archCoder.fileSnapshotCache = archCoder.buildFileSnapshot()
+
+        // Simulate a patch deleting one file directly (via Files.delete, since the
+        // resource coder's deleteFile() targets package-resources, not root files).
+        removeFile.delete()
+
+        archCoder.detectFileChanges()
+
+        val deleted = archCoder.getDeletedFiles()
+        assertTrue(
+            deleted.contains("assets/remove.json"),
+            "Deleted file should be reported in getDeletedFiles, got: $deleted"
+        )
+        assertFalse(
+            deleted.contains("assets/keep.json"),
+            "Kept file should NOT be reported in getDeletedFiles"
+        )
+    }
+
+    @Test
+    fun `getDeletedFiles only reports files under root directory`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(tempDir, emptySet())
+
+        // Set up two files: one under root/ and one under resources/<pkg>/.
+        // Only the root/ deletion should be reported via getDeletedFiles.
+        // resources/ deletions are handled by the resource APK rebuild path.
+        val rootFile = workingDir.resolve("root/assets").also { it.mkdirs() }.resolve("file.json")
+        rootFile.writeText("{}")
+
+        val pkgDir = workingDir.resolve("resources/0").also { it.mkdirs() }
+        pkgDir.resolve("res").mkdirs()
+        archCoder.packageDirectories["com.test.app"] = pkgDir
+        val resFile = pkgDir.resolve("res/values").also { it.mkdirs() }.resolve("strings.xml")
+        resFile.writeText("<resources/>")
+
+        archCoder.fileSnapshotCache = archCoder.buildFileSnapshot()
+
+        // Delete both.
+        rootFile.delete()
+        resFile.delete()
+
+        archCoder.detectFileChanges()
+
+        val deleted = archCoder.getDeletedFiles()
+        assertTrue(
+            deleted.contains("assets/file.json"),
+            "Root file deletion should be reported, got: $deleted"
+        )
+        assertEquals(
+            1, deleted.size,
+            "Only root/ deletions should be in getDeletedFiles, got: $deleted"
+        )
+    }
+
+    @Test
+    fun `getDeletedFiles handles strip and patch deletions in the same pass`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(tempDir, setOf(CpuArchitecture.ARM64_V8A))
+
+        // Native libs for two arches (one kept, one stripped).
+        val libFiles = setupNativeLibDirs(listOf("arm64-v8a", "x86"))
+
+        // A separate root-level file that a patch will delete.
+        val rootDir = workingDir.resolve("root")
+        val patchDeletedFile = rootDir.resolve("assets").also { it.mkdirs() }.resolve("config.json")
+        patchDeletedFile.writeText("{}")
+
+        archCoder.fileSnapshotCache = archCoder.buildFileSnapshot()
+
+        // Strip libs (removes x86) AND simulate a patch deletion.
+        archCoder.stripNativeLibraries()
+        patchDeletedFile.delete()
+
+        archCoder.detectFileChanges()
+
+        val deleted = archCoder.getDeletedFiles()
+
+        // Both the stripped lib files and the patch-deleted file should be reported.
+        libFiles["x86"]!!.forEach { file ->
+            val rel = file.relativeTo(rootDir).invariantSeparatorsPath
+            assertTrue(
+                deleted.contains(rel),
+                "Stripped lib $rel should be in deletedFiles"
+            )
+        }
+        assertTrue(
+            deleted.contains("assets/config.json"),
+            "Patch-deleted file should be in deletedFiles, got: $deleted"
+        )
+        // 2 stripped x86 files + 1 patch deletion.
+        assertEquals(
+            3, deleted.size,
+            "Expected 3 total deletions, got: $deleted"
+        )
+    }
 }
