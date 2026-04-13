@@ -189,8 +189,8 @@ object ApkUtils {
     class KeyStoreDetails(
         val keyStore: File,
         val keyStorePassword: String? = null,
-        val alias: String = "Morphe Key",
-        val password: String = "",
+        val alias: String,
+        val password: String,
     )
 
     /**
