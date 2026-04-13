@@ -48,11 +48,11 @@ object ApkUtils {
      * Applies the [PatcherResult] to the given [apkFile].
      *
      * The order of operation is as follows:
-     * 1. Write patched dex files.
-     * 2. Delete all resources in the target APK
-     * 3. Merge resources.apk compiled by AAPT.
-     * 4. Write raw resources.
-     * 5. Delete resources staged for deletion.
+     * 1. Delete all resources in the target APK.
+     * 2. Merge resources.apk compiled by AAPT.
+     * 3. Write raw resources.
+     * 4. Delete resources staged for deletion.
+     * 5. Write patched dex files.
      * 6. Realign the APK.
      *
      * @param apkFile The file to apply the patched files to.
@@ -78,12 +78,6 @@ object ApkUtils {
                     }
                 }
 
-                // Run this after merging the resources.apk to ensure our dex files don't get overwritten
-                dexFiles.forEach { dexFile ->
-                    targetApkZFile.add(dexFile.name, dexFile.stream)
-                    dexFile.stream.close()
-                }
-
                 // Add resources not compiled by AAPT.
                 resources.otherResources?.let { otherResources ->
                     targetApkZFile.addAllRecursively(otherResources) { file ->
@@ -97,6 +91,12 @@ object ApkUtils {
                         entry.centralDirectoryHeader.name in resources.deleteResources
                     }.forEach(StoredEntry::delete)
                 }
+            }
+
+            // Run this after resource updates to ensure our dex files don't get overwritten.
+            dexFiles.forEach { dexFile ->
+                targetApkZFile.add(dexFile.name, dexFile.stream)
+                dexFile.stream.close()
             }
 
             logger.info("Aligning APK")
