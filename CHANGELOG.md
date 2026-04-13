@@ -1,3 +1,10 @@
+# [1.4.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.3...v1.4.0-dev.4) (2026-04-13)
+
+
+### Bug Fixes
+
+* Write modified dex files to final APK when no resource patches are used ([#109](https://github.com/MorpheApp/morphe-patcher/issues/109)) ([0f401c6](https://github.com/MorpheApp/morphe-patcher/commit/0f401c6445655a5ee27f59c67d035c119f54446e))
+
 # [1.4.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.2...v1.4.0-dev.3) (2026-04-07)
 
 
