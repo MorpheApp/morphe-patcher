@@ -1,3 +1,10 @@
+# [1.4.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.4...v1.4.0-dev.5) (2026-04-14)
+
+
+### Bug Fixes
+
+* Track deleted files in detectFileChanges so getDeletedFiles reports them   ([#107](https://github.com/MorpheApp/morphe-patcher/issues/107)) ([6264104](https://github.com/MorpheApp/morphe-patcher/commit/6264104ba233101412cac4c801c4f64138b53763))
+
 # [1.4.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.3...v1.4.0-dev.4) (2026-04-13)
 
 
