@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.apk
 
+import app.morphe.patcher.dex.dexVerifier
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
 import org.bouncycastle.cert.X509v3CertificateBuilder
@@ -230,10 +231,14 @@ object ApkSigner {
     )
 
     class Signer internal constructor(private val signerBuilder: com.android.apksig.ApkSigner.Builder) {
-        fun signApk(inputApkFile: File, outputApkFile: File) {
+        fun signApk(inputApkFile: File, outputApkFile: File, verifyOutput: Boolean = false) {
             logger.info("Signing APK")
 
             signerBuilder.setInputApk(inputApkFile)?.setOutputApk(outputApkFile)?.build()?.sign()
+
+            if (verifyOutput) {
+                dexVerifier.verifyApk(outputApkFile)
+            }
         }
     }
 }

@@ -16,6 +16,7 @@ import app.morphe.patcher.StringComparisonType
 import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.dex.DexStripper
+import app.morphe.patcher.dex.dexVerifier
 import app.morphe.patcher.util.ClassMerger.merge
 import app.morphe.patcher.util.MethodNavigator
 import app.morphe.patcher.util.PatchClasses
@@ -276,16 +277,22 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
         DexReadWrite.writeMultiDexFile(dexOutputDir, classDefs, opcodes, -1, logger)
 
+        if (config.verifyOutput) {
+            dexVerifier.verifyDexDir(dexOutputDir)
+        }
         return dexOutputDir.listFiles { it.isFile }!!.sorted().map {
             PatcherResult.PatchedDexFile(it.name, it.inputStream())
         }.toSet()
     }
 
     /**
-     * [BytecodeMode.STRIP_FAST]: Hollow out modified class_defs in-place in original DEX files
-     * (zero their data offsets), then write modified + new classes to separate DEX files loaded first.
+     * [BytecodeMode.STRIP_FAST]: Remove modified class_def entries from original DEX files
+     * in-place (compacting the class_defs array), then write modified + new classes to
+     * separate DEX files.
      *
      * Fastest, but leaves dead data in original DEX files (orphaned class_data, annotations, etc.).
+     * Unlike hollowing, this completely removes the class_def entries so there are no
+     * duplicate class definitions across DEX files.
      */
     private fun compileStripFast(): Set<PatcherResult.PatchedDexFile> {
         val (modifiedOriginalDescriptors, classesForNewDex)
@@ -295,11 +302,14 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         val results = mutableSetOf<PatcherResult.PatchedDexFile>()
 
-        // 1. Hollow out modified classes in original DEX files in-place.
+        // 1. Remove modified class_def entries from original DEX files in-place.
         if (modifiedOriginalDescriptors.isNotEmpty()) {
             logger.info("Stripping ${modifiedOriginalDescriptors.size} modified classes from original DEX files")
             for (originalDex in originalDexFiles) {
-                DexStripper.stripInPlace(originalDex, modifiedOriginalDescriptors)
+                val removed = DexStripper.stripInPlace(originalDex, modifiedOriginalDescriptors)
+                if (removed > 0) {
+                    logger.fine { "Removed $removed class_def entries from ${originalDex.name}" }
+                }
             }
         }
 
@@ -310,6 +320,10 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
             DexReadWrite.writeMultiDexFile(dexOutputDir, classesForNewDex, opcodes, -1, logger)
             val newDexFiles = dexOutputDir.listFiles { it.isFile }!!.sorted()
             newDexCount = newDexFiles.size
+        }
+        if (config.verifyOutput) {
+            dexVerifier.verifyDexDir(dexOutputDir)
+            dexVerifier.verifyDexDir(dexWorkingDir)
         }
 
         // 3. Rename: new DEX files get lowest slots (loaded first), originals shifted up.
@@ -383,6 +397,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                     rebuiltFiles.forEach { rebuiltFile ->
                         val newName = getDexName(newDexCount)
                         rebuiltFile.renameTo(dexOutputDir.resolve(newName))
+                        logger.fine("${originalDex.name} -> $newName")
                         newDexCount++
                     }
                 } else {
@@ -396,6 +411,9 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         val results = mutableSetOf<PatcherResult.PatchedDexFile>()
 
+        if (config.verifyOutput) {
+            dexVerifier.verifyDexDir(dexOutputDir)
+        }
         dexOutputDir.listFiles { it.isFile }!!.sorted().forEach { dexFile ->
             results.add(PatcherResult.PatchedDexFile(dexFile.name, dexFile.inputStream()))
         }
