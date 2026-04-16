@@ -65,6 +65,10 @@ internal class MultidexReadResult(
 internal object DexReadWrite {
     private const val MIN_CLASSES_PER_SEGMENT = 1000
     private const val MAX_THREADS = 4
+    private val DESUGAR_NAMESPACES = setOf(
+        "Lj$/",
+        $$"L$r8$"
+    )
 
     /**
      * Reads a multidex file and returns a [MultidexReadResult] containing a merged [DexFile]
@@ -200,9 +204,11 @@ internal object DexReadWrite {
         val segmentResults = if (numSegments == 1) {
             logger?.info("Processing $numClasses classes (single threaded mode)")
 
-            listOf(processSegment(segments.first(), opcodes, outputDir, 0))
+            segments.mapIndexed { index, segment ->
+                processSegment(segment, opcodes, outputDir, index)
+            }
         } else {
-            logger?.info("Processing $numClasses classes in parallel (${segments.size} threads)")
+            logger?.info("Processing $numClasses classes in parallel (${actualMaxThreads} threads)")
 
             val dispatcher = Dispatchers.Default.limitedParallelism(numSegments)
             runBlocking(dispatcher) {
@@ -234,16 +240,29 @@ internal object DexReadWrite {
      * Unlike [List.subList], the returned lists do not share backing storage with each other
      * or the source collection, so they can be independently cleared to free memory.
      */
-    private fun <T> splitIntoMutableSegments(collection: Collection<T>, numSegments: Int): List<ArrayDeque<T>> {
-        if (numSegments <= 1) return mutableListOf(ArrayDeque(collection))
+    private fun splitIntoMutableSegments(collection: Collection<ClassDef>, numSegments: Int): List<ArrayDeque<ClassDef>> {
+        var requestedSegments = if (numSegments <= 1) {
+            1
+        } else {
+            numSegments
+        }
+        val segments = mutableListOf<ArrayDeque<ClassDef>>()
 
-        val list = collection as? List<T> ?: collection.toList()
-        val segmentSize = list.size / numSegments
-        val remainder = list.size % numSegments
-        val segments = mutableListOf<ArrayDeque<T>>()
+        // Separate out any j$ classes into their own DEX files, because d8/r8 will reject the DEX files otherwise.
+        val desugarClassDefs: List<ClassDef> = collection.filter { isDesugarLib(it) }
+        if (desugarClassDefs.isNotEmpty()) {
+            segments.add(ArrayDeque(desugarClassDefs))
+            if (requestedSegments > 1) {
+                requestedSegments--
+            }
+        }
+
+        val list = collection.filter { !isDesugarLib(it) }
+        val segmentSize = list.size / requestedSegments
+        val remainder = list.size % requestedSegments
         var offset = 0
 
-        for (i in 0 until numSegments) {
+        for (i in 0 until requestedSegments) {
             // Distribute the remainder across the first segments (one extra element each).
             val size = segmentSize + if (i < remainder) 1 else 0
             segments.add(ArrayDeque(list.subList(offset, offset + size)))
@@ -292,5 +311,9 @@ internal object DexReadWrite {
         val tempFile = outputDir.resolve(".tmp_seg${segmentIndex}_${poolIndex}.dex")
         dexPool.writeTo(FileDataStore(tempFile))
         return tempFile
+    }
+
+    private fun isDesugarLib(classDef: ClassDef): Boolean {
+        return DESUGAR_NAMESPACES.any { classDef.type.startsWith(it) }
     }
 }
