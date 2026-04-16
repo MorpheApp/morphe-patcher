@@ -369,8 +369,7 @@ public final class app/morphe/patcher/apk/ApkSigner$PrivateKeyCertificatePair {
 }
 
 public final class app/morphe/patcher/apk/ApkSigner$Signer {
-	public final fun signApk (Ljava/io/File;Ljava/io/File;Z)V
-	public static synthetic fun signApk$default (Lapp/morphe/patcher/apk/ApkSigner$Signer;Ljava/io/File;Ljava/io/File;ZILjava/lang/Object;)V
+	public final fun signApk (Ljava/io/File;Ljava/io/File;)V
 }
 
 public final class app/morphe/patcher/apk/ApkUtils {
