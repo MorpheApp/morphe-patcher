@@ -274,6 +274,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         patchClasses.close()
 
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
+        // TODO: Separate out any j$ classes into their own DEX files, because d8/r8 will reject the DEX files otherwise.
         DexReadWrite.writeMultiDexFile(dexOutputDir, classDefs, opcodes, -1, logger)
 
         config.verifier.verifyDexDirectory(dexOutputDir)

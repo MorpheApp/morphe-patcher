@@ -137,6 +137,7 @@ class SdkDexVerifier(
             ?.sorted()
             ?: emptyList()
         require(dexFiles.isNotEmpty()) { "No .dex files found in $directory" }
+        logger.info { "Verifying ${dexFiles.size} DEX files with dexdump/d8" }
         for (dex in dexFiles) {
             verifyDexFile(dex)
         }
@@ -150,6 +151,7 @@ class SdkDexVerifier(
      */
     override fun verifyApkFile(apkFile: File) {
         require(apkFile.isFile) { "APK file does not exist: $apkFile" }
+        logger.info { "Verifying APK file" }
         verifyWithAapt2(apkFile)
         verifyWithApksigner(apkFile)
         verifyWithZipalign(apkFile)
@@ -318,7 +320,7 @@ class SdkDexVerifier(
             throw DexVerificationException(report)
         }
 
-        logger.info("Cross-DEX class hierarchy verification: OK (${classMap.size} classes across ${dexFiles.size} files)")
+        logger.info { "Cross-DEX class hierarchy verification: OK (${classMap.size} classes across ${dexFiles.size} files)" }
     }
 
     // -------------------------------------------------------------------------
@@ -330,13 +332,13 @@ class SdkDexVerifier(
      * class_defs, and instruction encoding.
      */
     private fun verifyWithDexdump(dexFile: File) {
-        logger.fine("Running dexdump on ${dexFile.name}")
+        logger.fine { "Running dexdump on ${dexFile.name}" }
         exec(
             listOf(dexdump.absolutePath, "-d", dexFile.absolutePath),
             toolName = "dexdump",
             targetName = dexFile.name,
         )
-        logger.fine("dexdump: ${dexFile.name} OK")
+        logger.fine { "dexdump: ${dexFile.name} OK" }
     }
 
     /**
@@ -344,7 +346,7 @@ class SdkDexVerifier(
      * through Google's compiler front-end, catching deeper structural issues.
      */
     private fun verifyWithD8(dexFile: File) {
-        logger.fine("Running d8 on ${dexFile.name}")
+        logger.fine { "Running d8 on ${dexFile.name}" }
         val tmpDir = createTempDir("d8-verify-")
         try {
             exec(
@@ -357,7 +359,7 @@ class SdkDexVerifier(
                 toolName = "d8",
                 targetName = dexFile.name,
             )
-            logger.fine("d8: ${dexFile.name} OK")
+            logger.fine { "d8: ${dexFile.name} OK" }
         } finally {
             tmpDir.deleteRecursively()
         }
@@ -367,39 +369,39 @@ class SdkDexVerifier(
      * `aapt2 dump badging <apk>` — validates manifest and resource table.
      */
     private fun verifyWithAapt2(apkFile: File) {
-        logger.fine("Running aapt2 dump on ${apkFile.name}")
+        logger.fine { "Running aapt2 dump on ${apkFile.name}" }
         exec(
             listOf(aapt2.absolutePath, "dump", "badging", apkFile.absolutePath),
             toolName = "aapt2",
             targetName = apkFile.name,
         )
-        logger.fine("aapt2: ${apkFile.name} OK")
+        logger.fine { "aapt2: ${apkFile.name} OK" }
     }
 
     /**
      * `apksigner verify --verbose <apk>` — validates APK signature schemes and ZIP integrity.
      */
     private fun verifyWithApksigner(apkFile: File) {
-        logger.fine("Running apksigner verify on ${apkFile.name}")
+        logger.fine { "Running apksigner verify on ${apkFile.name}" }
         exec(
             listOf(apksigner.absolutePath, "verify", "--verbose", apkFile.absolutePath),
             toolName = "apksigner",
             targetName = apkFile.name,
         )
-        logger.fine("apksigner: ${apkFile.name} OK")
+        logger.fine { "apksigner: ${apkFile.name} OK" }
     }
 
     /**
      * `zipalign -c -v 4 <apk>` — checks 4-byte alignment.
      */
     private fun verifyWithZipalign(apkFile: File) {
-        logger.fine("Running zipalign check on ${apkFile.name}")
+        logger.fine { "Running zipalign check on ${apkFile.name}" }
         exec(
             listOf(zipalign.absolutePath, "-c", "-v", "4", apkFile.absolutePath),
             toolName = "zipalign",
             targetName = apkFile.name,
         )
-        logger.fine("zipalign: ${apkFile.name} OK")
+        logger.fine { "zipalign: ${apkFile.name} OK" }
     }
 
     // -------------------------------------------------------------------------
@@ -458,6 +460,11 @@ class SdkDexVerifier(
             "Ljunit/",
             "Lkotlin/",
             "Lkotlinx/",
+
+            // OEM frameworks
+            "Lcom/miui/",
+            "Lcom/huawei/",
+            "Lcom/samsung/",
 
             // okhttp references these crypto frameworks even if not available, which can cause false alarms.
             "Lorg/conscrypt/",
