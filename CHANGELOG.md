@@ -1,3 +1,10 @@
+# [1.4.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.5...v1.4.0-dev.6) (2026-04-16)
+
+
+### Features
+
+* Add DEX/APK verification ([#110](https://github.com/MorpheApp/morphe-patcher/issues/110)) ([61b5de0](https://github.com/MorpheApp/morphe-patcher/commit/61b5de0dd073139bb8ad8999a6c16b85d411e009))
+
 # [1.4.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.4...v1.4.0-dev.5) (2026-04-14)
 
 
