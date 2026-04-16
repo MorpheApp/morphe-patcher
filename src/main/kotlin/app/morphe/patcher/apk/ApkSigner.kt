@@ -5,7 +5,6 @@
 
 package app.morphe.patcher.apk
 
-import app.morphe.patcher.dex.dexVerifier
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
 import org.bouncycastle.cert.X509v3CertificateBuilder
@@ -16,15 +15,9 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.math.BigInteger
-import java.security.KeyPairGenerator
-import java.security.KeyStore
-import java.security.PrivateKey
-import java.security.SecureRandom
-import java.security.Security
-import java.security.UnrecoverableKeyException
+import java.security.*
 import java.security.cert.X509Certificate
-import java.util.Date
-import java.util.Locale
+import java.util.*
 import java.util.logging.Logger
 
 /**
@@ -235,10 +228,6 @@ object ApkSigner {
             logger.info("Signing APK")
 
             signerBuilder.setInputApk(inputApkFile)?.setOutputApk(outputApkFile)?.build()?.sign()
-
-            if (verifyOutput) {
-                dexVerifier.verifyApk(outputApkFile)
-            }
         }
     }
 }

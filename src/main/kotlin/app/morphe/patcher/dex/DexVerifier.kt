@@ -26,6 +26,27 @@ import com.android.tools.smali.dexlib2.iface.reference.TypeReference
 import java.io.File
 import java.util.logging.Logger
 
+interface DexVerifier {
+    fun verifyDexFile(dexFile: File)
+    fun verifyDexDirectory(dexDir: File)
+    fun verifyApkFile(apkFile: File)
+}
+
+object NoOpDexVerifier : DexVerifier {
+    override fun verifyDexFile(dexFile: File) {
+        require(dexFile.isFile) { "DEX file does not exist" }
+    }
+
+    override fun verifyDexDirectory(dexDir: File) {
+        require(dexDir.isDirectory) { "DEX directory does not exist" }
+        dexDir.listFiles()?.forEach { verifyDexFile(it) }
+    }
+
+    override fun verifyApkFile(apkFile: File) {
+        require(apkFile.isFile) { "APK file does not exist" }
+    }
+}
+
 /**
  * Validates DEX files and APKs by shelling out to official Android SDK tools
  * and by performing cross-DEX class hierarchy verification using dexlib2.
@@ -46,10 +67,10 @@ import java.util.logging.Logger
  * @param androidSdkPath Root of the Android SDK (i.e. the directory containing `build-tools/`).
  * @param buildToolsVersion Specific build-tools version to use, or `null` to auto-detect the latest.
  */
-class DexVerifier(
+class SdkDexVerifier(
     androidSdkPath: File,
     buildToolsVersion: String? = null,
-) {
+) : DexVerifier {
     private val logger = Logger.getLogger(this::class.java.name)
 
     private val buildToolsDir: File = run {
@@ -99,7 +120,7 @@ class DexVerifier(
      *
      * @throws DexVerificationException if any check fails.
      */
-    fun verifyDex(dexFile: File) {
+    override fun verifyDexFile(dexFile: File) {
         require(dexFile.isFile) { "DEX file does not exist: $dexFile" }
         verifyWithDexdump(dexFile)
         verifyWithD8(dexFile)
@@ -110,14 +131,14 @@ class DexVerifier(
      *
      * @throws DexVerificationException on the first failing file.
      */
-    fun verifyDexDir(directory: File) {
+    override fun verifyDexDirectory(directory: File) {
         require(directory.isDirectory) { "Not a directory: $directory" }
         val dexFiles = directory.listFiles { f -> f.isFile && f.extension == "dex" }
             ?.sorted()
             ?: emptyList()
         require(dexFiles.isNotEmpty()) { "No .dex files found in $directory" }
         for (dex in dexFiles) {
-            verifyDex(dex)
+            verifyDexFile(dex)
         }
         verifyClassHierarchy(directory)
     }
@@ -125,25 +146,13 @@ class DexVerifier(
     /**
      * Validate an APK with `aapt2 dump`, `apksigner verify`, and `zipalign -c`.
      *
-     * @param requireSigned If `false`, skip the `apksigner verify` step (useful when
-     *   verifying before signing).
      * @throws DexVerificationException if any check fails.
      */
-    fun verifyApk(apkFile: File, requireSigned: Boolean = false) {
+    override fun verifyApkFile(apkFile: File) {
         require(apkFile.isFile) { "APK file does not exist: $apkFile" }
         verifyWithAapt2(apkFile)
-        if (requireSigned) {
-            verifyWithApksigner(apkFile)
-        }
+        verifyWithApksigner(apkFile)
         verifyWithZipalign(apkFile)
-    }
-
-    /**
-     * Validate all DEX files in [dexDirectory] **and** the final APK.
-     */
-    fun verifyAll(dexDirectory: File, apkFile: File, requireSigned: Boolean = false) {
-        verifyDexDir(dexDirectory)
-        verifyApk(apkFile, requireSigned)
     }
 
     // -------------------------------------------------------------------------
@@ -167,7 +176,7 @@ class DexVerifier(
      *
      * @throws DexVerificationException with a detailed report if any issues are found.
      */
-    fun verifyClassHierarchy(directory: File) {
+    private fun verifyClassHierarchy(directory: File) {
         require(directory.isDirectory) { "Not a directory: $directory" }
         val dexFiles = directory.listFiles { f -> f.isFile && f.extension == "dex" }
             ?.sorted()
@@ -278,39 +287,24 @@ class DexVerifier(
                 val impl = method.implementation ?: continue
                 for (insn in impl.instructions) {
                     if (insn !is ReferenceInstruction) continue
-                    val callerDesc = "$type.${method.name} (${classSourceMap[type]})"
+                    val callerDesc = "$type->${method.name} (${classSourceMap[type]})"
 
                     // Primary reference (present on all ReferenceInstructions).
                     validateReference(
-                        insn.reference, insn.opcode, callerDesc,
+                        insn.reference, insn.opcode, callerDesc, type,
                         classMap, classSourceMap, methodIndex, fieldIndex, errors
                     )
 
                     // Secondary reference (invoke-polymorphic has a METHOD_PROTO as reference2).
                     if (insn is DualReferenceInstruction) {
                         validateReference(
-                            insn.reference2, insn.opcode, callerDesc,
+                            insn.reference2, insn.opcode, callerDesc, type,
                             classMap, classSourceMap, methodIndex, fieldIndex, errors
                         )
                     }
                 }
             }
         }
-
-        // 5. Check for hollowed-out classes that have no corresponding real definition.
-        /*
-        for ((type, classDef) in classMap) {
-            if (isHollowedClass(classDef)) {
-                errors.add(
-                    "[HOLLOW_ONLY] Class $type (in ${classSourceMap[type]}) is a hollowed-out " +
-                        "class_def (no methods, no fields, no interfaces) with no real definition " +
-                        "in any other DEX file. This will cause NoClassDefFoundError or " +
-                        "IncompatibleClassChangeError at runtime."
-                )
-            }
-        }
-
-         */
 
         if (errors.isNotEmpty()) {
             val report = buildString {
@@ -335,22 +329,22 @@ class DexVerifier(
      * `dexdump -d <file>` — full disassembly validates header, checksum,
      * class_defs, and instruction encoding.
      */
-    fun verifyWithDexdump(dexFile: File) {
-        logger.info("Running dexdump on ${dexFile.name}")
+    private fun verifyWithDexdump(dexFile: File) {
+        logger.fine("Running dexdump on ${dexFile.name}")
         exec(
             listOf(dexdump.absolutePath, "-d", dexFile.absolutePath),
             toolName = "dexdump",
             targetName = dexFile.name,
         )
-        logger.info("dexdump: ${dexFile.name} OK")
+        logger.fine("dexdump: ${dexFile.name} OK")
     }
 
     /**
      * `d8 --file-per-class --output <tmpDir> <file>` — re-processes the DEX
      * through Google's compiler front-end, catching deeper structural issues.
      */
-    fun verifyWithD8(dexFile: File) {
-        logger.info("Running d8 on ${dexFile.name}")
+    private fun verifyWithD8(dexFile: File) {
+        logger.fine("Running d8 on ${dexFile.name}")
         val tmpDir = createTempDir("d8-verify-")
         try {
             exec(
@@ -363,7 +357,7 @@ class DexVerifier(
                 toolName = "d8",
                 targetName = dexFile.name,
             )
-            logger.info("d8: ${dexFile.name} OK")
+            logger.fine("d8: ${dexFile.name} OK")
         } finally {
             tmpDir.deleteRecursively()
         }
@@ -372,40 +366,40 @@ class DexVerifier(
     /**
      * `aapt2 dump badging <apk>` — validates manifest and resource table.
      */
-    fun verifyWithAapt2(apkFile: File) {
-        logger.info("Running aapt2 dump on ${apkFile.name}")
+    private fun verifyWithAapt2(apkFile: File) {
+        logger.fine("Running aapt2 dump on ${apkFile.name}")
         exec(
             listOf(aapt2.absolutePath, "dump", "badging", apkFile.absolutePath),
             toolName = "aapt2",
             targetName = apkFile.name,
         )
-        logger.info("aapt2: ${apkFile.name} OK")
+        logger.fine("aapt2: ${apkFile.name} OK")
     }
 
     /**
      * `apksigner verify --verbose <apk>` — validates APK signature schemes and ZIP integrity.
      */
-    fun verifyWithApksigner(apkFile: File) {
-        logger.info("Running apksigner verify on ${apkFile.name}")
+    private fun verifyWithApksigner(apkFile: File) {
+        logger.fine("Running apksigner verify on ${apkFile.name}")
         exec(
             listOf(apksigner.absolutePath, "verify", "--verbose", apkFile.absolutePath),
             toolName = "apksigner",
             targetName = apkFile.name,
         )
-        logger.info("apksigner: ${apkFile.name} OK")
+        logger.fine("apksigner: ${apkFile.name} OK")
     }
 
     /**
      * `zipalign -c -v 4 <apk>` — checks 4-byte alignment.
      */
-    fun verifyWithZipalign(apkFile: File) {
-        logger.info("Running zipalign check on ${apkFile.name}")
+    private fun verifyWithZipalign(apkFile: File) {
+        logger.fine("Running zipalign check on ${apkFile.name}")
         exec(
             listOf(zipalign.absolutePath, "-c", "-v", "4", apkFile.absolutePath),
             toolName = "zipalign",
             targetName = apkFile.name,
         )
-        logger.info("zipalign: ${apkFile.name} OK")
+        logger.fine("zipalign: ${apkFile.name} OK")
     }
 
     // -------------------------------------------------------------------------
@@ -464,6 +458,11 @@ class DexVerifier(
             "Ljunit/",
             "Lkotlin/",
             "Lkotlinx/",
+
+            // okhttp references these crypto frameworks even if not available, which can cause false alarms.
+            "Lorg/conscrypt/",
+            "Lorg/bouncycastle/",
+            "Lorg/openjsse/",
         )
 
         /**
@@ -486,6 +485,7 @@ class DexVerifier(
             ref: Reference,
             opcode: Opcode,
             callerDesc: String,
+            callerType: String,
             classMap: Map<String, ClassDef>,
             classSourceMap: Map<String, String>,
             methodIndex: Map<String, Set<String>>,
@@ -493,10 +493,10 @@ class DexVerifier(
             errors: MutableList<String>,
         ) {
             when (ref) {
-                is MethodReference -> validateMethodRef(ref, opcode, callerDesc, classMap, classSourceMap, methodIndex, errors)
+                is MethodReference -> validateMethodRef(ref, opcode, callerDesc, callerType, classMap, classSourceMap, methodIndex, errors)
                 is FieldReference -> validateFieldRef(ref, opcode, callerDesc, classMap, classSourceMap, fieldIndex, errors)
                 is TypeReference -> validateTypeRef(ref, opcode, callerDesc, classMap, errors)
-                is MethodHandleReference -> validateMethodHandleRef(ref, opcode, callerDesc, classMap, classSourceMap, methodIndex, fieldIndex, errors)
+                is MethodHandleReference -> validateMethodHandleRef(ref, opcode, callerDesc, callerType, classMap, classSourceMap, methodIndex, fieldIndex, errors)
                 // MethodProtoReference (const-method-type, invoke-polymorphic reference2):
                 //   Contains only parameter types and a return type — no class or member name.
                 //   Nothing to cross-validate against the class pool.
@@ -505,7 +505,7 @@ class DexVerifier(
                 //   MethodHandleReference if present.
                 is com.android.tools.smali.dexlib2.iface.reference.CallSiteReference -> {
                     validateMethodHandleRef(
-                        ref.methodHandle, opcode, callerDesc,
+                        ref.methodHandle, opcode, callerDesc, callerType,
                         classMap, classSourceMap, methodIndex, fieldIndex, errors
                     )
                 }
@@ -521,10 +521,18 @@ class DexVerifier(
             Opcode.INVOKE_INTERFACE, Opcode.INVOKE_INTERFACE_RANGE,
         )
 
+        private val INVOKE_INSTANCE_OPCODES = setOf(
+            Opcode.INVOKE_VIRTUAL, Opcode.INVOKE_VIRTUAL_RANGE,
+            Opcode.INVOKE_SUPER, Opcode.INVOKE_SUPER_RANGE,
+            Opcode.INVOKE_DIRECT, Opcode.INVOKE_DIRECT_RANGE,
+            Opcode.INVOKE_INTERFACE, Opcode.INVOKE_INTERFACE_RANGE,
+        )
+
         private fun validateMethodRef(
             ref: MethodReference,
             opcode: Opcode,
             callerDesc: String,
+            callerType: String,
             classMap: Map<String, ClassDef>,
             classSourceMap: Map<String, String>,
             methodIndex: Map<String, Set<String>>,
@@ -555,12 +563,25 @@ class DexVerifier(
                 }
             }
 
+            // For instance method invocations, the defining class of the method reference
+            // must be a supertype of (or the same as) the caller's class. Otherwise, the
+            // 'this' argument would fail ART's assignability check at runtime.
+            if (opcode in INVOKE_INSTANCE_OPCODES &&
+                definingClass != callerType &&
+                !isFrameworkType(callerType)
+            ) {
+                val isAssignable = isSupertype(definingClass, callerType, classMap)
+                if (!isAssignable) {
+                    errors.add(
+                        "[INVOKE_BAD_RECEIVER] In $callerDesc: ${opcode.name} targets " +
+                            "${definingClass}->${ref.name}, but $definingClass is not " +
+                            "a supertype of $callerType. The 'this' argument would fail " +
+                            "ART's assignability check at runtime."
+                    )
+                }
+            }
+
             // Check method existence.
-            // All invoke types resolve methods up the class hierarchy in ART:
-            // - virtual/super/interface: walk superclasses + interfaces
-            // - static: walk superclasses (static methods are inherited)
-            // - direct: constructors are on the defining class, but private methods
-            //   can also be inherited in some edge cases; walking is safe either way.
             val refSig = methodRefSignature(ref)
             val found = findMethodInHierarchy(definingClass, refSig, classMap, methodIndex)
 
@@ -649,6 +670,7 @@ class DexVerifier(
             ref: MethodHandleReference,
             opcode: Opcode,
             callerDesc: String,
+            callerType: String,
             classMap: Map<String, ClassDef>,
             classSourceMap: Map<String, String>,
             methodIndex: Map<String, Set<String>>,
@@ -670,7 +692,7 @@ class DexVerifier(
                             MethodHandleType.INVOKE_INSTANCE -> Opcode.INVOKE_VIRTUAL
                             else -> Opcode.INVOKE_STATIC // direct/static/constructor → no hierarchy walk
                         }
-                        validateMethodRef(member, pseudoOpcode, callerDesc, classMap, classSourceMap, methodIndex, errors)
+                        validateMethodRef(member, pseudoOpcode, callerDesc, callerType, classMap, classSourceMap, methodIndex, errors)
                     }
                 }
                 MethodHandleType.STATIC_PUT,
@@ -766,6 +788,42 @@ class DexVerifier(
         }
 
         /**
+         * Returns `true` if [candidateSupertype] is in the supertype hierarchy of [subtype]
+         * (i.e., [subtype] is assignable to [candidateSupertype]). Walks superclasses and
+         * interfaces. Returns `true` for framework types that we can't inspect (conservative).
+         */
+        private fun isSupertype(
+            candidateSupertype: String,
+            subtype: String,
+            classMap: Map<String, ClassDef>,
+        ): Boolean {
+            val visited = HashSet<String>()
+            val queue = ArrayDeque<String>()
+            queue.add(subtype)
+
+            while (queue.isNotEmpty()) {
+                val current = queue.removeFirst()
+                if (!visited.add(current)) continue
+
+                if (current == candidateSupertype) return true
+
+                // If we reach a framework type, assume the hierarchy is valid.
+                if (current !in classMap && isFrameworkType(current)) return true
+
+                val classDef = classMap[current] ?: continue
+
+                classDef.superclass?.let { sup ->
+                    if (sup !in visited) queue.add(sup)
+                }
+                for (iface in classDef.interfaces) {
+                    if (iface !in visited) queue.add(iface)
+                }
+            }
+
+            return false
+        }
+
+        /**
          * Walks the class hierarchy (superclasses and interfaces) starting from [startType],
          * looking for a field matching [signature]. Returns `true` if found.
          * Stops at framework types (which we can't inspect).
@@ -844,5 +902,3 @@ class DexVerifier(
  * Thrown when an Android SDK verification tool reports a failure.
  */
 class DexVerificationException(message: String) : RuntimeException(message)
-
-internal val dexVerifier = DexVerifier(File("/home/wchill/Android/Sdk"))

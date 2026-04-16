@@ -16,7 +16,6 @@ import app.morphe.patcher.StringComparisonType
 import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.dex.DexStripper
-import app.morphe.patcher.dex.dexVerifier
 import app.morphe.patcher.util.ClassMerger.merge
 import app.morphe.patcher.util.MethodNavigator
 import app.morphe.patcher.util.PatchClasses
@@ -277,9 +276,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
         DexReadWrite.writeMultiDexFile(dexOutputDir, classDefs, opcodes, -1, logger)
 
-        if (config.verifyOutput) {
-            dexVerifier.verifyDexDir(dexOutputDir)
-        }
+        config.verifier.verifyDexDirectory(dexOutputDir)
         return dexOutputDir.listFiles { it.isFile }!!.sorted().map {
             PatcherResult.PatchedDexFile(it.name, it.inputStream())
         }.toSet()
@@ -302,18 +299,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         val results = mutableSetOf<PatcherResult.PatchedDexFile>()
 
-        // 1. Remove modified class_def entries from original DEX files in-place.
-        if (modifiedOriginalDescriptors.isNotEmpty()) {
-            logger.info("Stripping ${modifiedOriginalDescriptors.size} modified classes from original DEX files")
-            for (originalDex in originalDexFiles) {
-                val removed = DexStripper.stripInPlace(originalDex, modifiedOriginalDescriptors)
-                if (removed > 0) {
-                    logger.fine { "Removed $removed class_def entries from ${originalDex.name}" }
-                }
-            }
-        }
-
-        // 2. Write modified + new classes through DexPool.
+        // 1. Write modified + new classes through DexPool.
         var newDexCount = 0
         if (classesForNewDex.isNotEmpty()) {
             logger.info("Writing ${classesForNewDex.size} new classes to new DEX files")
@@ -321,9 +307,16 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
             val newDexFiles = dexOutputDir.listFiles { it.isFile }!!.sorted()
             newDexCount = newDexFiles.size
         }
-        if (config.verifyOutput) {
-            dexVerifier.verifyDexDir(dexOutputDir)
-            dexVerifier.verifyDexDir(dexWorkingDir)
+
+        // 2. Strip modified class_def entries from original DEX files in-place.
+        if (modifiedOriginalDescriptors.isNotEmpty()) {
+            logger.info("Stripping ${modifiedOriginalDescriptors.size} modified classes from original DEX files")
+            for (originalDex in originalDexFiles) {
+                val stripped = DexStripper.stripInPlace(originalDex, modifiedOriginalDescriptors)
+                if (stripped > 0) {
+                    logger.fine { "Stripped $stripped class_def entries from ${originalDex.name}" }
+                }
+            }
         }
 
         // 3. Rename: new DEX files get lowest slots (loaded first), originals shifted up.
@@ -332,6 +325,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
             val dexName = if (newIndex == 0) "classes.dex" else "classes${newIndex + 1}.dex"
             tempFile.renameTo(dexOutputDir.resolve(dexName))
         }
+
+        config.verifier.verifyDexDirectory(dexOutputDir)
 
         dexOutputDir.listFiles { it.isFile }!!.sorted().forEach { dexFile ->
             results.add(PatcherResult.PatchedDexFile(dexFile.name, dexFile.inputStream()))
@@ -411,9 +406,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         val results = mutableSetOf<PatcherResult.PatchedDexFile>()
 
-        if (config.verifyOutput) {
-            dexVerifier.verifyDexDir(dexOutputDir)
-        }
+        config.verifier.verifyDexDirectory(dexOutputDir)
+
         dexOutputDir.listFiles { it.isFile }!!.sorted().forEach { dexFile ->
             results.add(PatcherResult.PatchedDexFile(dexFile.name, dexFile.inputStream()))
         }

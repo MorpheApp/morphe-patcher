@@ -9,22 +9,27 @@ import java.io.File
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 import java.security.MessageDigest
 import java.util.zip.Adler32
 
 /**
- * Binary DEX file editor that hollows out class_def entries without re-encoding the file.
+ * Binary DEX file editor that strips class definitions by compacting them out of the
+ * class_defs array and their class_data_items out of the data section.
  *
- * Instead of removing class_def entries (which would leave orphaned class_data_items
- * that ART's verifier rejects), this zeroes out the data-referencing fields
- * (class_data_off, annotations_off, static_values_off, interfaces_off) of matched
- * class_defs, turning them into empty shells. The class_def entry itself remains in the
- * array so ART's verifier still finds a declaring class for every class_data_item.
+ * For each matched class_def:
+ * 1. The class_def entry is removed from the class_defs array (subsequent entries
+ *    shift up) and the class_defs count in both the header and map_list is decremented.
+ * 2. The corresponding class_data_item (if any) is compacted out of the class_data
+ *    section. Surviving class_defs' class_data_off pointers are updated to reflect
+ *    the new positions, and the map_list count is decremented.
  *
- * The real implementations of hollowed classes live in a separate DEX file that is
- * loaded first (lower-numbered classesN.dex), so ART uses those instead.
+ * This completely eliminates both the class definition and its method/field data,
+ * preventing ART from seeing duplicate definitions across DEX files and satisfying
+ * dexdump's cross-reference validation.
+ *
+ * The real implementations of stripped classes live in separate DEX files that are
+ * loaded first (lower-numbered classesN.dex).
  */
 internal object DexStripper {
 
@@ -32,6 +37,7 @@ internal object DexStripper {
     private const val CHECKSUM_OFF = 8          // uint: Adler32 checksum
     private const val SIGNATURE_OFF = 12        // ubyte[20]: SHA-1 signature
     private const val SIGNATURE_SIZE = 20
+    private const val MAP_OFF_OFF = 52          // uint: offset to map_list
     private const val STRING_IDS_OFF_OFF = 60   // uint: offset to string_ids
     private const val TYPE_IDS_OFF_OFF = 68     // uint: offset to type_ids
     private const val CLASS_DEFS_SIZE_OFF = 96  // uint: count of class_defs
@@ -40,77 +46,281 @@ internal object DexStripper {
     private const val CLASS_DEF_ITEM_SIZE = 32  // each class_def_item is 32 bytes
 
     // Offsets within a class_def_item.
-    private const val CLASS_DEF_INTERFACES_OFF = 12
-    private const val CLASS_DEF_ANNOTATIONS_OFF = 20
     private const val CLASS_DEF_CLASS_DATA_OFF = 24
-    private const val CLASS_DEF_STATIC_VALUES_OFF = 28
+
+    // map_list constants.
+    private const val TYPE_CLASS_DEF_ITEM: Int = 0x0006
+    private const val TYPE_CLASS_DATA_ITEM: Int = 0x2000
+    private const val MAP_ITEM_SIZE = 12  // each map_item is 12 bytes
 
     /**
-     * Hollows out the given class definitions in a DEX file on disk, editing it in-place
-     * via a memory-mapped buffer. Matched class_defs have their data-referencing fields
-     * zeroed out, turning them into empty shells while preserving the class_def entry
-     * for ART verifier compatibility.
+     * Strips class definitions from a DEX file by compacting them out of the
+     * class_defs array and their class_data_items out of the data section.
      *
      * @param dexFile The DEX file to edit in-place.
-     * @param classDescriptorsToHollow Set of class descriptors to hollow out (e.g., "Lcom/example/Foo;").
-     * @return true if any classes were hollowed out, false otherwise.
+     * @param classDescriptorsToStrip Set of class descriptors to strip (e.g., "Lcom/example/Foo;").
+     * @return The number of class definitions stripped.
      */
-    fun stripInPlace(dexFile: File, classDescriptorsToHollow: Set<String>): Boolean {
-        if (classDescriptorsToHollow.isEmpty()) return false
+    fun stripInPlace(dexFile: File, classDescriptorsToStrip: Set<String>): Int {
+        if (classDescriptorsToStrip.isEmpty()) return 0
 
         RandomAccessFile(dexFile, "rw").use { raf ->
             val fileSize = raf.length().toInt()
-            val channel = raf.channel
-            val mappedBuf = channel.map(FileChannel.MapMode.READ_WRITE, 0, raf.length())
+            val mappedBuf = raf.channel.map(FileChannel.MapMode.READ_WRITE, 0, raf.length())
             val buf = mappedBuf.order(ByteOrder.LITTLE_ENDIAN)
 
             val stringIdsOff = buf.getInt(STRING_IDS_OFF_OFF)
             val typeIdsOff = buf.getInt(TYPE_IDS_OFF_OFF)
             val classDefsSize = buf.getInt(CLASS_DEFS_SIZE_OFF)
             val classDefsOff = buf.getInt(CLASS_DEFS_OFF_OFF)
+            val mapOff = buf.getInt(MAP_OFF_OFF)
 
-            if (classDefsSize == 0) return false
+            if (classDefsSize == 0) return 0
 
-            val descriptorCache = HashMap<Int, String>(2 * classDefsSize)
+            // Identify which class_def indices to remove and their class_data offsets.
+            val indicesToRemove = mutableListOf<Int>()
+            val orphanedClassDataOffsets = HashSet<Int>()
 
-            var hollowedCount = 0
-            var remaining = classDefsSize
-            var entryOff = classDefsOff
-
-            while (remaining > 0) {
+            for (i in 0 until classDefsSize) {
+                val entryOff = classDefsOff + i * CLASS_DEF_ITEM_SIZE
                 val classIdx = buf.getInt(entryOff)
-
-                val descriptor = descriptorCache.getOrPut(classIdx) {
-                    resolveDescriptor(buf, classIdx, typeIdsOff, stringIdsOff)
+                val descriptor = resolveDescriptor(buf, classIdx, typeIdsOff, stringIdsOff)
+                if (descriptor in classDescriptorsToStrip) {
+                    indicesToRemove.add(i)
+                    val classDataOff = buf.getInt(entryOff + CLASS_DEF_CLASS_DATA_OFF)
+                    if (classDataOff != 0) {
+                        orphanedClassDataOffsets.add(classDataOff)
+                    }
                 }
-
-                if (descriptor in classDescriptorsToHollow) {
-                    zeroClassDef(buf, entryOff)
-                    hollowedCount++
-                }
-
-                entryOff += CLASS_DEF_ITEM_SIZE
-                remaining--
             }
 
-            if (hollowedCount == 0) return false
+            if (indicesToRemove.isEmpty()) return 0
+
+            // Compact the class_data section: remove orphaned items, update pointers.
+            if (orphanedClassDataOffsets.isNotEmpty()) {
+                compactClassData(buf, mapOff, classDefsOff, classDefsSize, indicesToRemove, orphanedClassDataOffsets)
+            }
+
+            // Compact the class_defs array.
+            compactClassDefs(buf, classDefsOff, classDefsSize, indicesToRemove)
+
+            val newClassDefsSize = classDefsSize - indicesToRemove.size
+
+            // Update class_defs_size in the header.
+            buf.putInt(CLASS_DEFS_SIZE_OFF, newClassDefsSize)
+
+            // Update TYPE_CLASS_DEF_ITEM count in the map_list.
+            updateMapItemCount(buf, mapOff, TYPE_CLASS_DEF_ITEM, newClassDefsSize)
 
             // Recompute checksums.
             recomputeSignature(buf, fileSize)
             recomputeChecksum(buf, fileSize)
 
             mappedBuf.force()
+
+            return indicesToRemove.size
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // class_data compaction
+    // -------------------------------------------------------------------------
+
+    /**
+     * Compacts the class_data section by removing orphaned class_data_items and
+     * updating all surviving class_def class_data_off pointers.
+     *
+     * Parses all class_data_items sequentially from the map, identifies orphaned
+     * ones, copies surviving items forward to fill gaps, zeroes the tail, and
+     * updates the map count.
+     */
+    private fun compactClassData(
+        buf: ByteBuffer,
+        mapOff: Int,
+        classDefsOff: Int,
+        classDefsSize: Int,
+        indicesToRemove: List<Int>,
+        orphanedClassDataOffsets: Set<Int>,
+    ) {
+        // Find the TYPE_CLASS_DATA_ITEM map entry.
+        val mapEntry = findMapEntry(buf, mapOff, TYPE_CLASS_DATA_ITEM) ?: return
+        val blockOff = mapEntry.second
+        val itemCount = mapEntry.first
+
+        // Parse all class_data_items to get their boundaries.
+        val items = parseClassDataItemBoundaries(buf, blockOff, itemCount)
+
+        // Build old_offset → new_offset mapping by compacting non-orphaned items forward.
+        val oldToNewOffset = HashMap<Int, Int>(items.size * 2)
+        var writePos = blockOff
+        var keptCount = 0
+
+        for ((itemOff, itemSize) in items) {
+            if (itemOff in orphanedClassDataOffsets) continue
+
+            oldToNewOffset[itemOff] = writePos
+            if (writePos != itemOff) {
+                // Copy item bytes forward.
+                val temp = ByteArray(itemSize)
+                buf.position(itemOff)
+                buf.get(temp)
+                buf.position(writePos)
+                buf.put(temp)
+            }
+            writePos += itemSize
+            keptCount++
         }
 
-        return true
+        // Zero the vacated tail.
+        val lastItem = items.last()
+        val blockEnd = lastItem.first + lastItem.second
+        if (blockEnd > writePos) {
+            buf.position(writePos)
+            buf.put(ByteArray(blockEnd - writePos))
+        }
+
+        // Update surviving class_defs' class_data_off pointers.
+        val removeSet = indicesToRemove.toHashSet()
+        for (i in 0 until classDefsSize) {
+            if (i in removeSet) continue
+            val entryOff = classDefsOff + i * CLASS_DEF_ITEM_SIZE
+            val oldDataOff = buf.getInt(entryOff + CLASS_DEF_CLASS_DATA_OFF)
+            if (oldDataOff != 0) {
+                val newDataOff = oldToNewOffset[oldDataOff]
+                    ?: error("class_data_off $oldDataOff not found in compacted block")
+                buf.putInt(entryOff + CLASS_DEF_CLASS_DATA_OFF, newDataOff)
+            }
+        }
+
+        // Update map_list count.
+        updateMapItemCount(buf, mapOff, TYPE_CLASS_DATA_ITEM, keptCount)
     }
 
-    private fun zeroClassDef(buf: ByteBuffer, base: Int) {
-        buf.putInt(base + CLASS_DEF_INTERFACES_OFF, 0)
-        buf.putInt(base + CLASS_DEF_ANNOTATIONS_OFF, 0)
-        buf.putInt(base + CLASS_DEF_CLASS_DATA_OFF, 0)
-        buf.putInt(base + CLASS_DEF_STATIC_VALUES_OFF, 0)
+    /**
+     * Parses [count] class_data_items sequentially starting at [offset] and returns
+     * a list of (offset, byteSize) pairs.
+     *
+     * A class_data_item is:
+     *   static_fields_size (uleb128), instance_fields_size (uleb128),
+     *   direct_methods_size (uleb128), virtual_methods_size (uleb128),
+     *   encoded_field[static_fields_size],   // each: field_idx_diff + access_flags
+     *   encoded_field[instance_fields_size],
+     *   encoded_method[direct_methods_size],  // each: method_idx_diff + access_flags + code_off
+     *   encoded_method[virtual_methods_size]
+     */
+    private fun parseClassDataItemBoundaries(
+        buf: ByteBuffer,
+        offset: Int,
+        count: Int,
+    ): List<Pair<Int, Int>> {
+        val items = ArrayList<Pair<Int, Int>>(count)
+        var pos = offset
+
+        for (i in 0 until count) {
+            val itemStart = pos
+            val staticFieldsSize = readUleb128(buf, pos).also { pos = it.second }.first
+            val instanceFieldsSize = readUleb128(buf, pos).also { pos = it.second }.first
+            val directMethodsSize = readUleb128(buf, pos).also { pos = it.second }.first
+            val virtualMethodsSize = readUleb128(buf, pos).also { pos = it.second }.first
+
+            // encoded_field: 2 ULEB128 values each.
+            repeat(staticFieldsSize + instanceFieldsSize) {
+                pos = skipUleb128(buf, pos)
+                pos = skipUleb128(buf, pos)
+            }
+            // encoded_method: 3 ULEB128 values each.
+            repeat(directMethodsSize + virtualMethodsSize) {
+                pos = skipUleb128(buf, pos)
+                pos = skipUleb128(buf, pos)
+                pos = skipUleb128(buf, pos)
+            }
+
+            items.add(itemStart to (pos - itemStart))
+        }
+
+        return items
     }
+
+    // -------------------------------------------------------------------------
+    // class_defs compaction
+    // -------------------------------------------------------------------------
+
+    /**
+     * Compacts the class_defs array by removing entries at [indicesToRemove] and
+     * shifting subsequent entries up to fill the gaps. Zeroes the vacated tail.
+     */
+    private fun compactClassDefs(
+        buf: ByteBuffer,
+        classDefsOff: Int,
+        classDefsSize: Int,
+        indicesToRemove: List<Int>,
+    ) {
+        val removeSet = indicesToRemove.toHashSet()
+        val temp = ByteArray(CLASS_DEF_ITEM_SIZE)
+        var writeIdx = 0
+
+        for (readIdx in 0 until classDefsSize) {
+            if (readIdx in removeSet) continue
+
+            if (writeIdx != readIdx) {
+                val srcOff = classDefsOff + readIdx * CLASS_DEF_ITEM_SIZE
+                val dstOff = classDefsOff + writeIdx * CLASS_DEF_ITEM_SIZE
+                buf.position(srcOff)
+                buf.get(temp)
+                buf.position(dstOff)
+                buf.put(temp)
+            }
+            writeIdx++
+        }
+
+        // Zero out the vacated tail entries.
+        val tailStart = classDefsOff + writeIdx * CLASS_DEF_ITEM_SIZE
+        val tailEnd = classDefsOff + classDefsSize * CLASS_DEF_ITEM_SIZE
+        if (tailEnd > tailStart) {
+            buf.position(tailStart)
+            buf.put(ByteArray(tailEnd - tailStart))
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // map_list helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Finds a map entry by type. Returns (count, offset) or null.
+     */
+    private fun findMapEntry(buf: ByteBuffer, mapOff: Int, targetType: Int): Pair<Int, Int>? {
+        val mapSize = buf.getInt(mapOff)
+        for (i in 0 until mapSize) {
+            val entryOff = mapOff + 4 + i * MAP_ITEM_SIZE
+            val type = buf.getShort(entryOff).toInt() and 0xFFFF
+            if (type == targetType) {
+                val count = buf.getInt(entryOff + 4)
+                val offset = buf.getInt(entryOff + 8)
+                return count to offset
+            }
+        }
+        return null
+    }
+
+    /**
+     * Updates a map entry's count field by type.
+     */
+    private fun updateMapItemCount(buf: ByteBuffer, mapOff: Int, targetType: Int, newCount: Int) {
+        val mapSize = buf.getInt(mapOff)
+        for (i in 0 until mapSize) {
+            val entryOff = mapOff + 4 + i * MAP_ITEM_SIZE
+            val type = buf.getShort(entryOff).toInt() and 0xFFFF
+            if (type == targetType) {
+                buf.putInt(entryOff + 4, newCount)
+                return
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // DEX structure reading
+    // -------------------------------------------------------------------------
 
     /**
      * Resolves a type_ids index to its class descriptor string.
@@ -121,38 +331,29 @@ internal object DexStripper {
         typeIdsOff: Int,
         stringIdsOff: Int,
     ): String {
-        // type_id_item is just a uint descriptor_idx (index into string_ids).
         val descriptorIdx = buf.getInt(typeIdsOff + typeIdx * 4)
-
-        // string_id_item is just a uint string_data_off.
         val stringDataOff = buf.getInt(stringIdsOff + descriptorIdx * 4)
-
         return readMutf8(buf, stringDataOff)
     }
 
     /**
      * Reads a MUTF-8 string from the DEX data section.
-     * The format is: ULEB128 length (in UTF-16 code units), then MUTF-8 bytes, then null terminator.
      */
     private fun readMutf8(buf: ByteBuffer, offset: Int): String {
-        // Skip the ULEB128 utf16_size prefix — we just read until the null terminator.
         var pos = offset
-        while (buf.get(pos).toInt() and 0x80 != 0) pos++  // skip ULEB128 bytes
-        pos++  // skip the last ULEB128 byte
+        while (buf.get(pos).toInt() and 0x80 != 0) pos++
+        pos++
 
         val sb = StringBuilder()
         while (true) {
             val b = buf.get(pos++).toInt() and 0xFF
             if (b == 0) break
             if (b and 0x80 == 0) {
-                // Single byte: 0xxxxxxx
                 sb.append(b.toChar())
             } else if (b and 0xE0 == 0xC0) {
-                // Two bytes: 110xxxxx 10xxxxxx
                 val b2 = buf.get(pos++).toInt() and 0x3F
                 sb.append(((b and 0x1F shl 6) or b2).toChar())
             } else if (b and 0xF0 == 0xE0) {
-                // Three bytes: 1110xxxx 10xxxxxx 10xxxxxx
                 val b2 = buf.get(pos++).toInt() and 0x3F
                 val b3 = buf.get(pos++).toInt() and 0x3F
                 sb.append(((b and 0x0F shl 12) or (b2 shl 6) or b3).toChar())
@@ -160,6 +361,35 @@ internal object DexStripper {
         }
         return sb.toString()
     }
+
+    /**
+     * Reads a ULEB128 value at [pos], returning (value, newPos).
+     */
+    private fun readUleb128(buf: ByteBuffer, pos: Int): Pair<Int, Int> {
+        var result = 0
+        var shift = 0
+        var p = pos
+        while (true) {
+            val b = buf.get(p++).toInt() and 0xFF
+            result = result or ((b and 0x7F) shl shift)
+            if (b and 0x80 == 0) break
+            shift += 7
+        }
+        return result to p
+    }
+
+    /**
+     * Skips one ULEB128 value at [pos], returning the position after it.
+     */
+    private fun skipUleb128(buf: ByteBuffer, pos: Int): Int {
+        var p = pos
+        while (buf.get(p++).toInt() and 0x80 != 0) { /* skip */ }
+        return p
+    }
+
+    // -------------------------------------------------------------------------
+    // Checksum computation
+    // -------------------------------------------------------------------------
 
     /**
      * Recomputes the SHA-1 signature over bytes 32 through end of file.
