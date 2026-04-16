@@ -151,7 +151,7 @@ class SdkDexVerifier(
      */
     override fun verifyApkFile(apkFile: File) {
         require(apkFile.isFile) { "APK file does not exist: $apkFile" }
-        logger.info { "Verifying APK file" }
+        logger.info { "Verifying APK" }
         verifyWithAapt2(apkFile)
         verifyWithApksigner(apkFile)
         verifyWithZipalign(apkFile)
