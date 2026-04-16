@@ -290,8 +290,8 @@ public final class app/morphe/patcher/Patcher : java/io/Closeable {
 }
 
 public final class app/morphe/patcher/PatcherConfig {
-	public fun <init> (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;)V
-	public synthetic fun <init> (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;)V
+	public synthetic fun <init> (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 }
 
 public final class app/morphe/patcher/PatcherContext : java/io/Closeable {
@@ -403,6 +403,35 @@ public final class app/morphe/patcher/dex/BytecodeMode : java/lang/Enum {
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/dex/BytecodeMode;
 	public static fun values ()[Lapp/morphe/patcher/dex/BytecodeMode;
+}
+
+public final class app/morphe/patcher/dex/DexVerificationException : java/lang/RuntimeException {
+	public fun <init> (Ljava/lang/String;)V
+}
+
+public abstract interface class app/morphe/patcher/dex/DexVerifier {
+	public abstract fun verifyApkFile (Ljava/io/File;)V
+	public abstract fun verifyDexDirectory (Ljava/io/File;)V
+	public abstract fun verifyDexFile (Ljava/io/File;)V
+}
+
+public final class app/morphe/patcher/dex/NoOpDexVerifier : app/morphe/patcher/dex/DexVerifier {
+	public static final field INSTANCE Lapp/morphe/patcher/dex/NoOpDexVerifier;
+	public fun verifyApkFile (Ljava/io/File;)V
+	public fun verifyDexDirectory (Ljava/io/File;)V
+	public fun verifyDexFile (Ljava/io/File;)V
+}
+
+public final class app/morphe/patcher/dex/SdkDexVerifier : app/morphe/patcher/dex/DexVerifier {
+	public static final field Companion Lapp/morphe/patcher/dex/SdkDexVerifier$Companion;
+	public fun <init> (Ljava/io/File;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/io/File;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun verifyApkFile (Ljava/io/File;)V
+	public fun verifyDexDirectory (Ljava/io/File;)V
+	public fun verifyDexFile (Ljava/io/File;)V
+}
+
+public final class app/morphe/patcher/dex/SdkDexVerifier$Companion {
 }
 
 public final class app/morphe/patcher/environment/EnvironmentUtils {

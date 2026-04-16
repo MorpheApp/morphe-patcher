@@ -274,18 +274,23 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         patchClasses.close()
 
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
+        // TODO: Separate out any j$ classes into their own DEX files, because d8/r8 will reject the DEX files otherwise.
         DexReadWrite.writeMultiDexFile(dexOutputDir, classDefs, opcodes, -1, logger)
 
+        config.verifier.verifyDexDirectory(dexOutputDir)
         return dexOutputDir.listFiles { it.isFile }!!.sorted().map {
             PatcherResult.PatchedDexFile(it.name, it.inputStream())
         }.toSet()
     }
 
     /**
-     * [BytecodeMode.STRIP_FAST]: Hollow out modified class_defs in-place in original DEX files
-     * (zero their data offsets), then write modified + new classes to separate DEX files loaded first.
+     * [BytecodeMode.STRIP_FAST]: Remove modified class_def entries from original DEX files
+     * in-place (compacting the class_defs array), then write modified + new classes to
+     * separate DEX files.
      *
      * Fastest, but leaves dead data in original DEX files (orphaned class_data, annotations, etc.).
+     * Unlike hollowing, this completely removes the class_def entries so there are no
+     * duplicate class definitions across DEX files.
      */
     private fun compileStripFast(): Set<PatcherResult.PatchedDexFile> {
         val (modifiedOriginalDescriptors, classesForNewDex)
@@ -295,15 +300,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         val results = mutableSetOf<PatcherResult.PatchedDexFile>()
 
-        // 1. Hollow out modified classes in original DEX files in-place.
-        if (modifiedOriginalDescriptors.isNotEmpty()) {
-            logger.info("Stripping ${modifiedOriginalDescriptors.size} modified classes from original DEX files")
-            for (originalDex in originalDexFiles) {
-                DexStripper.stripInPlace(originalDex, modifiedOriginalDescriptors)
-            }
-        }
-
-        // 2. Write modified + new classes through DexPool.
+        // 1. Write modified + new classes through DexPool.
         var newDexCount = 0
         if (classesForNewDex.isNotEmpty()) {
             logger.info("Writing ${classesForNewDex.size} new classes to new DEX files")
@@ -312,12 +309,25 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
             newDexCount = newDexFiles.size
         }
 
+        // 2. Strip modified class_def entries from original DEX files in-place.
+        if (modifiedOriginalDescriptors.isNotEmpty()) {
+            logger.info("Stripping ${modifiedOriginalDescriptors.size} modified classes from original DEX files")
+            for (originalDex in originalDexFiles) {
+                val stripped = DexStripper.stripInPlace(originalDex, modifiedOriginalDescriptors)
+                if (stripped > 0) {
+                    logger.fine { "Stripped $stripped class_def entries from ${originalDex.name}" }
+                }
+            }
+        }
+
         // 3. Rename: new DEX files get lowest slots (loaded first), originals shifted up.
         dexWorkingDir.listFiles { it.isFile }!!.sorted().forEachIndexed { i, tempFile ->
             val newIndex = newDexCount + i
             val dexName = if (newIndex == 0) "classes.dex" else "classes${newIndex + 1}.dex"
             tempFile.renameTo(dexOutputDir.resolve(dexName))
         }
+
+        config.verifier.verifyDexDirectory(dexOutputDir)
 
         dexOutputDir.listFiles { it.isFile }!!.sorted().forEach { dexFile ->
             results.add(PatcherResult.PatchedDexFile(dexFile.name, dexFile.inputStream()))
@@ -383,6 +393,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                     rebuiltFiles.forEach { rebuiltFile ->
                         val newName = getDexName(newDexCount)
                         rebuiltFile.renameTo(dexOutputDir.resolve(newName))
+                        logger.fine("${originalDex.name} -> $newName")
                         newDexCount++
                     }
                 } else {
@@ -395,6 +406,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         patchClasses.close()
 
         val results = mutableSetOf<PatcherResult.PatchedDexFile>()
+
+        config.verifier.verifyDexDirectory(dexOutputDir)
 
         dexOutputDir.listFiles { it.isFile }!!.sorted().forEach { dexFile ->
             results.add(PatcherResult.PatchedDexFile(dexFile.name, dexFile.inputStream()))

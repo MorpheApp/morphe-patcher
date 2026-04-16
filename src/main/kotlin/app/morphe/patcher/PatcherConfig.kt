@@ -9,6 +9,8 @@
 package app.morphe.patcher
 
 import app.morphe.patcher.dex.BytecodeMode
+import app.morphe.patcher.dex.DexVerifier
+import app.morphe.patcher.dex.NoOpDexVerifier
 import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.ResourceMode
 import java.io.File
@@ -22,6 +24,7 @@ import java.util.logging.Logger
  * @param aaptBinaryPath A path to a custom aapt binary.
  * @param frameworkFileDirectory A path to the directory to cache the framework file in.
  * @param useArsclib Whether to use Arsclib for resource decoding and compiling.
+ * @param verifier The output verifier to use.
  */
 class PatcherConfig(
     internal val apkFile: File,
@@ -30,7 +33,8 @@ class PatcherConfig(
     @Deprecated("apktool support is deprecated") private val frameworkFileDirectory: String? = null,
     @Deprecated("apktool support is deprecated") internal val useArsclib: Boolean = true,
     internal val keepArchitectures: Set<CpuArchitecture> = emptySet(),
-    internal val useBytecodeMode: BytecodeMode = BytecodeMode.STRIP_SAFE
+    internal val useBytecodeMode: BytecodeMode = BytecodeMode.STRIP_SAFE,
+    internal val verifier: DexVerifier = NoOpDexVerifier,
 ) {
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
 
