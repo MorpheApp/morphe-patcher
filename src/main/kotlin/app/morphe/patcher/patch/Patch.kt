@@ -4,15 +4,15 @@ package app.morphe.patcher.patch
 
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherContext
+import app.morphe.patcher.dex.DexReadWrite
 import dalvik.system.DexClassLoader
-import lanchon.multidexlib2.BasicDexFileNamer
-import lanchon.multidexlib2.MultiDexIO
 import java.io.File
 import java.io.InputStream
 import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.net.URLClassLoader
+import java.nio.file.Files
 import java.util.function.Supplier
 import java.util.jar.JarFile
 import kotlin.collections.flatten
@@ -746,7 +746,9 @@ sealed class PatchLoader(
         PatchLoader(
             patchesFiles,
             { patchBundle ->
-                MultiDexIO.readDexFile(true, patchBundle, BasicDexFileNamer(), null, null).classes
+                val tempDir = Files.createTempDirectory("morphe-extracted-patches").toFile()
+                DexReadWrite.readMultidexFileFromZip(patchBundle, tempDir)
+                    .dexFile.classes
                     .map { classDef ->
                         classDef.type.substring(1, classDef.length - 1)
                     }

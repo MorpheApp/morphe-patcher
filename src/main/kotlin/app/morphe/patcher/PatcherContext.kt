@@ -11,8 +11,6 @@ package app.morphe.patcher
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.ResourcePatchContext
-import app.morphe.patcher.resource.ResourceMode
-import com.reandroid.apk.ApkModule
 import java.io.Closeable
 
 /**
@@ -47,5 +45,8 @@ class PatcherContext internal constructor(config: PatcherConfig): Closeable {
      */
     internal val bytecodeContext = BytecodePatchContext(config, packageMetadata)
 
-    override fun close() = bytecodeContext.close()
+    override fun close() {
+        bytecodeContext.close()
+        resourceContext.close()
+    }
 }

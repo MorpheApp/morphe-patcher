@@ -1,3 +1,52 @@
+# [1.4.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.6...v1.4.0-dev.7) (2026-04-17)
+
+
+### Bug Fixes
+
+* Separate out desugar libs into separate dex ([7fc7a9e](https://github.com/MorpheApp/morphe-patcher/commit/7fc7a9e8788e9167756edc596c4aeb85972e1fc3))
+
+# [1.4.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.5...v1.4.0-dev.6) (2026-04-16)
+
+
+### Features
+
+* Add DEX/APK verification ([#110](https://github.com/MorpheApp/morphe-patcher/issues/110)) ([61b5de0](https://github.com/MorpheApp/morphe-patcher/commit/61b5de0dd073139bb8ad8999a6c16b85d411e009))
+
+# [1.4.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.4...v1.4.0-dev.5) (2026-04-14)
+
+
+### Bug Fixes
+
+* Track deleted files in detectFileChanges so getDeletedFiles reports them   ([#107](https://github.com/MorpheApp/morphe-patcher/issues/107)) ([6264104](https://github.com/MorpheApp/morphe-patcher/commit/6264104ba233101412cac4c801c4f64138b53763))
+
+# [1.4.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.3...v1.4.0-dev.4) (2026-04-13)
+
+
+### Bug Fixes
+
+* Write modified dex files to final APK when no resource patches are used ([#109](https://github.com/MorpheApp/morphe-patcher/issues/109)) ([0f401c6](https://github.com/MorpheApp/morphe-patcher/commit/0f401c6445655a5ee27f59c67d035c119f54446e))
+
+# [1.4.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.2...v1.4.0-dev.3) (2026-04-07)
+
+
+### Features
+
+* Map dex files in memory to reduce memory requirements ([#106](https://github.com/MorpheApp/morphe-patcher/issues/106)) ([85df75e](https://github.com/MorpheApp/morphe-patcher/commit/85df75ef8b4614f5cf89d8ba1700335559cb0c9b))
+
+# [1.4.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.1...v1.4.0-dev.2) (2026-04-06)
+
+
+### Features
+
+* Optimize dex patching ([#105](https://github.com/MorpheApp/morphe-patcher/issues/105)) ([4e70edb](https://github.com/MorpheApp/morphe-patcher/commit/4e70edb7d3e0568dd32cddb10a55ddfbc13edb05))
+
+# [1.4.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.3...v1.4.0-dev.1) (2026-04-05)
+
+
+### Features
+
+* Add `matchAll(range)` to validate the number of matches ([#104](https://github.com/MorpheApp/morphe-patcher/issues/104)) ([b28d21a](https://github.com/MorpheApp/morphe-patcher/commit/b28d21aadd8f6f4505a19885acb2fb399b2f882c))
+
 ## [1.3.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.3.2...v1.3.3) (2026-03-28)
 
 

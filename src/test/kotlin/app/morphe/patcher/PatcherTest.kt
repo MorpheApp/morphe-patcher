@@ -8,6 +8,7 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatch
 import app.morphe.patcher.patch.Patch
@@ -30,6 +31,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
+import jdk.internal.module.ModuleBootstrap.patcher
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.BeforeEach
@@ -55,6 +57,7 @@ internal object PatcherTest {
                 "config",
                 mockk<PatcherConfig> {
                     every { resourceMode } returns ResourceMode.NONE
+                    every { bytecodeMode } returns BytecodeMode.NONE
                 },
             )
             setPrivateField(
@@ -63,6 +66,7 @@ internal object PatcherTest {
             )
 
             every { context.bytecodeContext.patchClasses } returns mockk(relaxed = true)
+            every { context.bytecodeContext.decodeDexFiles() } just runs
             every { this@mockk() } answers { callOriginal() }
         }
     }
@@ -253,11 +257,6 @@ internal object PatcherTest {
         val patches = setOf(
             bytecodePatch(default = true)  {
                 execute {
-                    val class1 = patchClasses.classMap.values.first().classDef
-                    println("class1: $class1")
-                    val class2 = patchClasses.classMap.values.last().classDef
-                    println("class2: $class2")
-
                     fingerprint1.match(patchClasses.classMap.values.first().classDef.methods.first())
                     fingerprint2.match(patchClasses.classMap.values.first().classDef)
                     fingerprint3.originalClassDef
@@ -273,8 +272,6 @@ internal object PatcherTest {
         patches()
 
         with(patcher.context.bytecodeContext) {
-            println("fingerprint4.originalClassDef.type: ")
-            println(fingerprint4.originalClassDef.type)
             assertEquals(fingerprint4.originalClassDef.type, "Lclass2;")
             assertEquals(fingerprint5.originalClassDef.type, "Lclass2;")
 
@@ -285,7 +282,6 @@ internal object PatcherTest {
                 { assertNotNull(fingerprint3.originalClassDefOrNull) },
             )
 
-            println("fingerprint5.originalClassDef: ${fingerprint5.originalClassDef}")
             assertAll(
                 "classFingerprint resolves",
                 {
@@ -499,7 +495,6 @@ internal object PatcherTest {
                 )
             )
 
-            println("test 1")
             proxyFilter.matchesCallCount = 0
             fingerprint1.clearMatch()
             assertEquals(
@@ -519,7 +514,6 @@ internal object PatcherTest {
             )
 
 
-            println("test 2")
             // Add custom counter to bundled list so faster string lookup is used.
             BUNDLED_INSTRUCTION_FILTERS += ProxyFilterCounter::class
 
@@ -541,7 +535,6 @@ internal object PatcherTest {
             )
 
 
-            println("test 3")
             assertEquals(
                 listOf(
                     "Lclass1;"
@@ -559,7 +552,6 @@ internal object PatcherTest {
                 )
             )
 
-            println("test 4")
             assertEquals(
                 listOf(
                     "Lclass1;",
@@ -599,6 +591,16 @@ internal object PatcherTest {
                 "Number of expected filter calls did not match"
             )
 
+            assertThrows<Exception> {
+                fingerprint3.matchAll(0 .. 2)
+            }
+
+            assertThrows<Exception> {
+                fingerprint3.matchAll(4 .. 100)
+            }
+
+            assertEquals(3, fingerprint3.matchAll(1 .. 3).size)
+
             proxyFilter.matchesCallCount = 0
             val fingerprint4 = Fingerprint(
                 filters = listOf(
@@ -609,6 +611,7 @@ internal object PatcherTest {
             assertThrows<Exception> {
                 fingerprint4.matchAll()
             }
+            assertEquals(0, fingerprint4.matchAll(0 .. 3).size)
             assertEquals(
                 0, proxyFilter.matchesCallCount,
                 "Number of expected filter calls did not match"

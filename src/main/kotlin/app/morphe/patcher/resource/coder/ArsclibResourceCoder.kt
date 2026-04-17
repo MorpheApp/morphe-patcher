@@ -23,13 +23,11 @@ import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
-import com.reandroid.arsc.chunk.TableBlock
 import com.reandroid.arsc.coder.CoderSetting
 import com.reandroid.arsc.coder.xml.AaptXmlStringDecoder
 import com.reandroid.arsc.coder.xml.XmlCoder
 import com.reandroid.json.JSONObject
 import org.w3c.dom.Element
-import java.io.Closeable
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -46,6 +44,14 @@ class ArsclibResourceCoder(
     internal val otherResourcesRootDirectory = workingDir.resolve("root")
     internal val modifiedResResources = mutableSetOf<File>()
     internal val modifiedBinaryResources = mutableSetOf<File>()
+
+    /**
+     * Set of file paths (relative to the APK root e.g: "lib/armeabi-v7a/libfoo.so")
+     * that existed at decode time but no longer exist on disk after patches and
+     * other transformations have run. Populated by [detectFileChanges] and returned
+     * by [getDeletedFiles] so [PatcherResult.applyTo] can exclude them from the rebuilt APK.
+     */
+    internal val deletedFiles = mutableSetOf<String>()
 
     /**
      * Snapshot of file metadata (modification time and size) captured after decoding resources.
@@ -76,6 +82,7 @@ class ArsclibResourceCoder(
     internal fun detectFileChanges() {
         modifiedResResources.clear()
         modifiedBinaryResources.clear()
+        deletedFiles.clear()
 
         packageDirectories.forEach { (_, packageDir) ->
             packageDir.resolve("res").walkTopDown().filter { it.isFile }.forEach { file ->
@@ -95,6 +102,18 @@ class ArsclibResourceCoder(
                 modifiedBinaryResources.add(file)
             }
         }
+
+        // Detect files that existed at decode time but are now removed.
+        // These need to be communicated to applyTo() so that they're excluded from the rebuilt APK.
+        val rootPathPrefix = otherResourcesRootDirectory.absoluteFile.invariantSeparatorsPath
+        fileSnapshotCache.keys.forEach { snapshotFile ->
+            if (snapshotFile.exists()) return@forEach
+            val absPath = snapshotFile.absoluteFile.invariantSeparatorsPath
+            if (absPath.startsWith("$rootPathPrefix/")) {
+                val relativePath = snapshotFile.relativeTo(otherResourcesRootDirectory).invariantSeparatorsPath
+                deletedFiles += relativePath
+            }
+        }
     }
 
     // Exclude these files from being tracked by modification/adding to prevent issues during resource encoding.
@@ -109,24 +128,18 @@ class ArsclibResourceCoder(
         val versionName: String,
         val versionCode: String,
         val frameworkVersion: Int,
-        val externalFrameworks: MutableList<TableBlock>
-    ) : Closeable {
-        // No way to reload this once closed. Might not be a real issue though.
-        override fun close() {
-            externalFrameworks.clear()
-        }
-    }
+    )
 
     private val lazyPackageInfo = lazy {
-        val module = ApkModule.loadApkFile(apkFile)
-        val manifest = module.androidManifest
-        PackageInfo(
-            manifest.packageName,
-            manifest.versionName,
-            manifest.versionCode.toString(),
-            module.androidFrameworkVersion,
-            module.loadedFrameworks
-        )
+        ApkModule.loadApkFile(apkFile).use { module ->
+            val manifest = module.androidManifest
+            PackageInfo(
+                manifest.packageName,
+                manifest.versionName,
+                manifest.versionCode.toString(),
+                module.androidFrameworkVersion,
+            )
+        }
     }
 
     private fun readPathMap(): PathMap {
@@ -147,9 +160,13 @@ class ArsclibResourceCoder(
     }
 
     override fun decodeRaw(): PackageMetadata {
-        val apkModule = ApkModule.loadApkFile(apkFile)
-        val rawDecoder = ApkModuleRawDecoder(apkModule)
-        rawDecoder.decode(workingDir)
+        ApkModule.loadApkFile(apkFile).use { apkModule ->
+            val rawDecoder = ApkModuleRawDecoder(apkModule)
+
+            rawDecoder.setDexDecoder { _, _ -> }
+            rawDecoder.dexProfileDecoder = null
+            rawDecoder.decode(workingDir)
+        }
 
         // Build a snapshot of all file metadata after decoding, so we can detect
         // which files are added or modified when it's time to encode.
@@ -160,23 +177,21 @@ class ArsclibResourceCoder(
     }
 
     override fun decodeResources(): PackageMetadata {
-        val apkModule = ApkModule.loadApkFile(apkFile)
-        val xmlDecoder = ApkModuleXmlDecoder(apkModule).also {
-            it.setKeepResPath(false)
-        }
+        ApkModule.loadApkFile(apkFile).use { apkModule ->
+            val xmlDecoder = ApkModuleXmlDecoder(apkModule).also {
+                it.setKeepResPath(false)
+            }
 
-        xmlDecoder.decode(workingDir)
-        xmlDecoder.dexDecoder = null
-        xmlDecoder.dexProfileDecoder = null
+            xmlDecoder.setDexDecoder { _, _ -> }
+            xmlDecoder.dexProfileDecoder = null
+            xmlDecoder.decode(workingDir)
 
-        // Delete all the dex files so they don't get built into the final resources.apk.
-        workingDir.resolve("dex").deleteRecursively()
-
-        // Update ARSCLib package metadata so the resources will be accessible under the correct package name.
-        workingDir.resolve("resources").listFiles { it.isDirectory }?.forEach { dir ->
-            val packageJson = JSONObject(dir.resolve("package.json"))
-            val packageName = packageJson.getString("package_name")
-            packageDirectories[packageName] = dir
+            // Update ARSCLib package metadata so the resources will be accessible under the correct package name.
+            workingDir.resolve("resources").listFiles { it.isDirectory }?.forEach { dir ->
+                val packageJson = JSONObject(dir.resolve("package.json"))
+                val packageName = packageJson.getString("package_name")
+                packageDirectories[packageName] = dir
+            }
         }
 
         StringsXmlSanitizeProcessor(
@@ -203,7 +218,8 @@ class ArsclibResourceCoder(
      */
     internal fun stripNativeLibraries() {
         if (keepArchitectures.isNotEmpty()) {
-            logger.info("Stripping libs (keeping architectures ${keepArchitectures.joinToString(", ")})")
+            logger.info("Stripping libs (keeping architectures " +
+                    "${keepArchitectures.joinToString(", ") { it.arch }})")
 
             var strippedLibCount = 0
             otherResourcesRootDirectory.resolve("lib")
@@ -271,7 +287,6 @@ class ArsclibResourceCoder(
         val encoder = ApkModuleXmlEncoder()
         encoder.apkModule.use { loadedModule ->
             loadedModule.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
-            lazyPackageInfo.value.externalFrameworks.forEach { loadedModule.addExternalFramework(it) }
             encoder.scanDirectory(workingDir)
             loadedModule.writeApk(outputApk)
         }
@@ -351,9 +366,12 @@ class ArsclibResourceCoder(
     }
 
     /**
-     * No-op, not currently supported by ArsclibResourceCoder.
+     * Returns the relative paths (in-zip APK paths, e.g: "lib/armeabi-v7a/libfoo.so")
+     * of files that existed at decode time but are no longer present on disk after
+     * patches and resource transformations have run. Populated by [detectFileChanges].
+     * [PatcherResult.applyTo] uses this set to exclude entries from the rebuilt apk when assembling the output from the original input.
      */
-    override fun getDeletedFiles(): Set<String> = emptySet()
+    override fun getDeletedFiles(): Set<String> = deletedFiles
 
     /**
      * Get a file from the working directory.
@@ -408,5 +426,13 @@ class ArsclibResourceCoder(
         val file = packageDirectories[pkgName]?.resolve(path) ?: throw PatchException("Package $pkgName not found")
 
         Files.deleteIfExists(file.toPath())
+    }
+
+    override fun close() {
+        packageDirectories.clear()
+        modifiedResResources.clear()
+        modifiedBinaryResources.clear()
+        deletedFiles.clear()
+        fileSnapshotCache = emptyMap()
     }
 }

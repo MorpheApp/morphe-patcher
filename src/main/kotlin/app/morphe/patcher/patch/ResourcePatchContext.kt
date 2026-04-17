@@ -13,10 +13,10 @@ import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.resource.ResourceMode
-import app.morphe.patcher.resource.coder.ApkToolResourceCoder
 import app.morphe.patcher.resource.coder.ArsclibResourceCoder
 import app.morphe.patcher.resource.coder.ResourceCoder
 import app.morphe.patcher.util.Document
+import java.io.Closeable
 import java.io.InputStream
 import java.util.logging.Logger
 
@@ -28,14 +28,10 @@ import java.util.logging.Logger
  */
 class ResourcePatchContext internal constructor(
     private val config: PatcherConfig,
-) : PatchContext<PatcherResult.PatchedResources?> {
+) : PatchContext<PatcherResult.PatchedResources?>, Closeable {
     private val logger = Logger.getLogger(ResourcePatchContext::class.java.name)
 
-    private val resourceCoder: ResourceCoder = if (config.useArsclib) {
-        ArsclibResourceCoder(config.apkFiles, config.apkFile, config.keepArchitectures)
-    } else {
-        ApkToolResourceCoder(config.apkFiles, config.resourceConfig, config.apkFile, config.keepArchitectures)
-    }
+    private val resourceCoder: ResourceCoder = ArsclibResourceCoder(config.apkFiles, config.apkFile, config.keepArchitectures)
 
     val packageMetadata = resourceCoder.getPackageMetadata()
 
@@ -114,4 +110,6 @@ class ResourcePatchContext internal constructor(
      */
     @Suppress("unused")
     fun delete(name: String, packageName: String? = null) = resourceCoder.deleteFile(name, packageName)
+
+    override fun close() = resourceCoder.close()
 }
