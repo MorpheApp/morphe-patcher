@@ -1,3 +1,10 @@
+# [1.4.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.6...v1.4.0-dev.7) (2026-04-17)
+
+
+### Bug Fixes
+
+* Separate out desugar libs into separate dex ([7fc7a9e](https://github.com/MorpheApp/morphe-patcher/commit/7fc7a9e8788e9167756edc596c4aeb85972e1fc3))
+
 # [1.4.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0-dev.5...v1.4.0-dev.6) (2026-04-16)
 
 
