@@ -33,7 +33,7 @@ class PatcherConfig(
     @Deprecated("apktool support is deprecated") private val frameworkFileDirectory: String? = null,
     @Deprecated("apktool support is deprecated") internal val useArsclib: Boolean = true,
     internal val keepArchitectures: Set<CpuArchitecture> = emptySet(),
-    internal val useBytecodeMode: BytecodeMode = BytecodeMode.STRIP_SAFE,
+    internal val useBytecodeMode: BytecodeMode = BytecodeMode.STRIP_FAST,
     internal val verifier: DexVerifier = NoOpDexVerifier,
 ) {
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)

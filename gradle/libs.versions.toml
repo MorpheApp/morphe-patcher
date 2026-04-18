@@ -10,7 +10,7 @@ kotlinx-coroutines-core = "1.10.2"
 kotlinx-serialization = "1.7.1"
 mockk = "1.14.6"
 # Tracking https://github.com/google/smali/issues/100.
-smali = "d92701d947"
+smali = "d856bad65f"
 
 [libraries]
 android = { module = "com.google.android:android", version.ref = "android" }
