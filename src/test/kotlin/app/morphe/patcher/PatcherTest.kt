@@ -487,11 +487,15 @@ internal object PatcherTest {
                 }
             }
 
-            val proxyFilter = ProxyFilterCounter(opcode(Opcode.CONST_4))
+            val proxyFilter = ProxyFilterCounter(
+                opcode(
+                    Opcode.CONST_4
+                )
+            )
             val fingerprint1 = Fingerprint(
                 filters = listOf(
                     proxyFilter,
-                    string("string_example")
+                    string("string_example", location = InstructionLocation.MatchAfterWithin(10000))
                 )
             )
 
@@ -587,7 +591,7 @@ internal object PatcherTest {
             )
             // Check all methods containing strings since it's contains.
             assertEquals(
-                9, proxyFilter.matchesCallCount,
+                5, proxyFilter.matchesCallCount,
                 "Number of expected filter calls did not match"
             )
 
