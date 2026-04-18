@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0...v1.4.1) (2026-04-18)
+
+
+### Bug Fixes
+
+* Bump smali version ([7c82594](https://github.com/MorpheApp/morphe-patcher/commit/7c82594bec04426a85e4147f71f9f76cb19b8272))
+
 ## [1.4.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0...v1.4.1-dev.1) (2026-04-18)
 
 
