@@ -1,3 +1,10 @@
+## [1.4.2-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.2-dev.1...v1.4.2-dev.2) (2026-04-19)
+
+
+### Bug Fixes
+
+* Update to Android tools 9.1.1 ([9779d9b](https://github.com/MorpheApp/morphe-patcher/commit/9779d9bcee0fb01dfd7bc44594936026e54da04c))
+
 ## [1.4.2-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.1...v1.4.2-dev.1) (2026-04-19)
 
 
