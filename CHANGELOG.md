@@ -1,3 +1,10 @@
+## [1.4.2-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.1...v1.4.2-dev.1) (2026-04-19)
+
+
+### Bug Fixes
+
+* Do not allow universal patches to be default on ([12a4fc1](https://github.com/MorpheApp/morphe-patcher/commit/12a4fc125634face6fe1b571178456fd3552ff3e))
+
 ## [1.4.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.0...v1.4.1) (2026-04-18)
 
 
