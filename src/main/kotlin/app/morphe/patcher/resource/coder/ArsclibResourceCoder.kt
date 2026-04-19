@@ -370,8 +370,13 @@ class ArsclibResourceCoder(
      * of files that existed at decode time but are no longer present on disk after
      * patches and resource transformations have run. Populated by [detectFileChanges].
      * [PatcherResult.applyTo] uses this set to exclude entries from the rebuilt apk when assembling the output from the original input.
+     * Defensive copy: [close] clears [deletedFiles], and callers commonly hold this result past the enclosing [Patcher] `use` block via
+     * [PatcherResult.PatchedResources.deleteResources]. Returning the raw reference caused applyTo to read an empty set and
+     * silently skip every deletion, leaving stripped native libs in the final APK.
+     * Adding a .toSet() returns an independent snapshot instead of a live reference to [deletedFiles].
+     * close() clears the backing field, and applyTo typically runs after the Patcher.use block exits.
      */
-    override fun getDeletedFiles(): Set<String> = deletedFiles
+    override fun getDeletedFiles(): Set<String> = deletedFiles.toSet()
 
     /**
      * Get a file from the working directory.

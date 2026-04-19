@@ -1370,4 +1370,40 @@ internal class ArsclibResourceCoderTest {
             "Expected 3 total deletions, got: $deleted"
         )
     }
+
+    /**
+     * Regression test for the bug where PatcherResult.applyTo silently skipped all
+     * native-lib deletions when invoked after the enclosing Patcher.use block exited.
+     * Root cause: getDeletedFiles() used to return the internal mutable deletedFiles field by reference.
+     * close() clears that field. Callers holding the returned Set (via PatcherResult.PatchedResources.deleteResources)
+     * saw an empty set after close(), so applyTo had nothing to delete.
+     * Fix: getDeletedFiles() now returns a defensive copy via .toSet().
+     */
+    @Test
+    fun `getDeletedFiles returns independent snapshot that survives close`(@TempDir tempDir: File) {
+        val archCoder = createCoderWithKeepArchitectures(tempDir,
+            setOf(CpuArchitecture.ARM64_V8A))
+
+        setupNativeLibDirs(listOf("arm64-v8a", "x86", "x86_64"))
+        archCoder.fileSnapshotCache = archCoder.buildFileSnapshot()
+        archCoder.stripNativeLibraries()
+        archCoder.detectFileChanges()
+
+        // Capture the returned set BEFORE close, mimicking what PatcherResult.PatchedResources.deleteResources does in real usage.
+        val snapshot = archCoder.getDeletedFiles()
+        val sizeBeforeClose = snapshot.size
+        assertTrue(sizeBeforeClose > 0, "Sanity check: strip should have produced deletions")
+
+        // close() clears the internal deletedFiles backing field.
+        archCoder.close()
+
+        // The previously-returned set must retain its contents. If getDeletedFiles() had returned the raw reference,
+        // close() would have cleared it and size would be 0.
+        assertEquals(
+            sizeBeforeClose,
+            snapshot.size,
+            "getDeletedFiles must return an independent snapshot. close() cleared the shared reference and caused the silent strip-libs failure."
+        )
+    }
+
 }
