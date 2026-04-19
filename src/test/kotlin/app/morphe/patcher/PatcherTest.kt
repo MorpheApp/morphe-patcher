@@ -11,10 +11,13 @@ package app.morphe.patcher
 import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatch
+import app.morphe.patcher.patch.Compatibility
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.PatchResult
 import app.morphe.patcher.patch.bytecodePatch
+import app.morphe.patcher.patch.rawResourcePatch
+import app.morphe.patcher.patch.resourcePatch
 import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.util.PatchClasses
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
@@ -31,19 +34,17 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
-import jdk.internal.module.ModuleBootstrap.patcher
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.assertAll
+import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
 import java.util.logging.Logger
-import kotlin.reflect.KClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 internal object PatcherTest {
@@ -177,6 +178,40 @@ internal object PatcherTest {
             execute { executed += "2" }
             finalize { throw PatchException("-1") }
         } produces listOf("1", "2", "-2")
+    }
+
+    @Test
+    fun `universal patch that is default on`() {
+        Patch.throwExeptionOnUniversalPatchDefaultOn = true
+
+        assertThrows<IllegalArgumentException> {
+            bytecodePatch(name = "Test", default = true) {
+                compatibleWith(Compatibility())
+
+            }.execute(patcher.context.bytecodeContext)
+        }
+
+        assertThrows<IllegalArgumentException> {
+            rawResourcePatch(name = "Test", default = true) {
+                compatibleWith(Compatibility())
+
+            }.execute(patcher.context.resourceContext)
+        }
+
+        assertThrows<IllegalArgumentException> {
+            resourcePatch(name = "Test", default = true) {
+                compatibleWith(Compatibility())
+
+            }.execute(patcher.context.resourceContext)
+        }
+
+        // Sanity check.
+        assertDoesNotThrow {
+            bytecodePatch(name = "Test", default = true) {
+                compatibleWith(Compatibility(packageName = "test.app"))
+
+            }.execute(patcher.context.bytecodeContext)
+        }
     }
 
     @Test

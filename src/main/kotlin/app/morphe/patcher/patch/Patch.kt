@@ -15,7 +15,7 @@ import java.net.URLClassLoader
 import java.nio.file.Files
 import java.util.function.Supplier
 import java.util.jar.JarFile
-import kotlin.collections.flatten
+import java.util.logging.Logger
 
 @Deprecated("Use Compatibility instead")
 typealias PackageName = String
@@ -76,6 +76,20 @@ sealed class Patch<C : PatchContext<*>>(
         finalizeBlock = finalizeBlock
     )
 
+    init {
+        if (default && compatibility?.any { it.packageName == null } == true) {
+            val message = "Universal patches cannot be enabled by default. " +
+                    "Either set 'default = false' or add a Compatibility package. " +
+                    "This warning will become an patch exception in a future release."
+
+            if (throwExeptionOnUniversalPatchDefaultOn) {
+                throw IllegalArgumentException(message)
+            } else {
+                Logger.getLogger(Patch::class.java.name).warning (message)
+            }
+        }
+    }
+
     /**
      * Legacy format. Experimental app targets are not present in this format.
      */
@@ -130,6 +144,11 @@ sealed class Patch<C : PatchContext<*>>(
 
     override fun toString() = name ?: 
         "Patch@${System.identityHashCode(this)}"
+
+    internal companion object {
+        // TODO: Change this to true and inline.
+        var throwExeptionOnUniversalPatchDefaultOn = false
+    }
 }
 
 internal fun Patch<*>.anyRecursively(
