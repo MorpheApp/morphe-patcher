@@ -1,3 +1,10 @@
+## [1.4.2-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.2-dev.2...v1.4.2-dev.3) (2026-04-20)
+
+
+### Bug Fixes
+
+* Return defensive copy from `ArsclibResourceCoder.getDeletedFiles` ([#119](https://github.com/MorpheApp/morphe-patcher/issues/119)) ([b0e2dc8](https://github.com/MorpheApp/morphe-patcher/commit/b0e2dc872cdb091db546ea8c450ddeb127badd7a))
+
 ## [1.4.2-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.2-dev.1...v1.4.2-dev.2) (2026-04-19)
 
 
