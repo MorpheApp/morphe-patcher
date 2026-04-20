@@ -1,3 +1,12 @@
+## [1.4.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.1...v1.4.2) (2026-04-20)
+
+
+### Bug Fixes
+
+* Do not allow universal patches to be default on ([12a4fc1](https://github.com/MorpheApp/morphe-patcher/commit/12a4fc125634face6fe1b571178456fd3552ff3e))
+* Return defensive copy from `ArsclibResourceCoder.getDeletedFiles` ([#119](https://github.com/MorpheApp/morphe-patcher/issues/119)) ([b0e2dc8](https://github.com/MorpheApp/morphe-patcher/commit/b0e2dc872cdb091db546ea8c450ddeb127badd7a))
+* Update to Android tools 9.1.1 ([9779d9b](https://github.com/MorpheApp/morphe-patcher/commit/9779d9bcee0fb01dfd7bc44594936026e54da04c))
+
 ## [1.4.2-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.2-dev.2...v1.4.2-dev.3) (2026-04-20)
 
 
