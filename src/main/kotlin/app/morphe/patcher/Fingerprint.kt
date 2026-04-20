@@ -502,6 +502,10 @@ open class Fingerprint private constructor(
                                 return null // First filter has no more matches to start from.
                             }
 
+                            if (location is InstructionLocation.MatchAfterAnywhere) {
+                                return null // Filter does not match anywhere, no need to continue.
+                            }
+
                             // Try again with the first filter, starting from
                             // the next possible first filter index.
                             firstInstructionIndex = firstFilterIndex + 1
