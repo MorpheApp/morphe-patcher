@@ -6,6 +6,8 @@
 package app.morphe.patcher.resource.coder
 
 import app.morphe.patcher.PackageMetadata
+import app.morphe.patcher.Patcher
+import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.PathMap
@@ -13,9 +15,9 @@ import app.morphe.patcher.resource.PublicXmlManager
 import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.resource.UncompressedFiles
 import app.morphe.patcher.resource.processor.AaptMacroProcessor
-import app.morphe.patcher.resource.processor.StringsXmlEscapeProcessor
 import app.morphe.patcher.resource.processor.PackageRenamingProcessor
 import app.morphe.patcher.resource.processor.ResourceIdProcessor
+import app.morphe.patcher.resource.processor.StringsXmlEscapeProcessor
 import app.morphe.patcher.resource.processor.StringsXmlSanitizeProcessor
 import app.morphe.patcher.resource.processor.StringsXmlUnEscapeProcessor
 import app.morphe.patcher.util.Document
@@ -369,12 +371,15 @@ class ArsclibResourceCoder(
      * Returns the relative paths (in-zip APK paths, e.g: "lib/armeabi-v7a/libfoo.so")
      * of files that existed at decode time but are no longer present on disk after
      * patches and resource transformations have run. Populated by [detectFileChanges].
-     * [PatcherResult.applyTo] uses this set to exclude entries from the rebuilt apk when assembling the output from the original input.
-     * Defensive copy: [close] clears [deletedFiles], and callers commonly hold this result past the enclosing [Patcher] `use` block via
-     * [PatcherResult.PatchedResources.deleteResources]. Returning the raw reference caused applyTo to read an empty set and
-     * silently skip every deletion, leaving stripped native libs in the final APK.
-     * Adding a .toSet() returns an independent snapshot instead of a live reference to [deletedFiles].
-     * close() clears the backing field, and applyTo typically runs after the Patcher.use block exits.
+     * [PatcherResult] uses this set to exclude entries from the rebuilt apk when
+     * assembling the output from the original input.
+     *
+     * Defensive copy: [close] clears [deletedFiles], and callers commonly hold this result past
+     * the enclosing [Patcher] `use` block via [PatcherResult.PatchedResources.deleteResources].
+     * Returning the raw reference caused `applyTo` to read an empty set and silently skip every
+     * deletion, leaving stripped native libs in the final APK. Adding a `.toSet()` returns an
+     * independent snapshot instead of a live reference to [deletedFiles] `.close()` clears the
+     * backing field, and `applyTo` typically runs after the [Patcher] `.use` block exits.
      */
     override fun getDeletedFiles(): Set<String> = deletedFiles.toSet()
 
