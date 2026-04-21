@@ -41,6 +41,17 @@ enum class ApkFileType {
         get() = name.endsWith("_REQUIRED")
 }
 
+enum class SupportedAbi {
+    ARM64_V8A,
+    ARMEABI_V7A,
+    X86_64,
+    X86,
+    UNIVERSAL
+}
+
+typealias AppCode = Int
+
+
 /**
  * Instances are sortable from lowest to highest version, with any version (null) last.
  * Semantic versioning is handled and sorts correctly in situations such as 1.1.0 > 1.0.02
@@ -53,12 +64,14 @@ enum class ApkFileType {
  *   Null means any SDK version.
  * @param description User facing description of the app target, such as why the user may want
  *   to patch this specific app version.
+ *  @param appCodes The recommended app codes //TODO
  */
 data class AppTarget(
     val version: String?,
     val isExperimental: Boolean = false,
     val minSdk: Int? = null,
-    val description: String? = null
+    val description: String? = null,
+    val appCodes: Map<SupportedAbi, AppCode>? = null
 ) : Comparable<AppTarget> {
 
     private val semanticParts: List<Int>? = parseSemantic(version)
@@ -68,7 +81,27 @@ data class AppTarget(
         version: String?,
         isExperimental: Boolean = false,
         minSdk: Int? = null,
-    ) : this(version = version, isExperimental = isExperimental, minSdk = minSdk, description = null)
+    ) : this(
+        version = version,
+        isExperimental = isExperimental,
+        minSdk = minSdk,
+        description = null,
+        appCodes = null
+    )
+
+    // @Deprecated("Here only for binary backwards compatibility") // TODO: Remove after next major version bump.
+    constructor(
+        version: String?,
+        isExperimental: Boolean = false,
+        minSdk: Int? = null,
+        description: String? = null
+    ) : this(
+        version = version,
+        isExperimental = isExperimental,
+        minSdk = minSdk,
+        description = null,
+        appCodes = null
+    )
 
     /**
      * Comparison using only the version field.
