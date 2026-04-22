@@ -422,6 +422,7 @@ internal object CompatibilityTest {
         )
         versionCodes = compatibility.targets.first().versionCodes!!
 
+        assertEquals(4, versionCodes.count())
         assertTrue(versionCodes.all { it.value == 500 })
     }
 }

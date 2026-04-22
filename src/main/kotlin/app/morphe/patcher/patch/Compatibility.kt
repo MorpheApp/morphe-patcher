@@ -45,8 +45,7 @@ enum class SupportedAbi {
     ARM64_V8A,
     ARMEABI_V7A,
     X86_64,
-    X86,
-    UNIVERSAL
+    X86
 }
 
 /**
