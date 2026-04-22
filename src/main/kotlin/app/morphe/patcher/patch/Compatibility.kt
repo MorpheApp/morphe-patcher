@@ -49,9 +49,6 @@ enum class SupportedAbi {
     UNIVERSAL
 }
 
-typealias AppCode = Int
-
-
 /**
  * Instances are sortable from lowest to highest version, with any version (null) last.
  * Semantic versioning is handled and sorts correctly in situations such as 1.1.0 > 1.0.02
