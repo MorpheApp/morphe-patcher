@@ -952,39 +952,37 @@ class Match internal constructor(
         /**
          * Returns the mutable method of a method call instruction.
          * This may only be used on filters that match method calls such as [methodCall]
-         * or [opcode] with an `INVOKE` [Opcode].
+         * or [opcode] with an `INVOKE_*` [Opcode].
          */
         context(BytecodePatchContext)
-        val methodCall: MutableMethod
-            get() {
-                require(instruction is ReferenceInstruction && instruction.reference is MethodReference) {
-                    "Matched instruction is not a method call: $instruction"
-                }
-
-                val methodReference = instruction.reference as MethodReference
-                return mutableClassDefBy(methodReference.definingClass).methods.first { classMethod ->
-                    MethodUtil.methodSignaturesMatch(classMethod, methodReference)
-                }
+        fun getCalledMethod(): MutableMethod {
+            require(instruction is ReferenceInstruction && instruction.reference is MethodReference) {
+                "Matched instruction is not a method call: $instruction"
             }
+
+            val methodReference = instruction.reference as MethodReference
+            return mutableClassDefBy(methodReference.definingClass).methods.first { classMethod ->
+                MethodUtil.methodSignaturesMatch(classMethod, methodReference)
+            }
+        }
 
         /**
          * Returns the mutable method of a field access instruction.
          * This may only be used on filters that match method calls such as [fieldAccess]
-         * or [opcode] with an `_GET`/`_PUT` [Opcode].
+         * or [opcode] with a `GET`/`PUT` [Opcode].
          */
         context(BytecodePatchContext)
-        val fieldAccess: MutableField
-            get() {
-                require(instruction is ReferenceInstruction && instruction.reference is FieldReference) {
-                    "Matched instruction is not a a field access call: $instruction"
-                }
-
-                val fieldReference = instruction.reference as FieldReference
-                val mutableClass = mutableClassDefBy(fieldReference.definingClass)
-                return mutableClass.fields.first { classField ->
-                    classField.type == fieldReference.type && classField.name == fieldReference.name
-                }
+        fun getAccessedField(): MutableField {
+            require(instruction is ReferenceInstruction && instruction.reference is FieldReference) {
+                "Matched instruction is not a a field access call: $instruction"
             }
+
+            val fieldReference = instruction.reference as FieldReference
+            val mutableClass = mutableClassDefBy(fieldReference.definingClass)
+            return mutableClass.fields.first { classField ->
+                classField.type == fieldReference.type && classField.name == fieldReference.name
+            }
+        }
 
         override fun toString(): String {
             return "InstructionMatch{filter='${filter.javaClass.simpleName}, opcode='${instruction.opcode}, 'index=$index}"
