@@ -65,14 +65,13 @@ enum class SupportedAbi {
  *   Null means any SDK version.
  * @param description User facing description of the app target, such as why the user may want
  *   to patch this specific app version.
-
  */
 data class AppTarget(
     val version: String?,
     val versionCodes: Map<SupportedAbi, Int>? = null,
     val isExperimental: Boolean = false,
     val minSdk: Int? = null,
-    val description: String? = null,
+    val description: String? = null
 ) : Comparable<AppTarget> {
 
     private val semanticParts: List<Int>? = parseSemantic(version)
