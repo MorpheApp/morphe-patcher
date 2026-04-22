@@ -388,4 +388,37 @@ internal object CompatibilityTest {
         }
     }
 
+    @Test
+    fun `app version code`() {
+        var compatibility = Compatibility(
+            name = "Example app",
+            packageName = "compatible.package",
+            targets = listOf(
+                AppTarget(
+                    version = "1.0.0", versionCodes = mapOf(
+                        SupportedAbi.X86_64 to 100,
+                        SupportedAbi.X86 to 200,
+                        SupportedAbi.ARMEABI_V7A to 300,
+                        SupportedAbi.ARM64_V8A to 400
+                    )
+                )
+            )
+        )
+
+        var versionCodes = compatibility.targets.first().versionCodes!!
+
+        assertEquals(4, versionCodes.count())
+        assertEquals(400, versionCodes[SupportedAbi.ARM64_V8A])
+
+        compatibility = Compatibility(
+            name = "Example app",
+            packageName = "compatible.package",
+            targets = listOf(
+                AppTarget(version = "1.0.0", versionCode = 500)
+            )
+        )
+        versionCodes = compatibility.targets.first().versionCodes!!
+
+        assertTrue(versionCodes.all { it.value == 500 })
+    }
 }

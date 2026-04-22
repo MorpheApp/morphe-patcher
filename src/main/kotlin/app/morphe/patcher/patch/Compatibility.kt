@@ -56,22 +56,47 @@ enum class SupportedAbi {
  *
  * @param version Version string. Null means any version and additionally can be used to
  *   indicate any version is supported experimentally.
+ *  @param versionCodes Required app version codes. If the map is null, or an architecture
+ *   key value is null, then any app version is assumed to work. This declaration is only required
+ *   for apps that can have multiple releases under the same user facing version string (ie: 5.2.1)
+ *   but only one specific release is supported or recommended. This is common with Meta apps
+ *   but uncommon with most other apps.
  * @param isExperimental If this app target is supported under an experimental capacity.
  * @param minSdk Minimum device SDK version as found in [android.os.Build.VERSION_CODES].
  *   Null means any SDK version.
  * @param description User facing description of the app target, such as why the user may want
  *   to patch this specific app version.
- *  @param appCodes The recommended app codes //TODO
+
  */
 data class AppTarget(
     val version: String?,
+    val versionCodes: Map<SupportedAbi, Int>? = null,
     val isExperimental: Boolean = false,
     val minSdk: Int? = null,
     val description: String? = null,
-    val appCodes: Map<SupportedAbi, AppCode>? = null
 ) : Comparable<AppTarget> {
 
     private val semanticParts: List<Int>? = parseSemantic(version)
+
+    /**
+     * Convenience constructor for a universal APK app target,
+     * where a specific app version is required.
+     *
+     * @param versionCode Specific required app version code.
+     */
+    constructor(
+        version: String,
+        versionCode: Int,
+        isExperimental: Boolean = false,
+        minSdk: Int? = null,
+        description: String? = null,
+    ) : this(
+        version = version,
+        versionCodes = SupportedAbi.entries.associateWith { versionCode },
+        isExperimental = isExperimental,
+        minSdk = minSdk,
+        description = null
+    )
 
     // @Deprecated("Here only for binary backwards compatibility") // TODO: Remove after next major version bump.
     constructor(
@@ -80,10 +105,10 @@ data class AppTarget(
         minSdk: Int? = null,
     ) : this(
         version = version,
+        versionCodes = null,
         isExperimental = isExperimental,
         minSdk = minSdk,
-        description = null,
-        appCodes = null
+        description = null
     )
 
     // @Deprecated("Here only for binary backwards compatibility") // TODO: Remove after next major version bump.
@@ -94,10 +119,10 @@ data class AppTarget(
         description: String? = null
     ) : this(
         version = version,
+        versionCodes = null,
         isExperimental = isExperimental,
         minSdk = minSdk,
-        description = null,
-        appCodes = null
+        description = null
     )
 
     /**
