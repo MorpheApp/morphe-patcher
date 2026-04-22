@@ -398,7 +398,6 @@ internal object CompatibilityTest {
                 AppTarget(
                     version = "1.0.0", versionCodes = mapOf(
                         SupportedAbi.X86_64 to 100,
-                        SupportedAbi.X86 to 200,
                         SupportedAbi.ARMEABI_V7A to 300,
                         SupportedAbi.ARM64_V8A to 400
                     )
@@ -408,7 +407,10 @@ internal object CompatibilityTest {
 
         var versionCodes = compatibility.targets.first().versionCodes!!
 
-        assertEquals(4, versionCodes.count())
+        assertEquals(3, versionCodes.count())
+        assertEquals(100, versionCodes[SupportedAbi.X86_64])
+        assertEquals(null, versionCodes[SupportedAbi.X86])
+        assertEquals(300, versionCodes[SupportedAbi.ARMEABI_V7A])
         assertEquals(400, versionCodes[SupportedAbi.ARM64_V8A])
 
         // Universal APK
