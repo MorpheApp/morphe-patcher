@@ -338,4 +338,54 @@ internal object CompatibilityTest {
             sorted
         )
     }
+
+    @Test
+    fun `compatibility color string`() {
+        val colorString = Compatibility(
+            name = "Example app",
+            packageName = "compatible.package",
+            targets = listOf(
+                AppTarget(version = "1.1.0", isExperimental = true),
+                AppTarget(version = "1.0.0", isExperimental = true)
+            ),
+            appIconColor = "#FF0000"
+        )
+
+        val colorInt = Compatibility(
+            name = "Example app",
+            packageName = "compatible.package",
+            targets = listOf(
+                AppTarget(version = "1.1.0", isExperimental = true),
+                AppTarget(version = "1.0.0", isExperimental = true)
+            ),
+            appIconColor = 0xFF0000
+        )
+
+        assertEquals(colorString.appIconColor,  colorInt.appIconColor)
+
+        assertThrows<Exception> {
+            Compatibility(
+                name = "Example app",
+                packageName = "compatible.package",
+                targets = listOf(
+                    AppTarget(version = "1.1.0", isExperimental = true),
+                    AppTarget(version = "1.0.0", isExperimental = true)
+                ),
+                appIconColor = "#00FF0000"
+            )
+        }
+
+        assertThrows<Exception> {
+            Compatibility(
+                name = "Example app",
+                packageName = "compatible.package",
+                targets = listOf(
+                    AppTarget(version = "1.1.0", isExperimental = true),
+                    AppTarget(version = "1.0.0", isExperimental = true)
+                ),
+                appIconColor = "#0000"
+            )
+        }
+    }
+
 }

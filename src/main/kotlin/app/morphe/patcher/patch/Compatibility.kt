@@ -261,10 +261,7 @@ data class Compatibility(
                 "App icon color must be #RRGGBB format: $color"
             }
 
-            val rgb = color.removePrefix("#").toInt(16)
-
-            // force full opacity
-            return rgb or 0xFF000000.toInt()
+            return color.removePrefix("#").toInt(16)
         }
 
         fun fromLegacy(legacy: Pair<String, Set<String>?>): Compatibility {
