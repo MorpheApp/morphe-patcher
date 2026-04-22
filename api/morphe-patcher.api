@@ -892,7 +892,6 @@ public final class app/morphe/patcher/patch/ResourcePatchContext : app/morphe/pa
 public final class app/morphe/patcher/patch/SupportedAbi : java/lang/Enum {
 	public static final field ARM64_V8A Lapp/morphe/patcher/patch/SupportedAbi;
 	public static final field ARMEABI_V7A Lapp/morphe/patcher/patch/SupportedAbi;
-	public static final field UNIVERSAL Lapp/morphe/patcher/patch/SupportedAbi;
 	public static final field X86 Lapp/morphe/patcher/patch/SupportedAbi;
 	public static final field X86_64 Lapp/morphe/patcher/patch/SupportedAbi;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
