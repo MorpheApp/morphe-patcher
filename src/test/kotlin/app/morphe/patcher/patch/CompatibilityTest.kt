@@ -426,5 +426,18 @@ internal object CompatibilityTest {
 
         assertEquals(4, versionCodes.count())
         assertTrue(versionCodes.all { it.value == 500 })
+
+
+        // No version codes
+        compatibility = Compatibility(
+            name = "Example app",
+            packageName = "compatible.package",
+            apkFileType = ApkFileType.APK,
+            targets = listOf(
+                AppTarget(version = "1.0.0")
+            )
+        )
+
+        assertEquals(null, compatibility.targets.first().versionCodes)
     }
 }
