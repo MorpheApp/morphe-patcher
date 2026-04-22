@@ -393,6 +393,7 @@ internal object CompatibilityTest {
         var compatibility = Compatibility(
             name = "Example app",
             packageName = "compatible.package",
+            apkFileType = ApkFileType.APKM,
             targets = listOf(
                 AppTarget(
                     version = "1.0.0", versionCodes = mapOf(
@@ -410,9 +411,11 @@ internal object CompatibilityTest {
         assertEquals(4, versionCodes.count())
         assertEquals(400, versionCodes[SupportedAbi.ARM64_V8A])
 
+        // Universal APK
         compatibility = Compatibility(
             name = "Example app",
             packageName = "compatible.package",
+            apkFileType = ApkFileType.APK,
             targets = listOf(
                 AppTarget(version = "1.0.0", versionCode = 500)
             )
