@@ -222,6 +222,26 @@ data class Compatibility(
         packageName to legacyStringTargets
     }
 
+    /**
+     * This [Compatibility] but with additional [AppTarget] versions.
+     */
+    fun including(vararg targets: AppTarget): Compatibility {
+        return copy(targets = this.targets + targets)
+    }
+
+    /**
+     * This [Compatibility] but excluding all app targets with the
+     * specified [AppTarget.version] version strings.
+     */
+    fun excluding(vararg versions: String): Compatibility {
+        val versionSet = versions.toSet()
+        val updatedTargets = targets
+            .filter { it.version !in versionSet }
+            .ifEmpty { listOf(AppTarget(version = null)) }
+
+        return copy(targets = updatedTargets)
+    }
+
     internal companion object {
         private fun parseColor(color: String): Int {
             require(color.startsWith('#') && color.length == 7) {
