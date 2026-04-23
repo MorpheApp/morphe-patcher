@@ -1,3 +1,10 @@
+# [1.5.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.2...v1.5.0-dev.1) (2026-04-23)
+
+
+### Features
+
+* `AppTarget` `versionCodes` field to restrict patching to specific version code releases ([#120](https://github.com/MorpheApp/morphe-patcher/issues/120)) ([393fc8f](https://github.com/MorpheApp/morphe-patcher/commit/393fc8f81b9b1ce307bd68577f8b80d2ea9402c6))
+
 ## [1.4.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.1...v1.4.2) (2026-04-20)
 
 
