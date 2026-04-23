@@ -180,7 +180,7 @@ internal object CompatibilityTest {
     }
 
     @Test
-    fun `including`() {
+    fun `including excluding`() {
         val version_1 = Compatibility(
             name = "Example app",
             packageName = "compatible.package",
@@ -193,6 +193,16 @@ internal object CompatibilityTest {
             name = "Example app",
             packageName = "compatible.package",
             targets = listOf(
+                AppTarget(version = "1.0.0"),
+                AppTarget(version = "2.0.0")
+            )
+        )
+
+        val version1_2_any = Compatibility(
+            name = "Example app",
+            packageName = "compatible.package",
+            targets = listOf(
+                AppTarget(version = null),
                 AppTarget(version = "1.0.0"),
                 AppTarget(version = "2.0.0")
             )
@@ -224,6 +234,16 @@ internal object CompatibilityTest {
         assertEquals(
             version1_2.excluding("1.0.0", "2.0.0"),
             version_any
+        )
+
+        assertEquals(
+            version1_2_any.excluding("1.0.0", "2.0.0"),
+            version_any
+        )
+
+        assertEquals(
+            version1_2_any.excluding(null, "2.0.0"),
+            version_1
         )
     }
 

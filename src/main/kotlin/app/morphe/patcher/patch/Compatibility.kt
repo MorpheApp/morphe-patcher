@@ -233,7 +233,7 @@ data class Compatibility(
      * This [Compatibility] but excluding all app targets with the
      * specified [AppTarget.version] version strings.
      */
-    fun excluding(vararg versions: String): Compatibility {
+    fun excluding(vararg versions: String?): Compatibility {
         val versionSet = versions.toSet()
         val updatedTargets = targets
             .filter { it.version !in versionSet }
