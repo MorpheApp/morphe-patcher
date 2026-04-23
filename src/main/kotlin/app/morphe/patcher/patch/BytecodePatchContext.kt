@@ -242,7 +242,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      *
      * @return A [MethodNavigator] for the method.
      */
-    @Deprecated("Instead use Fingerprint instruction match `methodCall` field," +
+    @Deprecated("Instead use Fingerprint instruction match `getMethodCalled()`," +
             " or lookup a method from an index using BytecodeUtils MethodReference.getMutableMethod()")
     fun navigate(method: MethodReference) = MethodNavigator(method)
 
