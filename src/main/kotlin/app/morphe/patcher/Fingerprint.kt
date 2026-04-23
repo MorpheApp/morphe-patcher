@@ -955,7 +955,7 @@ class Match internal constructor(
          * or [opcode] with an `INVOKE_*` [Opcode].
          */
         context(BytecodePatchContext)
-        fun getCalledMethod(): MutableMethod {
+        fun getMethodCalled(): MutableMethod {
             require(instruction is ReferenceInstruction && instruction.reference is MethodReference) {
                 "Matched instruction is not a method call: $instruction"
             }
@@ -972,7 +972,7 @@ class Match internal constructor(
          * or [opcode] with a `GET`/`PUT` [Opcode].
          */
         context(BytecodePatchContext)
-        fun getAccessedField(): MutableField {
+        fun getFieldAccessed(): MutableField {
             require(instruction is ReferenceInstruction && instruction.reference is FieldReference) {
                 "Matched instruction is not a a field access call: $instruction"
             }

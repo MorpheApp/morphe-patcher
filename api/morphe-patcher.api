@@ -226,12 +226,12 @@ public final class app/morphe/patcher/Match {
 }
 
 public final class app/morphe/patcher/Match$InstructionMatch {
-	public final fun getAccessedField (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableField;
-	public final fun getCalledMethod (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public final fun getFieldAccessed (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableField;
 	public final fun getFilter ()Lapp/morphe/patcher/InstructionFilter;
 	public final fun getIndex ()I
 	public final fun getInstruction ()Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;
 	public final fun getInstruction ()Ljava/lang/Object;
+	public final fun getMethodCalled (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
 	public fun toString ()Ljava/lang/String;
 }
 
