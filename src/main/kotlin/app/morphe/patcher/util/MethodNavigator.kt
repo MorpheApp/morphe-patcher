@@ -23,7 +23,7 @@ import kotlin.reflect.KProperty
  * @throws NavigateException If the method does not have an implementation.
  * @throws NavigateException If the instruction at the specified index is not a method reference.
  */
-@Deprecated("Instead use Fingerprint instruction match `methodCall` field," +
+@Deprecated("Instead use Fingerprint instruction match `getMethodCalled()`," +
         " or lookup a method from an index using BytecodeUtils MethodReference.getMutableMethod()")
 context(BytecodePatchContext)
 class MethodNavigator internal constructor(
