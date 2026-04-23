@@ -5,6 +5,10 @@
 
 package app.morphe.patcher.patch
 
+import android.R.attr.versionCode
+import kotlin.collections.all
+import kotlin.collections.isNotEmpty
+
 private val SHA_256_REGEX = Regex("^[0-9a-fA-F]{64}$")
 
 /**
@@ -122,6 +126,12 @@ data class AppTarget(
         minSdk = minSdk,
         description = null
     )
+
+    init {
+        if (version == null && !versionCodes.isNullOrEmpty()) {
+            throw IllegalArgumentException("Version codes requires declaring a version string")
+        }
+    }
 
     /**
      * Comparison using only the version field.

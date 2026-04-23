@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.patch
 
+import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -439,5 +440,14 @@ internal object CompatibilityTest {
         )
 
         assertEquals(null, compatibility.targets.first().versionCodes)
+
+
+        assertThrows<IllegalArgumentException> {
+            AppTarget(version = null, versionCodes = mapOf(SupportedAbi.ARM64_V8A to 123))
+        }
+
+        assertDoesNotThrow {
+            AppTarget(version = null, versionCodes = mapOf())
+        }
     }
 }
