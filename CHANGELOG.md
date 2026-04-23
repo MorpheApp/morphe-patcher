@@ -1,3 +1,10 @@
+# [1.5.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.0-dev.1...v1.5.0-dev.2) (2026-04-23)
+
+
+### Features
+
+* Instruction match helper methods to get a called method or accessed field ([#121](https://github.com/MorpheApp/morphe-patcher/issues/121)) ([4908e7b](https://github.com/MorpheApp/morphe-patcher/commit/4908e7bd97e7e4155f72cec749d0d16a76d554f7))
+
 # [1.5.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.2...v1.5.0-dev.1) (2026-04-23)
 
 
