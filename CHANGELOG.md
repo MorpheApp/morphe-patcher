@@ -1,3 +1,10 @@
+# [1.5.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.0-dev.2...v1.5.0-dev.3) (2026-04-24)
+
+
+### Features
+
+* `Compatibility` `including()` and `excluding()` methods ([#122](https://github.com/MorpheApp/morphe-patcher/issues/122)) ([1e0f468](https://github.com/MorpheApp/morphe-patcher/commit/1e0f468db2f834af87b3cfecb30f5ec7723e614b))
+
 # [1.5.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.0-dev.1...v1.5.0-dev.2) (2026-04-23)
 
 
