@@ -5,7 +5,7 @@ package app.morphe.patcher.patch
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherContext
 import app.morphe.patcher.dex.DexReadWrite
-import dalvik.system.DexClassLoader
+import dalvik.system.PathClassLoader
 import java.io.File
 import java.io.InputStream
 import java.lang.reflect.Member
@@ -756,12 +756,10 @@ sealed class PatchLoader(
      * A [PatchLoader] for [Dex] files.
      *
      * @param patchesFiles The DEX files to load the patches from.
-     * @param optimizedDexDirectory The directory to store optimized DEX files in.
-     * This parameter is deprecated and has no effect since API level 26.
      *
      * @constructor Create a new [PatchLoader] for [Dex] files.
      */
-    class Dex(patchesFiles: Set<File>, optimizedDexDirectory: File? = null) :
+    class Dex(patchesFiles: Set<File>) :
         PatchLoader(
             patchesFiles,
             { patchBundle ->
@@ -772,10 +770,8 @@ sealed class PatchLoader(
                         classDef.type.substring(1, classDef.length - 1)
                     }
             },
-            DexClassLoader(
+            PathClassLoader(
                 patchesFiles.joinToString(File.pathSeparator) { it.absolutePath },
-                optimizedDexDirectory?.absolutePath,
-                null,
                 this::class.java.classLoader,
             ),
         )
@@ -853,5 +849,5 @@ fun loadPatchesFromJar(patchesFiles: Set<File>) =
  *
  * @return The loaded patches.
  */
-fun loadPatchesFromDex(patchesFiles: Set<File>, optimizedDexDirectory: File? = null) =
-    PatchLoader.Dex(patchesFiles, optimizedDexDirectory)
+fun loadPatchesFromDex(patchesFiles: Set<File>) =
+    PatchLoader.Dex(patchesFiles)
