@@ -9,6 +9,7 @@ import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 internal object CompatibilityTest {
@@ -48,7 +49,7 @@ internal object CompatibilityTest {
         )
 
         var compatibility = Compatibility(
-            name ="Example app",
+            name = "Example app",
             packageName = "compatible.package",
             targets = listOf(
                 AppTarget(version = null),
@@ -59,7 +60,7 @@ internal object CompatibilityTest {
         assertEquals(null, compatibility.legacy!!.second)
 
         compatibility = Compatibility(
-            name ="Example app",
+            name = "Example app",
             packageName = "compatible.package",
             targets = listOf(
                 AppTarget(version = null, isExperimental = true),
@@ -89,7 +90,7 @@ internal object CompatibilityTest {
     @Test
     fun `legacy experimental declaration`() {
         val compatibility = Compatibility(
-            name ="Example app",
+            name = "Example app",
             packageName = "compatible.package",
             targets = listOf(
                 AppTarget(version = "1.1.0", isExperimental = true),
@@ -127,7 +128,7 @@ internal object CompatibilityTest {
     @Test
     fun `universal app`() {
         var compatibility = Compatibility(
-            name ="Example app",
+            name = "Example app",
             targets = listOf(AppTarget(version = null, minSdk = 26))
         )
 
@@ -147,7 +148,7 @@ internal object CompatibilityTest {
     fun `duplicate versions`() {
         assertThrows<Exception> {
             Compatibility(
-                name ="Example app",
+                name = "Example app",
                 packageName = "compatible.package",
                 targets = listOf(
                     AppTarget(version = "1.0.0"),
@@ -158,7 +159,7 @@ internal object CompatibilityTest {
 
         assertThrows<Exception> {
             Compatibility(
-                name ="Example app",
+                name = "Example app",
                 packageName = "compatible.package",
                 targets = listOf(
                     AppTarget(version = "1.0.0", isExperimental = true),
@@ -169,7 +170,7 @@ internal object CompatibilityTest {
 
         assertThrows<Exception> {
             Compatibility(
-                name ="Example app",
+                name = "Example app",
                 packageName = "compatible.package",
                 targets = listOf(
                     AppTarget(version = null, isExperimental = true),
@@ -177,6 +178,87 @@ internal object CompatibilityTest {
                 )
             )
         }
+    }
+
+    @Test
+    fun `including excluding`() {
+        val version_1 = Compatibility(
+            name = "Example app",
+            packageName = "compatible.package",
+            targets = listOf(
+                AppTarget(version = "1.0.0")
+            )
+        )
+
+        val version1_2 = Compatibility(
+            name = "Example app",
+            packageName = "compatible.package",
+            targets = listOf(
+                AppTarget(version = "2.0.0"),
+                AppTarget(version = "1.0.0")
+            )
+        )
+
+        val version1_2_any = Compatibility(
+            name = "Example app",
+            packageName = "compatible.package",
+            targets = listOf(
+                AppTarget(version = null),
+                AppTarget(version = "2.0.0"),
+                AppTarget(version = "1.0.0")
+            )
+        )
+
+        val version_any = Compatibility(
+            name = "Example app",
+            packageName = "compatible.package",
+        )
+
+        assertNotEquals(version_1, version1_2)
+        assertNotEquals(version1_2, version_any)
+
+        assertEquals(
+            version1_2,
+            version_1.including(AppTarget(version = "2.0.0")),
+        )
+
+        assertEquals(
+            version_1,
+            version1_2.excluding("2.0.0"),
+        )
+
+        assertEquals(
+            version1_2,
+            version1_2.excluding("non-existent-version"),
+        )
+
+        assertEquals(
+            version_any,
+            version1_2.excluding("1.0.0", "2.0.0"),
+        )
+
+        assertEquals(
+            version_any,
+            version1_2_any.excluding("1.0.0", "2.0.0"),
+        )
+
+        assertEquals(
+            version_1,
+            version1_2_any.excluding(null, "2.0.0")
+        )
+
+        assertEquals(
+            listOf(
+                AppTarget(version = null),
+                AppTarget(version = "2.0.0"),
+                AppTarget(version = "1.5.0"),
+                AppTarget(version = "1.0.0"),
+            ),
+            version1_2.including(
+                AppTarget(version = "1.5.0"),
+                AppTarget(version = null)
+            ).targets
+        )
     }
 
     @Test
