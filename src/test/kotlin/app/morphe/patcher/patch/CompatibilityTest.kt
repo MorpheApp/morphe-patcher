@@ -193,8 +193,8 @@ internal object CompatibilityTest {
             name = "Example app",
             packageName = "compatible.package",
             targets = listOf(
-                AppTarget(version = "1.0.0"),
-                AppTarget(version = "2.0.0")
+                AppTarget(version = "2.0.0"),
+                AppTarget(version = "1.0.0")
             )
         )
 
@@ -203,8 +203,8 @@ internal object CompatibilityTest {
             packageName = "compatible.package",
             targets = listOf(
                 AppTarget(version = null),
-                AppTarget(version = "1.0.0"),
-                AppTarget(version = "2.0.0")
+                AppTarget(version = "2.0.0"),
+                AppTarget(version = "1.0.0")
             )
         )
 
@@ -217,8 +217,8 @@ internal object CompatibilityTest {
         assertNotEquals(version1_2, version_any)
 
         assertEquals(
+            version1_2,
             version_1.including(AppTarget(version = "2.0.0")),
-            version1_2
         )
 
         assertEquals(
@@ -232,18 +232,31 @@ internal object CompatibilityTest {
         )
 
         assertEquals(
+            version_any,
             version1_2.excluding("1.0.0", "2.0.0"),
-            version_any
         )
 
         assertEquals(
+            version_any,
             version1_2_any.excluding("1.0.0", "2.0.0"),
-            version_any
         )
 
         assertEquals(
-            version1_2_any.excluding(null, "2.0.0"),
-            version_1
+            version_1,
+            version1_2_any.excluding(null, "2.0.0")
+        )
+
+        assertEquals(
+            listOf(
+                AppTarget(version = null),
+                AppTarget(version = "2.0.0"),
+                AppTarget(version = "1.5.0"),
+                AppTarget(version = "1.0.0"),
+            ),
+            version1_2.including(
+                AppTarget(version = "1.5.0"),
+                AppTarget(version = null)
+            ).targets
         )
     }
 

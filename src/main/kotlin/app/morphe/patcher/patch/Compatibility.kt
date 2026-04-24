@@ -226,7 +226,7 @@ data class Compatibility(
      * This [Compatibility] but with additional [AppTarget] versions.
      */
     fun including(vararg targets: AppTarget): Compatibility {
-        return copy(targets = this.targets + targets)
+        return copy(targets = (this.targets + targets).sortedDescending())
     }
 
     /**
