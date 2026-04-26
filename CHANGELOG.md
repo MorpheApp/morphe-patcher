@@ -1,3 +1,12 @@
+# [1.5.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.2...v1.5.0) (2026-04-26)
+
+
+### Features
+
+* `AppTarget` `versionCodes` field to restrict patching to specific version code releases ([#120](https://github.com/MorpheApp/morphe-patcher/issues/120)) ([393fc8f](https://github.com/MorpheApp/morphe-patcher/commit/393fc8f81b9b1ce307bd68577f8b80d2ea9402c6))
+* `Compatibility` `including()` and `excluding()` methods ([#122](https://github.com/MorpheApp/morphe-patcher/issues/122)) ([1e0f468](https://github.com/MorpheApp/morphe-patcher/commit/1e0f468db2f834af87b3cfecb30f5ec7723e614b))
+* Instruction match helper methods to get a called method or accessed field ([#121](https://github.com/MorpheApp/morphe-patcher/issues/121)) ([4908e7b](https://github.com/MorpheApp/morphe-patcher/commit/4908e7bd97e7e4155f72cec749d0d16a76d554f7))
+
 # [1.5.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.0-dev.2...v1.5.0-dev.3) (2026-04-24)
 
 
