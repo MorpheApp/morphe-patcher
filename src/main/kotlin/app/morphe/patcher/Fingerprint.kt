@@ -14,15 +14,21 @@ import app.morphe.patcher.extensions.InstructionExtensions.instructionsOrNull
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.util.PatchClasses
+import app.morphe.patcher.util.proxy.mutableTypes.MutableField
+import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
+import com.android.tools.smali.dexlib2.iface.reference.FieldReference
+import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.util.MethodUtil
 import java.lang.ref.WeakReference
+import kotlin.collections.forEachIndexed
+import kotlin.collections.indexOfFirst
 
 open class Fingerprint private constructor(
     val classFingerprint: Fingerprint? = null,
@@ -942,6 +948,41 @@ class Match internal constructor(
          */
         @Suppress("UNCHECKED_CAST")
         fun <T> getInstruction(): T = instruction as T
+
+        /**
+         * Returns the mutable method of a method call instruction.
+         * This may only be used on filters that match method calls such as [methodCall]
+         * or [opcode] with an `INVOKE_*` [Opcode].
+         */
+        context(BytecodePatchContext)
+        fun getMethodCalled(): MutableMethod {
+            require(instruction is ReferenceInstruction && instruction.reference is MethodReference) {
+                "Matched instruction is not a method call: $instruction"
+            }
+
+            val methodReference = instruction.reference as MethodReference
+            return mutableClassDefBy(methodReference.definingClass).methods.first { classMethod ->
+                MethodUtil.methodSignaturesMatch(classMethod, methodReference)
+            }
+        }
+
+        /**
+         * Returns the mutable method of a field access instruction.
+         * This may only be used on filters that match method calls such as [fieldAccess]
+         * or [opcode] with a `GET`/`PUT` [Opcode].
+         */
+        context(BytecodePatchContext)
+        fun getFieldAccessed(): MutableField {
+            require(instruction is ReferenceInstruction && instruction.reference is FieldReference) {
+                "Matched instruction is not a a field access call: $instruction"
+            }
+
+            val fieldReference = instruction.reference as FieldReference
+            val mutableClass = mutableClassDefBy(fieldReference.definingClass)
+            return mutableClass.fields.first { classField ->
+                classField.type == fieldReference.type && classField.name == fieldReference.name
+            }
+        }
 
         override fun toString(): String {
             return "InstructionMatch{filter='${filter.javaClass.simpleName}, opcode='${instruction.opcode}, 'index=$index}"

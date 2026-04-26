@@ -5,6 +5,10 @@
 
 package app.morphe.patcher.patch
 
+import android.R.attr.versionCode
+import kotlin.collections.all
+import kotlin.collections.isNotEmpty
+
 private val SHA_256_REGEX = Regex("^[0-9a-fA-F]{64}$")
 
 /**
@@ -41,6 +45,13 @@ enum class ApkFileType {
         get() = name.endsWith("_REQUIRED")
 }
 
+enum class SupportedAbi {
+    ARM64_V8A,
+    ARMEABI_V7A,
+    X86_64,
+    X86
+}
+
 /**
  * Instances are sortable from lowest to highest version, with any version (null) last.
  * Semantic versioning is handled and sorts correctly in situations such as 1.1.0 > 1.0.02
@@ -48,6 +59,11 @@ enum class ApkFileType {
  *
  * @param version Version string. Null means any version and additionally can be used to
  *   indicate any version is supported experimentally.
+ *  @param versionCodes Required app version codes. If the map is null, or an architecture
+ *   key value is null, then any app version is assumed to work. This declaration is only required
+ *   for apps that can have multiple releases under the same user facing version string (ie: 5.2.1)
+ *   but only one specific release is supported or recommended. This is common with Meta apps
+ *   but uncommon with most other apps.
  * @param isExperimental If this app target is supported under an experimental capacity.
  * @param minSdk Minimum device SDK version as found in [android.os.Build.VERSION_CODES].
  *   Null means any SDK version.
@@ -56,6 +72,7 @@ enum class ApkFileType {
  */
 data class AppTarget(
     val version: String?,
+    val versionCodes: Map<SupportedAbi, Int>? = null,
     val isExperimental: Boolean = false,
     val minSdk: Int? = null,
     val description: String? = null
@@ -63,12 +80,58 @@ data class AppTarget(
 
     private val semanticParts: List<Int>? = parseSemantic(version)
 
+    /**
+     * Convenience constructor for a universal APK app target,
+     * where a specific app version is required.
+     *
+     * @param versionCode Specific required app version code.
+     */
+    constructor(
+        version: String,
+        versionCode: Int,
+        isExperimental: Boolean = false,
+        minSdk: Int? = null,
+        description: String? = null,
+    ) : this(
+        version = version,
+        versionCodes = SupportedAbi.entries.associateWith { versionCode },
+        isExperimental = isExperimental,
+        minSdk = minSdk,
+        description = null
+    )
+
     // @Deprecated("Here only for binary backwards compatibility") // TODO: Remove after next major version bump.
     constructor(
         version: String?,
         isExperimental: Boolean = false,
         minSdk: Int? = null,
-    ) : this(version = version, isExperimental = isExperimental, minSdk = minSdk, description = null)
+    ) : this(
+        version = version,
+        versionCodes = null,
+        isExperimental = isExperimental,
+        minSdk = minSdk,
+        description = null
+    )
+
+    // @Deprecated("Here only for binary backwards compatibility") // TODO: Remove after next major version bump.
+    constructor(
+        version: String?,
+        isExperimental: Boolean = false,
+        minSdk: Int? = null,
+        description: String? = null
+    ) : this(
+        version = version,
+        versionCodes = null,
+        isExperimental = isExperimental,
+        minSdk = minSdk,
+        description = null
+    )
+
+    init {
+        if (version == null && !versionCodes.isNullOrEmpty()) {
+            throw IllegalArgumentException("Version codes requires declaring a version string")
+        }
+    }
 
     /**
      * Comparison using only the version field.
@@ -222,16 +285,33 @@ data class Compatibility(
         packageName to legacyStringTargets
     }
 
+    /**
+     * This [Compatibility] but with additional [AppTarget] versions.
+     */
+    fun including(vararg targets: AppTarget): Compatibility {
+        return copy(targets = (this.targets + targets).sortedDescending())
+    }
+
+    /**
+     * This [Compatibility] but excluding all app targets with the
+     * specified [AppTarget.version] version strings.
+     */
+    fun excluding(vararg versions: String?): Compatibility {
+        val versionSet = versions.toSet()
+        val updatedTargets = targets
+            .filter { it.version !in versionSet }
+            .ifEmpty { listOf(AppTarget(version = null)) }
+
+        return copy(targets = updatedTargets)
+    }
+
     internal companion object {
         private fun parseColor(color: String): Int {
             require(color.startsWith('#') && color.length == 7) {
                 "App icon color must be #RRGGBB format: $color"
             }
 
-            val rgb = color.removePrefix("#").toInt(16)
-
-            // force full opacity
-            return rgb or 0xFF000000.toInt()
+            return color.removePrefix("#").toInt(16)
         }
 
         fun fromLegacy(legacy: Pair<String, Set<String>?>): Compatibility {
