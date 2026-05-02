@@ -1,3 +1,10 @@
+## [1.5.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.0...v1.5.1-dev.1) (2026-05-02)
+
+
+### Bug Fixes
+
+* Change to fixed upstream ARSCLib ([4b3add9](https://github.com/MorpheApp/morphe-patcher/commit/4b3add92fc64d64ea369a4838cdb559fe0cc44ad))
+
 # [1.5.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.2...v1.5.0) (2026-04-26)
 
 
