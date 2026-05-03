@@ -1,3 +1,10 @@
+## [1.5.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.1-dev.1...v1.5.1-dev.2) (2026-05-03)
+
+
+### Bug Fixes
+
+* Try all file extensions during dex verification ([16bcfdf](https://github.com/MorpheApp/morphe-patcher/commit/16bcfdf5394c371751ab942d1e0806814206af52))
+
 ## [1.5.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.0...v1.5.1-dev.1) (2026-05-02)
 
 
