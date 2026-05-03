@@ -90,26 +90,18 @@ class SdkDexVerifier(
         }
     }
 
-    private val dexdump = buildToolsDir.resolve("dexdump").also {
-        require(it.isFile && it.canExecute()) { "dexdump not found or not executable: $it" }
+    private fun resolveTool(name: String): File {
+        val candidates = listOf(name, "$name.exe", "$name.bat")
+        return candidates.map { buildToolsDir.resolve(it) }
+            .firstOrNull { it.exists() }
+            ?: error("$name not found in $buildToolsDir (tried: ${candidates.joinToString()})")
     }
 
-    private val d8 = buildToolsDir.resolve("d8").also {
-        // d8 may be a wrapper script; just check existence.
-        require(it.exists()) { "d8 not found: $it" }
-    }
-
-    private val aapt2 = buildToolsDir.resolve("aapt2").also {
-        require(it.isFile && it.canExecute()) { "aapt2 not found or not executable: $it" }
-    }
-
-    private val apksigner = buildToolsDir.resolve("apksigner").also {
-        require(it.exists()) { "apksigner not found: $it" }
-    }
-
-    private val zipalign = buildToolsDir.resolve("zipalign").also {
-        require(it.isFile && it.canExecute()) { "zipalign not found or not executable: $it" }
-    }
+    private val dexdump = resolveTool("dexdump")
+    private val d8 = resolveTool("d8")
+    private val aapt2 = resolveTool("aapt2")
+    private val apksigner = resolveTool("apksigner")
+    private val zipalign = resolveTool("zipalign")
 
     // -------------------------------------------------------------------------
     // Public API
