@@ -41,33 +41,6 @@ execute {
 }
 ```
 
-#### 🏃 `navigate(Method).at(index)`
-
-The `navigate(Method)` function allows navigating method calls by index,
-and provides an easier way to parse the method call classes in code. 
-
-```kt
-execute {
-    // Navigate to the method at index 5 within 'someMethod'.
-    // original() returns the original immutable method.
-    val original = navigate(someMethod).to(5).original()
-    
-    // Further navigate to the second occurrence of the opcode 'INVOKE_VIRTUAL'.
-    // stop() returns the mutable copy of the method.
-    val mutable = navigate(someMethod).to(2) { 
-        instruction -> instruction.opcode == Opcode.INVOKE_VIRTUAL
-    }.stop()
-    
-    // You can chain multiple to() calls together navigate multiple calls across different methods and classes.
-    //
-    // Navigate to:
-    // A. the method of the 5th instruction
-    // B. the method of the 10th instruction in method A
-    // C. the method of 2nd instruction of method B
-    val mutableDeep = navigate(someMethod).to(5, 10, 2).stop() // Mutable method Method C
-}
-```
-
 #### 💾 `get(String, Boolean)` and `delete(String)`
 
 The `get(String, Boolean)` function returns a `File` object that can be used to read and write resource files.
