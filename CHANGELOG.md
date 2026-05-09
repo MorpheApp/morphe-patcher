@@ -1,3 +1,10 @@
+## [1.5.1-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.1-dev.2...v1.5.1-dev.3) (2026-05-09)
+
+
+### Bug Fixes
+
+* Restore backwards compatibility for previously compiled code ([c2536be](https://github.com/MorpheApp/morphe-patcher/commit/c2536be831f7a8542c4e9eb8eae49f3513e1e426))
+
 ## [1.5.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.1-dev.1...v1.5.1-dev.2) (2026-05-03)
 
 
