@@ -214,9 +214,9 @@ open class Fingerprint private constructor(
      * This method should only be used if this fingerprint is re-used after it's modified,
      * and the prior match indexes are no longer correct.
      */
-    fun clearMatch() : Fingerprint {
+    // TODO: On next major version bump change this to return the fingerprint.
+    fun clearMatch() {
         _matchOrNull = null
-        return this
     }
 
     /**

@@ -25,7 +25,7 @@ public class app/morphe/patcher/Fingerprint {
 	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
 	public synthetic fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public final fun clearMatch ()Lapp/morphe/patcher/Fingerprint;
+	public final fun clearMatch ()V
 	public final fun getAccessFlags ()Ljava/lang/Integer;
 	public final fun getClassDef (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun getClassDefOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
