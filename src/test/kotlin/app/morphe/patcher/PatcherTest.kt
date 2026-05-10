@@ -438,7 +438,9 @@ internal object PatcherTest {
                                 0,
                                 """
                                     const/4 v0, 0x0
-                                    const-string v0, "string_example_long"
+                                    const-string v0, "string_example_long_1"
+                                    const-string v0, "string_example_long_2"
+                                    const-string v0, "string_example_long_3"
                                     return-void
                                 """
                             )
@@ -548,7 +550,7 @@ internal object PatcherTest {
 
             // Should not do string lookup because of custom filter.
             assertEquals(
-                11, proxyFilter.matchesCallCount,
+                13, proxyFilter.matchesCallCount,
                 "Number of expected filter calls did not match"
             )
 
@@ -629,6 +631,23 @@ internal object PatcherTest {
                 5, proxyFilter.matchesCallCount,
                 "Number of expected filter calls did not match"
             )
+
+
+            assertEquals(1, Fingerprint(
+                filters = listOf(
+                    string("string_example_long_1"),
+                    string("string_example_long_2"),
+                    string("string_example_long_3")
+                )
+            ).matchAll().size)
+
+            assertEquals(1, Fingerprint(
+                filters = listOf(
+                    string("string_example_long_1", comparison = StringComparisonType.CONTAINS),
+                    string("string_example_long_2", comparison = StringComparisonType.STARTS_WITH),
+                    string("string_example_long_3", comparison = StringComparisonType.EQUALS)
+                )
+            ).matchAll().size)
 
             assertThrows<Exception> {
                 fingerprint3.matchAll(0 .. 2)

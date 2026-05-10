@@ -27,8 +27,6 @@ import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.util.MethodUtil
 import java.lang.ref.WeakReference
-import kotlin.collections.forEachIndexed
-import kotlin.collections.indexOfFirst
 
 open class Fingerprint private constructor(
     val classFingerprint: Fingerprint? = null,
@@ -646,7 +644,12 @@ open class Fingerprint private constructor(
                     }
                 }
 
-                return matches.ifEmpty { null }
+                if (matches.isEmpty()) {
+                    return null;
+                }
+
+                // If multiple fingerprint strings are declared then duplicates matches can exist.
+                return matches.distinctBy(Match::originalMethod)
             }
         }
 
