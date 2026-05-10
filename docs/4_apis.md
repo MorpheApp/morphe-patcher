@@ -5,10 +5,9 @@ A handful of APIs are available to make patch development easier and more effici
 ## 📙 Overview
 
 1. 🔍 Find immutable classes with `classDefBy(String)`
-2. 🔄️️ Change immutable classes to mutable with `mutableClassDefBy(ClassDef)`
-3. 🏃‍ Navigate method calls recursively by index with `navigate(Method)`
-4. 💾 Read and write resource files with `get(String, Boolean)` and `delete(String)`
-5. 📃 Read and write DOM files using `document(String)` and  `document(InputStream)`
+2. 🔄️️ Change immutable classes to mutable with `mutableClassDefBy(ClassDef)
+3. 💾 Read and write resource files with `get(String, Boolean)` and `delete(String)`
+4. 📃 Read and write DOM files using `document(String)` and  `document(InputStream)`
 
 ### 🧰 APIs
 
@@ -40,6 +39,8 @@ execute {
     mutableClass.methods.add(Method())
 }
 ```
+
+<!-- TODO show getting a method/field using `getMethodCalled()` -->
 
 #### 💾 `get(String, Boolean)` and `delete(String)`
 
