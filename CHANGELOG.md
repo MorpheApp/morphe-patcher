@@ -1,3 +1,10 @@
+## [1.5.1-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.1-dev.3...v1.5.1-dev.4) (2026-05-10)
+
+
+### Bug Fixes
+
+* Handle fingerprint matchAll() when a method contains multiple string matches ([46e06ac](https://github.com/MorpheApp/morphe-patcher/commit/46e06acc48babad478462e652781a8c0aef45c8c))
+
 ## [1.5.1-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.1-dev.2...v1.5.1-dev.3) (2026-05-09)
 
 
