@@ -1,7 +1,7 @@
 [versions]
 android = "4.1.1.4"
 android-tools = "9.1.1" # Must be same version used by Manager ackpine dependency
-arsclib = "9696ffecda"
+arsclib = "d78a66bcee"
 bcpkix-jdk18on = "1.77"
 binary-compatibility-validator = "0.18.1"
 guava = "33.5.0-jre"
@@ -16,7 +16,7 @@ smali = "d856bad65f"
 android = { module = "com.google.android:android", version.ref = "android" }
 apkzlib = { module = "com.android.tools.build:apkzlib", version.ref = "android-tools" }
 apksig = { module = "com.android.tools.build:apksig", version.ref = "android-tools" }
-arsclib = { module = "com.github.MorpheApp:ARSCLib", version.ref = "arsclib" }
+arsclib = { module = "com.github.REAndroid:arsclib", version.ref = "arsclib" }
 bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bcpkix-jdk18on" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }

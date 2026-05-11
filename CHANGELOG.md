@@ -1,3 +1,31 @@
+## [1.5.1-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.1-dev.3...v1.5.1-dev.4) (2026-05-10)
+
+
+### Bug Fixes
+
+* Handle fingerprint matchAll() when a method contains multiple string matches ([46e06ac](https://github.com/MorpheApp/morphe-patcher/commit/46e06acc48babad478462e652781a8c0aef45c8c))
+
+## [1.5.1-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.1-dev.2...v1.5.1-dev.3) (2026-05-09)
+
+
+### Bug Fixes
+
+* Restore backwards compatibility for previously compiled code ([c2536be](https://github.com/MorpheApp/morphe-patcher/commit/c2536be831f7a8542c4e9eb8eae49f3513e1e426))
+
+## [1.5.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.1-dev.1...v1.5.1-dev.2) (2026-05-03)
+
+
+### Bug Fixes
+
+* Try all file extensions during dex verification ([16bcfdf](https://github.com/MorpheApp/morphe-patcher/commit/16bcfdf5394c371751ab942d1e0806814206af52))
+
+## [1.5.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.0...v1.5.1-dev.1) (2026-05-02)
+
+
+### Bug Fixes
+
+* Change to fixed upstream ARSCLib ([4b3add9](https://github.com/MorpheApp/morphe-patcher/commit/4b3add92fc64d64ea369a4838cdb559fe0cc44ad))
+
 # [1.5.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.4.2...v1.5.0) (2026-04-26)
 
 
