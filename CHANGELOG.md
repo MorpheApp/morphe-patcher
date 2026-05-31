@@ -1,3 +1,10 @@
+## [1.5.2-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.1...v1.5.2-dev.1) (2026-05-31)
+
+
+### Bug Fixes
+
+* Update to latest ARSCLib ([d30cf05](https://github.com/MorpheApp/morphe-patcher/commit/d30cf05e5b638608edb3e07a5f6e834a242cb26c))
+
 ## [1.5.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.0...v1.5.1) (2026-05-11)
 
 
