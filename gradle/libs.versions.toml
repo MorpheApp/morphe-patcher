@@ -1,7 +1,7 @@
 [versions]
 android = "4.1.1.4"
 android-tools = "9.1.1" # Must be same version used by Manager ackpine dependency
-arsclib = "d78a66bcee"
+arsclib = "a28c6fb2a7"
 bcpkix-jdk18on = "1.77"
 binary-compatibility-validator = "0.18.1"
 guava = "33.5.0-jre"
