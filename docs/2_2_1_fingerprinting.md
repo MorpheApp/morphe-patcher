@@ -150,7 +150,7 @@ class AdsLoader {
   If the distance between each instruction declaration can be approximated, then the `instructionLocation`
   parameter can be used with `MatchAfterWithin(int)` to restrict the instruction match to a maximum
   distance from the last instruction. To restrict matching to the first instruction of a method use
-  `MatchFirst()`. See `InstructionLocation` for more ways to restrict the matching index.
+  `MatchFirst()`.
 
   If a single instruction varies slightly between different app targets but otherwise the fingerprint
   is still the same, the `anyInstruction()` filter can be used to specify the different expected
