@@ -1,3 +1,10 @@
+## [1.5.2-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.2-dev.1...v1.5.2-dev.2) (2026-06-07)
+
+
+### Bug Fixes
+
+* Deprecate `MatchAfterAtLeast` and `MatchAfterRange` ([172a8aa](https://github.com/MorpheApp/morphe-patcher/commit/172a8aa7882e69ab9ee288a0c10cac8f83dd9117))
+
 ## [1.5.2-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.1...v1.5.2-dev.1) (2026-05-31)
 
 
