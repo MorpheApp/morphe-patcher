@@ -1,3 +1,10 @@
+## [1.5.2-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.2-dev.2...v1.5.2-dev.3) (2026-06-10)
+
+
+### Bug Fixes
+
+* Change Compatibility app name to required if package name is also declared ([f68e855](https://github.com/MorpheApp/morphe-patcher/commit/f68e855cbe83733fdf4d01c974b6f8c14e778939))
+
 ## [1.5.2-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.2-dev.1...v1.5.2-dev.2) (2026-06-07)
 
 
