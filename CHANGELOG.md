@@ -1,3 +1,24 @@
+## [1.5.2-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.2-dev.2...v1.5.2-dev.3) (2026-06-10)
+
+
+### Bug Fixes
+
+* Change Compatibility app name to required if package name is also declared ([f68e855](https://github.com/MorpheApp/morphe-patcher/commit/f68e855cbe83733fdf4d01c974b6f8c14e778939))
+
+## [1.5.2-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.2-dev.1...v1.5.2-dev.2) (2026-06-07)
+
+
+### Bug Fixes
+
+* Deprecate `MatchAfterAtLeast` and `MatchAfterRange` ([172a8aa](https://github.com/MorpheApp/morphe-patcher/commit/172a8aa7882e69ab9ee288a0c10cac8f83dd9117))
+
+## [1.5.2-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.1...v1.5.2-dev.1) (2026-05-31)
+
+
+### Bug Fixes
+
+* Update to latest ARSCLib ([d30cf05](https://github.com/MorpheApp/morphe-patcher/commit/d30cf05e5b638608edb3e07a5f6e834a242cb26c))
+
 ## [1.5.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.0...v1.5.1) (2026-05-11)
 
 

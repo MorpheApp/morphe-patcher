@@ -16,6 +16,11 @@ tasks {
         expand("projectVersion" to project.version)
     }
 
+    withType<Jar> {
+        from(rootProject.file("LICENSE"))
+        from(rootProject.file("NOTICE"))
+    }
+
     test {
         useJUnitPlatform()
         testLogging {

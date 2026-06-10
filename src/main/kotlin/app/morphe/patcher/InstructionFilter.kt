@@ -103,6 +103,9 @@ fun interface InstructionLocation {
      * must exist between this instruction and the last matched instruction. A value of 0 is
      * functionally identical to [MatchAfterImmediately].
      */
+    @Deprecated("This instruction location type will be removed in a future release. " +
+            "Instead use series of filters that are unique enough where no 'mandatory distance from the last' " +
+            "is required")
     class MatchAfterAtLeast(var minimumDistanceFromLastInstruction: Int) : InstructionLocation {
         init {
             require(minimumDistanceFromLastInstruction >= 0) {
@@ -129,6 +132,9 @@ fun interface InstructionLocation {
      *                                           that can exist between this instruction and the
      *                                           last matched instruction.
      */
+    @Deprecated("This instruction location type will be removed in a future release. " +
+            "Instead use series of filters that are unique enough where no 'mandatory distance from the last' " +
+            "is required")
     class MatchAfterRange(
         val minimumDistanceFromLastInstruction: Int,
         val maximumDistanceFromLastInstruction: Int

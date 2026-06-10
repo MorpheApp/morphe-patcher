@@ -23,8 +23,8 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Cache Gradle
-        uses: burrunan/gradle-cache-action@v3
+#      - name: Cache Gradle
+#        uses: burrunan/gradle-cache-action@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v6

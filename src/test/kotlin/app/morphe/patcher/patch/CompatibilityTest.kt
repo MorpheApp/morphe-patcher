@@ -127,18 +127,19 @@ internal object CompatibilityTest {
 
     @Test
     fun `universal app`() {
-        var compatibility = Compatibility(
-            name = "Example app",
-            targets = listOf(AppTarget(version = null, minSdk = 26))
+        val compatibility = Compatibility(
+            description = "Universal patch",
         )
 
         assertEquals(1, compatibility.targets.count())
         assertEquals(null, compatibility.targets.first().version)
         assertEquals(null, compatibility.packageName)
+        assertEquals(null, compatibility.name)
 
         assertThrows<Exception> {
             Compatibility(
-                name = "Example app",
+                packageName = "app.example",
+                name = "",
                 targets = listOf(AppTarget(version = "1.0.0"))
             )
         }

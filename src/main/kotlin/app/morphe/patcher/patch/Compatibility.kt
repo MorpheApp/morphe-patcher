@@ -5,7 +5,6 @@
 
 package app.morphe.patcher.patch
 
-import android.R.attr.versionCode
 import kotlin.collections.all
 import kotlin.collections.isNotEmpty
 
@@ -167,29 +166,67 @@ data class AppTarget(
     }
 }
 
-/**
- * @param packageName Actual app package name. Null means this is a universal patch and can
- *   be applied to any app.
- * @param name Actual app name.
- * @param description User facing description of the app.
- * @param apkFileType Target unpatched app type. A non required type is a recommendation
- *   but not strictly enforced and other types are still accepted.
- * @param appIconColor #RRGGBB color for the app icon background color.
- *   Only used for Manager UI presentation. Color int has full 0xFF opacity value.
- * @param signatures Valid SHA-256 signatures of the app. To find a signature, use
- *   `apksigner verify --print-certs` on an original apk (or base.apk from an unzipped apkm)
- *    and `certificate SHA-256 digest:` is the signature.
- * @param targets App targets. Versions are declared newest to oldest. Default is any app target.
- */
-data class Compatibility(
-    val packageName: String? = null,
-    val name: String? = null,
-    val description: String? = null,
-    val apkFileType: ApkFileType? = null,
-    val appIconColor: Int? = null,
-    val signatures: Set<String>? = null,
-    val targets: List<AppTarget> = listOf(AppTarget(version = null)),
+@ConsistentCopyVisibility
+data class Compatibility internal constructor(
+    val packageName: String?,
+    val name: String?,
+    val description: String?,
+    val apkFileType: ApkFileType?,
+    val appIconColor: Int?,
+    val signatures: Set<String>?,
+    val targets: List<AppTarget>,
+    internal val isLegacy: Boolean
 ) {
+
+    /**
+     * @param packageName Actual app package name.
+     * @param name Actual app name. Use the same name that appears in the app launcher.
+     * @param description User facing description of the app.
+     * @param apkFileType Target unpatched app type. A non required type is a recommendation
+     *   but not strictly enforced and other types are still accepted.
+     * @param appIconColor #RRGGBB color for the app icon background color.
+     *   Only used for Manager UI presentation. Color int has full 0xFF opacity value.
+     * @param signatures Valid SHA-256 signatures of the app. To find a signature, use
+     *   `apksigner verify --print-certs` on an original apk (or base.apk from an unzipped apkm)
+     *    and `certificate SHA-256 digest:` is the signature.
+     * @param targets App targets. Versions are declared newest to oldest. Default is any app target.
+     */
+    constructor(
+        packageName: String,
+        name: String,
+        description: String? = null,
+        apkFileType: ApkFileType? = null,
+        appIconColor: Int? = null,
+        signatures: Set<String>? = null,
+        targets: List<AppTarget> = listOf(AppTarget(version = null))
+    ) : this(
+        packageName = packageName,
+        name = name,
+        description = description,
+        apkFileType = apkFileType,
+        appIconColor = appIconColor,
+        signatures = signatures,
+        targets = targets,
+        isLegacy = false
+    )
+
+    /**
+     * Universal patch that can be applied to any ap.
+     * @param description User facing description of the app.
+     */
+    constructor(
+        description: String,
+    ) : this(
+        packageName = null,
+        name = null,
+        description = description,
+        apkFileType = null,
+        appIconColor = null,
+        signatures = null,
+        targets = listOf(AppTarget(version = null)),
+        isLegacy = false
+    )
+
     /**
      * @param packageName Actual app package name. Null means this is a universal patch and can
      *   be applied to any app.
@@ -218,10 +255,20 @@ data class Compatibility(
         apkFileType = apkFileType,
         appIconColor = parseColor(appIconColor),
         signatures = signatures,
-        targets = targets
+        targets = targets,
+        isLegacy = false
     )
 
     init {
+        if (!isLegacy && packageName != null && name.isNullOrBlank()) {
+            throw IllegalArgumentException(
+                "If package name is declared then app name must also be declared"
+            )
+        }
+        require(name == null || name.isNotBlank()) {
+            "App name must not be blank"
+        }
+
         if (appIconColor != null) {
             val alpha = (appIconColor shr 24) and 0xFF
 
@@ -305,6 +352,26 @@ data class Compatibility(
         return copy(targets = updatedTargets)
     }
 
+    @Deprecated("Here only for binary backwards compatibility", level = DeprecationLevel.HIDDEN)
+    fun copy(
+        packageName: String? = this.packageName,
+        name: String? = this.name,
+        description: String? = this.description,
+        apkFileType: ApkFileType? = this.apkFileType,
+        appIconColor: Int? = this.appIconColor,
+        signatures: Set<String>? = this.signatures,
+        targets: List<AppTarget> = this.targets
+    ): Compatibility = Compatibility(
+        packageName,
+        name,
+        description,
+        apkFileType,
+        appIconColor,
+        signatures,
+        targets,
+        isLegacy = isLegacy
+    )
+
     internal companion object {
         private fun parseColor(color: String): Int {
             require(color.startsWith('#') && color.length == 7) {
@@ -327,7 +394,15 @@ data class Compatibility(
                 }
             }
 
-            return Compatibility(packageName = legacy.first, targets = targets)
+            return Compatibility(
+                packageName = legacy.first,
+                name = null,
+                description = null,
+                apkFileType = null,
+                appIconColor = null,
+                signatures = null,
+                targets = targets,
+                isLegacy = true)
         }
 
         fun fromLegacy(legacy: Set<Pair<String, Set<String>?>>?): List<Compatibility>? {

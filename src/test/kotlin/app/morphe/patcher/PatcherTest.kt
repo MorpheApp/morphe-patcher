@@ -186,21 +186,21 @@ internal object PatcherTest {
 
         assertThrows<IllegalArgumentException> {
             bytecodePatch(name = "Test", default = true) {
-                compatibleWith(Compatibility())
+                compatibleWith(Compatibility(description = "Universal patch"))
 
             }.execute(patcher.context.bytecodeContext)
         }
 
         assertThrows<IllegalArgumentException> {
             rawResourcePatch(name = "Test", default = true) {
-                compatibleWith(Compatibility())
+                compatibleWith(Compatibility(description = "Universal patch"))
 
             }.execute(patcher.context.resourceContext)
         }
 
         assertThrows<IllegalArgumentException> {
             resourcePatch(name = "Test", default = true) {
-                compatibleWith(Compatibility())
+                compatibleWith(Compatibility(description = "Universal patch"))
 
             }.execute(patcher.context.resourceContext)
         }
@@ -208,7 +208,7 @@ internal object PatcherTest {
         // Sanity check.
         assertDoesNotThrow {
             bytecodePatch(name = "Test", default = true) {
-                compatibleWith(Compatibility(packageName = "test.app"))
+                compatibleWith(Compatibility(packageName = "test.app", name = "Test app"))
 
             }.execute(patcher.context.bytecodeContext)
         }
