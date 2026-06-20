@@ -1,3 +1,10 @@
+## [1.5.3-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.2...v1.5.3-dev.1) (2026-06-20)
+
+
+### Bug Fixes
+
+* Show more verbose exception if an instruction from the immutable method is passed to mutable method in `addInstructionsWithLabels()`. Fix wrong label can be used if multiple labels are specified ([d955d8a](https://github.com/MorpheApp/morphe-patcher/commit/d955d8abda5b2624985dd3620a52a83baac10113))
+
 ## [1.5.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.1...v1.5.2) (2026-06-10)
 
 
