@@ -16,10 +16,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import java.io.BufferedInputStream
+import java.io.Closeable
 import java.io.File
 import java.io.InputStream
-import java.io.RandomAccessFile
-import java.nio.channels.FileChannel
 import java.util.Enumeration
 import java.util.logging.Logger
 import java.util.zip.ZipEntry
@@ -52,15 +51,26 @@ import kotlin.math.min
  * The result of reading a multidex file, containing both the merged [DexFile] view
  * and the names of each individual DEX entry within the container.
  *
+ * Holds the underlying memory mappings of the extracted DEX files. Call [close] to
+ * deterministically release them once the [dexFile] view is no longer needed; on
+ * Windows this releases the locks that would otherwise prevent the extracted files
+ * from being rewritten, renamed, or deleted.
+ *
  * @param dexFile A merged [DexFile] containing all classes from all DEX entries.
  * @param extractedDexFiles The names of each original DEX entry (e.g., "classes.dex", "classes2.dex").
  * @param classDescriptorsByEntry Maps each DEX entry name to the set of class descriptors it contains.
+ * @param mappedFiles The live memory mappings backing each entry in [extractedDexFiles] (same order).
  */
 internal class MultidexReadResult(
     val dexFile: DexFile,
     val extractedDexFiles: List<File>,
     val classDescriptorsByEntry: Map<String, Set<String>>,
-)
+    val mappedFiles: List<MappedFile>,
+) : Closeable {
+    override fun close() {
+        mappedFiles.forEach { it.close() }
+    }
+}
 
 internal object DexReadWrite {
     private const val MIN_CLASSES_PER_SEGMENT = 1000
@@ -85,10 +95,9 @@ internal object DexReadWrite {
         val extractedFiles = extractDexEntries(inputFile, outputDir)
         logger?.info("Loaded multidex file: $inputFile with ${extractedFiles.size} dex files")
 
-        val memoryMappedDexFiles = extractedFiles.map { file ->
-            val rwFile = RandomAccessFile(file, "rw")
-            val mappedByteBuffer = rwFile.channel.map(FileChannel.MapMode.READ_WRITE, 0, rwFile.channel.size())
-            DexBackedDexFile(null, mappedByteBuffer)
+        val mappedFiles = extractedFiles.map { file -> MappedFile.mapReadWrite(file) }
+        val memoryMappedDexFiles = mappedFiles.map { mappedFile ->
+            DexBackedDexFile(null, mappedFile.buffer)
         }
         val entryNames = extractedFiles.map { file -> file.name }
 
@@ -111,7 +120,7 @@ internal object DexReadWrite {
             }
         }
 
-        return MultidexReadResult(mergedDexFile, extractedFiles, classDescriptorsByEntry)
+        return MultidexReadResult(mergedDexFile, extractedFiles, classDescriptorsByEntry, mappedFiles)
     }
 
     /**

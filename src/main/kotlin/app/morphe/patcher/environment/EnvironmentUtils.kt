@@ -11,4 +11,9 @@ object EnvironmentUtils {
      * True if the environment is Android.
      */
     val isAndroidEnvironment = System.getProperty("java.runtime.name") == "Android Runtime"
+
+    /**
+     * True if the environment is Windows.
+     */
+    val isWindowsEnvironment = System.getProperty("os.name").startsWith("Windows")
 }
