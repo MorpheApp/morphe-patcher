@@ -766,11 +766,12 @@ sealed class PatchLoader(
             patchesFiles,
             { patchBundle ->
                 val tempDir = Files.createTempDirectory("morphe-extracted-patches").toFile()
-                DexReadWrite.readMultidexFileFromZip(patchBundle, tempDir)
-                    .dexFile.classes
+                DexReadWrite.readMultidexFileFromZip(patchBundle, tempDir).use {
+                    it.dexFile.classes
                     .map { classDef ->
                         classDef.type.substring(1, classDef.length - 1)
                     }
+                }
             },
             DexClassLoader(
                 patchesFiles.joinToString(File.pathSeparator) { it.absolutePath },

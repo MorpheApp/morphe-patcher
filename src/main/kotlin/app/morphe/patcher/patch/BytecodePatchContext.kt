@@ -16,6 +16,7 @@ import app.morphe.patcher.StringComparisonType
 import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.dex.DexStripper
+import app.morphe.patcher.dex.MultidexReadResult
 import app.morphe.patcher.util.ClassMerger.merge
 import app.morphe.patcher.util.MethodNavigator
 import app.morphe.patcher.util.PatchClasses
@@ -71,20 +72,22 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     private val dexOutputDir = config.patchedFiles.resolve("dex")
     private val dexWorkingDir = config.patchedFiles.resolve("originalDex")
 
+    private lateinit var multidexReadResult: MultidexReadResult
+
     internal fun decodeDexFiles() {
         // Extract original DEX files from the APK to disk for later in-place editing.
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
         dexWorkingDir.apply { deleteRecursively(); mkdirs()}
 
-        val readResult = DexReadWrite.readMultidexFileFromZip(config.apkFile, dexWorkingDir)
-        opcodes = readResult.dexFile.opcodes
-        originalClassDescriptors = readResult.dexFile.classes.let { classes ->
+        multidexReadResult = DexReadWrite.readMultidexFileFromZip(config.apkFile, dexWorkingDir)
+        opcodes = multidexReadResult.dexFile.opcodes
+        originalClassDescriptors = multidexReadResult.dexFile.classes.let { classes ->
             classes.mapTo(HashSet(2 * classes.size)) { it.type }
         }
-        classDescriptorsByEntry = readResult.classDescriptorsByEntry
-        patchClasses = PatchClasses(readResult.dexFile.classes)
+        classDescriptorsByEntry = multidexReadResult.classDescriptorsByEntry
+        patchClasses = PatchClasses(multidexReadResult.dexFile.classes)
 
-        originalDexFiles = readResult.extractedDexFiles
+        originalDexFiles = multidexReadResult.extractedDexFiles
     }
 
     /**
@@ -445,5 +448,6 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
     override fun close() {
         patchClasses.close()
+        multidexReadResult.close()
     }
 }

@@ -407,6 +407,11 @@ public final class app/morphe/patcher/dex/BytecodeMode : java/lang/Enum {
 	public static fun values ()[Lapp/morphe/patcher/dex/BytecodeMode;
 }
 
+public final class app/morphe/patcher/dex/DexUtils {
+	public static final field INSTANCE Lapp/morphe/patcher/dex/DexUtils;
+	public final fun unsafeUnmap (Ljava/nio/MappedByteBuffer;)V
+}
+
 public final class app/morphe/patcher/dex/DexVerificationException : java/lang/RuntimeException {
 	public fun <init> (Ljava/lang/String;)V
 }
@@ -439,6 +444,7 @@ public final class app/morphe/patcher/dex/SdkDexVerifier$Companion {
 public final class app/morphe/patcher/environment/EnvironmentUtils {
 	public static final field INSTANCE Lapp/morphe/patcher/environment/EnvironmentUtils;
 	public final fun isAndroidEnvironment ()Z
+	public final fun isWindowsEnvironment ()Z
 }
 
 public final class app/morphe/patcher/extensions/ExtensionsKt {

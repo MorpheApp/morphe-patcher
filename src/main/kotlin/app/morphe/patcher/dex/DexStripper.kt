@@ -5,10 +5,12 @@
 
 package app.morphe.patcher.dex
 
+import app.morphe.patcher.environment.EnvironmentUtils
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 import java.security.MessageDigest
 import java.util.zip.Adler32
@@ -64,9 +66,11 @@ internal object DexStripper {
     fun stripInPlace(dexFile: File, classDescriptorsToStrip: Set<String>): Int {
         if (classDescriptorsToStrip.isEmpty()) return 0
 
-        RandomAccessFile(dexFile, "rw").use { raf ->
+        val raf = RandomAccessFile(dexFile, "rw")
+        var mappedBuf: MappedByteBuffer? = null
+        try {
             val fileSize = raf.length().toInt()
-            val mappedBuf = raf.channel.map(FileChannel.MapMode.READ_WRITE, 0, raf.length())
+            mappedBuf = raf.channel.map(FileChannel.MapMode.READ_WRITE, 0, raf.length())
             val buf = mappedBuf.order(ByteOrder.LITTLE_ENDIAN)
 
             val stringIdsOff = buf.getInt(STRING_IDS_OFF_OFF)
@@ -98,7 +102,14 @@ internal object DexStripper {
 
             // Compact the class_data section: remove orphaned items, update pointers.
             if (orphanedClassDataOffsets.isNotEmpty()) {
-                compactClassData(buf, mapOff, classDefsOff, classDefsSize, indicesToRemove, orphanedClassDataOffsets)
+                compactClassData(
+                    buf,
+                    mapOff,
+                    classDefsOff,
+                    classDefsSize,
+                    indicesToRemove,
+                    orphanedClassDataOffsets
+                )
             }
 
             // Compact the class_defs array.
@@ -119,6 +130,13 @@ internal object DexStripper {
             mappedBuf.force()
 
             return indicesToRemove.size
+        }
+        finally {
+            if (EnvironmentUtils.isWindowsEnvironment) {
+                mappedBuf?.let { DexUtils.unsafeUnmap(it) }
+            }
+
+            raf.close()
         }
     }
 

@@ -48,20 +48,6 @@ import kotlin.collections.zip
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * The result of reading a multidex file, containing both the merged [DexFile] view
- * and the names of each individual DEX entry within the container.
- *
- * @param dexFile A merged [DexFile] containing all classes from all DEX entries.
- * @param extractedDexFiles The names of each original DEX entry (e.g., "classes.dex", "classes2.dex").
- * @param classDescriptorsByEntry Maps each DEX entry name to the set of class descriptors it contains.
- */
-internal class MultidexReadResult(
-    val dexFile: DexFile,
-    val extractedDexFiles: List<File>,
-    val classDescriptorsByEntry: Map<String, Set<String>>,
-)
-
 internal object DexReadWrite {
     private const val MIN_CLASSES_PER_SEGMENT = 1000
     private const val MAX_THREADS = 4
@@ -85,33 +71,7 @@ internal object DexReadWrite {
         val extractedFiles = extractDexEntries(inputFile, outputDir)
         logger?.info("Loaded multidex file: $inputFile with ${extractedFiles.size} dex files")
 
-        val memoryMappedDexFiles = extractedFiles.map { file ->
-            val rwFile = RandomAccessFile(file, "rw")
-            val mappedByteBuffer = rwFile.channel.map(FileChannel.MapMode.READ_WRITE, 0, rwFile.channel.size())
-            DexBackedDexFile(null, mappedByteBuffer)
-        }
-        val entryNames = extractedFiles.map { file -> file.name }
-
-        // Track which class descriptors belong to which DEX entry.
-        val classDescriptorsByEntry = entryNames.zip(memoryMappedDexFiles).associate { (name, dex) ->
-            name to dex.classes.let { classes ->
-                classes.mapTo(HashSet(2 * classes.size)) { it.type }
-            }
-        }
-
-        val opcodes = memoryMappedDexFiles.maxByOrNull { it.opcodes.api }!!.opcodes
-
-        val mergedDexFile = object : DexFile {
-            override fun getClasses(): Set<ClassDef> {
-                return memoryMappedDexFiles.flatMap { it.classes }.toSet()
-            }
-
-            override fun getOpcodes(): Opcodes {
-                return opcodes
-            }
-        }
-
-        return MultidexReadResult(mergedDexFile, extractedFiles, classDescriptorsByEntry)
+        return MultidexReadResult(extractedFiles)
     }
 
     /**
