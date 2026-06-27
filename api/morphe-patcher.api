@@ -439,6 +439,7 @@ public final class app/morphe/patcher/dex/SdkDexVerifier$Companion {
 public final class app/morphe/patcher/environment/EnvironmentUtils {
 	public static final field INSTANCE Lapp/morphe/patcher/environment/EnvironmentUtils;
 	public final fun isAndroidEnvironment ()Z
+	public final fun isWindowsEnvironment ()Z
 }
 
 public final class app/morphe/patcher/extensions/ExtensionsKt {
