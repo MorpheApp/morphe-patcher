@@ -21,6 +21,8 @@ import app.morphe.patcher.resource.processor.StringsXmlEscapeProcessor
 import app.morphe.patcher.resource.processor.StringsXmlSanitizeProcessor
 import app.morphe.patcher.resource.processor.StringsXmlUnEscapeProcessor
 import app.morphe.patcher.util.Document
+import app.morphe.patcher.util.FileUtils.safelyDelete
+import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
@@ -230,7 +232,7 @@ class ArsclibResourceCoder(
                     dir.isDirectory && CpuArchitecture.valueOfOrNull(dir.name) !in keepArchitectures
                 }?.forEach { it ->
                     it.walkTopDown().filter { it.isFile }.forEach { _ -> strippedLibCount++ }
-                    it.deleteRecursively()
+                    it.safelyDelete()
                 }
 
             logger.info("Stripped $strippedLibCount lib files")
@@ -348,11 +350,7 @@ class ArsclibResourceCoder(
         return if (otherFiles.isNotEmpty()) {
             logger.info("Moving ${otherFiles.size} resource files")
             otherFiles.forEach { (src, dest) ->
-                dest.parentFile.mkdirs()
-                Files.move(src.toPath(),
-                    dest.toPath(),
-                    StandardCopyOption.REPLACE_EXISTING
-                )
+                src.safelyMoveTo(dest)
             }
             otherResourcesDir
         } else {

@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.dex
 
+import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
 import com.android.tools.smali.dexlib2.iface.ClassDef
@@ -31,17 +32,14 @@ import kotlin.collections.Map
 import kotlin.collections.MutableCollection
 import kotlin.collections.Set
 import kotlin.collections.associate
-import kotlin.collections.first
 import kotlin.collections.flatMap
 import kotlin.collections.isNotEmpty
-import kotlin.collections.listOf
 import kotlin.collections.map
 import kotlin.collections.mapIndexed
 import kotlin.collections.mapTo
 import kotlin.collections.maxByOrNull
 import kotlin.collections.mutableListOf
 import kotlin.collections.plusAssign
-import kotlin.collections.toList
 import kotlin.collections.toSet
 import kotlin.collections.zip
 import kotlin.math.max
@@ -233,7 +231,7 @@ internal object DexReadWrite {
             for (tempFile in tempFiles) {
                 val fileName = if (dexFiles.isEmpty()) "classes.dex" else "classes${dexFiles.size + 1}.dex"
                 val finalFile = outputDir.resolve(fileName)
-                tempFile.renameTo(finalFile)
+                tempFile.safelyMoveTo(finalFile)
                 dexFiles.add(finalFile)
             }
         }

@@ -17,6 +17,7 @@
 // https://github.com/REAndroid/APKEditor/blob/57b74530372eead7ffbfc1bcf1dd826db76a70ac/src/main/java/com/reandroid/apkeditor/Util.java
 package app.morphe.patcher.apk
 
+import app.morphe.patcher.util.FileUtils.safelyDelete
 import java.io.File
 
 internal object ApkEditorUtil {
@@ -46,67 +47,5 @@ internal object ApkEditorUtil {
             i++
         }
         return file
-    }
-
-    fun delete(file: File?) {
-        if (file == null || !file.exists()) {
-            return
-        }
-        if (file.isFile) {
-            file.delete()
-        } else if (file.isDirectory) {
-            deleteDir(file)
-        }
-    }
-
-    fun deleteDir(dir: File) {
-        if (!dir.exists()) {
-            return
-        }
-        if (dir.isFile) {
-            dir.delete()
-            return
-        }
-        if (!dir.isDirectory) {
-            return
-        }
-        val files = dir.listFiles()
-        if (files == null) {
-            deleteEmptyDirectories(dir)
-            return
-        }
-        for (file in files) {
-            deleteDir(file)
-        }
-        deleteEmptyDirectories(dir)
-    }
-
-    fun deleteEmptyDirectories(dir: File?) {
-        if (dir == null || !dir.isDirectory) {
-            return
-        }
-        var filesList = dir.listFiles()
-        if (filesList == null || filesList.size == 0) {
-            dir.delete()
-            return
-        }
-        var count = filesList.size
-        for (i in 0..<count) {
-            val file = filesList[i]
-            if (file.isFile && file.length() != 0L) {
-                return
-            }
-        }
-        count = filesList.size
-        for (i in 0..<count) {
-            val file = filesList[i]
-            if (file.isDirectory) {
-                deleteEmptyDirectories(file)
-            }
-        }
-        filesList = dir.listFiles()
-        if (filesList == null || filesList.size == 0) {
-            dir.delete()
-        }
     }
 }

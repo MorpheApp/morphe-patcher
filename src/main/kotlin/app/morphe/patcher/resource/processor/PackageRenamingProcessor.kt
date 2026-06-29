@@ -6,6 +6,7 @@
 package app.morphe.patcher.resource.processor
 
 import app.morphe.patcher.resource.*
+import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import com.reandroid.json.JSONObject
 import org.xmlpull.v1.XmlPullParser
 import java.io.File
@@ -89,7 +90,6 @@ internal class PackageRenamingProcessor(
             }
         }
 
-        file.delete()
-        tempFile.renameTo(file)
+        tempFile.safelyMoveTo(file)
     }
 }

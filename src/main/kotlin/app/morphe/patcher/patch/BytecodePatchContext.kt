@@ -18,6 +18,7 @@ import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.dex.DexStripper
 import app.morphe.patcher.dex.MappedFile
 import app.morphe.patcher.util.ClassMerger.merge
+import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import app.morphe.patcher.util.MethodNavigator
 import app.morphe.patcher.util.PatchClasses
 import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
@@ -367,7 +368,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         dexWorkingDir.listFiles { it.isFile }!!.sorted().forEachIndexed { i, tempFile ->
             val newIndex = newDexCount + i
             val dexName = if (newIndex == 0) "classes.dex" else "classes${newIndex + 1}.dex"
-            tempFile.renameTo(dexOutputDir.resolve(dexName))
+            tempFile.safelyMoveTo(dexOutputDir.resolve(dexName))
         }
 
         config.verifier.verifyDexDirectory(dexOutputDir)
@@ -413,7 +414,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                 logger.fine { "Passing through unmodified DEX: ${originalDex.name}" }
                 // Release the mapping before renaming so the file is not locked on Windows.
                 releaseDexMapping(originalDex)
-                originalDex.renameTo(dexOutputDir.resolve(getDexName(newDexCount)))
+                originalDex.safelyMoveTo(dexOutputDir.resolve(getDexName(newDexCount)))
                 newDexCount++
             } else {
                 // Rebuild this DEX via DexPool with only the unmodified classes.
@@ -439,7 +440,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                     releaseDexMapping(originalDex)
                     rebuiltFiles.forEach { rebuiltFile ->
                         val newName = getDexName(newDexCount)
-                        rebuiltFile.renameTo(dexOutputDir.resolve(newName))
+                        rebuiltFile.safelyMoveTo(dexOutputDir.resolve(newName))
                         logger.fine("${originalDex.name} -> $newName")
                         newDexCount++
                     }

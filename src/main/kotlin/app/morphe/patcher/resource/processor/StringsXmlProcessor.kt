@@ -9,6 +9,7 @@ import app.morphe.patcher.resource.copyAttributes
 import app.morphe.patcher.resource.copyNamespaces
 import app.morphe.patcher.resource.parseXml
 import app.morphe.patcher.resource.writeXml
+import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import org.xmlpull.v1.XmlPullParser
 import java.io.File
 import java.util.logging.Logger
@@ -101,8 +102,7 @@ abstract internal class StringsXmlProcessor(
         }
 
         // Replace original file
-        file.delete()
-        tempFile.renameTo(file)
+        tempFile.safelyMoveTo(file)
     }
 
     abstract fun processString(text: String): String
