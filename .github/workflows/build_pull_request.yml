@@ -6,6 +6,9 @@ on:
     branches:
       - dev
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build (${{ matrix.os }}, JDK ${{ matrix.jdk }})
