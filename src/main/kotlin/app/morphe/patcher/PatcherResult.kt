@@ -12,7 +12,7 @@ import java.io.InputStream
 @Suppress("MemberVisibilityCanBePrivate")
 class PatcherResult internal constructor(
     val dexFiles: Set<PatchedDexFile>,
-    val resources: PatchedResources?,
+    val resources: PatchedResources,
 ) {
 
     /**
