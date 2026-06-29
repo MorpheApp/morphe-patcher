@@ -57,13 +57,11 @@ import kotlin.math.min
  * from being rewritten, renamed, or deleted.
  *
  * @param dexFile A merged [DexFile] containing all classes from all DEX entries.
- * @param extractedDexFiles The names of each original DEX entry (e.g., "classes.dex", "classes2.dex").
  * @param classDescriptorsByEntry Maps each DEX entry name to the set of class descriptors it contains.
- * @param mappedFiles The live memory mappings backing each entry in [extractedDexFiles] (same order).
+ * @param mappedFiles The DEX files in the APK, already mapped into memory (classes.dex, classes2.dex, etc.).
  */
 internal class MultidexReadResult(
     val dexFile: DexFile,
-    val extractedDexFiles: List<File>,
     val classDescriptorsByEntry: Map<String, Set<String>>,
     val mappedFiles: List<MappedFile>,
 ) : Closeable {
@@ -120,7 +118,7 @@ internal object DexReadWrite {
             }
         }
 
-        return MultidexReadResult(mergedDexFile, extractedFiles, classDescriptorsByEntry, mappedFiles)
+        return MultidexReadResult(mergedDexFile, classDescriptorsByEntry, mappedFiles)
     }
 
     /**

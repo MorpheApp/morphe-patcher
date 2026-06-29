@@ -34,6 +34,11 @@ import java.nio.file.StandardOpenOption
  */
 internal interface MappedFile : Closeable {
     /**
+     * The original File backing this MappedFile.
+     */
+    val originalFile: File
+
+    /**
      * The mapped, writable [ByteBuffer] covering the whole file.
      *
      * Once [close] has been called the buffer must no longer be used; with the
@@ -70,8 +75,8 @@ internal interface MappedFile : Closeable {
  * can be loaded on runtimes without the FFM API; [MappedFile.mapReadWrite] only
  * instantiates it when [Ffm.isSupported] is `true`.
  */
-private class FfmMappedFile(file: File) : MappedFile {
-    private val channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE)
+private class FfmMappedFile(override val originalFile: File) : MappedFile {
+    private val channel = FileChannel.open(originalFile.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE)
     private val arena: AutoCloseable
     private val segment: Any
     override val buffer: ByteBuffer
@@ -110,8 +115,8 @@ private class FfmMappedFile(file: File) : MappedFile {
  * Preserves the historic behaviour where the mapping is unmapped lazily by the
  * garbage collector once the buffer becomes unreachable.
  */
-private class RandomAccessMappedFile(file: File) : MappedFile {
-    private val randomAccessFile = RandomAccessFile(file, "rw")
+private class RandomAccessMappedFile(override val originalFile: File) : MappedFile {
+    private val randomAccessFile = RandomAccessFile(originalFile, "rw")
     private val mappedBuffer = randomAccessFile.channel.map(
         FileChannel.MapMode.READ_WRITE,
         0,

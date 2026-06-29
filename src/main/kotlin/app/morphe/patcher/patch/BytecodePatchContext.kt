@@ -45,13 +45,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     internal lateinit var opcodes: Opcodes
 
     /**
-     * Original DEX files extracted from the APK to the dex output directory.
-     * These files are edited in-place during compilation via [DexStripper].
-     */
-    private lateinit var originalDexFiles: List<File>
-
-    /**
-     * Live memory mappings of the [originalDexFiles], keyed by file.
+     * Live memory mappings of the original DEX files, keyed by file.
      *
      * These back the original [com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile]
      * views and must stay open while those classes are read. Each mapping is released
@@ -96,10 +90,9 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         classDescriptorsByEntry = readResult.classDescriptorsByEntry
         patchClasses = PatchClasses(readResult.dexFile.classes)
 
-        originalDexFiles = readResult.extractedDexFiles
-        originalDexMappings = HashMap<File, MappedFile>(readResult.extractedDexFiles.size).apply {
-            readResult.extractedDexFiles.forEachIndexed { index, file ->
-                put(file, readResult.mappedFiles[index])
+        originalDexMappings = HashMap<File, MappedFile>(readResult.mappedFiles.size).apply {
+            readResult.mappedFiles.forEachIndexed { index, mappedFile ->
+                put(mappedFile.originalFile, mappedFile)
             }
         }
     }
@@ -362,7 +355,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         // 2. Strip modified class_def entries from original DEX files in-place.
         if (modifiedOriginalDescriptors.isNotEmpty()) {
             logger.info("Stripping ${modifiedOriginalDescriptors.size} modified classes from original DEX files")
-            for (originalDex in originalDexFiles) {
+            for (originalDex in originalDexMappings.keys) {
                 val stripped = DexStripper.stripInPlace(originalDex, modifiedOriginalDescriptors)
                 if (stripped > 0) {
                     logger.fine { "Stripped $stripped class_def entries from ${originalDex.name}" }
@@ -411,7 +404,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         }
 
         // 2. For each original DEX file, either pass through or rebuild without modified classes.
-        originalDexFiles.forEachIndexed { i, originalDex ->
+        originalDexMappings.keys.forEachIndexed { i, originalDex ->
             val entryDescriptors = classDescriptorsByEntry[originalDex.name] ?: emptySet()
             val hasModifiedClasses = entryDescriptors.any { it in modifiedOriginalDescriptors }
 
