@@ -1,3 +1,10 @@
+## [1.5.3-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.3-dev.1...v1.5.3-dev.2) (2026-06-29)
+
+
+### Bug Fixes
+
+* Memory map files using FFM on JDK22+ to fix file locking on Windows ([#143](https://github.com/MorpheApp/morphe-patcher/issues/143)) ([713d342](https://github.com/MorpheApp/morphe-patcher/commit/713d34220f6f78a9b77f5404dbf3bcbc8edc8253))
+
 ## [1.5.3-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.2...v1.5.3-dev.1) (2026-06-20)
 
 
