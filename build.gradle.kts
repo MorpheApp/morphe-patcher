@@ -80,6 +80,7 @@ dependencies {
 
     testImplementation(libs.mockk)
     testImplementation(libs.kotlin.test)
+    testImplementation(libs.junit.jupiter.params)
 }
 
 kotlin {

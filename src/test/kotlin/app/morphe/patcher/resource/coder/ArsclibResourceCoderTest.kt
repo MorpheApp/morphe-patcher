@@ -8,9 +8,13 @@ package app.morphe.patcher.resource.coder
 import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.PathMap
 import app.morphe.patcher.resource.ResourceMode
+import com.android.tools.build.apkzlib.zip.ZFile
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
+import java.io.ByteArrayInputStream
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -24,8 +28,9 @@ internal class ArsclibResourceCoderTest {
     @BeforeEach
     fun setUp(@TempDir tempDir: File) {
         workingDir = tempDir.resolve("working").also { it.mkdirs() }
-        // apkFile is unused by the methods under test; just needs to exist for the constructor.
-        val dummyApk = tempDir.resolve("dummy.apk").also { it.createNewFile() }
+        // apkFile is unused by most methods under test; just needs to be a valid (empty) zip for the constructor.
+        val dummyApk = tempDir.resolve("dummy.apk")
+        ZFile.openReadWrite(dummyApk).use { }
         coder = ArsclibResourceCoder(workingDir, dummyApk)
     }
 
@@ -831,8 +836,33 @@ internal class ArsclibResourceCoderTest {
         tempDir: File,
         keepArchitectures: Set<CpuArchitecture>
     ): ArsclibResourceCoder {
-        val dummyApk = tempDir.resolve("dummy2.apk").also { it.createNewFile() }
+        // A valid (empty) zip so getDeletedFiles(NONE) can open it without lib entries.
+        val dummyApk = tempDir.resolve("dummy2.apk")
+        ZFile.openReadWrite(dummyApk).use { }
         return ArsclibResourceCoder(workingDir, dummyApk, keepArchitectures)
+    }
+
+    /**
+     * Helper to create a real APK on disk containing native lib entries for each architecture.
+     * Used to exercise the ResourceMode.NONE strip path, which reads lib paths directly from the APK.
+     */
+    private fun createApkWithLibs(
+        tempDir: File,
+        architectures: List<String>,
+        filesPerArch: Int = 2
+    ): File {
+        val apk = tempDir.resolve("withlibs.apk")
+        ZFile.openReadWrite(apk).use { zFile ->
+            architectures.forEach { arch ->
+                (1..filesPerArch).forEach { i ->
+                    zFile.add(
+                        "lib/$arch/lib$arch$i.so",
+                        ByteArrayInputStream(byteArrayOf(0x7F, 0x45, 0x4C, 0x46, i.toByte()))
+                    )
+                }
+            }
+        }
+        return apk
     }
 
     /**
@@ -1094,8 +1124,9 @@ internal class ArsclibResourceCoderTest {
      * otherResourcesRootDirectory. getDeletedFiles() returns that set.
      */
 
-    @Test
-    fun `getDeletedFiles is empty before detectFileChanges runs`(@TempDir tempDir: File) {
+    @ParameterizedTest
+    @EnumSource(ResourceMode::class)
+    fun `getDeletedFiles is empty before detectFileChanges runs`(mode: ResourceMode, @TempDir tempDir: File) {
         val archCoder = createCoderWithKeepArchitectures(tempDir, setOf(CpuArchitecture.ARM64_V8A))
 
         setupNativeLibDirs(listOf("arm64-v8a", "x86"))
@@ -1105,13 +1136,14 @@ internal class ArsclibResourceCoderTest {
         // Intentionally do NOT call detectFileChanges() here.
 
         assertTrue(
-            archCoder.getDeletedFiles().isEmpty(),
+            archCoder.getDeletedFiles(mode).isEmpty(),
             "getDeletedFiles should be empty until detectFileChanges populates it"
         )
     }
 
-    @Test
-    fun `getDeletedFiles reports stripped lib files after detectFileChanges`(@TempDir tempDir: File) {
+    @ParameterizedTest
+    @EnumSource(ResourceMode::class)
+    fun `getDeletedFiles reports stripped lib files after detectFileChanges`(mode: ResourceMode, @TempDir tempDir: File) {
         val archCoder = createCoderWithKeepArchitectures(tempDir, setOf(CpuArchitecture.ARM64_V8A))
 
         val libFiles = setupNativeLibDirs(listOf("arm64-v8a", "x86","x86_64"))
@@ -1122,7 +1154,7 @@ internal class ArsclibResourceCoderTest {
         archCoder.stripNativeLibraries()
         archCoder.detectFileChanges()
 
-        val deleted = archCoder.getDeletedFiles()
+        val deleted = archCoder.getDeletedFiles(mode)
 
         // arm64-v8a SHOULD NOT be reported as deleted here.
         libFiles["arm64-v8a"]!!.forEach { file ->
@@ -1158,8 +1190,9 @@ internal class ArsclibResourceCoderTest {
         )
     }
 
-    @Test
-    fun `getDeletedFiles reports paths in apk-relative posix format`(@TempDir tempDir: File) {
+    @ParameterizedTest
+    @EnumSource(ResourceMode::class)
+    fun `getDeletedFiles reports paths in apk-relative posix format`(mode: ResourceMode, @TempDir tempDir: File) {
         val archCoder = createCoderWithKeepArchitectures(tempDir, setOf(CpuArchitecture.ARM64_V8A))
 
         setupNativeLibDirs(listOf("arm64-v8a", "x86"))
@@ -1167,7 +1200,7 @@ internal class ArsclibResourceCoderTest {
         archCoder.stripNativeLibraries()
         archCoder.detectFileChanges()
 
-        val deleted = archCoder.getDeletedFiles()
+        val deleted = archCoder.getDeletedFiles(mode)
 
         // PatcherResult.applyTo() expects in-zip APK paths:
         // posix-style, no leading slash, starting with "lib/<arch>/...".
@@ -1190,8 +1223,9 @@ internal class ArsclibResourceCoderTest {
         }
     }
 
-    @Test
-    fun `getDeletedFiles is empty when keepArchitectures is empty`() {
+    @ParameterizedTest
+    @EnumSource(ResourceMode::class)
+    fun `getDeletedFiles is empty when keepArchitectures is empty`(mode: ResourceMode) {
         // Default coder has no keepArchitectures, so stripNativeLibraries() is a no-op.
         setupNativeLibDirs(listOf("arm64-v8a", "x86"))
 
@@ -1200,13 +1234,14 @@ internal class ArsclibResourceCoderTest {
         coder.detectFileChanges()
 
         assertTrue(
-            coder.getDeletedFiles().isEmpty(),
+            coder.getDeletedFiles(mode).isEmpty(),
             "getDeletedFiles should be empty when nothing was stripped"
         )
     }
 
-    @Test
-    fun `getDeletedFiles is empty when no files were deleted`(@TempDir tempDir: File) {
+    @ParameterizedTest
+    @EnumSource(ResourceMode::class)
+    fun `getDeletedFiles is empty when no files were deleted`(mode: ResourceMode, @TempDir tempDir: File) {
         val archCoder = createCoderWithKeepArchitectures(
             tempDir,
             setOf(CpuArchitecture.ARM64_V8A, CpuArchitecture.X86, CpuArchitecture.X86_64)
@@ -1219,13 +1254,14 @@ internal class ArsclibResourceCoderTest {
         archCoder.detectFileChanges()
 
         assertTrue(
-            archCoder.getDeletedFiles().isEmpty(),
+            archCoder.getDeletedFiles(mode).isEmpty(),
             "getDeletedFiles should be empty when no files were stripped"
         )
     }
 
-    @Test
-    fun `getDeletedFiles is cleared between detectFileChanges calls`(@TempDir tempDir: File) {
+    @ParameterizedTest
+    @EnumSource(ResourceMode::class)
+    fun `getDeletedFiles is cleared between detectFileChanges calls`(mode: ResourceMode, @TempDir tempDir: File) {
         val archCoder = createCoderWithKeepArchitectures(tempDir, setOf(CpuArchitecture.ARM64_V8A))
 
         setupNativeLibDirs(listOf("arm64-v8a", "x86"))
@@ -1234,7 +1270,7 @@ internal class ArsclibResourceCoderTest {
         archCoder.detectFileChanges()
 
         assertTrue(
-            archCoder.getDeletedFiles().isNotEmpty(),
+            archCoder.getDeletedFiles(mode).isNotEmpty(),
             "Sanity check: first detectFileChanges should populate deletedFiles"
         )
 
@@ -1252,7 +1288,7 @@ internal class ArsclibResourceCoderTest {
         archCoder.detectFileChanges()
 
         assertTrue(
-            archCoder.getDeletedFiles().isEmpty(),
+            archCoder.getDeletedFiles(mode).isEmpty(),
             "deletedFiles should be cleared at the start of each detectFileChanges call"
         )
     }
@@ -1265,8 +1301,9 @@ internal class ArsclibResourceCoderTest {
      * noticing the file is no longer present from the snapshot.
      */
 
-    @Test
-    fun `getDeletedFiles reports root-level files removed by patches`(@TempDir tempDir: File) {
+    @ParameterizedTest
+    @EnumSource(ResourceMode::class)
+    fun `getDeletedFiles reports root-level files removed by patches`(mode: ResourceMode, @TempDir tempDir: File) {
         val archCoder = createCoderWithKeepArchitectures(tempDir, emptySet())
 
         // Simulate decode: a few files exist under root/ at decode time.
@@ -1284,7 +1321,7 @@ internal class ArsclibResourceCoderTest {
 
         archCoder.detectFileChanges()
 
-        val deleted = archCoder.getDeletedFiles()
+        val deleted = archCoder.getDeletedFiles(mode)
         assertTrue(
             deleted.contains("assets/remove.json"),
             "Deleted file should be reported in getDeletedFiles, got: $deleted"
@@ -1295,8 +1332,9 @@ internal class ArsclibResourceCoderTest {
         )
     }
 
-    @Test
-    fun `getDeletedFiles only reports files under root directory`(@TempDir tempDir: File) {
+    @ParameterizedTest
+    @EnumSource(ResourceMode::class)
+    fun `getDeletedFiles only reports files under root directory`(mode: ResourceMode, @TempDir tempDir: File) {
         val archCoder = createCoderWithKeepArchitectures(tempDir, emptySet())
 
         // Set up two files: one under root/ and one under resources/<pkg>/.
@@ -1319,7 +1357,7 @@ internal class ArsclibResourceCoderTest {
 
         archCoder.detectFileChanges()
 
-        val deleted = archCoder.getDeletedFiles()
+        val deleted = archCoder.getDeletedFiles(mode)
         assertTrue(
             deleted.contains("assets/file.json"),
             "Root file deletion should be reported, got: $deleted"
@@ -1330,8 +1368,9 @@ internal class ArsclibResourceCoderTest {
         )
     }
 
-    @Test
-    fun `getDeletedFiles handles strip and patch deletions in the same pass`(@TempDir tempDir: File) {
+    @ParameterizedTest
+    @EnumSource(ResourceMode::class)
+    fun `getDeletedFiles handles strip and patch deletions in the same pass`(mode: ResourceMode, @TempDir tempDir: File) {
         val archCoder = createCoderWithKeepArchitectures(tempDir, setOf(CpuArchitecture.ARM64_V8A))
 
         // Native libs for two arches (one kept, one stripped).
@@ -1350,7 +1389,7 @@ internal class ArsclibResourceCoderTest {
 
         archCoder.detectFileChanges()
 
-        val deleted = archCoder.getDeletedFiles()
+        val deleted = archCoder.getDeletedFiles(mode)
 
         // Both the stripped lib files and the patch-deleted file should be reported.
         libFiles["x86"]!!.forEach { file ->
@@ -1379,8 +1418,9 @@ internal class ArsclibResourceCoderTest {
      * saw an empty set after close(), so applyTo had nothing to delete.
      * Fix: getDeletedFiles() now returns a defensive copy via .toSet().
      */
-    @Test
-    fun `getDeletedFiles returns independent snapshot that survives close`(@TempDir tempDir: File) {
+    @ParameterizedTest
+    @EnumSource(ResourceMode::class)
+    fun `getDeletedFiles returns independent snapshot that survives close`(mode: ResourceMode, @TempDir tempDir: File) {
         val archCoder = createCoderWithKeepArchitectures(tempDir,
             setOf(CpuArchitecture.ARM64_V8A))
 
@@ -1390,7 +1430,7 @@ internal class ArsclibResourceCoderTest {
         archCoder.detectFileChanges()
 
         // Capture the returned set BEFORE close, mimicking what PatcherResult.PatchedResources.deleteResources does in real usage.
-        val snapshot = archCoder.getDeletedFiles()
+        val snapshot = archCoder.getDeletedFiles(mode)
         val sizeBeforeClose = snapshot.size
         assertTrue(sizeBeforeClose > 0, "Sanity check: strip should have produced deletions")
 
@@ -1404,6 +1444,76 @@ internal class ArsclibResourceCoderTest {
             snapshot.size,
             "getDeletedFiles must return an independent snapshot. close() cleared the shared reference and caused the silent strip-libs failure."
         )
+    }
+
+    // ==================== getDeletedFiles ResourceMode.NONE strip-from-apk tests ====================
+    /**
+     * When no resource patches are provided the coder runs with ResourceMode.NONE, so stripNativeLibraries()
+     * never runs against the working directory. getDeletedFiles(NONE) instead reads native lib entries
+     * directly from the original APK and reports the ones whose architecture isn't kept.
+     */
+
+    @Test
+    fun `getDeletedFiles strips libs from apk in NONE mode when no resource patches present`(@TempDir tempDir: File) {
+        val apk = createApkWithLibs(tempDir, listOf("arm64-v8a", "x86", "x86_64"))
+        val archCoder = ArsclibResourceCoder(workingDir, apk, setOf(CpuArchitecture.ARM64_V8A))
+
+        // No working-directory lib dirs and no detectFileChanges(): mimics the no-resource-patches path.
+        val deleted = archCoder.getDeletedFiles(ResourceMode.NONE)
+
+        assertTrue(deleted.contains("lib/x86/libx861.so"), "x86 libs should be stripped, got: $deleted")
+        assertTrue(deleted.contains("lib/x86_64/libx86_641.so"), "x86_64 libs should be stripped, got: $deleted")
+        assertFalse(deleted.any { it.startsWith("lib/arm64-v8a/") }, "kept arm64-v8a libs must not be stripped")
+        assertEquals(4, deleted.size, "2 x86 + 2 x86_64 entries should be stripped, got: $deleted")
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ResourceMode::class, names = ["FULL", "RAW_ONLY"])
+    fun `getDeletedFiles does not read apk libs outside NONE mode`(mode: ResourceMode, @TempDir tempDir: File) {
+        val apk = createApkWithLibs(tempDir, listOf("arm64-v8a", "x86"))
+        val archCoder = ArsclibResourceCoder(workingDir, apk, setOf(CpuArchitecture.ARM64_V8A))
+
+        // No on-disk strip happened, so non-NONE modes report only the (empty) deletedFiles set.
+        assertTrue(
+            archCoder.getDeletedFiles(mode).isEmpty(),
+            "apk should only be read during getDeletedFiles() in NONE mode, not $mode"
+        )
+    }
+
+    @Test
+    fun `getDeletedFiles is empty in NONE mode when keepArchitectures is empty`(@TempDir tempDir: File) {
+        val apk = createApkWithLibs(tempDir, listOf("arm64-v8a", "x86"))
+        val archCoder = ArsclibResourceCoder(workingDir, apk, emptySet())
+
+        assertTrue(
+            archCoder.getDeletedFiles(ResourceMode.NONE).isEmpty(),
+            "Nothing should be stripped when no architectures are requested to be kept"
+        )
+    }
+
+    // ==================== getUncompressedFiles tests ====================
+
+    @ParameterizedTest
+    @EnumSource(ResourceMode::class)
+    fun `getUncompressedFiles is empty when json missing in every mode`(mode: ResourceMode) {
+        assertTrue(
+            coder.getUncompressedFiles(mode).isEmpty(),
+            "Missing uncompressed-files.json should yield an empty set in $mode"
+        )
+    }
+
+    @ParameterizedTest
+    @EnumSource(ResourceMode::class, names = ["FULL", "RAW_ONLY"])
+    fun `getUncompressedFiles parses paths and extensions in every mode`(mode: ResourceMode) {
+        workingDir.resolve("uncompressed-files.json").writeText(
+            """{"extensions":[".png"],"paths":["lib/x86/libfoo.so"]}"""
+        )
+
+        val uncompressed = coder.getUncompressedFiles(mode)
+
+        assertTrue("lib/x86/libfoo.so" in uncompressed, "explicit path should be uncompressed in $mode")
+        assertTrue("res/drawable/icon.png" in uncompressed, "extension match should be uncompressed in $mode")
+        assertFalse("classes.dex" in uncompressed, "non-listed file should be compressed in $mode")
     }
 
 }
