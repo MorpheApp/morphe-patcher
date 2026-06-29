@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.dex
 
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import java.io.File
 import java.nio.ByteOrder
 import kotlin.concurrent.thread
@@ -114,17 +115,29 @@ internal class MappedFileTest {
     }
 
     @Test
-    fun `FFM is used when running on JDK 22 or newer`() {
+    fun `FFM is used when running on JDK 21 or newer`() {
         // Confirms the selection logic actually picks the FFM implementation on capable
         // runtimes instead of silently falling back. Tests always run on a desktop JDK,
         // so Runtime.version() is available here.
         val featureVersion = Runtime.version().feature()
+        assumeTrue(featureVersion >= 21)
 
-        assertEquals(
-            featureVersion >= 22,
+        assertTrue(
             MappedFile.isFfmSupported,
-            "FFM support should be enabled exactly when the runtime feature version (" +
-                "$featureVersion) is 22 or newer",
+            "FFM support should be enabled when the runtime feature version (" +
+                "$featureVersion) is 21 or newer",
+        )
+    }
+
+    @Test
+    fun `Reflection is used when running on JDK 20 or older`() {
+        val featureVersion = Runtime.version().feature()
+        assumeTrue(featureVersion < 21)
+
+        assertFalse(
+            MappedFile.isFfmSupported,
+            "FFM support should not be enabled when the runtime feature version (" +
+                    "$featureVersion) is 20 or older",
         )
     }
 
