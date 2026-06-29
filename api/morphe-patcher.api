@@ -439,6 +439,7 @@ public final class app/morphe/patcher/dex/SdkDexVerifier$Companion {
 public final class app/morphe/patcher/environment/EnvironmentUtils {
 	public static final field INSTANCE Lapp/morphe/patcher/environment/EnvironmentUtils;
 	public final fun isAndroidEnvironment ()Z
+	public final fun isWindowsEnvironment ()Z
 }
 
 public final class app/morphe/patcher/extensions/ExtensionsKt {
@@ -965,11 +966,11 @@ public final class app/morphe/patcher/resource/coder/ArsclibResourceCoder : app/
 	public fun decodeResources ()Lapp/morphe/patcher/PackageMetadata;
 	public fun deleteFile (Ljava/lang/String;Ljava/lang/String;)V
 	public fun encodeResources (Ljava/io/File;)Ljava/io/File;
-	public fun getDeletedFiles ()Ljava/util/Set;
+	public fun getDeletedFiles (Lapp/morphe/patcher/resource/ResourceMode;)Ljava/util/Set;
 	public fun getFile (Ljava/lang/String;Ljava/lang/String;Z)Ljava/io/File;
 	public fun getOtherResourceFiles (Ljava/io/File;Lapp/morphe/patcher/resource/ResourceMode;)Ljava/io/File;
 	public fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
-	public fun getUncompressedFiles ()Ljava/util/Set;
+	public fun getUncompressedFiles (Lapp/morphe/patcher/resource/ResourceMode;)Ljava/util/Set;
 }
 
 public final class app/morphe/patcher/resource/coder/ArsclibResourceCoder$PackageInfo {
@@ -989,12 +990,12 @@ public abstract interface class app/morphe/patcher/resource/coder/ResourceCoder 
 	public abstract fun deleteFile (Ljava/lang/String;Ljava/lang/String;)V
 	public static synthetic fun deleteFile$default (Lapp/morphe/patcher/resource/coder/ResourceCoder;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)V
 	public abstract fun encodeResources (Ljava/io/File;)Ljava/io/File;
-	public abstract fun getDeletedFiles ()Ljava/util/Set;
+	public abstract fun getDeletedFiles (Lapp/morphe/patcher/resource/ResourceMode;)Ljava/util/Set;
 	public abstract fun getFile (Ljava/lang/String;Ljava/lang/String;Z)Ljava/io/File;
 	public static synthetic fun getFile$default (Lapp/morphe/patcher/resource/coder/ResourceCoder;Ljava/lang/String;Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
 	public abstract fun getOtherResourceFiles (Ljava/io/File;Lapp/morphe/patcher/resource/ResourceMode;)Ljava/io/File;
 	public abstract fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
-	public abstract fun getUncompressedFiles ()Ljava/util/Set;
+	public abstract fun getUncompressedFiles (Lapp/morphe/patcher/resource/ResourceMode;)Ljava/util/Set;
 }
 
 public final class app/morphe/patcher/resource/coder/ResourceCoder$DefaultImpls {

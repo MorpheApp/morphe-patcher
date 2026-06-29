@@ -59,7 +59,7 @@ object ApkUtils {
      */
     fun PatcherResult.applyTo(apkFile: File) {
         ZFile.openReadWrite(apkFile, zFileOptions).use { targetApkZFile ->
-            resources?.let { resources ->
+            resources.let { resources ->
                 // Add resources compiled by AAPT.
                 resources.resourcesApk?.let { resourcesApk ->
                     ZFile.openReadOnly(resourcesApk).use { resourcesApkZFile ->
@@ -73,7 +73,11 @@ object ApkUtils {
 
                         targetApkZFile.mergeFrom(resourcesApkZFile) { entry ->
                             // Filter any dex files in case they were packaged inside resources.apk for some reason.
-                            entry.startsWith("classes") && entry.endsWith(".dex")
+                            (entry.startsWith("classes") && entry.endsWith(".dex"))
+
+                            // Filter any files that are already marked for deletion so we don't needlessly copy them,
+                            // in case they made it into the resources.apk.
+                            || entry in resources.deleteResources
                         }
                     }
                 }

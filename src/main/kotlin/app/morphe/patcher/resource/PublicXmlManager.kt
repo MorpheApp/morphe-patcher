@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.resource
 
+import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import org.xmlpull.v1.XmlPullParser
 import java.io.Closeable
 import java.io.File
@@ -126,7 +127,6 @@ class PublicXmlManager(
         }
 
         // Replace original file
-        publicDocPath.delete()
-        tempFile.renameTo(publicDocPath)
+        tempFile.safelyMoveTo(publicDocPath)
     }
 }

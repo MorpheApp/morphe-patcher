@@ -21,6 +21,9 @@ import app.morphe.patcher.resource.processor.StringsXmlEscapeProcessor
 import app.morphe.patcher.resource.processor.StringsXmlSanitizeProcessor
 import app.morphe.patcher.resource.processor.StringsXmlUnEscapeProcessor
 import app.morphe.patcher.util.Document
+import app.morphe.patcher.util.FileUtils.safelyDelete
+import app.morphe.patcher.util.FileUtils.safelyMoveTo
+import com.android.tools.build.apkzlib.zip.ZFile
 import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
@@ -230,7 +233,7 @@ class ArsclibResourceCoder(
                     dir.isDirectory && CpuArchitecture.valueOfOrNull(dir.name) !in keepArchitectures
                 }?.forEach { it ->
                     it.walkTopDown().filter { it.isFile }.forEach { _ -> strippedLibCount++ }
-                    it.deleteRecursively()
+                    it.safelyDelete()
                 }
 
             logger.info("Stripped $strippedLibCount lib files")
@@ -348,11 +351,7 @@ class ArsclibResourceCoder(
         return if (otherFiles.isNotEmpty()) {
             logger.info("Moving ${otherFiles.size} resource files")
             otherFiles.forEach { (src, dest) ->
-                dest.parentFile.mkdirs()
-                Files.move(src.toPath(),
-                    dest.toPath(),
-                    StandardCopyOption.REPLACE_EXISTING
-                )
+                src.safelyMoveTo(dest)
             }
             otherResourcesDir
         } else {
@@ -360,7 +359,7 @@ class ArsclibResourceCoder(
         }
     }
 
-    override fun getUncompressedFiles(): Set<String> {
+    override fun getUncompressedFiles(resourceMode: ResourceMode): Set<String> {
         val uncompressedJsonFile = workingDir.resolve("uncompressed-files.json")
         if (!uncompressedJsonFile.exists()) return emptySet()
 
@@ -381,7 +380,31 @@ class ArsclibResourceCoder(
      * independent snapshot instead of a live reference to [deletedFiles] `.close()` clears the
      * backing field, and `applyTo` typically runs after the [Patcher] `.use` block exits.
      */
-    override fun getDeletedFiles(): Set<String> = deletedFiles.toSet()
+    override fun getDeletedFiles(resourceMode: ResourceMode): Set<String> =
+        if (resourceMode == ResourceMode.NONE && keepArchitectures.isNotEmpty()) {
+            // When no resource patches are provided, stripNativeLibs() never got a chance to run
+            // so do the filtering here
+            buildSet {
+                logger.info(
+                    "Stripping libs (keeping architectures " +
+                            "${keepArchitectures.joinToString(", ") { it.arch }})"
+                )
+                var strippedLibCount = 0
+                ZFile.openReadOnly(apkFile).use {
+                    it.entries().map { entry ->
+                        entry.centralDirectoryHeader.name
+                    }.filter { name ->
+                        name.startsWith("lib/") && CpuArchitecture.valueOfOrNull(name.split("/")[1]) !in keepArchitectures
+                    }.forEach {
+                        add(it)
+                        strippedLibCount++
+                    }
+                }
+                logger.info("Stripped $strippedLibCount lib files")
+            } + deletedFiles
+        } else {
+            deletedFiles.toSet()
+        }
 
     /**
      * Get a file from the working directory.

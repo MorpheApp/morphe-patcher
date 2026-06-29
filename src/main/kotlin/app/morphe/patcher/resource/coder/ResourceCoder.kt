@@ -56,16 +56,18 @@ interface ResourceCoder : Closeable {
     /**
      * Get uncompressed files.
      *
+     * @param resourceMode the resource mode that is being used.
      * @return a set of all files that should not be compressed.
      */
-    fun getUncompressedFiles(): Set<String>
+    fun getUncompressedFiles(resourceMode: ResourceMode): Set<String>
 
     /**
      * Get deleted files.
      *
+     * @param resourceMode the resource mode that is being used.
      * @return a set of all files that should be deleted.
      */
-    fun getDeletedFiles(): Set<String>
+    fun getDeletedFiles(resourceMode: ResourceMode): Set<String>
 
     /**
      * Get a file from the working directory.

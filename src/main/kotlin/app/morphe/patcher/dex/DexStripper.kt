@@ -6,10 +6,8 @@
 package app.morphe.patcher.dex
 
 import java.io.File
-import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.channels.FileChannel
 import java.security.MessageDigest
 import java.util.zip.Adler32
 
@@ -64,10 +62,9 @@ internal object DexStripper {
     fun stripInPlace(dexFile: File, classDescriptorsToStrip: Set<String>): Int {
         if (classDescriptorsToStrip.isEmpty()) return 0
 
-        RandomAccessFile(dexFile, "rw").use { raf ->
-            val fileSize = raf.length().toInt()
-            val mappedBuf = raf.channel.map(FileChannel.MapMode.READ_WRITE, 0, raf.length())
-            val buf = mappedBuf.order(ByteOrder.LITTLE_ENDIAN)
+        MappedFile.mapReadWrite(dexFile).use { mappedFile ->
+            val fileSize = mappedFile.buffer.capacity()
+            val buf = mappedFile.buffer.order(ByteOrder.LITTLE_ENDIAN)
 
             val stringIdsOff = buf.getInt(STRING_IDS_OFF_OFF)
             val typeIdsOff = buf.getInt(TYPE_IDS_OFF_OFF)
@@ -116,7 +113,7 @@ internal object DexStripper {
             recomputeSignature(buf, fileSize)
             recomputeChecksum(buf, fileSize)
 
-            mappedBuf.force()
+            mappedFile.force()
 
             return indicesToRemove.size
         }

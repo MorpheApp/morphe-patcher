@@ -20,6 +20,7 @@ package app.morphe.patcher.apk
 import app.morphe.patcher.logging.ArsclibLogger
 import app.morphe.patcher.logging.Logger
 import app.morphe.patcher.logging.NoOpLogger
+import app.morphe.patcher.util.FileUtils.safelyDelete
 import com.reandroid.apk.ApkBundle
 import com.reandroid.apk.ApkModule
 import com.reandroid.app.AndroidManifest
@@ -49,7 +50,7 @@ class ApkMerger(
         extractNativeLibs: Boolean? = null,
         cleanMetaInf: Boolean = true
     ) {
-        ApkEditorUtil.delete(outputFile)
+        outputFile.safelyDelete()
         var dir: File = inputFile
         var extracted = false
         if (dir.isFile) {
@@ -85,7 +86,7 @@ class ApkMerger(
         mergedModule.close()
         bundle.close()
         if (extracted) {
-            ApkEditorUtil.deleteDir(dir)
+            dir.safelyDelete()
             dir.deleteOnExit()
         }
         logger.info("Saved to: $outputFile")
@@ -97,7 +98,7 @@ class ApkMerger(
         logger.info("Extracting to: $tmp")
         if (tmp.exists()) {
             logger.info("Delete: $tmp")
-            ApkEditorUtil.deleteDir(tmp)
+            tmp.safelyDelete()
         }
         tmp.deleteOnExit()
         val archive = ArchiveFile(file)
