@@ -390,13 +390,15 @@ class ArsclibResourceCoder(
                             "${keepArchitectures.joinToString(", ") { it.arch }})"
                 )
                 var strippedLibCount = 0
-                ZFile.openReadOnly(apkFile).entries().map { entry ->
-                    entry.centralDirectoryHeader.name
-                }.filter { name ->
-                    name.startsWith("lib/") && CpuArchitecture.valueOfOrNull(name.split("/")[1]) !in keepArchitectures
-                }.forEach {
-                    add(it)
-                    strippedLibCount++
+                ZFile.openReadOnly(apkFile).use {
+                    it.entries().map { entry ->
+                        entry.centralDirectoryHeader.name
+                    }.filter { name ->
+                        name.startsWith("lib/") && CpuArchitecture.valueOfOrNull(name.split("/")[1]) !in keepArchitectures
+                    }.forEach {
+                        add(it)
+                        strippedLibCount++
+                    }
                 }
                 logger.info("Stripped $strippedLibCount lib files")
             } + deletedFiles
