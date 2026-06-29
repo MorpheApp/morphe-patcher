@@ -1,3 +1,10 @@
+## [1.5.3-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.3-dev.2...v1.5.3-dev.3) (2026-06-29)
+
+
+### Bug Fixes
+
+* Don't use --file-per-class when calling D8 to prevent issues with reserved filenames on Windows ([424c041](https://github.com/MorpheApp/morphe-patcher/commit/424c041755ec28980d8f88dd220ae518db7ddd7f))
+
 ## [1.5.3-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.3-dev.1...v1.5.3-dev.2) (2026-06-29)
 
 
