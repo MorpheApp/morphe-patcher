@@ -1,3 +1,10 @@
+# [1.6.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.3-dev.3...v1.6.0-dev.1) (2026-06-30)
+
+
+### Features
+
+* Expose APK signing certificates to patches ([#145](https://github.com/MorpheApp/morphe-patcher/issues/145)) ([2284e22](https://github.com/MorpheApp/morphe-patcher/commit/2284e220cea3a701b5dcdcb00ac0643a21fbee73))
+
 ## [1.5.3-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.3-dev.2...v1.5.3-dev.3) (2026-06-29)
 
 
