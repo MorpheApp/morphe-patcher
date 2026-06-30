@@ -48,7 +48,7 @@ class ApkMerger(
         resDirName: String? = null,
         validateResDir: Boolean = true,
         extractNativeLibs: Boolean? = null,
-        cleanMetaInf: Boolean = true
+        cleanMetaInf: Boolean = false
     ) {
         outputFile.safelyDelete()
         var dir: File = inputFile
@@ -71,10 +71,13 @@ class ApkMerger(
             logger.info("Validating resources dir ...")
             mergedModule.validateResourcesDir()
         }
+        /*
+        // Ignore cleanMetaInf so that we always retain the signature block (this is leftover code from APKEditor).
         if (cleanMetaInf) {
             logger.info("Clearing META-INF ...")
             clearMeta(mergedModule)
         }
+        */
         sanitizeManifest(mergedModule)
         mergedModule.refreshTable()
         mergedModule.refreshManifest()
@@ -225,11 +228,5 @@ class ApkMerger(
             specTypePair.removeNullEntries(entry.getId())
         }
         return true
-    }
-    private fun clearMeta(module: ApkModule) {
-        val archive = module.zipEntryMap
-        archive.removeIf(Pattern.compile("^META-INF/.+\\.(([MS]F)|(RSA))"))
-        archive.remove("stamp-cert-sha256")
-        module.apkSignatureBlock = null
     }
 }
