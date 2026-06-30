@@ -28,6 +28,7 @@ import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
+import com.reandroid.archive.block.ApkSignatureBlock
 import com.reandroid.arsc.coder.CoderSetting
 import com.reandroid.arsc.coder.xml.AaptXmlStringDecoder
 import com.reandroid.arsc.coder.xml.XmlCoder
@@ -38,7 +39,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.logging.Logger
 
-class ArsclibResourceCoder(
+internal class ArsclibResourceCoder(
     internal val workingDir: File,
     internal val apkFile: File,
     private val keepArchitectures: Set<CpuArchitecture> = emptySet()
@@ -133,6 +134,7 @@ class ArsclibResourceCoder(
         val versionName: String,
         val versionCode: String,
         val frameworkVersion: Int,
+        val signatureBlock: ApkSignatureBlock?
     )
 
     private val lazyPackageInfo = lazy {
@@ -143,6 +145,7 @@ class ArsclibResourceCoder(
                 manifest.versionName,
                 manifest.versionCode.toString(),
                 module.androidFrameworkVersion,
+                module.apkSignatureBlock
             )
         }
     }
@@ -160,7 +163,8 @@ class ArsclibResourceCoder(
         return PackageMetadata(
             lazyPackageInfo.value.packageName,
             lazyPackageInfo.value.versionName,
-            lazyPackageInfo.value.versionCode
+            lazyPackageInfo.value.versionCode,
+            lazyPackageInfo.value.signatureBlock
         )
     }
 

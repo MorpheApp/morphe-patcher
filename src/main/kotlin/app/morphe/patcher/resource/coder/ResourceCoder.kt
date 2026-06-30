@@ -10,7 +10,7 @@ import app.morphe.patcher.resource.ResourceMode
 import java.io.Closeable
 import java.io.File
 
-interface ResourceCoder : Closeable {
+internal interface ResourceCoder : Closeable {
     /**
      * No-op default implementation. Override to release resources held by the coder.
      */
