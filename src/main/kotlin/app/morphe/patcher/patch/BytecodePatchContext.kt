@@ -348,21 +348,19 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
             newDexCount = newDexFiles.size
         }
 
-        // The original DEX classes have now been read. Release their mappings before
-        // editing the files in-place and renaming them, so the deterministic unmapping
-        // releases any Windows file lock beforehand.
-        releaseAllDexMappings()
-
         // 2. Strip modified class_def entries from original DEX files in-place.
         if (modifiedOriginalDescriptors.isNotEmpty()) {
             logger.info("Stripping ${modifiedOriginalDescriptors.size} modified classes from original DEX files")
-            for (originalDex in originalDexMappings.keys) {
-                val stripped = DexStripper.stripInPlace(originalDex, modifiedOriginalDescriptors)
+            originalDexMappings.forEach { (originalDex, mappedFile) ->
+                val stripped = DexStripper.stripInPlace(mappedFile, modifiedOriginalDescriptors)
                 if (stripped > 0) {
                     logger.fine { "Stripped $stripped class_def entries from ${originalDex.name}" }
                 }
             }
         }
+
+        // The original DEX classes have now been stripped. Ensure that all DEX files are closed before moving.
+        releaseAllDexMappings()
 
         // 3. Rename: new DEX files get lowest slots (loaded first), originals shifted up.
         dexWorkingDir.listFiles { it.isFile }!!.sorted().forEachIndexed { i, tempFile ->
