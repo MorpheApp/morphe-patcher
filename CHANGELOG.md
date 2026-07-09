@@ -1,3 +1,11 @@
+# [1.6.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.6.0-dev.1...v1.6.0-dev.2) (2026-07-09)
+
+
+### Bug Fixes
+
+* Ignore versioned classes from multi-release JARs ([ecb54a8](https://github.com/MorpheApp/morphe-patcher/commit/ecb54a834c7d7db162271c3f1c3de5ee71bf0168))
+* Reuse mapped files in fast mode ([f3f77e2](https://github.com/MorpheApp/morphe-patcher/commit/f3f77e2a5da12ee750ec3014bdc8ccaa511a38f2))
+
 # [1.6.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.3-dev.3...v1.6.0-dev.1) (2026-06-30)
 
 
