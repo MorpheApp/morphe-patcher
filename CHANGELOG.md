@@ -1,3 +1,19 @@
+# [1.6.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.2...v1.6.0) (2026-07-11)
+
+
+### Bug Fixes
+
+* Don't use --file-per-class when calling D8 to prevent issues with reserved filenames on Windows ([424c041](https://github.com/MorpheApp/morphe-patcher/commit/424c041755ec28980d8f88dd220ae518db7ddd7f))
+* Ignore versioned classes from multi-release JARs ([ecb54a8](https://github.com/MorpheApp/morphe-patcher/commit/ecb54a834c7d7db162271c3f1c3de5ee71bf0168))
+* Memory map files using FFM on JDK22+ to fix file locking on Windows ([#143](https://github.com/MorpheApp/morphe-patcher/issues/143)) ([713d342](https://github.com/MorpheApp/morphe-patcher/commit/713d34220f6f78a9b77f5404dbf3bcbc8edc8253))
+* Reuse mapped files in fast mode ([f3f77e2](https://github.com/MorpheApp/morphe-patcher/commit/f3f77e2a5da12ee750ec3014bdc8ccaa511a38f2))
+* Show more verbose exception if an instruction from the immutable method is passed to mutable method in `addInstructionsWithLabels()`. Fix wrong label can be used if multiple labels are specified ([d955d8a](https://github.com/MorpheApp/morphe-patcher/commit/d955d8abda5b2624985dd3620a52a83baac10113))
+
+
+### Features
+
+* Expose APK signing certificates to patches ([#145](https://github.com/MorpheApp/morphe-patcher/issues/145)) ([2284e22](https://github.com/MorpheApp/morphe-patcher/commit/2284e220cea3a701b5dcdcb00ac0643a21fbee73))
+
 # [1.6.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.6.0-dev.1...v1.6.0-dev.2) (2026-07-09)
 
 
