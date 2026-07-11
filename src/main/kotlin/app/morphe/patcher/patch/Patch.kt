@@ -746,7 +746,7 @@ sealed class PatchLoader(
         PatchLoader(
             patchesFiles,
             { file ->
-                JarFile(file).entries().toList().filter { it.name.endsWith(".class") }
+                JarFile(file).entries().toList().filter { it.name.endsWith(".class") && !it.name.startsWith("META-INF/versions/") }
                     .map { it.name.substringBeforeLast('.').replace('/', '.') }
             },
             URLClassLoader(patchesFiles.map { it.toURI().toURL() }.toTypedArray()),
@@ -766,11 +766,12 @@ sealed class PatchLoader(
             patchesFiles,
             { patchBundle ->
                 val tempDir = Files.createTempDirectory("morphe-extracted-patches").toFile()
-                DexReadWrite.readMultidexFileFromZip(patchBundle, tempDir)
-                    .dexFile.classes
-                    .map { classDef ->
-                        classDef.type.substring(1, classDef.length - 1)
-                    }
+                DexReadWrite.readMultidexFileFromZip(patchBundle, tempDir).use { readResult ->
+                    readResult.dexFile.classes
+                        .map { classDef ->
+                            classDef.type.substring(1, classDef.length - 1)
+                        }
+                }
             },
             DexClassLoader(
                 patchesFiles.joinToString(File.pathSeparator) { it.absolutePath },
@@ -815,8 +816,15 @@ sealed class PatchLoader(
          */
         private fun ClassLoader.loadPatches(binaryClassNamesByPatchesFile: Map<File, Set<String>>) =
             binaryClassNamesByPatchesFile.mapValues { (_, binaryClassNames) ->
-                binaryClassNames.asSequence().map {
-                    loadClass(it)
+                binaryClassNames.asSequence().mapNotNull {
+                    try {
+                        loadClass(it)
+                    } catch (e: NoClassDefFoundError) {
+                        // Can happen under certain conditions, like loading classes with no base version.
+                        // Should be caught by filtering out classes under META-INF, but check again here
+                        // just in case.
+                        null
+                    }
                 }.flatMap {
                     it.patchFields + it.patchMethods
                 }.filter {

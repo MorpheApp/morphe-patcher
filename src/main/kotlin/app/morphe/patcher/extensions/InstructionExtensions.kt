@@ -1,6 +1,14 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ *
+ * Continuation of: https://github.com/LisoUseInAIKyrios/revanced-patcher/tree/feat/instruction_filters
+ * and a hard fork of: https://github.com/ReVanced/revanced-patcher
+ */
 package app.morphe.patcher.extensions
 
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod
+import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.util.smali.ExternalLabel
 import app.morphe.patcher.util.smali.toInstruction
 import app.morphe.patcher.util.smali.toInstructions
@@ -184,7 +192,7 @@ object InstructionExtensions {
                      * Create a new label for the instruction
                      * and replace it with the label of the [compiledInstruction] at [compiledInstructionIndex].
                      */
-                    fun Instruction.makeNewLabel() {
+                    fun Instruction.makeNewLabel(targetIndex: Int = -1) {
                         fun replaceOffset(
                             i: BuilderOffsetInstruction,
                             label: Label,
@@ -208,15 +216,23 @@ object InstructionExtensions {
                             }
                         }
 
+                        // Create the final label index.
+                        val finalIndex = if (targetIndex >= 0) targetIndex else this@apply.instructions.indexOf(this)
+
+                        // If the instruction was not found, throw an exception.
+                        if (finalIndex < 0) {
+                            throw PatchException(
+                                "Instruction not found in method implementation. " +
+                                    "If you're using an external label, make sure it's an instruction from the " +
+                                        "mutable method implementation.",
+                            )
+                        }
+
                         // Create the final label.
-                        val label = newLabelForIndex(this@apply.instructions.indexOf(this))
+                        val label = newLabelForIndex(finalIndex)
 
                         // Create the final instruction with the new label.
-                        val newInstruction =
-                            replaceOffset(
-                                compiledInstruction,
-                                label,
-                            )
+                        val newInstruction = replaceOffset(compiledInstruction, label)
 
                         // Replace the instruction pointing to the dummy label
                         // with the new instruction pointing to the real instruction.
@@ -226,9 +242,10 @@ object InstructionExtensions {
                     // If the compiled instruction targets its own instruction,
                     // which means it points to some of its own, simply an offset has to be applied.
                     val labelIndex = compiledInstruction.target.location.index
-                    if (labelIndex < compiledInstructions.size - externalLabels.size) {
+                    val dummyInstructionsStartIndex = compiledInstructions.size - externalLabels.size
+                    if (labelIndex < dummyInstructionsStartIndex) {
                         // Get the targets index (insertion index + the index of the dummy instruction).
-                        this.instructions[index + labelIndex].makeNewLabel()
+                        this.instructions[index + labelIndex].makeNewLabel(index + labelIndex)
                         return@forEachIndexed
                     }
 
@@ -238,7 +255,7 @@ object InstructionExtensions {
                     // Get the index of the instruction in the externalLabels list
                     // which the dummy instruction was created for.
                     // This works because we created the dummy instructions in the same order as the externalLabels list.
-                    val (_, instruction) = externalLabels[(compiledInstructions.size - 1) - labelIndex]
+                    val (_, instruction) = externalLabels[labelIndex - dummyInstructionsStartIndex]
                     instruction.makeNewLabel()
                 }
         }

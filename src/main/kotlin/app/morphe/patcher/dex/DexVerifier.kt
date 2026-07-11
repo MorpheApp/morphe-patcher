@@ -334,7 +334,7 @@ class SdkDexVerifier(
     }
 
     /**
-     * `d8 --file-per-class --output <tmpDir> <file>` — re-processes the DEX
+     * `d8 --output <tmpDir> <file>` — re-processes the DEX
      * through Google's compiler front-end, catching deeper structural issues.
      */
     private fun verifyWithD8(dexFile: File) {
@@ -344,7 +344,6 @@ class SdkDexVerifier(
             exec(
                 listOf(
                     d8.absolutePath,
-                    "--file-per-class",
                     "--output", tmpDir.absolutePath,
                     dexFile.absolutePath,
                 ),

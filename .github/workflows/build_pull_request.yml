@@ -6,19 +6,34 @@ on:
     branches:
       - dev
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    name: Build (${{ matrix.os }})
+    name: Build (${{ matrix.os }}, JDK ${{ matrix.jdk }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        # JDK version the test suite is executed against. Gradle itself always runs
+        # on JDK 17 (last in the setup-java list); tests fork onto the matrix JDK.
+        jdk: [11, 17, 25]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Set up JDKs
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          # 17 is listed last so JAVA_HOME (used to run Gradle) points to JDK 17.
+          java-version: |
+            ${{ matrix.jdk }}
+            17
 
       - name: Cache Gradle
         uses: burrunan/gradle-cache-action@v3
@@ -27,4 +42,9 @@ jobs:
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./gradlew build --no-daemon
+        # Run tests against the matrix JDK via a Gradle toolchain, discovered from the
+        # JDKs that setup-java installed (both x64 and arm64 runners are covered).
+        run: >-
+          ./gradlew build --no-daemon
+          -PtestJavaVersion=${{ matrix.jdk }}
+          "-Porg.gradle.java.installations.fromEnv=JAVA_HOME_11_X64,JAVA_HOME_17_X64,JAVA_HOME_25_X64,JAVA_HOME_11_ARM64,JAVA_HOME_17_ARM64,JAVA_HOME_25_ARM64"

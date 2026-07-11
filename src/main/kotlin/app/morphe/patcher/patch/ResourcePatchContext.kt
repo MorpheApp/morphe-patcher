@@ -28,7 +28,7 @@ import java.util.logging.Logger
  */
 class ResourcePatchContext internal constructor(
     private val config: PatcherConfig,
-) : PatchContext<PatcherResult.PatchedResources?>, Closeable {
+) : PatchContext<PatcherResult.PatchedResources>, Closeable {
     private val logger = Logger.getLogger(ResourcePatchContext::class.java.name)
 
     private val resourceCoder: ResourceCoder = ArsclibResourceCoder(config.apkFiles, config.apkFile, config.keepArchitectures)
@@ -71,12 +71,9 @@ class ResourcePatchContext internal constructor(
      * @return The [PatcherResult.PatchedResources].
      */
     @InternalApi
-    override fun get(): PatcherResult.PatchedResources? {
-        if (config.resourceMode == ResourceMode.NONE) return null
-
-        logger.info("Compiling modified resources")
-
+    override fun get(): PatcherResult.PatchedResources {
         val resourcesApkFile = if (config.resourceMode == ResourceMode.FULL) {
+            logger.info("Compiling modified resources")
             resourceCoder.encodeResources(config.patchedFiles)
         } else {
             null
@@ -86,8 +83,8 @@ class ResourcePatchContext internal constructor(
         return PatcherResult.PatchedResources(
             resourcesApkFile,
             resourceCoder.getOtherResourceFiles(config.patchedFiles, config.resourceMode),
-            resourceCoder.getUncompressedFiles(),
-            resourceCoder.getDeletedFiles(),
+            resourceCoder.getUncompressedFiles(config.resourceMode),
+            resourceCoder.getDeletedFiles(config.resourceMode),
         )
     }
 

@@ -278,6 +278,7 @@ public final class app/morphe/patcher/OpcodesFilter$Companion {
 
 public final class app/morphe/patcher/PackageMetadata {
 	public final fun getPackageName ()Ljava/lang/String;
+	public final fun getSigningCertificates ()Ljava/util/Map;
 	public final fun getVersionCode ()Ljava/lang/String;
 	public final fun getVersionName ()Ljava/lang/String;
 }
@@ -346,6 +347,24 @@ public final class app/morphe/patcher/apk/ApkMerger {
 	public synthetic fun <init> (Lapp/morphe/patcher/logging/Logger;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun merge (Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZLjava/lang/Boolean;Z)V
 	public static synthetic fun merge$default (Lapp/morphe/patcher/apk/ApkMerger;Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZLjava/lang/Boolean;ZILjava/lang/Object;)V
+}
+
+public final class app/morphe/patcher/apk/ApkSignatureScheme {
+	public static final field Companion Lapp/morphe/patcher/apk/ApkSignatureScheme$Companion;
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lapp/morphe/patcher/apk/ApkSignatureScheme;
+	public static synthetic fun copy$default (Lapp/morphe/patcher/apk/ApkSignatureScheme;IILjava/lang/Object;)Lapp/morphe/patcher/apk/ApkSignatureScheme;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class app/morphe/patcher/apk/ApkSignatureScheme$Companion {
+	public final fun getV2 ()Lapp/morphe/patcher/apk/ApkSignatureScheme;
+	public final fun getV3 ()Lapp/morphe/patcher/apk/ApkSignatureScheme;
+	public final fun getV31 ()Lapp/morphe/patcher/apk/ApkSignatureScheme;
 }
 
 public final class app/morphe/patcher/apk/ApkSigner {
@@ -439,6 +458,7 @@ public final class app/morphe/patcher/dex/SdkDexVerifier$Companion {
 public final class app/morphe/patcher/environment/EnvironmentUtils {
 	public static final field INSTANCE Lapp/morphe/patcher/environment/EnvironmentUtils;
 	public final fun isAndroidEnvironment ()Z
+	public final fun isWindowsEnvironment ()Z
 }
 
 public final class app/morphe/patcher/extensions/ExtensionsKt {
@@ -613,9 +633,7 @@ public final class app/morphe/patcher/patch/Compatibility {
 	public final fun component6 ()Ljava/util/Set;
 	public final fun component7 ()Ljava/util/List;
 	public final synthetic fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/lang/Integer;Ljava/util/Set;Ljava/util/List;)Lapp/morphe/patcher/patch/Compatibility;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/lang/Integer;Ljava/util/Set;Ljava/util/List;Z)Lapp/morphe/patcher/patch/Compatibility;
 	public static synthetic fun copy$default (Lapp/morphe/patcher/patch/Compatibility;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/lang/Integer;Ljava/util/Set;Ljava/util/List;ILjava/lang/Object;)Lapp/morphe/patcher/patch/Compatibility;
-	public static synthetic fun copy$default (Lapp/morphe/patcher/patch/Compatibility;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/lang/Integer;Ljava/util/Set;Ljava/util/List;ZILjava/lang/Object;)Lapp/morphe/patcher/patch/Compatibility;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun excluding ([Ljava/lang/String;)Lapp/morphe/patcher/patch/Compatibility;
 	public final fun getApkFileType ()Lapp/morphe/patcher/patch/ApkFileType;
@@ -956,54 +974,6 @@ public final class app/morphe/patcher/resource/XmlPullParserUtilsKt {
 	public static final fun parseXml (Ljava/io/File;Lkotlin/jvm/functions/Function1;)V
 	public static final fun skipTag (Lorg/xmlpull/v1/XmlPullParser;)V
 	public static final fun writeXml (Ljava/io/File;Lkotlin/jvm/functions/Function1;)V
-}
-
-public final class app/morphe/patcher/resource/coder/ArsclibResourceCoder : app/morphe/patcher/resource/coder/ResourceCoder {
-	public fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;)V
-	public synthetic fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public fun addFile (Ljava/lang/String;Ljava/io/File;Ljava/lang/String;)Ljava/io/File;
-	public fun close ()V
-	public fun decodeRaw ()Lapp/morphe/patcher/PackageMetadata;
-	public fun decodeResources ()Lapp/morphe/patcher/PackageMetadata;
-	public fun deleteFile (Ljava/lang/String;Ljava/lang/String;)V
-	public fun encodeResources (Ljava/io/File;)Ljava/io/File;
-	public fun getDeletedFiles ()Ljava/util/Set;
-	public fun getFile (Ljava/lang/String;Ljava/lang/String;Z)Ljava/io/File;
-	public fun getOtherResourceFiles (Ljava/io/File;Lapp/morphe/patcher/resource/ResourceMode;)Ljava/io/File;
-	public fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
-	public fun getUncompressedFiles ()Ljava/util/Set;
-}
-
-public final class app/morphe/patcher/resource/coder/ArsclibResourceCoder$PackageInfo {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V
-	public final fun getFrameworkVersion ()I
-	public final fun getPackageName ()Ljava/lang/String;
-	public final fun getVersionCode ()Ljava/lang/String;
-	public final fun getVersionName ()Ljava/lang/String;
-}
-
-public abstract interface class app/morphe/patcher/resource/coder/ResourceCoder : java/io/Closeable {
-	public abstract fun addFile (Ljava/lang/String;Ljava/io/File;Ljava/lang/String;)Ljava/io/File;
-	public static synthetic fun addFile$default (Lapp/morphe/patcher/resource/coder/ResourceCoder;Ljava/lang/String;Ljava/io/File;Ljava/lang/String;ILjava/lang/Object;)Ljava/io/File;
-	public fun close ()V
-	public abstract fun decodeRaw ()Lapp/morphe/patcher/PackageMetadata;
-	public abstract fun decodeResources ()Lapp/morphe/patcher/PackageMetadata;
-	public abstract fun deleteFile (Ljava/lang/String;Ljava/lang/String;)V
-	public static synthetic fun deleteFile$default (Lapp/morphe/patcher/resource/coder/ResourceCoder;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)V
-	public abstract fun encodeResources (Ljava/io/File;)Ljava/io/File;
-	public abstract fun getDeletedFiles ()Ljava/util/Set;
-	public abstract fun getFile (Ljava/lang/String;Ljava/lang/String;Z)Ljava/io/File;
-	public static synthetic fun getFile$default (Lapp/morphe/patcher/resource/coder/ResourceCoder;Ljava/lang/String;Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
-	public abstract fun getOtherResourceFiles (Ljava/io/File;Lapp/morphe/patcher/resource/ResourceMode;)Ljava/io/File;
-	public abstract fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
-	public abstract fun getUncompressedFiles ()Ljava/util/Set;
-}
-
-public final class app/morphe/patcher/resource/coder/ResourceCoder$DefaultImpls {
-	public static synthetic fun addFile$default (Lapp/morphe/patcher/resource/coder/ResourceCoder;Ljava/lang/String;Ljava/io/File;Ljava/lang/String;ILjava/lang/Object;)Ljava/io/File;
-	public static fun close (Lapp/morphe/patcher/resource/coder/ResourceCoder;)V
-	public static synthetic fun deleteFile$default (Lapp/morphe/patcher/resource/coder/ResourceCoder;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)V
-	public static synthetic fun getFile$default (Lapp/morphe/patcher/resource/coder/ResourceCoder;Ljava/lang/String;Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
 }
 
 public final class app/morphe/patcher/util/Document : java/io/Closeable, org/w3c/dom/Document {

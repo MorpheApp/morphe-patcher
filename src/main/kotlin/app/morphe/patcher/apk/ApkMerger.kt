@@ -20,6 +20,7 @@ package app.morphe.patcher.apk
 import app.morphe.patcher.logging.ArsclibLogger
 import app.morphe.patcher.logging.Logger
 import app.morphe.patcher.logging.NoOpLogger
+import app.morphe.patcher.util.FileUtils.safelyDelete
 import com.reandroid.apk.ApkBundle
 import com.reandroid.apk.ApkModule
 import com.reandroid.app.AndroidManifest
@@ -47,9 +48,9 @@ class ApkMerger(
         resDirName: String? = null,
         validateResDir: Boolean = true,
         extractNativeLibs: Boolean? = null,
-        cleanMetaInf: Boolean = true
+        cleanMetaInf: Boolean = false
     ) {
-        ApkEditorUtil.delete(outputFile)
+        outputFile.safelyDelete()
         var dir: File = inputFile
         var extracted = false
         if (dir.isFile) {
@@ -70,10 +71,13 @@ class ApkMerger(
             logger.info("Validating resources dir ...")
             mergedModule.validateResourcesDir()
         }
+        /*
+        // Ignore cleanMetaInf so that we always retain the signature block (this is leftover code from APKEditor).
         if (cleanMetaInf) {
             logger.info("Clearing META-INF ...")
             clearMeta(mergedModule)
         }
+        */
         sanitizeManifest(mergedModule)
         mergedModule.refreshTable()
         mergedModule.refreshManifest()
@@ -85,7 +89,7 @@ class ApkMerger(
         mergedModule.close()
         bundle.close()
         if (extracted) {
-            ApkEditorUtil.deleteDir(dir)
+            dir.safelyDelete()
             dir.deleteOnExit()
         }
         logger.info("Saved to: $outputFile")
@@ -97,7 +101,7 @@ class ApkMerger(
         logger.info("Extracting to: $tmp")
         if (tmp.exists()) {
             logger.info("Delete: $tmp")
-            ApkEditorUtil.deleteDir(tmp)
+            tmp.safelyDelete()
         }
         tmp.deleteOnExit()
         val archive = ArchiveFile(file)
@@ -224,11 +228,5 @@ class ApkMerger(
             specTypePair.removeNullEntries(entry.getId())
         }
         return true
-    }
-    private fun clearMeta(module: ApkModule) {
-        val archive = module.zipEntryMap
-        archive.removeIf(Pattern.compile("^META-INF/.+\\.(([MS]F)|(RSA))"))
-        archive.remove("stamp-cert-sha256")
-        module.apkSignatureBlock = null
     }
 }

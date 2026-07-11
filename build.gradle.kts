@@ -80,6 +80,7 @@ dependencies {
 
     testImplementation(libs.mockk)
     testImplementation(libs.kotlin.test)
+    testImplementation(libs.junit.jupiter.params)
 }
 
 kotlin {
@@ -91,6 +92,17 @@ kotlin {
 }
 
 tasks.withType<Test> {
+    // Allow running the test suite against a specific JDK (e.g. -PtestJavaVersion=11)
+    // while Gradle itself keeps running on JDK 17+. Used by CI to verify the library
+    // works across the JDK versions it supports.
+    providers.gradleProperty("testJavaVersion").orNull?.let { testJavaVersion ->
+        javaLauncher.set(
+            javaToolchains.launcherFor {
+                languageVersion.set(JavaLanguageVersion.of(testJavaVersion.toInt()))
+            },
+        )
+    }
+
     testLogging {
         // Uncomment to show println and exception stack traces in unit tests.
         // showStandardStreams = true
@@ -131,7 +143,6 @@ publishing {
                     license {
                         name = "GNU General Public License v3.0"
                         url = "https://www.gnu.org/licenses/gpl-3.0.en.html"
-                        comments = "Additional conditions under GPL section 7 apply: Project name restrictions. See LICENSE and NOTICE file."
                     }
                 }
                 developers {

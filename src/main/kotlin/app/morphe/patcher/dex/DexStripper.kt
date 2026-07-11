@@ -6,10 +6,8 @@
 package app.morphe.patcher.dex
 
 import java.io.File
-import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.channels.FileChannel
 import java.security.MessageDigest
 import java.util.zip.Adler32
 
@@ -57,69 +55,66 @@ internal object DexStripper {
      * Strips class definitions from a DEX file by compacting them out of the
      * class_defs array and their class_data_items out of the data section.
      *
-     * @param dexFile The DEX file to edit in-place.
+     * @param mappedFile The DEX file to edit in-place.
      * @param classDescriptorsToStrip Set of class descriptors to strip (e.g., "Lcom/example/Foo;").
      * @return The number of class definitions stripped.
      */
-    fun stripInPlace(dexFile: File, classDescriptorsToStrip: Set<String>): Int {
+    fun stripInPlace(mappedFile: MappedFile, classDescriptorsToStrip: Set<String>): Int {
         if (classDescriptorsToStrip.isEmpty()) return 0
 
-        RandomAccessFile(dexFile, "rw").use { raf ->
-            val fileSize = raf.length().toInt()
-            val mappedBuf = raf.channel.map(FileChannel.MapMode.READ_WRITE, 0, raf.length())
-            val buf = mappedBuf.order(ByteOrder.LITTLE_ENDIAN)
+        val fileSize = mappedFile.buffer.capacity()
+        val buf = mappedFile.buffer.order(ByteOrder.LITTLE_ENDIAN)
 
-            val stringIdsOff = buf.getInt(STRING_IDS_OFF_OFF)
-            val typeIdsOff = buf.getInt(TYPE_IDS_OFF_OFF)
-            val classDefsSize = buf.getInt(CLASS_DEFS_SIZE_OFF)
-            val classDefsOff = buf.getInt(CLASS_DEFS_OFF_OFF)
-            val mapOff = buf.getInt(MAP_OFF_OFF)
+        val stringIdsOff = buf.getInt(STRING_IDS_OFF_OFF)
+        val typeIdsOff = buf.getInt(TYPE_IDS_OFF_OFF)
+        val classDefsSize = buf.getInt(CLASS_DEFS_SIZE_OFF)
+        val classDefsOff = buf.getInt(CLASS_DEFS_OFF_OFF)
+        val mapOff = buf.getInt(MAP_OFF_OFF)
 
-            if (classDefsSize == 0) return 0
+        if (classDefsSize == 0) return 0
 
-            // Identify which class_def indices to remove and their class_data offsets.
-            val indicesToRemove = mutableListOf<Int>()
-            val orphanedClassDataOffsets = HashSet<Int>()
+        // Identify which class_def indices to remove and their class_data offsets.
+        val indicesToRemove = mutableListOf<Int>()
+        val orphanedClassDataOffsets = HashSet<Int>()
 
-            for (i in 0 until classDefsSize) {
-                val entryOff = classDefsOff + i * CLASS_DEF_ITEM_SIZE
-                val classIdx = buf.getInt(entryOff)
-                val descriptor = resolveDescriptor(buf, classIdx, typeIdsOff, stringIdsOff)
-                if (descriptor in classDescriptorsToStrip) {
-                    indicesToRemove.add(i)
-                    val classDataOff = buf.getInt(entryOff + CLASS_DEF_CLASS_DATA_OFF)
-                    if (classDataOff != 0) {
-                        orphanedClassDataOffsets.add(classDataOff)
-                    }
+        for (i in 0 until classDefsSize) {
+            val entryOff = classDefsOff + i * CLASS_DEF_ITEM_SIZE
+            val classIdx = buf.getInt(entryOff)
+            val descriptor = resolveDescriptor(buf, classIdx, typeIdsOff, stringIdsOff)
+            if (descriptor in classDescriptorsToStrip) {
+                indicesToRemove.add(i)
+                val classDataOff = buf.getInt(entryOff + CLASS_DEF_CLASS_DATA_OFF)
+                if (classDataOff != 0) {
+                    orphanedClassDataOffsets.add(classDataOff)
                 }
             }
-
-            if (indicesToRemove.isEmpty()) return 0
-
-            // Compact the class_data section: remove orphaned items, update pointers.
-            if (orphanedClassDataOffsets.isNotEmpty()) {
-                compactClassData(buf, mapOff, classDefsOff, classDefsSize, indicesToRemove, orphanedClassDataOffsets)
-            }
-
-            // Compact the class_defs array.
-            compactClassDefs(buf, classDefsOff, classDefsSize, indicesToRemove)
-
-            val newClassDefsSize = classDefsSize - indicesToRemove.size
-
-            // Update class_defs_size in the header.
-            buf.putInt(CLASS_DEFS_SIZE_OFF, newClassDefsSize)
-
-            // Update TYPE_CLASS_DEF_ITEM count in the map_list.
-            updateMapItemCount(buf, mapOff, TYPE_CLASS_DEF_ITEM, newClassDefsSize)
-
-            // Recompute checksums.
-            recomputeSignature(buf, fileSize)
-            recomputeChecksum(buf, fileSize)
-
-            mappedBuf.force()
-
-            return indicesToRemove.size
         }
+
+        if (indicesToRemove.isEmpty()) return 0
+
+        // Compact the class_data section: remove orphaned items, update pointers.
+        if (orphanedClassDataOffsets.isNotEmpty()) {
+            compactClassData(buf, mapOff, classDefsOff, classDefsSize, indicesToRemove, orphanedClassDataOffsets)
+        }
+
+        // Compact the class_defs array.
+        compactClassDefs(buf, classDefsOff, classDefsSize, indicesToRemove)
+
+        val newClassDefsSize = classDefsSize - indicesToRemove.size
+
+        // Update class_defs_size in the header.
+        buf.putInt(CLASS_DEFS_SIZE_OFF, newClassDefsSize)
+
+        // Update TYPE_CLASS_DEF_ITEM count in the map_list.
+        updateMapItemCount(buf, mapOff, TYPE_CLASS_DEF_ITEM, newClassDefsSize)
+
+        // Recompute checksums.
+        recomputeSignature(buf, fileSize)
+        recomputeChecksum(buf, fileSize)
+
+        mappedFile.force()
+
+        return indicesToRemove.size
     }
 
     // -------------------------------------------------------------------------

@@ -16,7 +16,9 @@ import app.morphe.patcher.StringComparisonType
 import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.dex.DexStripper
+import app.morphe.patcher.dex.MappedFile
 import app.morphe.patcher.util.ClassMerger.merge
+import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import app.morphe.patcher.util.MethodNavigator
 import app.morphe.patcher.util.PatchClasses
 import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
@@ -44,10 +46,15 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     internal lateinit var opcodes: Opcodes
 
     /**
-     * Original DEX files extracted from the APK to the dex output directory.
-     * These files are edited in-place during compilation via [DexStripper].
+     * Live memory mappings of the original DEX files, keyed by file.
+     *
+     * These back the original [com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile]
+     * views and must stay open while those classes are read. Each mapping is released
+     * (via [releaseDexMapping]/[releaseAllDexMappings]) once its file's classes have been
+     * read and before the file is rewritten, renamed, or deleted, so the deterministic
+     * unmapping releases any Windows file lock in time for those operations.
      */
-    private lateinit var originalDexFiles: List<File>
+    private var originalDexMappings: MutableMap<File, MappedFile> = HashMap()
 
     /**
      * Class descriptors that existed in the original APK (before any extensions or patches).
@@ -84,7 +91,34 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         classDescriptorsByEntry = readResult.classDescriptorsByEntry
         patchClasses = PatchClasses(readResult.dexFile.classes)
 
-        originalDexFiles = readResult.extractedDexFiles
+        originalDexMappings = HashMap<File, MappedFile>(readResult.mappedFiles.size).apply {
+            readResult.mappedFiles.forEachIndexed { index, mappedFile ->
+                put(mappedFile.originalFile, mappedFile)
+            }
+        }
+    }
+
+    /**
+     * Releases the memory mapping of a single original DEX [file], if still open.
+     *
+     * Must be called before the file is rewritten in-place by [DexStripper],
+     * renamed, or deleted so that the deterministic unmapping releases any Windows
+     * file lock beforehand.
+     */
+    private fun releaseDexMapping(file: File) {
+        originalDexMappings.remove(file)?.close()
+    }
+
+    /**
+     * Releases every remaining original DEX memory mapping. Idempotent.
+     */
+    private fun releaseAllDexMappings() {
+        if (originalDexMappings.isEmpty()) return
+
+        originalDexMappings.values.toList().forEach { mappedFile ->
+            runCatching { mappedFile.close() }
+        }
+        originalDexMappings.clear()
     }
 
     /**
@@ -279,6 +313,9 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         // TODO: Separate out any j$ classes into their own DEX files, because d8/r8 will reject the DEX files otherwise.
         DexReadWrite.writeMultiDexFile(dexOutputDir, classDefs, opcodes, -1, logger)
 
+        // All original classes have now been read; release their mappings.
+        releaseAllDexMappings()
+
         config.verifier.verifyDexDirectory(dexOutputDir)
         return dexOutputDir.listFiles { it.isFile }!!.sorted().map {
             PatcherResult.PatchedDexFile(it.name, it.inputStream())
@@ -314,19 +351,22 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         // 2. Strip modified class_def entries from original DEX files in-place.
         if (modifiedOriginalDescriptors.isNotEmpty()) {
             logger.info("Stripping ${modifiedOriginalDescriptors.size} modified classes from original DEX files")
-            for (originalDex in originalDexFiles) {
-                val stripped = DexStripper.stripInPlace(originalDex, modifiedOriginalDescriptors)
+            originalDexMappings.forEach { (originalDex, mappedFile) ->
+                val stripped = DexStripper.stripInPlace(mappedFile, modifiedOriginalDescriptors)
                 if (stripped > 0) {
                     logger.fine { "Stripped $stripped class_def entries from ${originalDex.name}" }
                 }
             }
         }
 
+        // The original DEX classes have now been stripped. Ensure that all DEX files are closed before moving.
+        releaseAllDexMappings()
+
         // 3. Rename: new DEX files get lowest slots (loaded first), originals shifted up.
         dexWorkingDir.listFiles { it.isFile }!!.sorted().forEachIndexed { i, tempFile ->
             val newIndex = newDexCount + i
             val dexName = if (newIndex == 0) "classes.dex" else "classes${newIndex + 1}.dex"
-            tempFile.renameTo(dexOutputDir.resolve(dexName))
+            tempFile.safelyMoveTo(dexOutputDir.resolve(dexName))
         }
 
         config.verifier.verifyDexDirectory(dexOutputDir)
@@ -363,14 +403,16 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         }
 
         // 2. For each original DEX file, either pass through or rebuild without modified classes.
-        originalDexFiles.forEachIndexed { i, originalDex ->
+        originalDexMappings.keys.forEachIndexed { i, originalDex ->
             val entryDescriptors = classDescriptorsByEntry[originalDex.name] ?: emptySet()
             val hasModifiedClasses = entryDescriptors.any { it in modifiedOriginalDescriptors }
 
             if (!hasModifiedClasses) {
                 // No modified classes — copy the original file as-is.
                 logger.fine { "Passing through unmodified DEX: ${originalDex.name}" }
-                originalDex.renameTo(dexOutputDir.resolve(getDexName(newDexCount)))
+                // Release the mapping before renaming so the file is not locked on Windows.
+                releaseDexMapping(originalDex)
+                originalDex.safelyMoveTo(dexOutputDir.resolve(getDexName(newDexCount)))
                 newDexCount++
             } else {
                 // Rebuild this DEX via DexPool with only the unmodified classes.
@@ -392,18 +434,24 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                     val rebuiltFiles = DexReadWrite.writeMultiDexFile(
                         tempDir, unmodifiedClasses, opcodes, -1, null
                     )
+                    // This file's classes have been read; release its mapping.
+                    releaseDexMapping(originalDex)
                     rebuiltFiles.forEach { rebuiltFile ->
                         val newName = getDexName(newDexCount)
-                        rebuiltFile.renameTo(dexOutputDir.resolve(newName))
+                        rebuiltFile.safelyMoveTo(dexOutputDir.resolve(newName))
                         logger.fine("${originalDex.name} -> $newName")
                         newDexCount++
                     }
                 } else {
                     logger.info("Skipping DEX: ${originalDex.name} (all classes were modified)")
                     // All classes in this DEX were modified — no file needed.
+                    releaseDexMapping(originalDex)
                 }
             }
         }
+
+        // Release any remaining mappings (e.g. for empty original DEX directories).
+        releaseAllDexMappings()
 
         patchClasses.close()
 
@@ -444,6 +492,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     internal fun getDexName(index: Int): String = if (index == 0) "classes.dex" else "classes${index + 1}.dex"
 
     override fun close() {
+        releaseAllDexMappings()
         patchClasses.close()
     }
 }
