@@ -1,3 +1,10 @@
+## [1.6.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.6.0...v1.6.1-dev.1) (2026-07-14)
+
+
+### Bug Fixes
+
+* Ignore and warn if universal patch is default on ([7298b31](https://github.com/MorpheApp/morphe-patcher/commit/7298b310e5f36e0fcab3c600f8edc3f8ae51fc03))
+
 # [1.6.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.2...v1.6.0) (2026-07-11)
 
 
