@@ -1,3 +1,10 @@
+# [1.7.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.6.1-dev.1...v1.7.0-dev.1) (2026-07-18)
+
+
+### Features
+
+* Add typed patch options ([#152](https://github.com/MorpheApp/morphe-patcher/issues/152)) ([4000555](https://github.com/MorpheApp/morphe-patcher/commit/4000555b3b01d7a4dc14dd9976e9e4c33d4768d9))
+
 ## [1.6.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.6.0...v1.6.1-dev.1) (2026-07-14)
 
 
