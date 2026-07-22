@@ -536,6 +536,17 @@ public final class app/morphe/patcher/logging/NoOpLogger : app/morphe/patcher/lo
 	public fun log (Lapp/morphe/patcher/logging/LogLevel;Ljava/lang/String;)V
 }
 
+public final class app/morphe/patcher/patch/ApkArchitecture : java/lang/Enum {
+	public static final field ARM64_V8A Lapp/morphe/patcher/patch/ApkArchitecture;
+	public static final field ARMEABI_V7A Lapp/morphe/patcher/patch/ApkArchitecture;
+	public static final field UNIVERSAL Lapp/morphe/patcher/patch/ApkArchitecture;
+	public static final field X86 Lapp/morphe/patcher/patch/ApkArchitecture;
+	public static final field X86_64 Lapp/morphe/patcher/patch/ApkArchitecture;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/patch/ApkArchitecture;
+	public static fun values ()[Lapp/morphe/patcher/patch/ApkArchitecture;
+}
+
 public final class app/morphe/patcher/patch/ApkFileType : java/lang/Enum {
 	public static final field APK Lapp/morphe/patcher/patch/ApkFileType;
 	public static final field APKM Lapp/morphe/patcher/patch/ApkFileType;
@@ -696,6 +707,15 @@ public final class app/morphe/patcher/patch/ImageSize {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class app/morphe/patcher/patch/InstallerType : java/lang/Enum {
+	public static final field MOUNT Lapp/morphe/patcher/patch/InstallerType;
+	public static final field SHIZUKU Lapp/morphe/patcher/patch/InstallerType;
+	public static final field STANDARD Lapp/morphe/patcher/patch/InstallerType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/patch/InstallerType;
+	public static fun values ()[Lapp/morphe/patcher/patch/InstallerType;
+}
+
 public class app/morphe/patcher/patch/Option {
 	public fun <init> (Ljava/lang/String;Ljava/lang/Object;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;ZLkotlin/reflect/KType;Lkotlin/jvm/functions/Function2;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Object;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;ZLkotlin/reflect/KType;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -822,10 +842,12 @@ public final class app/morphe/patcher/patch/Options : java/util/Map, kotlin/jvm/
 }
 
 public abstract class app/morphe/patcher/patch/Patch {
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun execute (Lapp/morphe/patcher/patch/PatchContext;)V
 	public final fun finalize (Lapp/morphe/patcher/patch/PatchContext;)V
+	public final fun getAvailability ()Lkotlin/jvm/functions/Function2;
 	public final fun getCompatibility ()Ljava/util/List;
 	public final fun getCompatiblePackages ()Ljava/util/Set;
 	public final fun getDefault ()Z
@@ -837,14 +859,30 @@ public abstract class app/morphe/patcher/patch/Patch {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class app/morphe/patcher/patch/PatchAvailability : java/lang/Enum {
+	public static final field DISABLED Lapp/morphe/patcher/patch/PatchAvailability;
+	public static final field ENABLED Lapp/morphe/patcher/patch/PatchAvailability;
+	public static final field REQUIRED Lapp/morphe/patcher/patch/PatchAvailability;
+	public static final field UNAVAILABLE Lapp/morphe/patcher/patch/PatchAvailability;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/patch/PatchAvailability;
+	public static fun values ()[Lapp/morphe/patcher/patch/PatchAvailability;
+}
+
+public final class app/morphe/patcher/patch/PatchAvailabilityKt {
+	public static final fun defaultAvailability (Z)Lkotlin/jvm/functions/Function2;
+}
+
 public abstract class app/morphe/patcher/patch/PatchBuilder {
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun availability (Lkotlin/jvm/functions/Function2;)V
 	public final fun compatibleWith ([Lapp/morphe/patcher/patch/Compatibility;)V
 	public final fun compatibleWith ([Ljava/lang/String;)V
 	public final fun compatibleWith ([Lkotlin/Pair;)V
 	public final fun dependsOn ([Lapp/morphe/patcher/patch/Patch;)V
 	public final fun execute (Lkotlin/jvm/functions/Function1;)V
 	public final fun finalize (Lkotlin/jvm/functions/Function1;)V
+	protected final fun getAvailability ()Lkotlin/jvm/functions/Function2;
 	protected final fun getCompatibility ()Ljava/util/List;
 	protected final fun getCompatiblePackages ()Ljava/util/Set;
 	protected final fun getDefault ()Z
@@ -858,6 +896,7 @@ public abstract class app/morphe/patcher/patch/PatchBuilder {
 	protected final fun getUse ()Z
 	public final fun invoke (Lapp/morphe/patcher/patch/Option;)Lapp/morphe/patcher/patch/Option;
 	public final fun invoke (Ljava/lang/String;[Ljava/lang/String;)Lkotlin/Pair;
+	protected final fun setAvailability (Lkotlin/jvm/functions/Function2;)V
 	protected final fun setCompatibility (Ljava/util/List;)V
 	protected final fun setCompatiblePackages (Ljava/util/Set;)V
 	protected final fun setDependencies (Ljava/util/Set;)V

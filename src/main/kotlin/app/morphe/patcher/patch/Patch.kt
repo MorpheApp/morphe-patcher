@@ -15,7 +15,6 @@ import java.net.URLClassLoader
 import java.nio.file.Files
 import java.util.function.Supplier
 import java.util.jar.JarFile
-import java.util.logging.Logger
 
 @Deprecated("Use Compatibility instead")
 typealias PackageName = String
@@ -39,6 +38,8 @@ typealias Package = Pair<PackageName, Set<VersionName>?>
  * @param executeBlock The execution block of the patch.
  * @param finalizeBlock The finalizing block of the patch. Called after all patches have been executed,
  * in reverse order of execution.
+ * @param availability Optional resolver that decides the patch's [PatchAvailability] for a given
+ *   [InstallerType] and [ApkArchitecture]. When null, callers should fall back to [default].
  *
  * @constructor Create a new patch.
  */
@@ -53,6 +54,10 @@ sealed class Patch<C : PatchContext<*>>(
     // Must be internal and nullable, so that Patcher.invoke can check,
     // if a patch has a finalizing block in order to not emit it twice.
     internal var finalizeBlock: ((C) -> Unit)?,
+    // Additive field. Trailing position with a default keeps binary compatibility for existing
+    // pre-compiled patch bundles: they call the previous constructor arity, and Kotlin generates
+    // an overload that fills this in as null.
+    val availability: AvailabilityResolver? = null,
 ) {
 
     @Deprecated("Use constructor with Compatibility object")
@@ -186,6 +191,7 @@ class BytecodePatch internal constructor(
     internal val extensionStreamProviders: List<Supplier<out Iterable<Supplier<InputStream>>>>,
     executeBlock: (BytecodePatchContext) -> Unit,
     finalizeBlock: ((BytecodePatchContext) -> Unit)?,
+    availability: AvailabilityResolver? = null,
 ) : Patch<BytecodePatchContext>(
     name,
     description,
@@ -195,6 +201,7 @@ class BytecodePatch internal constructor(
     options,
     executeBlock,
     finalizeBlock,
+    availability,
 ) {
 
     @Deprecated("Use constructor with extensionInputStreams parameter")
@@ -283,6 +290,7 @@ class RawResourcePatch internal constructor(
     options: Set<Option<*>>,
     executeBlock: (ResourcePatchContext) -> Unit,
     finalizeBlock: ((ResourcePatchContext) -> Unit)?,
+    availability: AvailabilityResolver? = null,
 ) : Patch<ResourcePatchContext>(
     name,
     description,
@@ -292,6 +300,7 @@ class RawResourcePatch internal constructor(
     options,
     executeBlock,
     finalizeBlock,
+    availability,
 ) {
 
     @Deprecated("Use constructor with Compatibility object")
@@ -348,6 +357,7 @@ class ResourcePatch internal constructor(
     options: Set<Option<*>>,
     executeBlock: (ResourcePatchContext) -> Unit,
     finalizeBlock: ((ResourcePatchContext) -> Unit)?,
+    availability: AvailabilityResolver? = null,
 ) : Patch<ResourcePatchContext>(
     name,
     description,
@@ -357,6 +367,7 @@ class ResourcePatch internal constructor(
     options,
     executeBlock,
     finalizeBlock,
+    availability,
 ) {
 
     @Deprecated("Use constructor with Compatibility object")
@@ -415,6 +426,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
 
     protected var executeBlock: ((C) -> Unit) = { }
     protected var finalizeBlock: ((C) -> Unit)? = null
+    protected var availability: AvailabilityResolver? = null
 
     @Deprecated(
         message = "Use 'default' instead of 'use'",
@@ -527,6 +539,21 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      */
     fun finalize(block: C.() -> Unit) {
         finalizeBlock = block
+    }
+
+    /**
+     * Declare how this patch behaves for a given install target.
+     *
+     * The [block] receives the [InstallerType] and [ApkArchitecture] chosen by the caller and
+     * returns a [PatchAvailability]. It runs off the patching hot path (before execute), so it
+     * must be pure and cheap. Patches that do not call [availability] fall back to their
+     * [default] flag.
+     *
+     * @param block Resolver evaluated by the caller (Manager / CLI) before patch selection is
+     *   finalized.
+     */
+    fun availability(block: AvailabilityResolver) {
+        availability = block
     }
 
     internal fun resolveDefaultValue(): Boolean {
@@ -648,7 +675,8 @@ class BytecodePatchBuilder internal constructor(
             addAll(extensionStreamProviders)
         },
         executeBlock = executeBlock,
-        finalizeBlock = finalizeBlock
+        finalizeBlock = finalizeBlock,
+        availability = availability,
     )
 }
 
@@ -694,6 +722,7 @@ class RawResourcePatchBuilder internal constructor(
         options,
         executeBlock,
         finalizeBlock,
+        availability,
     )
 }
 
@@ -739,6 +768,7 @@ class ResourcePatchBuilder internal constructor(
         options,
         executeBlock,
         finalizeBlock,
+        availability,
     )
 }
 
