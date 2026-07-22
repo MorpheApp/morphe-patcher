@@ -65,22 +65,19 @@ enum class PatchAvailability {
 }
 
 /**
- * A pure function stored on a patch that decides the patch's [PatchAvailability]
- * for a given ([InstallerType], [ApkArchitecture]) combination.
+ * Decides a patch's [PatchAvailability] for a given install target.
  *
- * Kept as a lambda (rather than static fields) so a single patch can express
- * matrix-like rules without inflating the metadata surface.
- *
- * Implementations must be side-effect free and deterministic. Manager and CLI may call
- * them repeatedly while the user changes selection or install mode.
+ * Implementations must be pure and deterministic. Callers may invoke [resolve] repeatedly
+ * while the user changes selection or install mode.
  */
-typealias AvailabilityResolver = (InstallerType, ApkArchitecture) -> PatchAvailability
+fun interface AvailabilityResolver {
+    fun resolve(installer: InstallerType, arch: ApkArchitecture): PatchAvailability
+}
 
 /**
- * Returns an [AvailabilityResolver] that ignores its inputs and derives the result
- * purely from a static [default] flag. Provided as a convenience for patches that
- * want to opt into the new API without adding target-specific logic.
+ * An [AvailabilityResolver] that ignores its inputs and reports [PatchAvailability.ENABLED]
+ * when [default] is true, [PatchAvailability.DISABLED] otherwise.
  */
-fun defaultAvailability(default: Boolean): AvailabilityResolver = { _, _ ->
+fun defaultAvailability(default: Boolean) = AvailabilityResolver { _, _ ->
     if (default) PatchAvailability.ENABLED else PatchAvailability.DISABLED
 }
