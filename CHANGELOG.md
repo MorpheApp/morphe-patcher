@@ -1,3 +1,10 @@
+# [1.8.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.7.0...v1.8.0-dev.1) (2026-07-23)
+
+
+### Features
+
+* Add ability to add multiple precompiled DEX files from input streams ([#157](https://github.com/MorpheApp/morphe-patcher/issues/157)) ([7bcb745](https://github.com/MorpheApp/morphe-patcher/commit/7bcb745741f69d428b53abd35d90d04b2ad25285))
+
 # [1.7.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.6.0...v1.7.0) (2026-07-23)
 
 
