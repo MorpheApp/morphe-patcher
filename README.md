@@ -22,7 +22,7 @@ Morphe Patcher used to patch Android applications.
 ## ❓ About
 
 Morphe Patcher is a library to patch Android applications.  
-It powers [Morphe CLI](https://github.com/MorpheApp/morphe-cli),
+It powers [Morphe Desktop](https://github.com/MorpheApp/morphe-desktop),
 [Morphe (Manager)](https://github.com/MorpheApp/morphe-manager),
 and various third party patch managers.
 

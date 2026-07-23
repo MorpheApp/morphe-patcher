@@ -76,20 +76,6 @@ sealed class Patch<C : PatchContext<*>>(
         finalizeBlock = finalizeBlock
     )
 
-    init {
-        if (default && compatibility?.any { it.packageName == null } == true) {
-            val message = "Universal patches cannot be enabled by default. " +
-                    "Either set 'default = false' or add a Compatibility package. " +
-                    "This warning will become an patch exception in a future release."
-
-            if (throwExeptionOnUniversalPatchDefaultOn) {
-                throw IllegalArgumentException(message)
-            } else {
-                Logger.getLogger(Patch::class.java.name).warning (message)
-            }
-        }
-    }
-
     /**
      * Legacy format. Experimental app targets are not present in this format.
      */
@@ -144,11 +130,6 @@ sealed class Patch<C : PatchContext<*>>(
 
     override fun toString() = name ?: 
         "Patch@${System.identityHashCode(this)}"
-
-    internal companion object {
-        // TODO: Change this to true and inline.
-        var throwExeptionOnUniversalPatchDefaultOn = false
-    }
 }
 
 internal fun Patch<*>.anyRecursively(
@@ -518,6 +499,15 @@ sealed class PatchBuilder<C : PatchContext<*>>(
         finalizeBlock = block
     }
 
+    internal fun resolveDefaultValue(): Boolean {
+        return if (name != null && default
+            && (compatibility == null || compatibility!!.any { it.packageName == null })
+        ) {
+            println("Warning: Universal patches must be declared with default false: $name")
+            false
+        } else default
+    }
+
     /**
      * Build the patch.
      *
@@ -576,7 +566,7 @@ class BytecodePatchBuilder internal constructor(
     override fun build() = BytecodePatch(
         name = name,
         description = description,
-        default = default,
+        default = resolveDefaultValue(),
         compatibility = compatibility,
         dependencies = dependencies,
         options = options,
@@ -622,7 +612,7 @@ class RawResourcePatchBuilder internal constructor(
     override fun build() = RawResourcePatch(
         name,
         description,
-        default,
+        resolveDefaultValue(),
         compatibility,
         dependencies,
         options,
@@ -667,7 +657,7 @@ class ResourcePatchBuilder internal constructor(
     override fun build() = ResourcePatch(
         name,
         description,
-        default,
+        resolveDefaultValue(),
         compatibility,
         dependencies,
         options,

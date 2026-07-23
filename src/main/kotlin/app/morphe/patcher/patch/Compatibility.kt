@@ -211,7 +211,7 @@ data class Compatibility internal constructor(
     )
 
     /**
-     * Universal patch that can be applied to any ap.
+     * Universal patch that can be applied to any app.
      * @param description User facing description of the app.
      */
     constructor(

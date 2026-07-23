@@ -1,3 +1,17 @@
+# [1.7.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.6.1-dev.1...v1.7.0-dev.1) (2026-07-18)
+
+
+### Features
+
+* Add typed patch options ([#152](https://github.com/MorpheApp/morphe-patcher/issues/152)) ([4000555](https://github.com/MorpheApp/morphe-patcher/commit/4000555b3b01d7a4dc14dd9976e9e4c33d4768d9))
+
+## [1.6.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.6.0...v1.6.1-dev.1) (2026-07-14)
+
+
+### Bug Fixes
+
+* Ignore and warn if universal patch is default on ([7298b31](https://github.com/MorpheApp/morphe-patcher/commit/7298b310e5f36e0fcab3c600f8edc3f8ae51fc03))
+
 # [1.6.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.5.2...v1.6.0) (2026-07-11)
 
 

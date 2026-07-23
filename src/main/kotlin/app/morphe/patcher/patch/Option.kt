@@ -20,7 +20,7 @@ import kotlin.reflect.typeOf
  * @constructor Create a new [Option].
  */
 @Suppress("MemberVisibilityCanBePrivate", "unused")
-class Option<T>
+open class Option<T>
 @PublishedApi
 @Deprecated("Use the constructor with the name instead of a key instead.")
 internal constructor(
@@ -202,15 +202,7 @@ fun stringOption(
     description: String? = null,
     required: Boolean = false,
     validator: Option<String>.(String?) -> Boolean = { true },
-) = option(
-    key,
-    default,
-    values,
-    title,
-    description,
-    required,
-    validator,
-)
+): Option<String> = StringOption(key, default, values, title, description, required, validator)
 
 /**
  * Create a new [Option] with a string value and add it to the current [PatchBuilder].
@@ -235,15 +227,9 @@ fun PatchBuilder<*>.stringOption(
     description: String? = null,
     required: Boolean = false,
     validator: Option<String>.(String?) -> Boolean = { true },
-) = option(
-    key,
-    default,
-    values,
-    title,
-    description,
-    required,
-    validator,
-)
+): Option<String> = app.morphe.patcher.patch.stringOption(
+    key, default, values, title, description, required, validator,
+).also { it() }
 
 /**
  * Create a new [Option] with an integer value.

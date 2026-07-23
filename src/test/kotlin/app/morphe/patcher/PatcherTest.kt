@@ -182,36 +182,10 @@ internal object PatcherTest {
 
     @Test
     fun `universal patch that is default on`() {
-        Patch.throwExeptionOnUniversalPatchDefaultOn = true
+        // Verify default is false even though universal declared true.
+        val patch = bytecodePatch(name = "Test", default = true) { }
 
-        assertThrows<IllegalArgumentException> {
-            bytecodePatch(name = "Test", default = true) {
-                compatibleWith(Compatibility(description = "Universal patch"))
-
-            }.execute(patcher.context.bytecodeContext)
-        }
-
-        assertThrows<IllegalArgumentException> {
-            rawResourcePatch(name = "Test", default = true) {
-                compatibleWith(Compatibility(description = "Universal patch"))
-
-            }.execute(patcher.context.resourceContext)
-        }
-
-        assertThrows<IllegalArgumentException> {
-            resourcePatch(name = "Test", default = true) {
-                compatibleWith(Compatibility(description = "Universal patch"))
-
-            }.execute(patcher.context.resourceContext)
-        }
-
-        // Sanity check.
-        assertDoesNotThrow {
-            bytecodePatch(name = "Test", default = true) {
-                compatibleWith(Compatibility(packageName = "test.app", name = "Test app"))
-
-            }.execute(patcher.context.bytecodeContext)
-        }
+        assertEquals(false, patch.default)
     }
 
     @Test

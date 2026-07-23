@@ -619,6 +619,12 @@ public final class app/morphe/patcher/patch/BytecodePatchContext : app/morphe/pa
 	public final fun navigate (Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;)Lapp/morphe/patcher/util/MethodNavigator;
 }
 
+public final class app/morphe/patcher/patch/ColorOption : app/morphe/patcher/patch/StringOption {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getColorInt ()Ljava/lang/Integer;
+}
+
 public final class app/morphe/patcher/patch/Compatibility {
 	public fun <init> (Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lapp/morphe/patcher/patch/ApkFileType;Ljava/lang/Integer;Ljava/util/Set;Ljava/util/List;)V
@@ -648,7 +654,46 @@ public final class app/morphe/patcher/patch/Compatibility {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class app/morphe/patcher/patch/Option {
+public final class app/morphe/patcher/patch/FilePathOption : app/morphe/patcher/patch/StringOption {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAllowedExtensions ()Ljava/util/List;
+}
+
+public final class app/morphe/patcher/patch/FilesOption : app/morphe/patcher/patch/Option {
+	public fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAllowedExtensions ()Ljava/util/List;
+	public final fun getFiles ()Ljava/util/List;
+}
+
+public final class app/morphe/patcher/patch/FolderOption : app/morphe/patcher/patch/StringOption {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getDirectory ()Ljava/io/File;
+}
+
+public final class app/morphe/patcher/patch/ImageOption : app/morphe/patcher/patch/StringOption {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lapp/morphe/patcher/patch/ImageSize;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lapp/morphe/patcher/patch/ImageSize;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAllowedExtensions ()Ljava/util/List;
+	public final fun getRecommendedSize ()Lapp/morphe/patcher/patch/ImageSize;
+}
+
+public final class app/morphe/patcher/patch/ImageSize {
+	public fun <init> (II)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun copy (II)Lapp/morphe/patcher/patch/ImageSize;
+	public static synthetic fun copy$default (Lapp/morphe/patcher/patch/ImageSize;IIILjava/lang/Object;)Lapp/morphe/patcher/patch/ImageSize;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHeight ()I
+	public final fun getWidth ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public class app/morphe/patcher/patch/Option {
 	public fun <init> (Ljava/lang/String;Ljava/lang/Object;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;ZLkotlin/reflect/KType;Lkotlin/jvm/functions/Function2;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Object;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;ZLkotlin/reflect/KType;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/Object;Ljava/util/Map;Ljava/lang/String;ZLkotlin/reflect/KType;Lkotlin/jvm/functions/Function2;)V
@@ -881,6 +926,29 @@ public final class app/morphe/patcher/patch/PatchUtilsKt {
 	public static final fun setOptions (Ljava/util/Set;Ljava/util/Map;)V
 }
 
+public final class app/morphe/patcher/patch/PathOptionsKt {
+	public static final fun colorOption (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/ColorOption;
+	public static final fun colorOption (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/ColorOption;
+	public static synthetic fun colorOption$default (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/ColorOption;
+	public static synthetic fun colorOption$default (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/ColorOption;
+	public static final fun filePathOption (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/FilePathOption;
+	public static final fun filePathOption (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/FilePathOption;
+	public static synthetic fun filePathOption$default (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/FilePathOption;
+	public static synthetic fun filePathOption$default (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/FilePathOption;
+	public static final fun filesOption (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/FilesOption;
+	public static final fun filesOption (Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/FilesOption;
+	public static synthetic fun filesOption$default (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/FilesOption;
+	public static synthetic fun filesOption$default (Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/FilesOption;
+	public static final fun folderOption (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/FolderOption;
+	public static final fun folderOption (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/FolderOption;
+	public static synthetic fun folderOption$default (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/FolderOption;
+	public static synthetic fun folderOption$default (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/FolderOption;
+	public static final fun imageOption (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lapp/morphe/patcher/patch/ImageSize;Lkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/ImageOption;
+	public static final fun imageOption (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lapp/morphe/patcher/patch/ImageSize;Lkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/ImageOption;
+	public static synthetic fun imageOption$default (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lapp/morphe/patcher/patch/ImageSize;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/ImageOption;
+	public static synthetic fun imageOption$default (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Lapp/morphe/patcher/patch/ImageSize;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/ImageOption;
+}
+
 public final class app/morphe/patcher/patch/RawResourcePatch : app/morphe/patcher/patch/Patch {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
 	public fun toString ()Ljava/lang/String;
@@ -911,6 +979,12 @@ public final class app/morphe/patcher/patch/ResourcePatchContext : app/morphe/pa
 	public final fun get (Ljava/lang/String;Z)Ljava/io/File;
 	public static synthetic fun get$default (Lapp/morphe/patcher/patch/ResourcePatchContext;Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
+}
+
+public class app/morphe/patcher/patch/StringOption : app/morphe/patcher/patch/Option {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getFile ()Ljava/io/File;
 }
 
 public final class app/morphe/patcher/patch/SupportedAbi : java/lang/Enum {
