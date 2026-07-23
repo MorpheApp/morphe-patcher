@@ -584,6 +584,7 @@ public final class app/morphe/patcher/patch/AppTarget : java/lang/Comparable {
 }
 
 public final class app/morphe/patcher/patch/BytecodePatch : app/morphe/patcher/patch/Patch {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/List;Ljava/util/Set;Ljava/util/Set;Ljava/util/function/Supplier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Ljava/util/function/Supplier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Ljava/util/function/Supplier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getExtensionInputStream ()Ljava/util/function/Supplier;
@@ -593,6 +594,7 @@ public final class app/morphe/patcher/patch/BytecodePatch : app/morphe/patcher/p
 public final class app/morphe/patcher/patch/BytecodePatchBuilder : app/morphe/patcher/patch/PatchBuilder {
 	public synthetic fun build$morphe_patcher ()Lapp/morphe/patcher/patch/Patch;
 	public final fun extendWith (Ljava/lang/String;)Lapp/morphe/patcher/patch/BytecodePatchBuilder;
+	public final fun extendWith (Ljava/util/function/Supplier;)Lapp/morphe/patcher/patch/BytecodePatchBuilder;
 	public final fun getExtensionInputStream ()Ljava/util/function/Supplier;
 	public final fun setExtensionInputStream (Ljava/util/function/Supplier;)V
 }
