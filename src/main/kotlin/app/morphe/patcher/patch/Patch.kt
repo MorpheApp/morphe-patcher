@@ -569,8 +569,6 @@ class BytecodePatchBuilder internal constructor(
     description: String?,
     default: Boolean,
 ) : PatchBuilder<BytecodePatchContext>(name, description, default) {
-    // Must be internal for the inlined function "extendWith".
-    @PublishedApi
     internal var extensionInputStreams: MutableList<Supplier<InputStream>> = mutableListOf()
 
     // Inlining is necessary to get the class loader that loaded the patch
