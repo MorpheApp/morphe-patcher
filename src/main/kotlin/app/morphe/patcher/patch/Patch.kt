@@ -167,7 +167,7 @@ internal fun Iterable<Patch<*>>.forEachRecursively(
  *   If null, then the patch is universal and could be applied to all apps.
  * @param dependencies Other patches this patch depends on.
  * @param options The options of the patch.
- * @property extensionInputStream Getter for the extension input stream of the patch. An extension
+ * @param extensionInputStreams List of getter for extension input streams of the patch. An extension
  *   is a precompiled DEX file that is merged into the patched app before this patch is executed.
  * @param executeBlock The execution block of the patch.
  * @param finalizeBlock The finalizing block of the patch. Called after all patches have
@@ -180,7 +180,7 @@ class BytecodePatch internal constructor(
     compatibility: List<Compatibility>?,
     dependencies: Set<Patch<*>>,
     options: Set<Option<*>>,
-    val extensionInputStream: Supplier<InputStream>?,
+    internal val extensionInputStreams: List<Supplier<InputStream>>?,
     executeBlock: (BytecodePatchContext) -> Unit,
     finalizeBlock: ((BytecodePatchContext) -> Unit)?,
 ) : Patch<BytecodePatchContext>(
@@ -193,6 +193,29 @@ class BytecodePatch internal constructor(
     executeBlock,
     finalizeBlock,
 ) {
+
+    @Deprecated("Use constructor with extensionInputStreams parameter")
+    constructor(
+        name: String?,
+        description: String?,
+        default: Boolean,
+        compatibility: List<Compatibility>?,
+        dependencies: Set<Patch<*>>,
+        options: Set<Option<*>>,
+        extensionInputStream: Supplier<InputStream>?,
+        executeBlock: (BytecodePatchContext) -> Unit,
+        finalizeBlock: ((BytecodePatchContext) -> Unit)?,
+    ) : this(
+        name = name,
+        description = description,
+        default = default,
+        compatibility = compatibility,
+        dependencies = dependencies,
+        options = options,
+        extensionInputStreams = extensionInputStream?.let { listOf(it) },
+        executeBlock = executeBlock,
+        finalizeBlock = finalizeBlock
+    )
 
     @Deprecated("Use constructor with Compatibility object")
     constructor(
@@ -216,6 +239,9 @@ class BytecodePatch internal constructor(
         executeBlock = executeBlock,
         finalizeBlock = finalizeBlock
     )
+
+    @Deprecated("extensionInputStream will be made private in a future release.")
+    fun getExtensionInputStream(): Supplier<InputStream>? = extensionInputStreams?.firstOrNull()
 
     override fun execute(context: PatcherContext) = with(context.bytecodeContext) {
         mergeExtension(this@BytecodePatch)
@@ -533,7 +559,7 @@ private fun <B : PatchBuilder<*>> B.buildPatch(block: B.() -> Unit = {}) = apply
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
  * @param default Whether the patch is enabled by default.
- * @property extensionInputStream Getter for the extension input stream of the patch.
+ * @property extensionInputStreams Getters for the extension input streams of the patch.
  * An extension is a precompiled DEX file that is merged into the patched app before this patch is executed.
  *
  * @constructor Create a new [BytecodePatchBuilder] builder.
@@ -545,7 +571,7 @@ class BytecodePatchBuilder internal constructor(
 ) : PatchBuilder<BytecodePatchContext>(name, description, default) {
     // Must be internal for the inlined function "extendWith".
     @PublishedApi
-    internal var extensionInputStream: Supplier<InputStream>? = null
+    internal var extensionInputStreams: MutableList<Supplier<InputStream>> = mutableListOf()
 
     // Inlining is necessary to get the class loader that loaded the patch
     // to load the extension from the resources.
@@ -558,10 +584,23 @@ class BytecodePatchBuilder internal constructor(
     inline fun extendWith(extension: String) = apply {
         val classLoader = object {}.javaClass.classLoader
 
-        extensionInputStream = Supplier {
-            classLoader.getResourceAsStream(extension) ?: throw PatchException("Extension \"$extension\" not found")
+        extendWith {
+            classLoader.getResourceAsStream(extension)
+                ?: throw PatchException("Extension \"$extension\" not found")
         }
     }
+
+    fun extendWith(extension: Supplier<InputStream>) = apply {
+        extensionInputStreams.add(extension)
+    }
+
+    @Deprecated("Kept only for backwards compatibility with older patch bundles, use extendWith(Supplier<InputStream>).")
+    fun setExtensionInputStream(supplier: Supplier<InputStream>) {
+        extendWith(supplier)
+    }
+
+    @Deprecated("Kept only for backwards compatibility with older patch bundles. This getter will be removed in a future release.")
+    fun getExtensionInputStream(): Supplier<InputStream>? = extensionInputStreams.firstOrNull()
 
     override fun build() = BytecodePatch(
         name = name,
@@ -570,7 +609,7 @@ class BytecodePatchBuilder internal constructor(
         compatibility = compatibility,
         dependencies = dependencies,
         options = options,
-        extensionInputStream = extensionInputStream,
+        extensionInputStreams = extensionInputStreams,
         executeBlock = executeBlock,
         finalizeBlock = finalizeBlock
     )
