@@ -596,9 +596,7 @@ public final class app/morphe/patcher/patch/BytecodePatchBuilder : app/morphe/pa
 	public final fun extendWith (Ljava/lang/String;)Lapp/morphe/patcher/patch/BytecodePatchBuilder;
 	public final fun extendWith (Ljava/util/function/Supplier;)Lapp/morphe/patcher/patch/BytecodePatchBuilder;
 	public final fun getExtensionInputStream ()Ljava/util/function/Supplier;
-	public final fun getExtensionInputStreams ()Ljava/util/List;
 	public final fun setExtensionInputStream (Ljava/util/function/Supplier;)V
-	public final fun setExtensionInputStreams (Ljava/util/List;)V
 }
 
 public final class app/morphe/patcher/patch/BytecodePatchContext : app/morphe/patcher/patch/PatchContext, java/io/Closeable {
