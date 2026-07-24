@@ -1,3 +1,10 @@
+# [1.8.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.8.0-dev.1...v1.8.0-dev.2) (2026-07-24)
+
+
+### Bug Fixes
+
+* Fix backwards compatibility with patcher versions before 1.8.0 ([12a4d42](https://github.com/MorpheApp/morphe-patcher/commit/12a4d4266202f533c57145dc345421c221253d7f))
+
 # [1.8.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.7.0...v1.8.0-dev.1) (2026-07-23)
 
 
