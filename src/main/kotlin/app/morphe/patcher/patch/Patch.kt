@@ -582,10 +582,12 @@ class BytecodePatchBuilder internal constructor(
     inline fun extendWith(extension: String) = apply {
         val classLoader = object {}.javaClass.classLoader
 
-        extendWith {
+        // TODO: This is using the deprecated setter for compatibility with older CLI versions.
+        //  Change it to use extendWith(Supplier<InputStream>) when the deprecated setter is removed.
+        setExtensionInputStream({
             classLoader.getResourceAsStream(extension)
                 ?: throw PatchException("Extension \"$extension\" not found")
-        }
+        })
     }
 
     fun extendWith(extension: Supplier<InputStream>) = apply {
