@@ -1,3 +1,10 @@
+# [1.8.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.8.0-dev.2...v1.8.0-dev.3) (2026-07-27)
+
+
+### Features
+
+* Add extendWithAll() to handle dynamic number of extensions ([a668bf9](https://github.com/MorpheApp/morphe-patcher/commit/a668bf947dc804e0ae4a14561730820dd1d1cb5a))
+
 # [1.8.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.8.0-dev.1...v1.8.0-dev.2) (2026-07-24)
 
 
