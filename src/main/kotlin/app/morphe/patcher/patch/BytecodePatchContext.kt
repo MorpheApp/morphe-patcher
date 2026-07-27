@@ -27,6 +27,7 @@ import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import java.io.Closeable
 import java.io.File
+import java.io.InputStream
 import java.util.logging.Logger
 
 /**
@@ -128,27 +129,33 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @param bytecodePatch The [BytecodePatch] to merge the extension of.
      */
     internal fun mergeExtension(bytecodePatch: BytecodePatch) {
-        bytecodePatch.extensionInputStreams?.forEach { supplier ->
-            supplier.get().use { extensionStream ->
-                DexReadWrite.readDexStream(extensionStream).classes.forEach { classDef ->
-                    val existingClass = patchClasses.classByOrNull(classDef.type) ?: run {
-                        logger.fine { "Adding class \"$classDef\"" }
+        bytecodePatch.extensionStreamProviders.forEach { provider ->
+            provider.get().forEach { supplier ->
+                mergeExtensionStream(supplier.get())
+            }
+        }
+    }
 
-                        patchClasses.addClass(classDef)
+    private fun mergeExtensionStream(extensionStream: InputStream) {
+        extensionStream.use { stream ->
+            DexReadWrite.readDexStream(stream).classes.forEach { classDef ->
+                val existingClass = patchClasses.classByOrNull(classDef.type) ?: run {
+                    logger.fine { "Adding class \"$classDef\"" }
 
-                        return@forEach
+                    patchClasses.addClass(classDef)
+
+                    return@forEach
+                }
+
+                logger.fine { "Class \"$classDef\" exists already. Adding missing methods and fields." }
+
+                existingClass.merge(classDef, this@BytecodePatchContext).let { mergedClass ->
+                    // If the class was merged, replace the original class with the merged class.
+                    if (mergedClass === existingClass) {
+                        return@let
                     }
 
-                    logger.fine { "Class \"$classDef\" exists already. Adding missing methods and fields." }
-
-                    existingClass.merge(classDef, this@BytecodePatchContext).let { mergedClass ->
-                        // If the class was merged, replace the original class with the merged class.
-                        if (mergedClass === existingClass) {
-                            return@let
-                        }
-
-                        patchClasses.addClass(mergedClass)
-                    }
+                    patchClasses.addClass(mergedClass)
                 }
             }
         }

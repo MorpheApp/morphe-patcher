@@ -9,8 +9,10 @@
 package app.morphe.patcher
 
 import app.morphe.patcher.dex.BytecodeMode
+import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatch
+import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.Compatibility
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.PatchException
@@ -24,6 +26,7 @@ import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMuta
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
+import com.android.tools.smali.dexlib2.iface.DexFile
 import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction
 import com.android.tools.smali.dexlib2.immutable.ImmutableClassDef
@@ -33,13 +36,20 @@ import com.android.tools.smali.dexlib2.immutable.reference.ImmutableStringRefere
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkObject
 import io.mockk.runs
+import io.mockk.unmockkObject
+import io.mockk.verify
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
+import java.io.ByteArrayInputStream
+import java.io.InputStream
+import java.nio.file.Files
+import java.util.function.Supplier
 import java.util.logging.Logger
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -1081,6 +1091,76 @@ internal object PatcherTest {
 
             InstructionLocation.MatchAfterRange(0, 0)
             InstructionLocation.MatchAfterRange(0, 1)
+        }
+    }
+
+    @Test
+    fun `extendWith and extendWithAll are coalesced and resolved lazily at patch time`() {
+        // Simulates extensions that are unknown when the patch is built and populated later,
+        // for example by a resource patch that this patch depends on.
+        val derivedExtensions = mutableListOf<Supplier<InputStream>>()
+        val eagerExtension = Supplier<InputStream> { ByteArrayInputStream(ByteArray(0)) }
+
+        val patch = bytecodePatch(name = "Test") {
+            // A single extension is stored as a provider that yields one stream...
+            extendWith(eagerExtension)
+            // ...and a `for (e in derivedExtensions) extendWith(e)` loop here would add nothing because
+            // the list is still empty at build time; extendWithAll defers resolution instead.
+            extendWithAll { derivedExtensions }
+        }
+
+        // Both entry points are coalesced into the single providers list.
+        assertEquals(2, patch.extensionStreamProviders.size)
+
+        // Populate the list after the patch has been built.
+        repeat(2) { derivedExtensions += Supplier { ByteArrayInputStream(ByteArray(0)) } }
+
+        // The eager extension always yields exactly one stream.
+        assertEquals(1, patch.extensionStreamProviders.first().get().count())
+        // The deferred provider reflects the up-to-date contents when evaluated at patch time.
+        assertEquals(2, patch.extensionStreamProviders.last().get().count())
+    }
+
+    @Test
+    fun `extendWith and extendWithAll merge through a single path at patch time`() {
+        // Tracks whether the merge closed each extension stream it consumed.
+        class TrackingStream : InputStream() {
+            var closed = false
+            override fun read() = -1
+            override fun close() {
+                closed = true
+            }
+        }
+
+        mockkObject(DexReadWrite)
+        try {
+            val emptyDex = mockk<DexFile> { every { classes } returns emptySet() }
+            every { DexReadWrite.readDexStream(any()) } returns emptyDex
+
+            // Populated only after the patch is built, to prove extendWithAll is deferred.
+            val derivedExtensions = mutableListOf<Supplier<InputStream>>()
+            val eagerStream = TrackingStream()
+
+            val patch = bytecodePatch(name = "Test") {
+                extendWith(Supplier { eagerStream })
+                extendWithAll { derivedExtensions }
+            }
+
+            val dynamicStreams = List(3) { TrackingStream() }
+            dynamicStreams.forEach { stream -> derivedExtensions += Supplier { stream } }
+
+            val config = mockk<PatcherConfig>(relaxed = true) {
+                every { patchedFiles } returns Files.createTempDirectory("morphe-test").toFile()
+            }
+            val context = BytecodePatchContext(config, mockk(relaxed = true))
+
+            context.mergeExtension(patch)
+
+            // The single eager and three deferred extensions were all read and closed at patch time.
+            verify(exactly = 4) { DexReadWrite.readDexStream(any()) }
+            assertTrue((dynamicStreams + eagerStream).all { it.closed })
+        } finally {
+            unmockkObject(DexReadWrite)
         }
     }
 

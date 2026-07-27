@@ -595,6 +595,7 @@ public final class app/morphe/patcher/patch/BytecodePatchBuilder : app/morphe/pa
 	public synthetic fun build$morphe_patcher ()Lapp/morphe/patcher/patch/Patch;
 	public final fun extendWith (Ljava/lang/String;)Lapp/morphe/patcher/patch/BytecodePatchBuilder;
 	public final fun extendWith (Ljava/util/function/Supplier;)Lapp/morphe/patcher/patch/BytecodePatchBuilder;
+	public final fun extendWithAll (Ljava/util/function/Supplier;)Lapp/morphe/patcher/patch/BytecodePatchBuilder;
 	public final fun getExtensionInputStream ()Ljava/util/function/Supplier;
 	public final fun setExtensionInputStream (Ljava/util/function/Supplier;)V
 }

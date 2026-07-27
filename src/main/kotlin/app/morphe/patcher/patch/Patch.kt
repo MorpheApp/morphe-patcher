@@ -167,8 +167,11 @@ internal fun Iterable<Patch<*>>.forEachRecursively(
  *   If null, then the patch is universal and could be applied to all apps.
  * @param dependencies Other patches this patch depends on.
  * @param options The options of the patch.
- * @param extensionInputStreams List of getter for extension input streams of the patch. An extension
- *   is a precompiled DEX file that is merged into the patched app before this patch is executed.
+ * @param extensionStreamProviders Providers of extension input streams, evaluated when the patch is
+ *   executed. Each provider yields the extension input streams (precompiled DEX files) to merge into the
+ *   patched app before this patch runs. A single extension added with [BytecodePatchBuilder.extendWith]
+ *   is stored as a provider yielding one stream, while [BytecodePatchBuilder.extendWithAll] allows a
+ *   variable number of extensions whose count is not known until patch time.
  * @param executeBlock The execution block of the patch.
  * @param finalizeBlock The finalizing block of the patch. Called after all patches have
  *   been executed, in reverse order of execution.
@@ -180,7 +183,7 @@ class BytecodePatch internal constructor(
     compatibility: List<Compatibility>?,
     dependencies: Set<Patch<*>>,
     options: Set<Option<*>>,
-    internal val extensionInputStreams: List<Supplier<InputStream>>?,
+    internal val extensionStreamProviders: List<Supplier<out Iterable<Supplier<InputStream>>>>,
     executeBlock: (BytecodePatchContext) -> Unit,
     finalizeBlock: ((BytecodePatchContext) -> Unit)?,
 ) : Patch<BytecodePatchContext>(
@@ -212,7 +215,7 @@ class BytecodePatch internal constructor(
         compatibility = compatibility,
         dependencies = dependencies,
         options = options,
-        extensionInputStreams = extensionInputStream?.let { listOf(it) },
+        extensionStreamProviders = extensionInputStream?.let { listOf(Supplier { listOf(it) }) } ?: emptyList(),
         executeBlock = executeBlock,
         finalizeBlock = finalizeBlock
     )
@@ -241,7 +244,8 @@ class BytecodePatch internal constructor(
     )
 
     @Deprecated("extensionInputStream will be made private in a future release.")
-    fun getExtensionInputStream(): Supplier<InputStream>? = extensionInputStreams?.firstOrNull()
+    fun getExtensionInputStream(): Supplier<InputStream>? =
+        extensionStreamProviders.firstOrNull()?.let { provider -> Supplier { provider.get().first().get() } }
 
     override fun execute(context: PatcherContext) = with(context.bytecodeContext) {
         mergeExtension(this@BytecodePatch)
@@ -559,8 +563,10 @@ private fun <B : PatchBuilder<*>> B.buildPatch(block: B.() -> Unit = {}) = apply
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
  * @param default Whether the patch is enabled by default.
- * @property extensionInputStreams Getters for the extension input streams of the patch.
- * An extension is a precompiled DEX file that is merged into the patched app before this patch is executed.
+ * @property extensionInputStreams Extension input streams registered with [extendWith]. Each is a
+ * precompiled DEX file merged into the patched app before this patch is executed.
+ * @property extensionStreamProviders Providers of extension input streams registered with [extendWithAll],
+ * evaluated at patch time, for when the number of extensions to merge is not known until then.
  *
  * @constructor Create a new [BytecodePatchBuilder] builder.
  */
@@ -569,7 +575,19 @@ class BytecodePatchBuilder internal constructor(
     description: String?,
     default: Boolean,
 ) : PatchBuilder<BytecodePatchContext>(name, description, default) {
-    internal var extensionInputStreams: MutableList<Supplier<InputStream>> = mutableListOf()
+    /**
+     * Extension input streams registered with [extendWith]. Each is a precompiled DEX file that is
+     * merged into the patched app before this patch runs. These are combined into the built
+     * [BytecodePatch]'s providers when the patch is built.
+     */
+    internal val extensionInputStreams: MutableList<Supplier<InputStream>> = mutableListOf()
+
+    /**
+     * Providers of extension input streams registered with [extendWithAll], evaluated at patch time.
+     * Use these when the number of extensions to merge is not known until then, for example when the
+     * extensions are derived by a dependency patch that has already executed.
+     */
+    internal val extensionStreamProviders: MutableList<Supplier<out Iterable<Supplier<InputStream>>>> = mutableListOf()
 
     // Inlining is necessary to get the class loader that loaded the patch
     // to load the extension from the resources.
@@ -584,14 +602,28 @@ class BytecodePatchBuilder internal constructor(
 
         // TODO: This is using the deprecated setter for compatibility with older CLI versions.
         //  Change it to use extendWith(Supplier<InputStream>) when the deprecated setter is removed.
-        setExtensionInputStream({
+        setExtensionInputStream {
             classLoader.getResourceAsStream(extension)
                 ?: throw PatchException("Extension \"$extension\" not found")
-        })
+        }
     }
 
     fun extendWith(extension: Supplier<InputStream>) = apply {
         extensionInputStreams.add(extension)
+    }
+
+    /**
+     * Extend the patch with a variable number of extensions that are resolved at patch time.
+     *
+     * Unlike [extendWith], the [provider] is not evaluated when the patch is built but when the patch
+     * is executed, before the patch's `execute` block runs. This makes it possible to merge a number
+     * of extensions that is not known until patch time, such as extensions derived by a dependency
+     * patch that has already executed.
+     *
+     * @param provider A provider, evaluated at patch time, of the extension input streams to merge.
+     */
+    fun extendWithAll(provider: Supplier<out Iterable<Supplier<InputStream>>>) = apply {
+        extensionStreamProviders.add(provider)
     }
 
     @Deprecated("Kept only for backwards compatibility with older patch bundles, use extendWith(Supplier<InputStream>).")
@@ -609,7 +641,12 @@ class BytecodePatchBuilder internal constructor(
         compatibility = compatibility,
         dependencies = dependencies,
         options = options,
-        extensionInputStreams = extensionInputStreams,
+        extensionStreamProviders = buildList {
+            // Each eager extension becomes a provider yielding a single stream, merged before the
+            // patch-time providers registered with extendWithAll.
+            extensionInputStreams.forEach { extension -> add(Supplier { listOf(extension) }) }
+            addAll(extensionStreamProviders)
+        },
         executeBlock = executeBlock,
         finalizeBlock = finalizeBlock
     )
