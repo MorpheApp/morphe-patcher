@@ -9,6 +9,7 @@ import kotlin.collections.all
 import kotlin.collections.isNotEmpty
 
 private val SHA_256_REGEX = Regex("^[0-9a-fA-F]{64}$")
+private val PACKAGE_NAME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$")
 
 /**
  * Original app file type.
@@ -260,6 +261,12 @@ data class Compatibility internal constructor(
     )
 
     init {
+        if (packageName != null) {
+            require(packageName.matches(PACKAGE_NAME_REGEX)) {
+                "Invalid Android package name: $packageName"
+            }
+        }
+
         if (!isLegacy && packageName != null && name.isNullOrBlank()) {
             throw IllegalArgumentException(
                 "If package name is declared then app name must also be declared"
