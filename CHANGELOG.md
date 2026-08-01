@@ -1,3 +1,10 @@
+# [1.8.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.8.0-dev.3...v1.8.0-dev.4) (2026-08-01)
+
+
+### Bug Fixes
+
+* Validate Compatibility uses a valid Android package name ([0d8c3e7](https://github.com/MorpheApp/morphe-patcher/commit/0d8c3e7da34d79de6ab29bcd5010a07cefb2c084))
+
 # [1.8.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.8.0-dev.2...v1.8.0-dev.3) (2026-07-27)
 
 
