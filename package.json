@@ -1,6 +1,6 @@
 {
   "devDependencies": {
-    "@kilianpaquier/semantic-release-backmerge": "^1.7.5",
+    "@kilianpaquier/semantic-release-backmerge": "^1.8.0",
     "@semantic-release/changelog": "^7.0.0",
     "@semantic-release/git": "^10.0.1",
     "gradle-semantic-release-plugin": "^1.10.3",
