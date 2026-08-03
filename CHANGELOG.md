@@ -1,3 +1,10 @@
+# [1.8.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.8.0-dev.4...v1.8.0-dev.5) (2026-08-03)
+
+
+### Features
+
+* Add patch availability ([#156](https://github.com/MorpheApp/morphe-patcher/issues/156)) ([fa6c52b](https://github.com/MorpheApp/morphe-patcher/commit/fa6c52bfb88b4dd64d4aaed46202f423598f63e1))
+
 # [1.8.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.8.0-dev.3...v1.8.0-dev.4) (2026-08-01)
 
 
