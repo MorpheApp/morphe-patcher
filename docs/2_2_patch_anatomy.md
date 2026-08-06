@@ -150,6 +150,38 @@ val complexPatch = bytecodePatch(name = "Complex patch", default = true) {
 Morphe Patcher merges the classes from the extension into `context.classes` before executing the patch.
 When the patch is executed, it can reference the classes and methods from the extension.
 
+#### Adding a variable number of extensions
+
+Sometimes the extensions to merge are not known when the patch is defined — for example, when they
+are derived by a resource patch that the bytecode patch depends on. Because `extendWith` is evaluated
+when the patch is built, looping over a not-yet-populated list has no effect.
+
+Use `extendWithAll` to register a provider that is evaluated at patch time instead. Because a patch's
+dependencies are executed first, the provider sees whatever the dependency produced:
+
+```kt
+// Shared between the dependency and the patch.
+internal val derivedExtensions = mutableListOf<Supplier<InputStream>>()
+
+val prepareExtensionsPatch = resourcePatch {
+    execute {
+        // Derive a variable number of DEX files and expose them.
+        derivedExtensions += Supplier { openDerivedDexStream() }
+    }
+}
+
+val complexPatch = bytecodePatch(name = "Complex patch", default = true) {
+    dependsOn(prepareExtensionsPatch)
+
+    // Evaluated at patch time, after the dependency has run and populated the list.
+    extendWithAll { derivedExtensions }
+
+    execute {
+        fingerprint.method.addInstructions(0, "invoke-static { }, LComplexPatch;->doSomething()V")
+    }
+}
+```
+
 > [!NOTE]
 >
 > The [Morphe Patches template](https://github.com/MorpheApp/morphe-patches-template) repository

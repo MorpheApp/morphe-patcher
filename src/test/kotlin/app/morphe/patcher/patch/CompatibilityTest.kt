@@ -15,6 +15,58 @@ import kotlin.test.assertTrue
 internal object CompatibilityTest {
 
     @Test
+    fun `package name validation`() {
+        assertDoesNotThrow {
+            Compatibility(
+                name = "Example app",
+                packageName = "com.example",
+            )
+        }
+
+        assertDoesNotThrow {
+            Compatibility(
+                name = "Example app",
+                packageName = "com.example.app_123",
+            )
+        }
+
+        assertThrows<IllegalArgumentException> {
+            Compatibility(
+                name = "Example app",
+                packageName = "invalidpackage", // No dot
+            )
+        }
+
+        assertThrows<IllegalArgumentException> {
+            Compatibility(
+                name = "Example app",
+                packageName = "com.1example", // Starts with digit
+            )
+        }
+
+        assertThrows<IllegalArgumentException> {
+            Compatibility(
+                name = "Example app",
+                packageName = "com.example.", // Ends with dot
+            )
+        }
+
+        assertThrows<IllegalArgumentException> {
+            Compatibility(
+                name = "Example app",
+                packageName = ".com.example", // Starts with dot
+            )
+        }
+
+        assertThrows<IllegalArgumentException> {
+            Compatibility(
+                name = "Example app",
+                packageName = "com..example", // Double dot
+            )
+        }
+    }
+
+    @Test
     fun `legacy usage`() {
         val patch = bytecodePatch(name = "Test") {
             compatibleWith(

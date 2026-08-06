@@ -27,6 +27,7 @@ import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import java.io.Closeable
 import java.io.File
+import java.io.InputStream
 import java.util.logging.Logger
 
 /**
@@ -128,8 +129,16 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @param bytecodePatch The [BytecodePatch] to merge the extension of.
      */
     internal fun mergeExtension(bytecodePatch: BytecodePatch) {
-        bytecodePatch.extensionInputStream?.get()?.use { extensionStream ->
-            DexReadWrite.readDexStream(extensionStream).classes.forEach { classDef ->
+        bytecodePatch.extensionStreamProviders.forEach { provider ->
+            provider.get().forEach { supplier ->
+                mergeExtensionStream(supplier.get())
+            }
+        }
+    }
+
+    private fun mergeExtensionStream(extensionStream: InputStream) {
+        extensionStream.use { stream ->
+            DexReadWrite.readDexStream(stream).classes.forEach { classDef ->
                 val existingClass = patchClasses.classByOrNull(classDef.type) ?: run {
                     logger.fine { "Adding class \"$classDef\"" }
 
@@ -149,7 +158,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                     patchClasses.addClass(mergedClass)
                 }
             }
-        } ?: logger.fine("No extension to merge")
+        }
     }
 
     /**

@@ -1,3 +1,38 @@
+# [1.8.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.8.0-dev.4...v1.8.0-dev.5) (2026-08-03)
+
+
+### Features
+
+* Add patch availability ([#156](https://github.com/MorpheApp/morphe-patcher/issues/156)) ([fa6c52b](https://github.com/MorpheApp/morphe-patcher/commit/fa6c52bfb88b4dd64d4aaed46202f423598f63e1))
+
+# [1.8.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.8.0-dev.3...v1.8.0-dev.4) (2026-08-01)
+
+
+### Bug Fixes
+
+* Validate Compatibility uses a valid Android package name ([0d8c3e7](https://github.com/MorpheApp/morphe-patcher/commit/0d8c3e7da34d79de6ab29bcd5010a07cefb2c084))
+
+# [1.8.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.8.0-dev.2...v1.8.0-dev.3) (2026-07-27)
+
+
+### Features
+
+* Add extendWithAll() to handle dynamic number of extensions ([a668bf9](https://github.com/MorpheApp/morphe-patcher/commit/a668bf947dc804e0ae4a14561730820dd1d1cb5a))
+
+# [1.8.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.8.0-dev.1...v1.8.0-dev.2) (2026-07-24)
+
+
+### Bug Fixes
+
+* Fix backwards compatibility with patcher versions before 1.8.0 ([12a4d42](https://github.com/MorpheApp/morphe-patcher/commit/12a4d4266202f533c57145dc345421c221253d7f))
+
+# [1.8.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.7.0...v1.8.0-dev.1) (2026-07-23)
+
+
+### Features
+
+* Add ability to add multiple precompiled DEX files from input streams ([#157](https://github.com/MorpheApp/morphe-patcher/issues/157)) ([7bcb745](https://github.com/MorpheApp/morphe-patcher/commit/7bcb745741f69d428b53abd35d90d04b2ad25285))
+
 # [1.7.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.6.0...v1.7.0) (2026-07-23)
 
 

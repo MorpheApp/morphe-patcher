@@ -15,7 +15,6 @@ import java.net.URLClassLoader
 import java.nio.file.Files
 import java.util.function.Supplier
 import java.util.jar.JarFile
-import java.util.logging.Logger
 
 @Deprecated("Use Compatibility instead")
 typealias PackageName = String
@@ -39,6 +38,8 @@ typealias Package = Pair<PackageName, Set<VersionName>?>
  * @param executeBlock The execution block of the patch.
  * @param finalizeBlock The finalizing block of the patch. Called after all patches have been executed,
  * in reverse order of execution.
+ * @param availability Optional resolver that decides the patch's [PatchAvailability] for a given
+ *   [InstallerType] and [ApkArchitecture]. When null, callers should fall back to [default].
  *
  * @constructor Create a new patch.
  */
@@ -53,6 +54,10 @@ sealed class Patch<C : PatchContext<*>>(
     // Must be internal and nullable, so that Patcher.invoke can check,
     // if a patch has a finalizing block in order to not emit it twice.
     internal var finalizeBlock: ((C) -> Unit)?,
+    // Additive field. Trailing position with a default keeps binary compatibility for existing
+    // pre-compiled patch bundles: they call the previous constructor arity, and Kotlin generates
+    // an overload that fills this in as null.
+    val availability: AvailabilityResolver? = null,
 ) {
 
     @Deprecated("Use constructor with Compatibility object")
@@ -167,8 +172,11 @@ internal fun Iterable<Patch<*>>.forEachRecursively(
  *   If null, then the patch is universal and could be applied to all apps.
  * @param dependencies Other patches this patch depends on.
  * @param options The options of the patch.
- * @property extensionInputStream Getter for the extension input stream of the patch. An extension
- *   is a precompiled DEX file that is merged into the patched app before this patch is executed.
+ * @param extensionStreamProviders Providers of extension input streams, evaluated when the patch is
+ *   executed. Each provider yields the extension input streams (precompiled DEX files) to merge into the
+ *   patched app before this patch runs. A single extension added with [BytecodePatchBuilder.extendWith]
+ *   is stored as a provider yielding one stream, while [BytecodePatchBuilder.extendWithAll] allows a
+ *   variable number of extensions whose count is not known until patch time.
  * @param executeBlock The execution block of the patch.
  * @param finalizeBlock The finalizing block of the patch. Called after all patches have
  *   been executed, in reverse order of execution.
@@ -180,9 +188,10 @@ class BytecodePatch internal constructor(
     compatibility: List<Compatibility>?,
     dependencies: Set<Patch<*>>,
     options: Set<Option<*>>,
-    val extensionInputStream: Supplier<InputStream>?,
+    internal val extensionStreamProviders: List<Supplier<out Iterable<Supplier<InputStream>>>>,
     executeBlock: (BytecodePatchContext) -> Unit,
     finalizeBlock: ((BytecodePatchContext) -> Unit)?,
+    availability: AvailabilityResolver? = null,
 ) : Patch<BytecodePatchContext>(
     name,
     description,
@@ -192,7 +201,31 @@ class BytecodePatch internal constructor(
     options,
     executeBlock,
     finalizeBlock,
+    availability,
 ) {
+
+    @Deprecated("Use constructor with extensionInputStreams parameter")
+    constructor(
+        name: String?,
+        description: String?,
+        default: Boolean,
+        compatibility: List<Compatibility>?,
+        dependencies: Set<Patch<*>>,
+        options: Set<Option<*>>,
+        extensionInputStream: Supplier<InputStream>?,
+        executeBlock: (BytecodePatchContext) -> Unit,
+        finalizeBlock: ((BytecodePatchContext) -> Unit)?,
+    ) : this(
+        name = name,
+        description = description,
+        default = default,
+        compatibility = compatibility,
+        dependencies = dependencies,
+        options = options,
+        extensionStreamProviders = extensionInputStream?.let { listOf(Supplier { listOf(it) }) } ?: emptyList(),
+        executeBlock = executeBlock,
+        finalizeBlock = finalizeBlock
+    )
 
     @Deprecated("Use constructor with Compatibility object")
     constructor(
@@ -216,6 +249,10 @@ class BytecodePatch internal constructor(
         executeBlock = executeBlock,
         finalizeBlock = finalizeBlock
     )
+
+    @Deprecated("extensionInputStream will be made private in a future release.")
+    fun getExtensionInputStream(): Supplier<InputStream>? =
+        extensionStreamProviders.firstOrNull()?.let { provider -> Supplier { provider.get().first().get() } }
 
     override fun execute(context: PatcherContext) = with(context.bytecodeContext) {
         mergeExtension(this@BytecodePatch)
@@ -253,6 +290,7 @@ class RawResourcePatch internal constructor(
     options: Set<Option<*>>,
     executeBlock: (ResourcePatchContext) -> Unit,
     finalizeBlock: ((ResourcePatchContext) -> Unit)?,
+    availability: AvailabilityResolver? = null,
 ) : Patch<ResourcePatchContext>(
     name,
     description,
@@ -262,6 +300,7 @@ class RawResourcePatch internal constructor(
     options,
     executeBlock,
     finalizeBlock,
+    availability,
 ) {
 
     @Deprecated("Use constructor with Compatibility object")
@@ -318,6 +357,7 @@ class ResourcePatch internal constructor(
     options: Set<Option<*>>,
     executeBlock: (ResourcePatchContext) -> Unit,
     finalizeBlock: ((ResourcePatchContext) -> Unit)?,
+    availability: AvailabilityResolver? = null,
 ) : Patch<ResourcePatchContext>(
     name,
     description,
@@ -327,6 +367,7 @@ class ResourcePatch internal constructor(
     options,
     executeBlock,
     finalizeBlock,
+    availability,
 ) {
 
     @Deprecated("Use constructor with Compatibility object")
@@ -385,6 +426,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
 
     protected var executeBlock: ((C) -> Unit) = { }
     protected var finalizeBlock: ((C) -> Unit)? = null
+    protected var availability: AvailabilityResolver? = null
 
     @Deprecated(
         message = "Use 'default' instead of 'use'",
@@ -499,6 +541,21 @@ sealed class PatchBuilder<C : PatchContext<*>>(
         finalizeBlock = block
     }
 
+    /**
+     * Declare how this patch behaves for a given install target.
+     *
+     * The [block] receives the [InstallerType] and [ApkArchitecture] chosen by the caller and
+     * returns a [PatchAvailability]. It runs off the patching hot path (before execute), so it
+     * must be pure and cheap. Patches that do not call [availability] fall back to their
+     * [default] flag.
+     *
+     * @param block Resolver evaluated by the caller (Manager / CLI) before patch selection is
+     *   finalized.
+     */
+    fun availability(block: AvailabilityResolver) {
+        availability = block
+    }
+
     internal fun resolveDefaultValue(): Boolean {
         return if (name != null && default
             && (compatibility == null || compatibility!!.any { it.packageName == null })
@@ -533,8 +590,10 @@ private fun <B : PatchBuilder<*>> B.buildPatch(block: B.() -> Unit = {}) = apply
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
  * @param default Whether the patch is enabled by default.
- * @property extensionInputStream Getter for the extension input stream of the patch.
- * An extension is a precompiled DEX file that is merged into the patched app before this patch is executed.
+ * @property extensionInputStreams Extension input streams registered with [extendWith]. Each is a
+ * precompiled DEX file merged into the patched app before this patch is executed.
+ * @property extensionStreamProviders Providers of extension input streams registered with [extendWithAll],
+ * evaluated at patch time, for when the number of extensions to merge is not known until then.
  *
  * @constructor Create a new [BytecodePatchBuilder] builder.
  */
@@ -543,9 +602,19 @@ class BytecodePatchBuilder internal constructor(
     description: String?,
     default: Boolean,
 ) : PatchBuilder<BytecodePatchContext>(name, description, default) {
-    // Must be internal for the inlined function "extendWith".
-    @PublishedApi
-    internal var extensionInputStream: Supplier<InputStream>? = null
+    /**
+     * Extension input streams registered with [extendWith]. Each is a precompiled DEX file that is
+     * merged into the patched app before this patch runs. These are combined into the built
+     * [BytecodePatch]'s providers when the patch is built.
+     */
+    internal val extensionInputStreams: MutableList<Supplier<InputStream>> = mutableListOf()
+
+    /**
+     * Providers of extension input streams registered with [extendWithAll], evaluated at patch time.
+     * Use these when the number of extensions to merge is not known until then, for example when the
+     * extensions are derived by a dependency patch that has already executed.
+     */
+    internal val extensionStreamProviders: MutableList<Supplier<out Iterable<Supplier<InputStream>>>> = mutableListOf()
 
     // Inlining is necessary to get the class loader that loaded the patch
     // to load the extension from the resources.
@@ -558,10 +627,39 @@ class BytecodePatchBuilder internal constructor(
     inline fun extendWith(extension: String) = apply {
         val classLoader = object {}.javaClass.classLoader
 
-        extensionInputStream = Supplier {
-            classLoader.getResourceAsStream(extension) ?: throw PatchException("Extension \"$extension\" not found")
+        // TODO: This is using the deprecated setter for compatibility with older CLI versions.
+        //  Change it to use extendWith(Supplier<InputStream>) when the deprecated setter is removed.
+        setExtensionInputStream {
+            classLoader.getResourceAsStream(extension)
+                ?: throw PatchException("Extension \"$extension\" not found")
         }
     }
+
+    fun extendWith(extension: Supplier<InputStream>) = apply {
+        extensionInputStreams.add(extension)
+    }
+
+    /**
+     * Extend the patch with a variable number of extensions that are resolved at patch time.
+     *
+     * Unlike [extendWith], the [provider] is not evaluated when the patch is built but when the patch
+     * is executed, before the patch's `execute` block runs. This makes it possible to merge a number
+     * of extensions that is not known until patch time, such as extensions derived by a dependency
+     * patch that has already executed.
+     *
+     * @param provider A provider, evaluated at patch time, of the extension input streams to merge.
+     */
+    fun extendWithAll(provider: Supplier<out Iterable<Supplier<InputStream>>>) = apply {
+        extensionStreamProviders.add(provider)
+    }
+
+    @Deprecated("Kept only for backwards compatibility with older patch bundles, use extendWith(Supplier<InputStream>).")
+    fun setExtensionInputStream(supplier: Supplier<InputStream>) {
+        extendWith(supplier)
+    }
+
+    @Deprecated("Kept only for backwards compatibility with older patch bundles. This getter will be removed in a future release.")
+    fun getExtensionInputStream(): Supplier<InputStream>? = extensionInputStreams.firstOrNull()
 
     override fun build() = BytecodePatch(
         name = name,
@@ -570,9 +668,15 @@ class BytecodePatchBuilder internal constructor(
         compatibility = compatibility,
         dependencies = dependencies,
         options = options,
-        extensionInputStream = extensionInputStream,
+        extensionStreamProviders = buildList {
+            // Each eager extension becomes a provider yielding a single stream, merged before the
+            // patch-time providers registered with extendWithAll.
+            extensionInputStreams.forEach { extension -> add(Supplier { listOf(extension) }) }
+            addAll(extensionStreamProviders)
+        },
         executeBlock = executeBlock,
-        finalizeBlock = finalizeBlock
+        finalizeBlock = finalizeBlock,
+        availability = availability,
     )
 }
 
@@ -618,6 +722,7 @@ class RawResourcePatchBuilder internal constructor(
         options,
         executeBlock,
         finalizeBlock,
+        availability,
     )
 }
 
@@ -663,6 +768,7 @@ class ResourcePatchBuilder internal constructor(
         options,
         executeBlock,
         finalizeBlock,
+        availability,
     )
 }
 
