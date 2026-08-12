@@ -23,12 +23,21 @@ internal class StringsXmlSanitizeProcessor(
     fun process() {
         logger.info("Sanitizing unpatched strings")
 
-        packageDirectories.forEach { (_, rootDir) ->
-            rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
-                dir.listFiles { it.name == "strings.xml" }?.forEach { file ->
-                    val rawXml = file.readText(Charsets.UTF_8)
-                    file.writeText(sanitizeXmlText(rawXml), Charsets.UTF_8)
+        val stringFiles = buildList {
+            packageDirectories.forEach { (_, rootDir) ->
+                rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
+                    dir.listFiles { it.name == "strings.xml" }?.forEach { file ->
+                        add(file)
+                    }
                 }
+            }
+        }
+
+        stringFiles.parallelStream().forEach { file ->
+            val rawXml = file.readText(Charsets.UTF_8)
+            val sanitizedXml = sanitizeXmlText(rawXml)
+            if (sanitizedXml !== rawXml) {
+                file.writeText(sanitizedXml, Charsets.UTF_8)
             }
         }
     }
@@ -52,14 +61,45 @@ internal fun sanitizeXmlText(input: String): String {
                 (code in 0xE000..0xFFFD) ||
                 (code in 0x10000..0x10FFFF)
 
-    // Remove invalid numeric character references like &#65535;
-    val cleanedEntities = input.replace(Regex("&#(\\d+);")) { match ->
-        val code = match.groupValues[1].toInt()
-        if (isValidXmlChar(code)) match.value else ""
+    // Most strings.xml files are valid. Scan once and allocate only if an invalid literal or numeric
+    // reference is encountered. Code-point iteration also preserves valid supplementary Unicode characters.
+    var output: StringBuilder? = null
+    var index = 0
+    while (index < input.length) {
+        if (input[index] == '&' && index + 2 < input.length && input[index + 1] == '#') {
+            val semicolon = input.indexOf(';', index + 2)
+            if (semicolon >= 0) {
+                val digitsStart = index + 2
+                var numeric = digitsStart < semicolon
+                var digitIndex = digitsStart
+                while (numeric && digitIndex < semicolon) {
+                    numeric = input[digitIndex].isDigit()
+                    digitIndex++
+                }
+                if (numeric) {
+                    val value = input.substring(digitsStart, semicolon).toLongOrNull()
+                    if (value == null || value > Int.MAX_VALUE || !isValidXmlChar(value.toInt())) {
+                        if (output == null) {
+                            output = StringBuilder(input.length).append(input, 0, index)
+                        }
+                        index = semicolon + 1
+                        continue
+                    }
+                }
+            }
+        }
+
+        val codePoint = Character.codePointAt(input, index)
+        val charCount = Character.charCount(codePoint)
+        if (isValidXmlChar(codePoint)) {
+            output?.append(input, index, index + charCount)
+        } else if (output == null) {
+            output = StringBuilder(input.length).append(input, 0, index)
+        }
+        index += charCount
     }
 
-    // Remove invalid literal unicode.
-    return cleanedEntities.filter { ch -> isValidXmlChar(ch.code) }
+    return output?.toString() ?: input
 }
 
 internal fun Document.toXmlString(): String {

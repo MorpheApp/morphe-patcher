@@ -55,6 +55,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 internal object PatcherTest {
@@ -496,6 +497,29 @@ internal object PatcherTest {
         )
 
         with(patcher.context.bytecodeContext) {
+            val cachedLiteralFingerprint = Fingerprint(
+                returnType = "Ljava/lang/String;",
+                filters = listOf(literal(0)),
+            )
+            cachedLiteralFingerprint.match(patchClasses.classBy("Lclass2;"))
+            assertEquals(
+                listOf("Lclass1;", "Lclass2;", "Lclass3;", "Lclass4;", "Lclass5;"),
+                cachedLiteralFingerprint.matchAll().map { it.originalClassDef.type },
+                "matchAll must start a new search instead of consuming a cached single match",
+            )
+
+            assertNull(
+                Fingerprint(filters = listOf(literal(1))).matchAllOrNull(),
+                "An empty literal candidate set must produce no match",
+            )
+            assertEquals(
+                listOf("Lclass1;", "Lclass2;", "Lclass3;", "Lclass4;", "Lclass5;"),
+                Fingerprint(
+                    filters = listOf(anyInstruction(literal(1), literal(0))),
+                ).matchAll().map { it.originalClassDef.type },
+                "AnyInstruction candidate sets must be safely unioned",
+            )
+
             class ProxyFilterCounter(val filter: InstructionFilter) : InstructionFilter {
                 var matchesCallCount = 0
 

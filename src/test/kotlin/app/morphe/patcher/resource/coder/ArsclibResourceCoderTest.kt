@@ -322,7 +322,7 @@ internal class ArsclibResourceCoderTest {
         coder.modifiedResResources += modifiedResource
         coder.modifiedBinaryResources += modifiedBinary
 
-        val changedEntries = coder.changedArchiveEntries(packageRenamed = false)
+        val changedEntries = coder.changedArchiveEntries()
 
         assertEquals(
             setOf("AndroidManifest.xml", "resources.arsc", "res/a.xml", "assets/b.bin"),
@@ -331,21 +331,22 @@ internal class ArsclibResourceCoderTest {
     }
 
     @Test
-    fun `changedArchiveEntries rebuilds all compiled resources after package rename`() {
+    fun `changedArchiveEntries rebuilds only resources reported as modified`() {
         val packageDir = setupPackageDir()
-        packageDir.resolve("res/layout/unchanged.xml").apply {
+        val unchanged = packageDir.resolve("res/layout/unchanged.xml").apply {
             parentFile.mkdirs()
             writeText("<LinearLayout/>")
         }
-        packageDir.resolve("res/drawable/unchanged.png").apply {
+        val changed = packageDir.resolve("res/drawable/changed.png").apply {
             parentFile.mkdirs()
             writeBytes(byteArrayOf(1, 2, 3))
         }
+        coder.modifiedResResources += changed
 
-        val changedEntries = coder.changedArchiveEntries(packageRenamed = true)
+        val changedEntries = coder.changedArchiveEntries()
 
-        assertTrue("res/layout/unchanged.xml" in changedEntries)
-        assertTrue("res/drawable/unchanged.png" in changedEntries)
+        assertFalse(unchanged.relativeTo(packageDir).invariantSeparatorsPath in changedEntries)
+        assertTrue("res/drawable/changed.png" in changedEntries)
     }
 
     @Test

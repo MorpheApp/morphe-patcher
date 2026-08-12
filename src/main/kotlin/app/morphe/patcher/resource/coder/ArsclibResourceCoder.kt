@@ -468,13 +468,14 @@ internal class ArsclibResourceCoder(
                 packageDirectories,
             ).process()
 
-            PackageRenamingProcessor(
+            val renamedResources = PackageRenamingProcessor(
                 this@ArsclibResourceCoder::getFile,
                 publicXmlManager,
                 packageDirectories,
                 originalPackageName,
                 newPackageName
             ).process()
+            modifiedResResources += renamedResources
 
             // Post process all aapt:attr macros in XML files.
             AaptMacroProcessor(
@@ -507,7 +508,7 @@ internal class ArsclibResourceCoder(
                 }
 
                 ApkModule.loadApkFile(apkFile).use { originalModule ->
-                    val changedEntries = changedArchiveEntries(originalPackageName != newPackageName)
+                    val changedEntries = changedArchiveEntries()
                     val reusedEntries = reuseUnchangedArchiveEntries(originalModule, loadedModule, changedEntries)
                     val rebuiltEntries = loadedModule.zipEntryMap.listInputSources().size - reusedEntries
 
@@ -534,7 +535,7 @@ internal class ArsclibResourceCoder(
     /**
      * Returns original APK entry names which cannot be reused.
      */
-    internal fun changedArchiveEntries(packageRenamed: Boolean): Set<String> = buildSet {
+    internal fun changedArchiveEntries(): Set<String> = buildSet {
         add("AndroidManifest.xml")
         add("resources.arsc")
         addAll(deletedFiles)
@@ -551,15 +552,6 @@ internal class ArsclibResourceCoder(
             file.archivePathRelativeToOrNull(otherResourcesRootDirectory)?.let(::add)
         }
 
-        // PackageRenamingProcessor may rewrite resource XMLs which patches did not directly touch.
-        // Rebuild all compiled resources when that processor ran, while still reusing unchanged APK-root files.
-        if (packageRenamed) {
-            packageDirectories.values.forEach { packageDirectory ->
-                packageDirectory.resolve("res").walkTopDown().filter { it.isFile }.forEach { file ->
-                    file.archivePathRelativeToOrNull(packageDirectory)?.let(::add)
-                }
-            }
-        }
     }
 
     /**

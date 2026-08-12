@@ -22,10 +22,11 @@ internal class PackageRenamingProcessor(
     private val logger = Logger.getLogger(PackageRenamingProcessor::class.java.name)
     private val regex = Regex("^[@?]$originalPackageName:.*")
 
-    fun process() {
-        if (originalPackageName == newPackageName) return
+    fun process(): Set<File> {
+        if (originalPackageName == newPackageName) return emptySet()
 
         logger.info("Post-processing package name change")
+        val modifiedFiles = mutableSetOf<File>()
 
         // Update public.xml package
         publicXmlManager.changePackageName(newPackageName)
@@ -41,14 +42,17 @@ internal class PackageRenamingProcessor(
         packageDirectories.filter { it.key != originalPackageName }.forEach { (resPackageName, rootDir) ->
             rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
                 dir.listFiles { it.extension == "xml" && it.name != "strings.xml" }?.forEach { file ->
-                    processFile(file)
+                    if (processFile(file)) modifiedFiles += file
                 }
             }
         }
+
+        return modifiedFiles
     }
 
-    private fun processFile(file: File) {
+    private fun processFile(file: File): Boolean {
         val tempFile = File(file.parentFile, file.name + ".tmp")
+        var changed = false
 
         file.parseXml { parser ->
             tempFile.writeXml { serializer ->
@@ -65,6 +69,7 @@ internal class PackageRenamingProcessor(
                                 var newValue = value
                                 if (regex.matches(value)) {
                                     newValue = value.replace(originalPackageName, newPackageName)
+                                    changed = true
                                 }
                                 Triple(ns, name, newValue)
                             })
@@ -76,6 +81,7 @@ internal class PackageRenamingProcessor(
                             var text = parser.text
                             if (regex.matches(text)) {
                                 text = text.replace(originalPackageName, newPackageName)
+                                changed = true
                             }
                             serializer.text(text)
                         }
@@ -90,6 +96,11 @@ internal class PackageRenamingProcessor(
             }
         }
 
-        tempFile.safelyMoveTo(file)
+        if (changed) {
+            tempFile.safelyMoveTo(file)
+        } else {
+            tempFile.delete()
+        }
+        return changed
     }
 }
