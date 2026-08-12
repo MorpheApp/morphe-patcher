@@ -5,6 +5,8 @@
 
 package app.morphe.patcher.resource.coder
 
+import kotlin.time.measureTimedValue
+import com.reandroid.archive.InputSource
 import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherResult
@@ -492,9 +494,27 @@ internal class ArsclibResourceCoder(
             val encoder = ApkModuleXmlEncoder()
             encoder.apkModule.use { loadedModule ->
                 loadedModule.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
-                encoder.scanDirectory(workingDir)
-                loadedModule.encodePatchedConfigurations(patchedConfigurations)
-                loadedModule.writeApk(outputApk)
+                val scanDuration = measureTimedValue {
+                    encoder.scanDirectory(workingDir)
+                    loadedModule.encodePatchedConfigurations(patchedConfigurations)
+                }.duration
+
+                ApkModule.loadApkFile(apkFile).use { originalModule ->
+                    val changedEntries = changedArchiveEntries(originalPackageName != newPackageName)
+                    val reusedEntries = reuseUnchangedArchiveEntries(originalModule, loadedModule, changedEntries)
+                    val rebuiltEntries = loadedModule.zipEntryMap.listInputSources().size - reusedEntries
+
+                    logger.info(
+                        "Resource APK inputs: reusing $reusedEntries unchanged archive entries, " +
+                                "rebuilding $rebuiltEntries entries",
+                    )
+
+                    val writeDuration = measureTimedValue {
+                        loadedModule.writeApk(outputApk)
+                    }.duration
+
+                    logger.info("Resource APK timings: scan=$scanDuration, write=$writeDuration")
+                }
             }
         } finally {
             patchedConfigurations.forEach { it.restore() }
@@ -502,6 +522,67 @@ internal class ArsclibResourceCoder(
         }
 
         return outputApk
+    }
+
+    /**
+     * Returns original APK entry names which must be rebuilt from the decoded resource tree.
+     */
+    internal fun changedArchiveEntries(packageRenamed: Boolean): Set<String> = buildSet {
+        add("AndroidManifest.xml")
+        add("resources.arsc")
+
+        modifiedResResources.forEach { file ->
+            packageDirectories.values.firstNotNullOfOrNull { packageDirectory ->
+                file.archivePathRelativeToOrNull(packageDirectory)
+            }?.let(::add)
+        }
+
+        modifiedBinaryResources.forEach { file ->
+            file.archivePathRelativeToOrNull(otherResourcesRootDirectory)?.let(::add)
+        }
+
+        // PackageRenamingProcessor may rewrite resource XMLs which patches did not directly touch.
+        // Rebuild all compiled resources when that processor ran, while still reusing unchanged APK-root files.
+        if (packageRenamed) {
+            packageDirectories.values.forEach { packageDirectory ->
+                packageDirectory.resolve("res").walkTopDown().filter { it.isFile }.forEach { file ->
+                    file.archivePathRelativeToOrNull(packageDirectory)?.let(::add)
+                }
+            }
+        }
+    }
+
+    /**
+     * Replaces unchanged filesystem-backed encoder inputs with archive-backed inputs from [originalModule].
+     * ARSCLib can raw-copy those entries in their existing compressed form instead of reopening and recompressing
+     * every extracted file.
+     */
+    internal fun reuseUnchangedArchiveEntries(
+        originalModule: ApkModule,
+        encodedModule: ApkModule,
+        changedEntries: Set<String>,
+    ): Int {
+        val encodedEntries = encodedModule.zipEntryMap
+        var reusedEntries = 0
+
+        originalModule.zipEntryMap.listInputSources().forEach { originalSource: InputSource ->
+            val entryName = originalSource.alias
+            if (entryName !in changedEntries && encodedEntries.contains(entryName)) {
+                encodedEntries.add(originalSource)
+                reusedEntries++
+            }
+        }
+
+        return reusedEntries
+    }
+
+    private fun File.archivePathRelativeToOrNull(baseDirectory: File): String? {
+        val filePath = absoluteFile.toPath().normalize()
+        val basePath = baseDirectory.absoluteFile.toPath().normalize()
+        if (!filePath.startsWith(basePath)) return null
+
+        val alias = basePath.relativize(filePath).toString().replace(File.separatorChar, '/')
+        return pathMap.getOriginalName(alias) ?: alias
     }
 
     /**
