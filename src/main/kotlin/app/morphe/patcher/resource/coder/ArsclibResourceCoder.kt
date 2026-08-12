@@ -98,8 +98,8 @@ internal class ArsclibResourceCoder(
 
     /**
      * Snapshot of file metadata and identity captured after decoding resources.
-     * High-resolution timestamps and file keys catch same-size rewrites and replacement files without rereading every
-     * decoded resource payload.
+     * High-resolution timestamps and file keys improve same-size change detection when the filesystem exposes
+     * distinguishable metadata, without rereading every decoded resource payload.
      */
     internal class FileSnapshot(
         val creationTime: FileTime,

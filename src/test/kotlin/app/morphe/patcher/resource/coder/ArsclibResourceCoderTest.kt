@@ -22,6 +22,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
@@ -240,19 +241,25 @@ internal class ArsclibResourceCoderTest {
     }
 
     @Test
-    fun `detectFileChanges identifies same-size replacement resource with preserved timestamp`() {
+    fun `detectFileChanges identifies replacement when filesystem exposes changed metadata`() {
         val pkgDir = setupPackageDir()
         val file = pkgDir.resolve("res/values/strings.xml").apply {
             parentFile.mkdirs()
             writeText("before")
         }
-        val originalLastModified = Files.getLastModifiedTime(file.toPath())
+        val originalAttributes = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
         coder.fileSnapshotCache = coder.buildFileSnapshot()
 
         Thread.sleep(10)
         val replacement = file.resolveSibling("replacement.xml").apply { writeText("after!") }
-        Files.setLastModifiedTime(replacement.toPath(), originalLastModified)
+        Files.setLastModifiedTime(replacement.toPath(), originalAttributes.lastModifiedTime())
         Files.move(replacement.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        val replacementAttributes = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+        assumeTrue(
+            replacementAttributes.creationTime() != originalAttributes.creationTime() ||
+                    replacementAttributes.fileKey() != originalAttributes.fileKey(),
+            "Filesystem does not expose distinguishable metadata for this replacement",
+        )
 
         coder.detectFileChanges()
 
