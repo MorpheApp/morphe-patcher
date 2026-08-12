@@ -13,12 +13,17 @@ import com.reandroid.apk.ApkModule
 import com.reandroid.archive.FileInputSource
 import com.reandroid.archive.io.ArchiveFileEntrySource
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.FileTime
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -134,7 +139,7 @@ internal class ArsclibResourceCoderTest {
         val snapshot = coder.buildFileSnapshot()
         val entry = snapshot[file.snapshotKey]!!
 
-        assertEquals(file.lastModified(), entry.lastModified)
+        assertEquals(Files.getLastModifiedTime(file.toPath()), entry.lastModified)
         assertEquals(file.length(), entry.size)
     }
 
@@ -204,10 +209,7 @@ internal class ArsclibResourceCoderTest {
 
         // Build a snapshot with the original size.
         val originalLastModified = file.lastModified()
-        val originalSize = file.length()
-        val snapshotEntry = ArsclibResourceCoder.FileSnapshot(originalLastModified, originalSize)
-
-        coder.fileSnapshotCache = mutableMapOf(file.snapshotKey to snapshotEntry)
+        coder.fileSnapshotCache = coder.buildFileSnapshot()
 
         // Change the content (and thus the size) but preserve the timestamp.
         file.writeText("this is a much longer string to change the file size")
@@ -235,6 +237,60 @@ internal class ArsclibResourceCoderTest {
 
         assertTrue(coder.modifiedResResources.isEmpty(), "No files should be in modifiedResResources")
         assertTrue(coder.modifiedBinaryResources.isEmpty(), "No files should be in modifiedBinaryResources")
+    }
+
+    @Test
+    fun `detectFileChanges identifies same-size replacement resource with preserved timestamp`() {
+        val pkgDir = setupPackageDir()
+        val file = pkgDir.resolve("res/values/strings.xml").apply {
+            parentFile.mkdirs()
+            writeText("before")
+        }
+        val originalLastModified = Files.getLastModifiedTime(file.toPath())
+        coder.fileSnapshotCache = coder.buildFileSnapshot()
+
+        Thread.sleep(10)
+        val replacement = file.resolveSibling("replacement.xml").apply { writeText("after!") }
+        Files.setLastModifiedTime(replacement.toPath(), originalLastModified)
+        Files.move(replacement.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+
+        coder.detectFileChanges()
+
+        assertTrue(
+            coder.modifiedResResources.contains(file),
+            "A replacement file must not be hidden by identical size and timestamp metadata",
+        )
+    }
+
+    @Test
+    fun `detectFileChanges identifies high-resolution timestamp changes`() {
+        val file = coder.otherResourcesRootDirectory.resolve("assets/data.bin").apply {
+            parentFile.mkdirs()
+            writeBytes(byteArrayOf(1, 2, 3, 4))
+        }
+        val originalLastModified = FileTime.fromMillis(System.currentTimeMillis() - 1_000)
+        Files.setLastModifiedTime(file.toPath(), originalLastModified)
+        coder.fileSnapshotCache = coder.buildFileSnapshot()
+
+        file.writeBytes(byteArrayOf(4, 3, 2, 1))
+        val subMillisecondChange = FileTime.from(
+            originalLastModified.to(TimeUnit.NANOSECONDS) + 100_000,
+            TimeUnit.NANOSECONDS,
+        )
+        Files.setLastModifiedTime(
+            file.toPath(),
+            subMillisecondChange,
+        )
+        val storedLastModified = Files.getLastModifiedTime(file.toPath())
+        assumeTrue(storedLastModified != originalLastModified, "Filesystem does not retain sub-millisecond timestamps")
+        assumeTrue(storedLastModified.toMillis() == originalLastModified.toMillis())
+
+        coder.detectFileChanges()
+
+        assertTrue(
+            coder.modifiedBinaryResources.contains(file),
+            "Same-size changes must be detected from the filesystem timestamp",
+        )
     }
 
     // ==================== resource APK input reuse tests ====================
