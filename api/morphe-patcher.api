@@ -685,6 +685,23 @@ public final class app/morphe/patcher/patch/FilesOption : app/morphe/patcher/pat
 	public final fun getFiles ()Ljava/util/List;
 }
 
+public final class app/morphe/patcher/patch/FloatRangeOption : app/morphe/patcher/patch/Option {
+	public fun <init> (Ljava/lang/String;FFLjava/util/List;Ljava/lang/Float;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/lang/String;FFLjava/util/List;Ljava/lang/Float;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getMax ()F
+	public final fun getMin ()F
+	public final fun getRange ()Lkotlin/ranges/ClosedFloatingPointRange;
+	public final fun getStep ()Ljava/lang/Float;
+}
+
+public final class app/morphe/patcher/patch/FloatSliderOption : app/morphe/patcher/patch/Option {
+	public fun <init> (Ljava/lang/String;FFLjava/lang/Float;Ljava/lang/Float;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/lang/String;FFLjava/lang/Float;Ljava/lang/Float;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getMax ()F
+	public final fun getMin ()F
+	public final fun getStep ()Ljava/lang/Float;
+}
+
 public final class app/morphe/patcher/patch/FolderOption : app/morphe/patcher/patch/StringOption {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -718,6 +735,23 @@ public final class app/morphe/patcher/patch/InstallerType : java/lang/Enum {
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/patch/InstallerType;
 	public static fun values ()[Lapp/morphe/patcher/patch/InstallerType;
+}
+
+public final class app/morphe/patcher/patch/IntRangeOption : app/morphe/patcher/patch/Option {
+	public fun <init> (Ljava/lang/String;IILjava/util/List;ILjava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/lang/String;IILjava/util/List;ILjava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getMax ()I
+	public final fun getMin ()I
+	public final fun getRange ()Lkotlin/ranges/IntRange;
+	public final fun getStep ()I
+}
+
+public final class app/morphe/patcher/patch/IntSliderOption : app/morphe/patcher/patch/Option {
+	public fun <init> (Ljava/lang/String;IILjava/lang/Integer;ILjava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Ljava/lang/String;IILjava/lang/Integer;ILjava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getMax ()I
+	public final fun getMin ()I
+	public final fun getStep ()I
 }
 
 public class app/morphe/patcher/patch/Option {
@@ -1025,6 +1059,25 @@ public final class app/morphe/patcher/patch/ResourcePatchContext : app/morphe/pa
 	public final fun get (Ljava/lang/String;Z)Ljava/io/File;
 	public static synthetic fun get$default (Lapp/morphe/patcher/patch/ResourcePatchContext;Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
+}
+
+public final class app/morphe/patcher/patch/SliderOptionsKt {
+	public static final fun floatRangeOption (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;FFLjava/util/List;Ljava/lang/Float;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/FloatRangeOption;
+	public static final fun floatRangeOption (Ljava/lang/String;FFLjava/util/List;Ljava/lang/Float;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/FloatRangeOption;
+	public static synthetic fun floatRangeOption$default (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;FFLjava/util/List;Ljava/lang/Float;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/FloatRangeOption;
+	public static synthetic fun floatRangeOption$default (Ljava/lang/String;FFLjava/util/List;Ljava/lang/Float;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/FloatRangeOption;
+	public static final fun floatSliderOption (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;FFLjava/lang/Float;Ljava/lang/Float;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/FloatSliderOption;
+	public static final fun floatSliderOption (Ljava/lang/String;FFLjava/lang/Float;Ljava/lang/Float;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/FloatSliderOption;
+	public static synthetic fun floatSliderOption$default (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;FFLjava/lang/Float;Ljava/lang/Float;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/FloatSliderOption;
+	public static synthetic fun floatSliderOption$default (Ljava/lang/String;FFLjava/lang/Float;Ljava/lang/Float;Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/FloatSliderOption;
+	public static final fun intRangeOption (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;IILjava/util/List;ILjava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/IntRangeOption;
+	public static final fun intRangeOption (Ljava/lang/String;IILjava/util/List;ILjava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/IntRangeOption;
+	public static synthetic fun intRangeOption$default (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;IILjava/util/List;ILjava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/IntRangeOption;
+	public static synthetic fun intRangeOption$default (Ljava/lang/String;IILjava/util/List;ILjava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/IntRangeOption;
+	public static final fun intSliderOption (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;IILjava/lang/Integer;ILjava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/IntSliderOption;
+	public static final fun intSliderOption (Ljava/lang/String;IILjava/lang/Integer;ILjava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;)Lapp/morphe/patcher/patch/IntSliderOption;
+	public static synthetic fun intSliderOption$default (Lapp/morphe/patcher/patch/PatchBuilder;Ljava/lang/String;IILjava/lang/Integer;ILjava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/IntSliderOption;
+	public static synthetic fun intSliderOption$default (Ljava/lang/String;IILjava/lang/Integer;ILjava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lapp/morphe/patcher/patch/IntSliderOption;
 }
 
 public class app/morphe/patcher/patch/StringOption : app/morphe/patcher/patch/Option {
