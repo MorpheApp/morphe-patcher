@@ -1,3 +1,10 @@
+# [1.9.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.8.0...v1.9.0) (2026-08-18)
+
+
+### Features
+
+* Add slider and range patch options ([#172](https://github.com/MorpheApp/morphe-patcher/issues/172)) ([2a326a5](https://github.com/MorpheApp/morphe-patcher/commit/2a326a527389b52d015cf3123a06dfac8f5663a0))
+
 # [1.9.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.8.0...v1.9.0-dev.1) (2026-08-16)
 
 
