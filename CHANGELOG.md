@@ -1,3 +1,10 @@
+# [1.10.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.9.1-dev.1...v1.10.0-dev.1) (2026-08-21)
+
+
+### Features
+
+* Store the resource configurations of patches with sparse entries ([#180](https://github.com/MorpheApp/morphe-patcher/issues/180)) ([0f8aca2](https://github.com/MorpheApp/morphe-patcher/commit/0f8aca2f1075eee0599af5677896d8854b001bdf))
+
 ## [1.9.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.9.0...v1.9.1-dev.1) (2026-08-21)
 
 
