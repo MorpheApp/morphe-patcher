@@ -25,8 +25,8 @@ import kotlin.reflect.KProperty
  */
 @Deprecated("Instead use Fingerprint instruction match `getMethodCalled()`," +
         " or lookup a method from an index using BytecodeUtils MethodReference.getMutableMethod()")
-context(BytecodePatchContext)
 class MethodNavigator internal constructor(
+    internal val patchContext: BytecodePatchContext,
     private var startMethod: MethodReference,
 ) {
     private var lastNavigatedMethodReference = startMethod
@@ -81,7 +81,7 @@ class MethodNavigator internal constructor(
      *
      * @return The last navigated method mutably.
      */
-    fun stop() = mutableClassDefBy(lastNavigatedMethodReference.definingClass).firstMethodBySignature
+    fun stop() = patchContext.mutableClassDefBy(lastNavigatedMethodReference.definingClass).firstMethodBySignature
         as MutableMethod
 
     /**
@@ -96,7 +96,7 @@ class MethodNavigator internal constructor(
      *
      * @return The last navigated method immutably.
      */
-    fun original(): Method = patchClasses.classBy(lastNavigatedMethodReference.definingClass).firstMethodBySignature
+    fun original(): Method = patchContext.patchClasses.classBy(lastNavigatedMethodReference.definingClass).firstMethodBySignature
 
     /**
      * Find the first [lastNavigatedMethodReference] in the class.

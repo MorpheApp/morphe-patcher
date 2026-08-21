@@ -25,6 +25,7 @@ import com.android.tools.smali.dexlib2.iface.reference.Reference
 import com.android.tools.smali.dexlib2.iface.reference.TypeReference
 import java.io.File
 import java.util.logging.Logger
+import kotlin.io.path.createTempDirectory
 
 interface DexVerifier {
     fun verifyDexFile(dexFile: File)
@@ -424,9 +425,8 @@ class SdkDexVerifier(
         }
     }
 
-    @Suppress("DEPRECATION")
     private fun createTempDir(prefix: String): File =
-        kotlin.io.createTempDir(prefix)
+        createTempDirectory(prefix).toFile()
 
     companion object {
         /**
