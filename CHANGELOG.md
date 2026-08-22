@@ -1,3 +1,15 @@
+# [1.10.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.9.0...v1.10.0) (2026-08-22)
+
+
+### Bug Fixes
+
+* Change from context receivers to context parameters, update patcher to Kotlin 2.4.10 ([#179](https://github.com/MorpheApp/morphe-patcher/issues/179)) ([9bb2951](https://github.com/MorpheApp/morphe-patcher/commit/9bb295176fc60e63d82b8c6833c08d47d50ddd6f))
+
+
+### Features
+
+* Store the resource configurations of patches with sparse entries ([#180](https://github.com/MorpheApp/morphe-patcher/issues/180)) ([0f8aca2](https://github.com/MorpheApp/morphe-patcher/commit/0f8aca2f1075eee0599af5677896d8854b001bdf))
+
 # [1.10.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.9.1-dev.1...v1.10.0-dev.1) (2026-08-21)
 
 
