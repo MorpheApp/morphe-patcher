@@ -32,12 +32,25 @@ import com.reandroid.archive.block.ApkSignatureBlock
 import com.reandroid.arsc.coder.CoderSetting
 import com.reandroid.arsc.coder.xml.AaptXmlStringDecoder
 import com.reandroid.arsc.coder.xml.XmlCoder
+import com.reandroid.arsc.header.TypeHeader
 import com.reandroid.json.JSONObject
 import org.w3c.dom.Element
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.logging.Logger
+
+/**
+ * Mobile country codes of 100 to 199 are not assigned to any country, so a device never reports
+ * one. A patch that adds a resource configuration the app must never select on its own uses a
+ * code of that range.
+ */
+private val PATCH_MOBILE_COUNTRY_CODES = 100..199
+
+/**
+ * A resource table that uses sparse entries cannot be read below Android 8.
+ */
+private const val SPARSE_ENTRIES_MIN_SDK = 26
 
 internal class ArsclibResourceCoder(
     internal val workingDir: File,
@@ -297,10 +310,48 @@ internal class ArsclibResourceCoder(
         encoder.apkModule.use { loadedModule ->
             loadedModule.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
             encoder.scanDirectory(workingDir)
+            loadedModule.useSparseEntriesForPatchedConfigurations()
             loadedModule.writeApk(outputApk)
         }
 
         return outputApk
+    }
+
+    /**
+     * Stores the entries of the resource configurations that patches add with a sparse offset
+     * table, which lists only the resources a configuration defines.
+     *
+     * A dense table carries an offset for every resource of its type, whether the configuration
+     * defines it or not. That is a fair trade for the configurations of an app, which are few and
+     * mostly populated. A patch can add more than a thousand of them to select a color with, and
+     * each defines a handful of resources out of thousands.
+     *
+     * Only the configurations of a patch are changed. They are recognized by a mobile country code
+     * that is assigned to no country, which is how a patch keeps the app from selecting one of
+     * them on its own.
+     */
+    private fun ApkModule.useSparseEntriesForPatchedConfigurations() {
+        val minSdk = androidManifest.minSdkVersion
+        if (minSdk == null || minSdk < SPARSE_ENTRIES_MIN_SDK) {
+            logger.fine { "Not using sparse entries, the app supports Android $minSdk" }
+            return
+        }
+
+        var count = 0
+        tableBlock.listPackages().forEach { packageBlock ->
+            packageBlock.listSpecTypePairs().forEach { specTypePair ->
+                specTypePair.typeBlocks.forEach { typeBlock ->
+                    if (typeBlock.resConfig.mcc in PATCH_MOBILE_COUNTRY_CODES && !typeBlock.isSparse) {
+                        typeBlock.entryArray.offsetType = TypeHeader.OFFSET_SPARSE
+                        count++
+                    }
+                }
+            }
+        }
+
+        if (count != 0) {
+            logger.info("Using sparse entries for $count resource configurations")
+        }
     }
 
     override fun getOtherResourceFiles(outputDir: File, resourceMode: ResourceMode): File? {

@@ -1,12 +1,12 @@
 [versions]
 android = "4.1.1.4"
-android-tools = "9.1.1" # Must be same version used by Manager ackpine dependency
+android-tools = "9.1.1"
 arsclib = "a28c6fb2a7"
 bcpkix-jdk18on = "1.77"
 binary-compatibility-validator = "0.18.1"
 guava = "33.5.0-jre"
 junit = "5.10.1"
-kotlin = "2.2.21"
+kotlin = "2.4.10"
 kotlinx-coroutines-core = "1.10.2"
 kotlinx-serialization = "1.7.1"
 mockk = "1.14.11"
