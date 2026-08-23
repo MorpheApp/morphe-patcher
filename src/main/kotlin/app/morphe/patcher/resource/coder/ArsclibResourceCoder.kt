@@ -41,11 +41,11 @@ import java.nio.file.StandardCopyOption
 import java.util.logging.Logger
 
 /**
- * Mobile country codes of 100 to 199 are not assigned to any country, so a device never reports
- * one. A patch that adds a resource configuration the app must never select on its own uses a
- * code of that range.
+ * A mobile country code and a mobile network code are three digits, so a device never reports one
+ * above 999. A patch that adds a resource configuration the app must never select on its own uses
+ * a code of this range for one of the two.
  */
-private val PATCH_MOBILE_COUNTRY_CODES = 100..199
+private val PATCH_MOBILE_CODES = 1000..9999
 
 /**
  * A resource table that uses sparse entries cannot be read below Android 8.
@@ -326,9 +326,9 @@ internal class ArsclibResourceCoder(
      * mostly populated. A patch can add more than a thousand of them to select a color with, and
      * each defines a handful of resources out of thousands.
      *
-     * Only the configurations of a patch are changed. They are recognized by a mobile country code
-     * that is assigned to no country, which is how a patch keeps the app from selecting one of
-     * them on its own.
+     * Only the configurations of a patch are changed. They are recognized by a mobile country or
+     * network code that no device can report, which is how a patch keeps the app from selecting
+     * one of them on its own.
      */
     private fun ApkModule.useSparseEntriesForPatchedConfigurations() {
         val minSdk = androidManifest.minSdkVersion
@@ -341,7 +341,11 @@ internal class ArsclibResourceCoder(
         tableBlock.listPackages().forEach { packageBlock ->
             packageBlock.listSpecTypePairs().forEach { specTypePair ->
                 specTypePair.typeBlocks.forEach { typeBlock ->
-                    if (typeBlock.resConfig.mcc in PATCH_MOBILE_COUNTRY_CODES && !typeBlock.isSparse) {
+                    val config = typeBlock.resConfig
+                    val isPatched = config.mcc in PATCH_MOBILE_CODES
+                            || config.mnc in PATCH_MOBILE_CODES
+
+                    if (isPatched && !typeBlock.isSparse) {
                         typeBlock.entryArray.offsetType = TypeHeader.OFFSET_SPARSE
                         count++
                     }
