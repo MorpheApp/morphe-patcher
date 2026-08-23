@@ -1,3 +1,10 @@
+## [1.10.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.10.0...v1.10.1-dev.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* Recognize a patched resource configuration by a mobile code no device can report ([e87ed1f](https://github.com/MorpheApp/morphe-patcher/commit/e87ed1ffb8e2fc609acbc84ec81be2a4aa053c0d))
+
 # [1.10.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.9.0...v1.10.0) (2026-08-22)
 
 
