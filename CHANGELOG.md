@@ -1,3 +1,10 @@
+## [1.10.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.10.1-dev.1...v1.10.1-dev.2) (2026-08-24)
+
+
+### Bug Fixes
+
+* Build the resource configurations of patches without a dense entry table ([cd53b38](https://github.com/MorpheApp/morphe-patcher/commit/cd53b38ba629aca8a56c1aae3011cbfd96bbc1e1))
+
 ## [1.10.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.10.0...v1.10.1-dev.1) (2026-08-23)
 
 
