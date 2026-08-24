@@ -8,10 +8,17 @@
 
 package app.morphe.patcher.patch
 
+import java.io.File
 import java.util.function.Supplier
 
 /**
  * A common interface for contexts such as [ResourcePatchContext] and [BytecodePatchContext].
  */
 
-sealed interface PatchContext<T> : Supplier<T>
+sealed interface PatchContext<T> : Supplier<T> {
+    /**
+     * The path to the file workspace directory.
+     * This directory has write access and can be used for temporary files.
+     */
+    val fileWorkspace: File
+}

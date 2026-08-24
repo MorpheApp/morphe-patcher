@@ -23,13 +23,13 @@ import java.util.logging.Logger
 
 /**
  * A context for patches containing the current state of resources.
- *
- * @param packageMetadata The [PackageMetadata] of the target apk.
  */
 class ResourcePatchContext internal constructor(
     private val config: PatcherConfig,
 ) : PatchContext<PatcherResult.PatchedResources>, Closeable {
     private val logger = Logger.getLogger(ResourcePatchContext::class.java.name)
+
+    override val fileWorkspace = config.fileWorkspace
 
     private val resourceCoder: ResourceCoder = ArsclibResourceCoder(config.apkFiles, config.apkFile, config.keepArchitectures)
 

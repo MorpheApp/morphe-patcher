@@ -36,6 +36,11 @@ class PatcherContext internal constructor(config: PatcherConfig): Closeable {
     internal val resourceContext = ResourcePatchContext(config)
 
     /**
+     * The path to the file workspace directory.
+     */
+    val fileWorkspace = config.fileWorkspace
+
+    /**
      * [PackageMetadata] of the supplied [PatcherConfig.apkFile].
      */
     val packageMetadata = resourceContext.packageMetadata
