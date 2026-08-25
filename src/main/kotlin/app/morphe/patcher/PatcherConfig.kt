@@ -25,6 +25,7 @@ import java.util.logging.Logger
  * @param frameworkFileDirectory A path to the directory to cache the framework file in.
  * @param useArsclib Whether to use Arsclib for resource decoding and compiling.
  * @param verifier The output verifier to use.
+ * @param fileWorkspacePath Temporary file workspace that patches may use.
  */
 class PatcherConfig(
     internal val apkFile: File,
@@ -35,8 +36,15 @@ class PatcherConfig(
     internal val keepArchitectures: Set<CpuArchitecture> = emptySet(),
     internal val useBytecodeMode: BytecodeMode = BytecodeMode.STRIP_FAST,
     internal val verifier: DexVerifier = NoOpDexVerifier,
+    private val fileWorkspacePath: File? = null,
 ) {
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
+
+    /**
+     * The path to the file workspace directory.
+     * This directory has write access and can be used for temporary files.
+     */
+    val fileWorkspace: File = fileWorkspacePath ?: temporaryFilesPath.resolve("workspace")
 
     init {
         if (!useArsclib) {
