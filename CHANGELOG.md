@@ -1,3 +1,16 @@
+# [1.11.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.10.0...v1.11.0) (2026-08-25)
+
+
+### Bug Fixes
+
+* Build the resource configurations of patches without a dense entry table ([cd53b38](https://github.com/MorpheApp/morphe-patcher/commit/cd53b38ba629aca8a56c1aae3011cbfd96bbc1e1))
+* Recognize a patched resource configuration by a mobile code no device can report ([e87ed1f](https://github.com/MorpheApp/morphe-patcher/commit/e87ed1ffb8e2fc609acbc84ec81be2a4aa053c0d))
+
+
+### Features
+
+* Add patch context `fileWorkspace` ([#184](https://github.com/MorpheApp/morphe-patcher/issues/184)) ([a0cb775](https://github.com/MorpheApp/morphe-patcher/commit/a0cb775a913609b3e0457bbba728b1589c9fdcd6))
+
 # [1.11.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.10.1-dev.2...v1.11.0-dev.1) (2026-08-25)
 
 
