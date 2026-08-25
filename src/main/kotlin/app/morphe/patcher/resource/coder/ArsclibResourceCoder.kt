@@ -8,6 +8,7 @@ package app.morphe.patcher.resource.coder
 import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherResult
+import app.morphe.patcher.apk.ApkUtils
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.PathMap
@@ -29,11 +30,14 @@ import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
 import com.reandroid.archive.block.ApkSignatureBlock
+import com.reandroid.arsc.chunk.PackageBlock
 import com.reandroid.arsc.coder.CoderSetting
 import com.reandroid.arsc.coder.xml.AaptXmlStringDecoder
 import com.reandroid.arsc.coder.xml.XmlCoder
-import com.reandroid.arsc.header.TypeHeader
+import com.reandroid.arsc.coder.xml.XmlEncodeUtil
+import com.reandroid.arsc.value.ResConfig
 import com.reandroid.json.JSONObject
+import com.reandroid.xml.XMLFactory
 import org.w3c.dom.Element
 import java.io.File
 import java.nio.file.Files
@@ -41,16 +45,22 @@ import java.nio.file.StandardCopyOption
 import java.util.logging.Logger
 
 /**
- * Mobile country codes of 100 to 199 are not assigned to any country, so a device never reports
- * one. A patch that adds a resource configuration the app must never select on its own uses a
- * code of that range.
+ * A mobile country code and a mobile network code are three digits, so a device never reports one
+ * above 999. A patch that adds a resource configuration the app must never select on its own uses
+ * a code of this range for one of the two.
  */
-private val PATCH_MOBILE_COUNTRY_CODES = 100..199
+private val PATCH_MOBILE_CODES = 1000..9999
 
 /**
  * A resource table that uses sparse entries cannot be read below Android 8.
  */
 private const val SPARSE_ENTRIES_MIN_SDK = 26
+
+/**
+ * Holds the resource configurations of patches while the rest of the table is built.
+ * Outside the directories the encoder scans, so that it never sees them.
+ */
+private const val PATCHED_CONFIGURATIONS_DIRECTORY = "patched-configurations"
 
 internal class ArsclibResourceCoder(
     internal val workingDir: File,
@@ -68,7 +78,7 @@ internal class ArsclibResourceCoder(
      * Set of file paths (relative to the APK root e.g: "lib/armeabi-v7a/libfoo.so")
      * that existed at decode time but no longer exist on disk after patches and
      * other transformations have run. Populated by [detectFileChanges] and returned
-     * by [getDeletedFiles] so [PatcherResult.applyTo] can exclude them from the rebuilt APK.
+     * by [getDeletedFiles] so [ApkUtils.applyTo] can exclude them from the rebuilt APK.
      */
     internal val deletedFiles = mutableSetOf<String>()
 
@@ -306,52 +316,166 @@ internal class ArsclibResourceCoder(
             it.stringDecoder = AaptXmlStringDecoder()
         }
 
-        val encoder = ApkModuleXmlEncoder()
-        encoder.apkModule.use { loadedModule ->
-            loadedModule.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
-            encoder.scanDirectory(workingDir)
-            loadedModule.useSparseEntriesForPatchedConfigurations()
-            loadedModule.writeApk(outputApk)
+        val patchedConfigurations = stashPatchedConfigurations()
+
+        try {
+            val encoder = ApkModuleXmlEncoder()
+            encoder.apkModule.use { loadedModule ->
+                loadedModule.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
+                encoder.scanDirectory(workingDir)
+                loadedModule.encodePatchedConfigurations(patchedConfigurations)
+                loadedModule.writeApk(outputApk)
+            }
+        } finally {
+            patchedConfigurations.forEach { it.restore() }
+            workingDir.resolve(PATCHED_CONFIGURATIONS_DIRECTORY).safelyDelete()
         }
 
         return outputApk
     }
 
     /**
-     * Stores the entries of the resource configurations that patches add with a sparse offset
-     * table, which lists only the resources a configuration defines.
+     * A resource configuration of a patch, held outside the working directory while the encoder
+     * builds the table.
      *
-     * A dense table carries an offset for every resource of its type, whether the configuration
-     * defines it or not. That is a fair trade for the configurations of an app, which are few and
-     * mostly populated. A patch can add more than a thousand of them to select a color with, and
-     * each defines a handful of resources out of thousands.
-     *
-     * Only the configurations of a patch are changed. They are recognized by a mobile country code
-     * that is assigned to no country, which is how a patch keeps the app from selecting one of
-     * them on its own.
+     * @param publicXml The public.xml of the package the configuration belongs to, which is the
+     * tag the encoder gives the package it builds from it.
      */
-    private fun ApkModule.useSparseEntriesForPatchedConfigurations() {
-        val minSdk = androidManifest.minSdkVersion
-        if (minSdk == null || minSdk < SPARSE_ENTRIES_MIN_SDK) {
-            logger.fine { "Not using sparse entries, the app supports Android $minSdk" }
-            return
-        }
+    internal class HeldConfiguration(
+        val publicXml: File,
+        private val originalDirectory: File,
+        private val heldDirectory: File
+    ) {
+        /**
+         * The directory keeps its name while it is held, so the qualifiers of the configuration
+         * are still read off it.
+         */
+        val valuesFiles
+            get() = heldDirectory.listFiles { file: File ->
+                file.isFile && file.extension == "xml"
+            }.orEmpty().asList()
 
-        var count = 0
-        tableBlock.listPackages().forEach { packageBlock ->
-            packageBlock.listSpecTypePairs().forEach { specTypePair ->
-                specTypePair.typeBlocks.forEach { typeBlock ->
-                    if (typeBlock.resConfig.mcc in PATCH_MOBILE_COUNTRY_CODES && !typeBlock.isSparse) {
-                        typeBlock.entryArray.offsetType = TypeHeader.OFFSET_SPARSE
-                        count++
-                    }
-                }
+        fun restore() = heldDirectory.safelyMoveTo(originalDirectory)
+    }
+
+    /**
+     * Moves the resource configurations that patches add out of the directory the encoder scans,
+     * to be encoded by [encodePatchedConfigurations] once the rest of the table stands.
+     *
+     * A configuration is given a dense entry table the moment the encoder creates it, sized to
+     * the largest configuration of its type: an offset for every resource of the type, whether
+     * this configuration defines it or not. That is a fair trade for the configurations of an
+     * app, which are few and mostly populated. A patch can add more than a thousand of them to
+     * select a color with, and each defines a handful of resources out of thousands. Building
+     * those along with the app costs more memory than the whole rest of the table.
+     *
+     * A configuration of a patch is recognized by a mobile country or network code that no device
+     * can report, which is how a patch keeps the app from selecting one of them on its own.
+     */
+    internal fun stashPatchedConfigurations(): List<HeldConfiguration> {
+        val heldRoot = workingDir.resolve(PATCHED_CONFIGURATIONS_DIRECTORY)
+        heldRoot.safelyDelete()
+
+        return packageDirectories.values.flatMap { packageDirectory ->
+            val publicXml = packageDirectory.resolve("res/values/public.xml")
+            if (!publicXml.isFile) return@flatMap emptyList()
+
+            packageDirectory.resolve("res").listFiles { file: File ->
+                file.isDirectory && file.name.startsWith("values-")
+            }.orEmpty().filter { valuesDirectory ->
+                val config = ResConfig.parse(qualifiersOf(valuesDirectory))
+                config.mcc in PATCH_MOBILE_CODES || config.mnc in PATCH_MOBILE_CODES
+            }.map { valuesDirectory ->
+                val heldDirectory = heldRoot
+                    .resolve(packageDirectory.name)
+                    .resolve(valuesDirectory.name)
+
+                valuesDirectory.safelyMoveTo(heldDirectory)
+
+                HeldConfiguration(publicXml, valuesDirectory, heldDirectory)
+            }
+        }.also { held ->
+            if (held.isNotEmpty()) {
+                logger.info("Holding back ${held.size} resource configurations of patches")
             }
         }
+    }
 
-        if (count != 0) {
-            logger.info("Using sparse entries for $count resource configurations")
+    /**
+     * Encodes the configurations [stashPatchedConfigurations] held back, into a table that is
+     * already built.
+     *
+     * A configuration created here carries a sparse offset table, which lists only the resources
+     * it defines. It is set while the configuration is still empty, so no entry table is ever
+     * built for the resources it leaves out.
+     *
+     * Below Android 8 the resource system cannot read a sparse table, so those apps keep the
+     * dense one and pay for it in memory.
+     */
+    private fun ApkModule.encodePatchedConfigurations(configurations: List<HeldConfiguration>) {
+        if (configurations.isEmpty()) return
+
+        val minSdk = androidManifest.minSdkVersion
+        val useSparseEntries = minSdk != null && minSdk >= SPARSE_ENTRIES_MIN_SDK
+        if (!useSparseEntries) {
+            logger.info("Not using sparse entries, the app supports Android $minSdk")
         }
+
+        val valuesCoder = XmlCoder.getInstance().VALUES_XML
+        val encodedPackages = mutableSetOf<PackageBlock>()
+
+        configurations.forEach { configuration ->
+            val packageBlock = tableBlock.getPackageBlockByTag(configuration.publicXml)
+                ?: throw PatchException(
+                    "No resource package was built for ${configuration.publicXml}"
+                )
+
+            configuration.valuesFiles.forEach { valuesFile ->
+                val resConfig = ResConfig.parse(
+                    XmlEncodeUtil.getQualifiersFromValuesXml(valuesFile)
+                )
+                val specTypePair = packageBlock.getOrCreateSpecTypePair(
+                    XmlEncodeUtil.getTypeFromValuesXml(valuesFile)
+                )
+
+                val denseEntryCount = specTypePair.highestEntryCount
+
+                val typeBlock = specTypePair.getTypeBlock(resConfig)
+                    ?: specTypePair.getOrCreateTypeBlock(resConfig).also {
+                        if (useSparseEntries) {
+                            it.headerBlock.isSparse = true
+                        } else {
+                            // The dense table the encoder gives a configuration of its own,
+                            // sized to the largest configuration of the type
+                            it.ensureEntriesCount(denseEntryCount)
+                        }
+                    }
+
+                valuesCoder.encode(XMLFactory.newPullParser(valuesFile), typeBlock)
+            }
+
+            encodedPackages += packageBlock
+        }
+
+        encodedPackages.forEach { packageBlock ->
+            packageBlock.sortTypes()
+            packageBlock.refresh()
+        }
+        tableBlock.refresh()
+
+        logger.info(
+            "Encoded ${configurations.size} resource configurations of patches " +
+                    "(sparse=$useSparseEntries)"
+        )
+    }
+
+    /**
+     * The qualifiers a resource directory carries, in the form the encoder reads them, which
+     * keeps the leading separator.
+     */
+    private fun qualifiersOf(resourceDirectory: File): String {
+        val separator = resourceDirectory.name.indexOf('-')
+        return if (separator > 0) resourceDirectory.name.substring(separator) else ""
     }
 
     override fun getOtherResourceFiles(outputDir: File, resourceMode: ResourceMode): File? {
@@ -445,13 +569,13 @@ internal class ArsclibResourceCoder(
                             "${keepArchitectures.joinToString(", ") { it.arch }})"
                 )
                 var strippedLibCount = 0
-                ZFile.openReadOnly(apkFile).use {
-                    it.entries().map { entry ->
+                ZFile.openReadOnly(apkFile).use { zFile ->
+                    zFile.entries().map { entry ->
                         entry.centralDirectoryHeader.name
                     }.filter { name ->
                         name.startsWith("lib/") && CpuArchitecture.valueOfOrNull(name.split("/")[1]) !in keepArchitectures
-                    }.forEach {
-                        add(it)
+                    }.forEach { name ->
+                        add(name)
                         strippedLibCount++
                     }
                 }
@@ -476,17 +600,15 @@ internal class ArsclibResourceCoder(
     ): File {
         val pkgName = packageName ?: lazyPackageInfo.value.packageName
 
-        val retval: File
-
         val aliasedPath = pathMap.getAlias(path) ?: path
 
-        if (aliasedPath == "res" || aliasedPath.startsWith("res/") || aliasedPath == "package.json") {
-            retval = packageDirectories[pkgName]?.resolve(aliasedPath) ?: throw PatchException("Package $pkgName not found")
+        val retval = if (aliasedPath == "res" || aliasedPath.startsWith("res/") || aliasedPath == "package.json") {
+            packageDirectories[pkgName]?.resolve(aliasedPath) ?: throw PatchException("Package $pkgName not found")
         } else if (aliasedPath == "AndroidManifest.xml") {
             // TODO: Doesn't handle modifications to binary AndroidManifest.xml, but then again neither does apktool in raw mode.
-            retval = workingDir.resolve(aliasedPath)
+            workingDir.resolve(aliasedPath)
         } else {
-            retval = otherResourcesRootDirectory.resolve(aliasedPath)
+            otherResourcesRootDirectory.resolve(aliasedPath)
         }
 
         return retval

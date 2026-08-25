@@ -293,12 +293,14 @@ public final class app/morphe/patcher/Patcher : java/io/Closeable {
 }
 
 public final class app/morphe/patcher/PatcherConfig {
-	public fun <init> (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;)V
-	public synthetic fun <init> (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;Ljava/io/File;)V
+	public synthetic fun <init> (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;Ljava/io/File;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getFileWorkspace ()Ljava/io/File;
 }
 
 public final class app/morphe/patcher/PatcherContext : java/io/Closeable {
 	public fun close ()V
+	public final fun getFileWorkspace ()Ljava/io/File;
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
 }
 
@@ -628,6 +630,7 @@ public final class app/morphe/patcher/patch/BytecodePatchContext : app/morphe/pa
 	public fun get ()Ljava/util/Set;
 	public final fun getAllClassesWithString (Ljava/lang/String;)Ljava/util/List;
 	public final fun getAllClassesWithStrings ()Ljava/util/List;
+	public fun getFileWorkspace ()Ljava/io/File;
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
 	public final fun mutableClassDefBy (Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun mutableClassDefBy (Ljava/lang/String;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
@@ -944,6 +947,7 @@ public abstract class app/morphe/patcher/patch/PatchBuilder {
 }
 
 public abstract interface class app/morphe/patcher/patch/PatchContext : java/util/function/Supplier {
+	public abstract fun getFileWorkspace ()Ljava/io/File;
 }
 
 public final class app/morphe/patcher/patch/PatchException : java/lang/Exception {
@@ -1058,6 +1062,7 @@ public final class app/morphe/patcher/patch/ResourcePatchContext : app/morphe/pa
 	public synthetic fun get ()Ljava/lang/Object;
 	public final fun get (Ljava/lang/String;Z)Ljava/io/File;
 	public static synthetic fun get$default (Lapp/morphe/patcher/patch/ResourcePatchContext;Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
+	public fun getFileWorkspace ()Ljava/io/File;
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
 }
 

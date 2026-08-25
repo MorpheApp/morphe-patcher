@@ -46,6 +46,62 @@ internal class ArsclibResourceCoderTest {
         return pkgDir
     }
 
+    // ==================== stashPatchedConfigurations tests ====================
+
+    /**
+     * @param configurations The names of the resource configuration directories to create.
+     */
+    private fun setupConfigurations(vararg configurations: String): File {
+        val pkgDir = setupPackageDir()
+        pkgDir.resolve("res/values").mkdirs()
+        pkgDir.resolve("res/values/public.xml").writeText("<resources />")
+
+        configurations.forEach { name ->
+            pkgDir.resolve("res/$name").mkdirs()
+            pkgDir.resolve("res/$name/colors.xml").writeText("<resources />")
+        }
+
+        return pkgDir
+    }
+
+    @Test
+    fun `stashPatchedConfigurations holds back configurations of patches`() {
+        val pkgDir = setupConfigurations("values-mcc1100", "values-mnc1700")
+
+        val held = coder.stashPatchedConfigurations()
+
+        assertEquals(2, held.size)
+        assertFalse(pkgDir.resolve("res/values-mcc1100").exists())
+        assertFalse(pkgDir.resolve("res/values-mnc1700").exists())
+    }
+
+    @Test
+    fun `stashPatchedConfigurations leaves configurations of the app in place`() {
+        val pkgDir = setupConfigurations("values-de", "values-mcc262", "values-night")
+
+        val held = coder.stashPatchedConfigurations()
+
+        assertTrue(held.isEmpty())
+        assertTrue(pkgDir.resolve("res/values-de/colors.xml").isFile)
+        assertTrue(pkgDir.resolve("res/values-mcc262/colors.xml").isFile)
+        assertTrue(pkgDir.resolve("res/values-night/colors.xml").isFile)
+    }
+
+    @Test
+    fun `held configuration keeps its qualifiers and is restored where it was`() {
+        val pkgDir = setupConfigurations("values-mcc1100")
+
+        val held = coder.stashPatchedConfigurations().single()
+
+        // The qualifiers are read off the directory name, so it must survive the move
+        assertEquals("values-mcc1100", held.valuesFiles.single().parentFile.name)
+        assertEquals(pkgDir.resolve("res/values/public.xml"), held.publicXml)
+
+        held.restore()
+
+        assertTrue(pkgDir.resolve("res/values-mcc1100/colors.xml").isFile)
+    }
+
     // ==================== buildFileSnapshot tests ====================
 
     @Test

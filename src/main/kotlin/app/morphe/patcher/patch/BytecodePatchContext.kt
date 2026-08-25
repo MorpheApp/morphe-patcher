@@ -41,6 +41,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     Closeable {
     private val logger = Logger.getLogger(this::class.java.name)
 
+    override val fileWorkspace = config.fileWorkspace
+
     /**
      * [Opcodes] of the supplied [PatcherConfig.apkFile].
      */
