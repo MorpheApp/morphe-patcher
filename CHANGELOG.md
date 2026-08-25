@@ -1,3 +1,10 @@
+# [1.11.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.10.1-dev.2...v1.11.0-dev.1) (2026-08-25)
+
+
+### Features
+
+* Add patch context `fileWorkspace` ([#184](https://github.com/MorpheApp/morphe-patcher/issues/184)) ([a0cb775](https://github.com/MorpheApp/morphe-patcher/commit/a0cb775a913609b3e0457bbba728b1589c9fdcd6))
+
 ## [1.10.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.10.1-dev.1...v1.10.1-dev.2) (2026-08-24)
 
 
