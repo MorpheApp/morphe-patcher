@@ -206,16 +206,19 @@ internal object DexReadWrite {
         val segments = splitIntoMutableSegments(classDefs, numSegments)
         classDefs.clear()
 
-        val segmentResults = if (numSegments == 1) {
+        // Parallelize over the actual segment list: a desugar (j$) segment may exist in
+        // addition to the requested segments, and it can be written concurrently too.
+        val segmentResults = if (segments.size == 1) {
             logger?.info("Processing $numClasses classes (single threaded mode)")
 
             segments.mapIndexed { index, segment ->
                 processSegment(segment, opcodes, outputDir, index)
             }
         } else {
-            logger?.info("Processing $numClasses classes in parallel (${actualMaxThreads} threads)")
+            val parallelism = min(segments.size, actualMaxThreads)
+            logger?.info("Processing $numClasses classes in parallel ($parallelism threads)")
 
-            val dispatcher = Dispatchers.Default.limitedParallelism(numSegments)
+            val dispatcher = Dispatchers.Default.limitedParallelism(parallelism)
             runBlocking(dispatcher) {
                 segments.mapIndexed { segmentIndex, classQueue ->
                     async {
