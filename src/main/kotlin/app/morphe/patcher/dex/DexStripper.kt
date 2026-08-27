@@ -112,7 +112,11 @@ internal object DexStripper {
         recomputeSignature(buf, fileSize)
         recomputeChecksum(buf, fileSize)
 
-        mappedFile.force()
+        // No mappedFile.force() (msync): the write-back to storage is left to the OS.
+        // The page cache keeps mapped writes coherent with subsequent reads and renames
+        // on all supported platforms, and durability against power loss is irrelevant
+        // for these temporary files. A synchronous flush here costs real time on
+        // device flash storage for no benefit.
 
         return indicesToRemove.size
     }
