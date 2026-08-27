@@ -57,7 +57,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * read and before the file is rewritten, renamed, or deleted, so the deterministic
      * unmapping releases any Windows file lock in time for those operations.
      */
-    private var originalDexMappings: MutableMap<File, MappedFile> = HashMap()
+    private var originalDexMappings: MutableMap<File, MappedFile> = LinkedHashMap()
 
     /**
      * Class descriptors that existed in the original APK (before any extensions or patches).
@@ -94,7 +94,10 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         classDescriptorsByEntry = readResult.classDescriptorsByEntry
         patchClasses = PatchClasses(readResult.dexFile.classes)
 
-        originalDexMappings = HashMap<File, MappedFile>(readResult.mappedFiles.size).apply {
+        // Insertion-ordered so iteration follows the original classes*.dex order; a plain
+        // HashMap iterates in File-hash order, which varies with the temporary directory
+        // path and makes STRIP_SAFE's output file naming nondeterministic.
+        originalDexMappings = LinkedHashMap<File, MappedFile>(readResult.mappedFiles.size).apply {
             readResult.mappedFiles.forEachIndexed { index, mappedFile ->
                 put(mappedFile.originalFile, mappedFile)
             }
@@ -414,7 +417,9 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         }
 
         // 2. For each original DEX file, either pass through or rebuild without modified classes.
-        originalDexMappings.keys.forEachIndexed { i, originalDex ->
+        // Iterate over a snapshot: releaseDexMapping() removes entries from originalDexMappings
+        // while this loop runs, which would otherwise throw ConcurrentModificationException.
+        originalDexMappings.keys.toList().forEachIndexed { i, originalDex ->
             val entryDescriptors = classDescriptorsByEntry[originalDex.name] ?: emptySet()
             val hasModifiedClasses = entryDescriptors.any { it in modifiedOriginalDescriptors }
 
