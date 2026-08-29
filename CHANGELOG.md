@@ -1,3 +1,10 @@
+## [1.11.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.11.1-dev.1...v1.11.1-dev.2) (2026-08-29)
+
+
+### Performance Improvements
+
+* Leave unchanged root entries in the input APK ([#188](https://github.com/MorpheApp/morphe-patcher/issues/188)) ([3263df5](https://github.com/MorpheApp/morphe-patcher/commit/3263df5857e1f091deeb76d7ffbca5277a627296))
+
 ## [1.11.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.11.0...v1.11.1-dev.1) (2026-08-29)
 
 
