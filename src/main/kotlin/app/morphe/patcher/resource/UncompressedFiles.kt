@@ -23,6 +23,11 @@ import com.reandroid.json.JSONObject
 internal class UncompressedFiles(
     uncompressedFilesJson: String,
     private val pathMap: PathMap = PathMap.EMPTY,
+    /**
+     * Paths that must be stored uncompressed regardless of what the input APK declared,
+     * used when a patch changes `android:extractNativeLibs`.
+     */
+    private val additionalPaths: Set<String> = emptySet(),
 ) : AbstractSet<String>() {
 
     private val extensions: Set<String>
@@ -55,7 +60,7 @@ internal class UncompressedFiles(
      * matches are not counted here, as they represent rules rather than
      * concrete entries.
      */
-    override val size: Int get() = paths.size
+    override val size: Int get() = (paths + additionalPaths.map { sanitizePath(it) }).size
 
     /**
      * Returns `true` if [element] (or the original APK name it maps to via
@@ -65,6 +70,8 @@ internal class UncompressedFiles(
     override fun contains(element: String): Boolean {
         val normalized = sanitizePath(element)
         if (paths.contains(normalized)) return true
+        if (additionalPaths.isNotEmpty() &&
+            additionalPaths.any { sanitizePath(it) == normalized }) return true
 
         // The element may be an on-disk alias; resolve to original APK name.
         val originalName = pathMap.getOriginalName(normalized)
@@ -73,7 +80,9 @@ internal class UncompressedFiles(
         return matchesExtension(normalized)
     }
 
-    override fun iterator(): Iterator<String> = paths.iterator()
+    override fun iterator(): Iterator<String> =
+        if (additionalPaths.isEmpty()) paths.iterator()
+        else (paths + additionalPaths.map { sanitizePath(it) }).iterator()
 
     private fun matchesExtension(path: String): Boolean {
         if (extensions.isEmpty()) return false

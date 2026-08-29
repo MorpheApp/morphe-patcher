@@ -154,7 +154,7 @@ internal class ArsclibResourceCoderTest {
         val resDir = pkgDir.resolve("res")
 
         // Snapshot is empty (no files existed at decode time).
-        coder.fileSnapshotCache = emptyMap()
+        coder.fileSnapshotCache = mutableMapOf()
 
         // Create a new file after "decoding".
         val newFile = resDir.resolve("drawable").also { it.mkdirs() }.resolve("icon.xml")
@@ -199,7 +199,7 @@ internal class ArsclibResourceCoderTest {
         val originalSize = file.length()
         val snapshotEntry = ArsclibResourceCoder.FileSnapshot(originalLastModified, originalSize)
 
-        coder.fileSnapshotCache = mapOf(file to snapshotEntry)
+        coder.fileSnapshotCache = mutableMapOf(file to snapshotEntry)
 
         // Change the content (and thus the size) but preserve the timestamp.
         file.writeText("this is a much longer string to change the file size")
@@ -237,7 +237,7 @@ internal class ArsclibResourceCoderTest {
         publicXml.writeText("<resources/>")
 
         // Empty snapshot — file would normally be "added".
-        coder.fileSnapshotCache = emptyMap()
+        coder.fileSnapshotCache = mutableMapOf()
 
         coder.detectFileChanges()
 
@@ -252,7 +252,7 @@ internal class ArsclibResourceCoderTest {
         val idsXml = resDir.resolve("values").also { it.mkdirs() }.resolve("ids.xml")
         idsXml.writeText("<resources/>")
 
-        coder.fileSnapshotCache = emptyMap()
+        coder.fileSnapshotCache = mutableMapOf()
 
         coder.detectFileChanges()
 
@@ -309,7 +309,7 @@ internal class ArsclibResourceCoderTest {
 
         // Empty snapshot, no files on disk in res (delete the stale file).
         staleFile.delete()
-        coder.fileSnapshotCache = emptyMap()
+        coder.fileSnapshotCache = mutableMapOf()
 
         coder.detectFileChanges()
 
@@ -327,7 +327,7 @@ internal class ArsclibResourceCoderTest {
         pkgDir2.resolve("res").mkdirs()
         coder.packageDirectories["com.test.lib"] = pkgDir2
 
-        coder.fileSnapshotCache = emptyMap()
+        coder.fileSnapshotCache = mutableMapOf()
 
         // Add a file in each package.
         val file1 = pkgDir1.resolve("res/drawable").also { it.mkdirs() }.resolve("a.xml")
@@ -351,7 +351,7 @@ internal class ArsclibResourceCoderTest {
         val nonResFile = pkgDir.resolve("some_other_file.txt")
         nonResFile.writeText("not a resource")
 
-        coder.fileSnapshotCache = emptyMap()
+        coder.fileSnapshotCache = mutableMapOf()
 
         coder.detectFileChanges()
 
@@ -400,7 +400,7 @@ internal class ArsclibResourceCoderTest {
     @Test
     fun `detectFileChanges identifies newly added files in otherResourcesRootDirectory`() {
         // No package directories — simulates FULL mode where files are added to root/.
-        coder.fileSnapshotCache = emptyMap()
+        coder.fileSnapshotCache = mutableMapOf()
 
         val rootDir = workingDir.resolve("root").also { it.mkdirs() }
         val newFile = rootDir.resolve("assets").also { it.mkdirs() }.resolve("config.json")
@@ -455,7 +455,7 @@ internal class ArsclibResourceCoderTest {
         val rootDir = workingDir.resolve("root").also { it.mkdirs() }
 
         // Snapshot is empty — no files existed after raw decoding.
-        coder.fileSnapshotCache = emptyMap()
+        coder.fileSnapshotCache = mutableMapOf()
 
         // A patch adds a new file.
         val newFile = rootDir.resolve("raw").also { it.mkdirs() }
@@ -537,7 +537,7 @@ internal class ArsclibResourceCoderTest {
         // Also create a non-excluded file
         val stringsXml = valuesDir.resolve("strings.xml").also { it.writeText("<resources/>") }
 
-        coder.fileSnapshotCache = emptyMap()
+        coder.fileSnapshotCache = mutableMapOf()
         coder.detectFileChanges()
 
         // Verify excluded files are NOT detected
@@ -770,7 +770,7 @@ internal class ArsclibResourceCoderTest {
         val drawableDir = resDir.resolve("drawable-mdpi").also { it.mkdirs() }
         val aliasFile = drawableDir.resolve("drawable_0x7f080695.png").also { it.writeText("PNG") }
 
-        coder.fileSnapshotCache = emptyMap()
+        coder.fileSnapshotCache = mutableMapOf()
         coder.pathMap = PathMap("""[
             {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"}
         ]""")
@@ -792,7 +792,7 @@ internal class ArsclibResourceCoderTest {
         val aliasDir = rootDir.resolve("assets/data").also { it.mkdirs() }
         aliasDir.resolve("config_aliased.bin").also { it.writeBytes(byteArrayOf(0x01)) }
 
-        coder.fileSnapshotCache = emptyMap()
+        coder.fileSnapshotCache = mutableMapOf()
         coder.pathMap = PathMap("""[
             {"name": "assets/config.bin", "alias": "assets/data/config_aliased.bin"}
         ]""")
@@ -813,7 +813,7 @@ internal class ArsclibResourceCoderTest {
         val valuesDir = resDir.resolve("values").also { it.mkdirs() }
         valuesDir.resolve("strings.xml").also { it.writeText("<resources/>") }
 
-        coder.fileSnapshotCache = emptyMap()
+        coder.fileSnapshotCache = mutableMapOf()
         coder.pathMap = PathMap("""[
             {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"}
         ]""")
@@ -846,7 +846,7 @@ internal class ArsclibResourceCoderTest {
         val libDir = rootDir.resolve("lib/arm64-v8a").also { it.mkdirs() }
         libDir.resolve("libfoo.so").also { it.writeBytes(byteArrayOf(0x7F, 0x45, 0x4C, 0x46)) }
 
-        coder.fileSnapshotCache = emptyMap()
+        coder.fileSnapshotCache = mutableMapOf()
         coder.pathMap = PathMap("""[
             {"name": "res/-5N.png", "alias": "res/drawable-mdpi/drawable_0x7f080695.png"}
         ]""")
@@ -872,7 +872,7 @@ internal class ArsclibResourceCoderTest {
         val drawableDir = resDir.resolve("drawable").also { it.mkdirs() }
         drawableDir.resolve("icon.png").also { it.writeText("PNG") }
 
-        coder.fileSnapshotCache = emptyMap()
+        coder.fileSnapshotCache = mutableMapOf()
         coder.pathMap = PathMap.EMPTY
 
         val outputDir = workingDir.resolveSibling("output").also { it.mkdirs() }
@@ -896,6 +896,138 @@ internal class ArsclibResourceCoderTest {
         val dummyApk = tempDir.resolve("dummy2.apk")
         ZFile.openReadWrite(dummyApk).use { }
         return ArsclibResourceCoder(workingDir, dummyApk, keepArchitectures)
+    }
+
+    // ==================== root entries left in the input apk ====================
+
+    /**
+     * Build an apk holding root entries, so the paths that no longer stage anything to disk
+     * can be exercised against a real archive rather than against files a test pre-created.
+     */
+    private fun createApkWithRootEntries(tempDir: File, entries: Map<String, String>): File {
+        val apk = tempDir.resolve("withroot.apk")
+        ZFile.openReadWrite(apk).use { zFile ->
+            entries.forEach { (name, content) ->
+                zFile.add(name, ByteArrayInputStream(content.toByteArray()))
+            }
+        }
+        return apk
+    }
+
+    @Test
+    fun `getFile extracts a root entry that was never staged`(@TempDir tempDir: File) {
+        val apk = createApkWithRootEntries(tempDir, mapOf("assets/data.bin" to "payload"))
+        val rootCoder = ArsclibResourceCoder(workingDir, apk)
+
+        val file = rootCoder.getFile("assets/data.bin")
+
+        assertTrue(file.exists(), "Root entry should be extracted on demand")
+        assertEquals("payload", file.readText())
+    }
+
+    @Test
+    fun `getFile extracts an aliased root entry by its archive name`(@TempDir tempDir: File) {
+        val apk = createApkWithRootEntries(tempDir, mapOf("assets/o.bin" to "aliased"))
+        val rootCoder = ArsclibResourceCoder(workingDir, apk)
+        rootCoder.pathMap = PathMap("""[{"name":"assets/o.bin","alias":"assets/original.bin"}]""")
+
+        // Patches address files by the readable name, which the archive does not use.
+        val file = rootCoder.getFile("assets/original.bin")
+
+        assertTrue(file.exists(), "Aliased root entry should resolve to its archive name")
+        assertEquals("aliased", file.readText())
+    }
+
+    @Test
+    fun `getFile extracts every entry of a requested root directory`(@TempDir tempDir: File) {
+        val apk = createApkWithRootEntries(
+            tempDir,
+            mapOf("assets/dir/a.bin" to "a", "assets/dir/b.bin" to "b", "assets/other.bin" to "c")
+        )
+        val rootCoder = ArsclibResourceCoder(workingDir, apk)
+
+        val dir = rootCoder.getFile("assets/dir")
+
+        assertTrue(dir.isDirectory, "A requested directory should be materialised")
+        assertEquals(setOf("a.bin", "b.bin"), dir.listFiles()!!.map { it.name }.toSet())
+    }
+
+    @Test
+    fun `getFile gives a patch somewhere to create a new root file`(@TempDir tempDir: File) {
+        // A patch adding e.g. a branding file writes to a path the input apk never had, and
+        // staging used to be what created the directory for it.
+        val apk = createApkWithRootEntries(tempDir, mapOf("assets/data.bin" to "payload"))
+        val rootCoder = ArsclibResourceCoder(workingDir, apk)
+
+        val file = rootCoder.getFile("BRANDING.TXT")
+        file.writeText("added by a patch")
+
+        assertEquals("added by a patch", file.readText())
+    }
+
+    @Test
+    fun `getFile creates nested parents for a new root file`(@TempDir tempDir: File) {
+        val apk = createApkWithRootEntries(tempDir, mapOf("assets/data.bin" to "payload"))
+        val rootCoder = ArsclibResourceCoder(workingDir, apk)
+
+        val file = rootCoder.getFile("assets/new/nested.txt")
+        file.writeText("nested")
+
+        assertEquals("nested", file.readText())
+    }
+
+    @Test
+    fun `getFile leaves a path that the apk does not hold`(@TempDir tempDir: File) {
+        val apk = createApkWithRootEntries(tempDir, mapOf("assets/data.bin" to "payload"))
+        val rootCoder = ArsclibResourceCoder(workingDir, apk)
+
+        assertFalse(rootCoder.getFile("assets/missing.bin").exists())
+    }
+
+    @Test
+    fun `detectFileChanges sees a same-length rewrite of an extracted root file`(
+        @TempDir tempDir: File
+    ) {
+        val apk = createApkWithRootEntries(tempDir, mapOf("assets/data.bin" to "aaaa"))
+        val rootCoder = ArsclibResourceCoder(workingDir, apk)
+        val file = rootCoder.getFile("assets/data.bin")
+
+        // Same length and, on a coarse filesystem clock, the same timestamp.
+        file.writeText("bbbb")
+        file.setLastModified(file.lastModified())
+        rootCoder.detectFileChanges()
+
+        assertTrue(
+            file in rootCoder.modifiedBinaryResources,
+            "A same-length rewrite must still count as modified"
+        )
+    }
+
+    @Test
+    fun `stripNativeLibraries marks libs for deletion without anything staged`(
+        @TempDir tempDir: File
+    ) {
+        val apk = createApkWithLibs(tempDir, listOf("arm64-v8a", "x86"))
+        val archCoder = ArsclibResourceCoder(workingDir, apk, setOf(CpuArchitecture.ARM64_V8A))
+
+        archCoder.stripNativeLibraries()
+        val deleted = archCoder.getDeletedFiles(ResourceMode.FULL)
+
+        assertTrue(deleted.all { it.startsWith("lib/x86/") }, "Only the dropped arch: $deleted")
+        assertEquals(2, deleted.size, "Both x86 entries should be marked")
+    }
+
+    @Test
+    fun `getUncompressedFiles survives close`(@TempDir tempDir: File) {
+        val apk = createApkWithRootEntries(tempDir, mapOf("assets/a" to "a"))
+        val rootCoder = ArsclibResourceCoder(workingDir, apk)
+        workingDir.resolve("uncompressed-files.json").writeText("""{"paths":["lib/x86/libfoo.so"]}""")
+
+        val uncompressed = rootCoder.getUncompressedFiles(ResourceMode.FULL)
+        // applyTo commonly reads this after the patcher has been closed.
+        rootCoder.close()
+
+        assertTrue("lib/x86/libfoo.so" in uncompressed, "Result must not alias cleared state")
     }
 
     /**

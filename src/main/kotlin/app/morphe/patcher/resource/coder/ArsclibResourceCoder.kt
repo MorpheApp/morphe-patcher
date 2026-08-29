@@ -62,6 +62,13 @@ private const val SPARSE_ENTRIES_MIN_SDK = 26
  */
 private const val PATCHED_CONFIGURATIONS_DIRECTORY = "patched-configurations"
 
+/**
+ * Holds root files a patch changed while the resource apk is built. Outside the directories the
+ * encoder scans, so they travel through the other-files route only, instead of being compressed
+ * into resources.apk as well.
+ */
+private const val PATCHED_ROOT_DIRECTORY = "patched-root"
+
 internal class ArsclibResourceCoder(
     internal val workingDir: File,
     internal val apkFile: File,
@@ -87,13 +94,33 @@ internal class ArsclibResourceCoder(
      * Used to detect which files were added or modified between decoding and encoding.
      */
     internal data class FileSnapshot(val lastModified: Long, val size: Long)
-    internal var fileSnapshotCache: Map<File, FileSnapshot> = emptyMap()
+    internal var fileSnapshotCache: MutableMap<File, FileSnapshot> = mutableMapOf()
+
+    /**
+     * Root entries (lib/, assets/, ...) are left in the input APK instead of being
+     * staged to disk: [ApkUtils.applyTo] rebuilds the output from a copy of that same
+     * APK, so every unchanged root entry is already present and correct in the target.
+     * Only entries a patch actually asks for are extracted, by [getFile].
+     */
+    private val lazilyExtractedRootFiles = mutableMapOf<File, Int>()
+
+    /** Relocated root files, mapped to the archive entry name they must be written back as. */
+    private val relocatedRootFiles = mutableMapOf<File, String>()
+
+    /**
+     * Native library entries removed by [stripNativeLibraries], as in-APK paths.
+     * Held separately from [deletedFiles] because [detectFileChanges] clears that set.
+     */
+    private val strippedLibraries = mutableSetOf<String>()
+
+    /** Paths that must be stored uncompressed regardless of what the input APK did. */
+    private val uncompressedOverrides = mutableSetOf<String>()
     internal var pathMap: PathMap = PathMap.EMPTY
 
     /**
      * Recursively scan the working directory and build a map of file paths to their metadata.
      */
-    internal fun buildFileSnapshot(): Map<File, FileSnapshot> {
+    internal fun buildFileSnapshot(): MutableMap<File, FileSnapshot> {
         val snapshot = mutableMapOf<File, FileSnapshot>()
         workingDir.resolve("resources").walkTopDown().filter { it.isFile }.forEach { file ->
             snapshot[file] = FileSnapshot(file.lastModified(), file.length())
@@ -126,6 +153,12 @@ internal class ArsclibResourceCoder(
         }
 
         otherResourcesRootDirectory.walkTopDown().filter { it.isFile }.forEach { file ->
+            val extractedHash = lazilyExtractedRootFiles[file]
+            if (extractedHash != null) {
+                // Extracted mid-run, so a timestamp comparison is unreliable here.
+                if (file.readBytes().contentHashCode() != extractedHash) modifiedBinaryResources.add(file)
+                return@forEach
+            }
             val cached = fileSnapshotCache[file]
             if (cached == null || file.lastModified() != cached.lastModified || file.length() != cached.size) {
                 modifiedBinaryResources.add(file)
@@ -140,7 +173,8 @@ internal class ArsclibResourceCoder(
             val absPath = snapshotFile.absoluteFile.invariantSeparatorsPath
             if (absPath.startsWith("$rootPathPrefix/")) {
                 val relativePath = snapshotFile.relativeTo(otherResourcesRootDirectory).invariantSeparatorsPath
-                deletedFiles += relativePath
+                // applyTo matches against archive entry names, not on-disk aliases.
+                deletedFiles += pathMap.getOriginalName(relativePath) ?: relativePath
             }
         }
     }
@@ -160,9 +194,17 @@ internal class ArsclibResourceCoder(
         val signatureBlock: ApkSignatureBlock?
     )
 
+    /**
+     * `android:extractNativeLibs` as the input APK declares it. Libraries are not rebuilt into
+     * resources.apk any more, so if a patch flips this the target's own libraries would keep the
+     * old compression. [routeNativeLibrariesIfCompressionChanged] handles that case.
+     */
+    private var originalExtractNativeLibs: Boolean? = null
+
     private val lazyPackageInfo = lazy {
         ApkModule.loadApkFile(apkFile).use { module ->
             val manifest = module.androidManifest
+            originalExtractNativeLibs = manifest.isExtractNativeLibs
             PackageInfo(
                 manifest.packageName,
                 manifest.versionName,
@@ -202,6 +244,10 @@ internal class ArsclibResourceCoder(
 
         // Build a snapshot of all file metadata after decoding, so we can detect
         // which files are added or modified when it's time to encode.
+        // Nothing is staged under it any more, but patches add files here and the change
+        // detection walks it.
+        otherResourcesRootDirectory.mkdirs()
+
         fileSnapshotCache = buildFileSnapshot()
         pathMap = readPathMap()
 
@@ -210,7 +256,21 @@ internal class ArsclibResourceCoder(
 
     override fun decodeResources(): PackageMetadata {
         ApkModule.loadApkFile(apkFile).use { apkModule ->
-            val xmlDecoder = ApkModuleXmlDecoder(apkModule).also {
+            val xmlDecoder = object : ApkModuleXmlDecoder(apkModule) {
+                override fun extractRootFiles(mainDirectory: File) {
+                    // Anything still unclaimed at this point that lives under res/ is not
+                    // referenced by the resource table, and applyTo drops every res/ entry of
+                    // the target before merging, so those have to be staged after all.
+                    // Everything else stays in the input APK, see [extractRootEntries].
+                    var staged = 0
+                    apkModule.inputSources.forEach { source ->
+                        if (!source.alias.startsWith("res/")) addDecodedPath(source.alias)
+                        else if (!containsDecodedPath(source.alias)) staged++
+                    }
+                    if (staged != 0) logger.info("Staging $staged unreferenced res files")
+                    super.extractRootFiles(mainDirectory)
+                }
+            }.also {
                 it.setKeepResPath(false)
             }
 
@@ -238,6 +298,10 @@ internal class ArsclibResourceCoder(
 
         // Build a snapshot of all file metadata after decoding, so we can detect
         // which files are added or modified when it's time to encode.
+        // Nothing is staged under it any more, but patches add files here and the change
+        // detection walks it.
+        otherResourcesRootDirectory.mkdirs()
+
         fileSnapshotCache = buildFileSnapshot()
         pathMap = readPathMap()
 
@@ -249,21 +313,89 @@ internal class ArsclibResourceCoder(
      * This is a no-op if [keepArchitectures] is empty.
      */
     internal fun stripNativeLibraries() {
-        if (keepArchitectures.isNotEmpty()) {
-            logger.info("Stripping libs (keeping architectures " +
-                    "${keepArchitectures.joinToString(", ") { it.arch }})")
+        if (keepArchitectures.isEmpty()) return
 
-            var strippedLibCount = 0
-            otherResourcesRootDirectory.resolve("lib")
-                .takeIf { it.exists() }
-                ?.listFiles { dir ->
-                    dir.isDirectory && CpuArchitecture.valueOfOrNull(dir.name) !in keepArchitectures
-                }?.forEach { it ->
-                    it.walkTopDown().filter { it.isFile }.forEach { _ -> strippedLibCount++ }
-                    it.safelyDelete()
+        logger.info("Stripping libs (keeping architectures " +
+                "${keepArchitectures.joinToString(", ") { it.arch }})")
+
+        // Libraries are not staged on disk, so mark them for deletion from the rebuilt APK
+        // instead of deleting extracted copies. This is what NONE mode already does.
+        ZFile.openReadOnly(apkFile).use { zFile ->
+            zFile.entries().map { it.centralDirectoryHeader.name }.filter { name ->
+                name.startsWith("lib/") &&
+                        CpuArchitecture.valueOfOrNull(name.split("/")[1]) !in keepArchitectures
+            }.forEach { strippedLibraries += it }
+        }
+
+        // A patch may have pulled one of these in; drop the staged copy so it is not re-added.
+        otherResourcesRootDirectory.resolve("lib")
+            .takeIf { it.exists() }
+            ?.listFiles { dir ->
+                dir.isDirectory && CpuArchitecture.valueOfOrNull(dir.name) !in keepArchitectures
+            }?.forEach { it.safelyDelete() }
+
+        logger.info("Stripped ${strippedLibraries.size} lib files")
+    }
+
+    /**
+     * If a patch changed `android:extractNativeLibs`, the native libraries the target APK already
+     * holds are compressed the old way. Stage them so they travel through the other-files route
+     * and are re-added with the compression the new value calls for.
+     */
+    private fun routeNativeLibrariesIfCompressionChanged() {
+        lazyPackageInfo.value // populates originalExtractNativeLibs
+        // Absent means the platform default (true since API 23), so treat it as a value rather
+        // than skipping: adding or removing the attribute is exactly the interesting case.
+        val original = originalExtractNativeLibs ?: true
+        val current = Document(getFile("AndroidManifest.xml")).use { manifest ->
+            val node = manifest.getElementsByTagName("application").item(0) as? Element ?: return
+            node.getAttribute("android:extractNativeLibs").takeIf { it.isNotEmpty() }?.toBooleanStrictOrNull()
+        } ?: true
+        if (current == original) return
+
+        logger.info("extractNativeLibs changed to $current, restaging native libraries")
+        val staging = workingDir.resolve(PATCHED_ROOT_DIRECTORY)
+        ZFile.openReadOnly(apkFile).use { zFile ->
+            zFile.entries().map { it.centralDirectoryHeader.name }
+                .filter { it.startsWith("lib/") && !it.endsWith("/") && it !in strippedLibraries }
+                .forEach { name ->
+                    // Straight into the staging directory: these only need to reach the output,
+                    // no patch is going to read them.
+                    val destination = staging.resolve(name)
+                    if (!destination.exists()) {
+                        destination.parentFile?.mkdirs()
+                        zFile.get(name)?.open()?.use { input ->
+                            destination.outputStream().use { output -> input.copyTo(output) }
+                        }
+                    }
+                    if (destination.exists()) {
+                        relocatedRootFiles[destination] = name
+                        if (!current) uncompressedOverrides += name
+                    }
                 }
+        }
+    }
 
-            logger.info("Stripped $strippedLibCount lib files")
+    /**
+     * Take root files out of the directory the encoder scans: unchanged ones are already in the
+     * target APK, and changed ones are written back through the other-files route.
+     */
+    private fun relocateChangedRootFiles() {
+        val staging = workingDir.resolve(PATCHED_ROOT_DIRECTORY)
+
+        // An extraction a patch only read is already correct in the target apk.
+        lazilyExtractedRootFiles.keys
+            .filter { it !in modifiedBinaryResources }
+            .forEach { it.safelyDelete() }
+
+        modifiedBinaryResources.toList().forEach { file ->
+            if (!file.exists()) return@forEach
+            val aliased = file.relativeTo(otherResourcesRootDirectory).invariantSeparatorsPath
+            val destination = staging.resolve(aliased)
+            destination.parentFile?.mkdirs()
+            file.safelyMoveTo(destination)
+            relocatedRootFiles[destination] = pathMap.getOriginalName(aliased) ?: aliased
+            modifiedBinaryResources -= file
         }
     }
 
@@ -276,6 +408,9 @@ internal class ArsclibResourceCoder(
 
         // Detect which files were added or modified since decoding.
         detectFileChanges()
+
+        routeNativeLibrariesIfCompressionChanged()
+        relocateChangedRootFiles()
 
         val newPackageName = Document(getFile("AndroidManifest.xml")).use { manifest ->
             val manifestNode = manifest.getElementsByTagName("manifest").item(0) as Element
@@ -500,12 +635,12 @@ internal class ArsclibResourceCoder(
             }
         }
 
+        val workingDirPath = workingDir.absoluteFile.invariantSeparatorsPath
+
         // Add all touched files to the other files list in raw only mode since we won't be creating a resources.apk.
         if (resourceMode == ResourceMode.RAW_ONLY) {
             // Detect which files were added or modified since decoding.
             detectFileChanges()
-
-            val workingDirPath = workingDir.absoluteFile.invariantSeparatorsPath
 
             modifiedResResources.forEach {
                 val path = it.absoluteFile.invariantSeparatorsPath.replace(workingDirPath, "")
@@ -514,17 +649,24 @@ internal class ArsclibResourceCoder(
                 otherFiles[it] = otherResourcesDir.resolve(unaliasedPath)
             }
 
-            modifiedBinaryResources.forEach {
-                val path = it.absoluteFile.invariantSeparatorsPath.replace(workingDirPath, "")
-                val subPath = path.substringAfter("/root/")
-                val unaliasedPath = pathMap.getOriginalName(subPath) ?: subPath
-                otherFiles[it] = otherResourcesDir.resolve(unaliasedPath)
-            }
-
             val binaryManifest = workingDir.resolve("AndroidManifest.xml.bin")
             if (binaryManifest.exists()) {
                 otherFiles[binaryManifest] = workingDir.resolve("AndroidManifest.xml")
             }
+        }
+
+        // Root entries no longer travel inside resources.apk, so anything a patch added or
+        // changed under root/ takes the same route raw mode has always used for them.
+        // Root files a patch changed: relocated ones in FULL mode, and any still staged
+        // under root/ in either mode.
+        relocatedRootFiles.forEach { (file, apkPath) ->
+            otherFiles[file] = otherResourcesDir.resolve(apkPath)
+        }
+        modifiedBinaryResources.forEach {
+            val path = it.absoluteFile.invariantSeparatorsPath.replace(workingDirPath, "")
+            val subPath = path.substringAfter("/root/")
+            val unaliasedPath = pathMap.getOriginalName(subPath) ?: subPath
+            otherFiles[it] = otherResourcesDir.resolve(unaliasedPath)
         }
 
         return if (otherFiles.isNotEmpty()) {
@@ -540,9 +682,15 @@ internal class ArsclibResourceCoder(
 
     override fun getUncompressedFiles(resourceMode: ResourceMode): Set<String> {
         val uncompressedJsonFile = workingDir.resolve("uncompressed-files.json")
-        if (!uncompressedJsonFile.exists()) return emptySet()
+        if (!uncompressedJsonFile.exists()) return uncompressedOverrides.toSet()
 
-        return UncompressedFiles(uncompressedJsonFile.readText(Charsets.UTF_8), pathMap)
+        // Defensive copy: close() clears the backing set, and applyTo commonly runs after the
+        // enclosing Patcher use block. Same reason getDeletedFiles copies.
+        return UncompressedFiles(
+            uncompressedJsonFile.readText(Charsets.UTF_8),
+            pathMap,
+            uncompressedOverrides.toSet(),
+        )
     }
 
     /**
@@ -580,9 +728,9 @@ internal class ArsclibResourceCoder(
                     }
                 }
                 logger.info("Stripped $strippedLibCount lib files")
-            } + deletedFiles
+            } + deletedFiles + strippedLibraries
         } else {
-            deletedFiles.toSet()
+            deletedFiles + strippedLibraries
         }
 
     /**
@@ -590,7 +738,9 @@ internal class ArsclibResourceCoder(
      *
      * @param path The path of the file.
      * @param packageName The package name of the file. Defaults to the package name of the APK.
-     * @param copy No-op for backwards compatibility with APKTool. All files from the APK are always available.
+     * @param copy Whether to extract the file from [apkFile] if it is not staged in the working
+     * directory yet. Root entries are not staged by [decodeResources], so this is what makes
+     * `assets/` and `lib/` reachable from a patch.
      * @return a File object representing the desired file.
      */
     override fun getFile(
@@ -598,20 +748,67 @@ internal class ArsclibResourceCoder(
         packageName: String?,
         copy: Boolean,
     ): File {
-        val pkgName = packageName ?: lazyPackageInfo.value.packageName
-
         val aliasedPath = pathMap.getAlias(path) ?: path
 
         val retval = if (aliasedPath == "res" || aliasedPath.startsWith("res/") || aliasedPath == "package.json") {
+            // Only resource paths are package scoped, so do not read the manifest for the rest.
+            val pkgName = packageName ?: lazyPackageInfo.value.packageName
             packageDirectories[pkgName]?.resolve(aliasedPath) ?: throw PatchException("Package $pkgName not found")
         } else if (aliasedPath == "AndroidManifest.xml") {
             // TODO: Doesn't handle modifications to binary AndroidManifest.xml, but then again neither does apktool in raw mode.
             workingDir.resolve(aliasedPath)
         } else {
-            otherResourcesRootDirectory.resolve(aliasedPath)
+            otherResourcesRootDirectory.resolve(aliasedPath).also { file ->
+                if (!file.exists()) {
+                    extractRootEntries(aliasedPath)
+                    // Not in the archive either, so a patch is adding it; staging used to
+                    // guarantee the directory existed for that.
+                    if (!file.exists()) file.parentFile?.mkdirs()
+                }
+            }
         }
 
         return retval
+    }
+
+    /**
+     * Extract a single root entry from the input APK into the working directory, and record it
+     * in the snapshot so that [detectFileChanges] treats it as pre-existing rather than added.
+     * A patch that goes on to modify or delete it is then detected exactly as before.
+     */
+    private fun extractRootEntries(aliasedPath: String) {
+        // The working directory holds on-disk alias paths, the archive holds original names.
+        val apkPath = pathMap.getOriginalName(aliasedPath) ?: aliasedPath
+        ZFile.openReadOnly(apkFile).use { zFile ->
+            val exact = zFile.get(apkPath)
+            if (exact != null) {
+                extractEntry(zFile, apkPath)
+                return@use
+            }
+            // A patch may ask for a directory (and then list it), which staging used to provide.
+            val prefix = "${apkPath.trimEnd('/')}/"
+            zFile.entries().map { it.centralDirectoryHeader.name }
+                .filter { it.startsWith(prefix) }
+                .forEach { extractEntry(zFile, it) }
+        }
+    }
+
+    private fun extractEntry(zFile: ZFile, apkPath: String) {
+        val entry = zFile.get(apkPath) ?: return
+        if (entry.centralDirectoryHeader.name.endsWith("/")) return
+        val destination = otherResourcesRootDirectory
+            .resolve(pathMap.getAlias(apkPath) ?: apkPath)
+        if (destination.exists()) return
+        destination.parentFile?.mkdirs()
+        entry.open().use { input ->
+            destination.outputStream().use { output -> input.copyTo(output) }
+        }
+        if (!destination.exists()) return
+        // Hash rather than (mtime, size): a patch usually rewrites the file within the same
+        // filesystem timestamp tick, and same-length edits would otherwise read as unchanged.
+        lazilyExtractedRootFiles[destination] = destination.readBytes().contentHashCode()
+        fileSnapshotCache[destination] = FileSnapshot(destination.lastModified(), destination.length())
+        logger.fine("Extracted root entry on demand: $apkPath")
     }
 
     /**
@@ -643,6 +840,10 @@ internal class ArsclibResourceCoder(
         modifiedResResources.clear()
         modifiedBinaryResources.clear()
         deletedFiles.clear()
-        fileSnapshotCache = emptyMap()
+        lazilyExtractedRootFiles.clear()
+        relocatedRootFiles.clear()
+        strippedLibraries.clear()
+        uncompressedOverrides.clear()
+        fileSnapshotCache = mutableMapOf()
     }
 }
