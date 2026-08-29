@@ -1,3 +1,10 @@
+## [1.11.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.11.0...v1.11.1-dev.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* Prevent STRIP_SAFE from crashing and stabilise its DEX file naming ([#185](https://github.com/MorpheApp/morphe-patcher/issues/185)) ([81bac92](https://github.com/MorpheApp/morphe-patcher/commit/81bac92fea5237766f4bf1fb32444e92b2b0c495))
+
 # [1.11.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.10.0...v1.11.0) (2026-08-25)
 
 
