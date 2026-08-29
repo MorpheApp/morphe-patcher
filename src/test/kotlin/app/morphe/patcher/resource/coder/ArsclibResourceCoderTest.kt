@@ -980,6 +980,31 @@ internal class ArsclibResourceCoderTest {
     }
 
     @Test
+    fun `detectFileChanges reports a deleted root file with a relative working directory`(
+        @TempDir tempDir: File
+    ) {
+        // PatcherConfig.temporaryFilesPath defaults to a relative path, so the coder's working
+        // directory is commonly relative while the snapshot keys are absolute.
+        val apk = createApkWithRootEntries(tempDir, mapOf("assets/data.bin" to "payload"))
+        val relativeDir = File("build/tmp/relative-working-dir-${System.nanoTime()}")
+        try {
+            val relativeCoder = ArsclibResourceCoder(relativeDir, apk)
+            val file = relativeCoder.getFile("assets/data.bin")
+            assertTrue(file.exists(), "precondition: the entry is extracted")
+            file.delete()
+
+            relativeCoder.detectFileChanges()
+
+            assertTrue(
+                "assets/data.bin" in relativeCoder.getDeletedFiles(ResourceMode.FULL),
+                "A deleted root file must be reported for removal from the rebuilt apk"
+            )
+        } finally {
+            relativeDir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `getFile leaves a path that the apk does not hold`(@TempDir tempDir: File) {
         val apk = createApkWithRootEntries(tempDir, mapOf("assets/data.bin" to "payload"))
         val rootCoder = ArsclibResourceCoder(workingDir, apk)
