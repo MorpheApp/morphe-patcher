@@ -194,10 +194,12 @@ internal class ArsclibResourceCoder(
         // These need to be communicated to applyTo() so that they're excluded from the rebuilt APK.
         val rootPathPrefix = otherResourcesRootDirectory.absoluteFile.invariantSeparatorsPath
         fileSnapshotCache.keys.forEach { key ->
-            val snapshotFile = File(key)
-            if (snapshotFile.exists()) return@forEach
+            if (File(key).exists()) return@forEach
             if (key.startsWith("$rootPathPrefix/")) {
-                val relativePath = snapshotFile.relativeTo(otherResourcesRootDirectory).invariantSeparatorsPath
+                // Snapshot keys are absolute while the working directory may be relative
+                // (PatcherConfig defaults it to one), and relativising across that throws.
+                // The prefix has already matched, so take the remainder of the key.
+                val relativePath = key.removePrefix("$rootPathPrefix/")
                 // applyTo matches against archive entry names, not on-disk aliases.
                 deletedFiles += archiveNameOf(relativePath)
             }
