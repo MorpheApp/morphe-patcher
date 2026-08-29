@@ -33,6 +33,11 @@ internal class UncompressedFiles(
     private val extensions: Set<String>
     private val paths: Set<String>
 
+    /** Sanitized once, since size, contains and iterator all consult it. */
+    private val sanitizedAdditionalPaths: Set<String> by lazy {
+        additionalPaths.mapTo(mutableSetOf()) { sanitizePath(it) }
+    }
+
     init {
         val json = JSONObject(uncompressedFilesJson)
 
@@ -60,7 +65,8 @@ internal class UncompressedFiles(
      * matches are not counted here, as they represent rules rather than
      * concrete entries.
      */
-    override val size: Int get() = (paths + additionalPaths.map { sanitizePath(it) }).size
+    override val size: Int get() = if (sanitizedAdditionalPaths.isEmpty()) paths.size
+        else (paths + sanitizedAdditionalPaths).size
 
     /**
      * Returns `true` if [element] (or the original APK name it maps to via
@@ -70,8 +76,7 @@ internal class UncompressedFiles(
     override fun contains(element: String): Boolean {
         val normalized = sanitizePath(element)
         if (paths.contains(normalized)) return true
-        if (additionalPaths.isNotEmpty() &&
-            additionalPaths.any { sanitizePath(it) == normalized }) return true
+        if (normalized in sanitizedAdditionalPaths) return true
 
         // The element may be an on-disk alias; resolve to original APK name.
         val originalName = pathMap.getOriginalName(normalized)
@@ -81,8 +86,8 @@ internal class UncompressedFiles(
     }
 
     override fun iterator(): Iterator<String> =
-        if (additionalPaths.isEmpty()) paths.iterator()
-        else (paths + additionalPaths.map { sanitizePath(it) }).iterator()
+        if (sanitizedAdditionalPaths.isEmpty()) paths.iterator()
+        else (paths + sanitizedAdditionalPaths).iterator()
 
     private fun matchesExtension(path: String): Boolean {
         if (extensions.isEmpty()) return false

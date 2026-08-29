@@ -22,6 +22,9 @@ import kotlin.test.assertTrue
 
 internal class ArsclibResourceCoderTest {
 
+    /** Mirrors the coder's canonical snapshot key. */
+    private val File.snapshotKey get() = absoluteFile.invariantSeparatorsPath
+
     private lateinit var workingDir: File
     private lateinit var coder: ArsclibResourceCoder
 
@@ -114,8 +117,8 @@ internal class ArsclibResourceCoderTest {
         val snapshot = coder.buildFileSnapshot()
 
         assertEquals(2, snapshot.size, "Snapshot should contain exactly 2 files")
-        assertTrue(snapshot.containsKey(fileA), "Snapshot should contain a.txt")
-        assertTrue(snapshot.containsKey(fileB), "Snapshot should contain sub/b.txt")
+        assertTrue(snapshot.containsKey(fileA.snapshotKey), "Snapshot should contain a.txt")
+        assertTrue(snapshot.containsKey(fileB.snapshotKey), "Snapshot should contain sub/b.txt")
     }
 
     @Test
@@ -124,7 +127,7 @@ internal class ArsclibResourceCoderTest {
         val file = pkgDir.resolve("test.txt").also { it.writeText("content") }
 
         val snapshot = coder.buildFileSnapshot()
-        val entry = snapshot[file]!!
+        val entry = snapshot[file.snapshotKey]!!
 
         assertEquals(file.lastModified(), entry.lastModified)
         assertEquals(file.length(), entry.size)
@@ -199,7 +202,7 @@ internal class ArsclibResourceCoderTest {
         val originalSize = file.length()
         val snapshotEntry = ArsclibResourceCoder.FileSnapshot(originalLastModified, originalSize)
 
-        coder.fileSnapshotCache = mutableMapOf(file to snapshotEntry)
+        coder.fileSnapshotCache = mutableMapOf(file.snapshotKey to snapshotEntry)
 
         // Change the content (and thus the size) but preserve the timestamp.
         file.writeText("this is a much longer string to change the file size")
