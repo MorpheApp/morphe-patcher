@@ -1,3 +1,10 @@
+## [1.11.1-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.11.1-dev.2...v1.11.1-dev.3) (2026-08-29)
+
+
+### Bug Fixes
+
+* Report a deleted root file when the working directory is relative ([#190](https://github.com/MorpheApp/morphe-patcher/issues/190)) ([57674e2](https://github.com/MorpheApp/morphe-patcher/commit/57674e2b917a249209686869fae6dfec7cc854ba))
+
 ## [1.11.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.11.1-dev.1...v1.11.1-dev.2) (2026-08-29)
 
 
