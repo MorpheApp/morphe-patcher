@@ -901,6 +901,37 @@ internal class ArsclibResourceCoderTest {
         return ArsclibResourceCoder(workingDir, dummyApk, keepArchitectures)
     }
 
+    // ==================== which root entries are staged ====================
+
+    @Test
+    fun `native libraries are not staged`() {
+        assertFalse(coder.stagesRootEntry("lib/arm64-v8a/libfoo.so"))
+        assertFalse(coder.stagesRootEntry("lib/x86/libbar.so"))
+    }
+
+    @Test
+    fun `every other root entry is staged`() {
+        // A patch that discovers files by walking the working directory can only see what is
+        // staged, so everything a patch might enumerate has to be there.
+        listOf(
+            "assets/data.bin",
+            "META-INF/services/foo",
+            "com/example/Thing.properties",
+            "org/example/other.properties",
+            "play-services-tasks.properties",
+            "DebugProbesKt.bin",
+            "res/drawable/unreferenced.png",
+        ).forEach { assertTrue(coder.stagesRootEntry(it), "$it should be staged") }
+    }
+
+    @Test
+    fun `only the native library directory is matched`() {
+        // Names that merely start with the same letters, or nest the directory deeper, are not
+        // native library entries.
+        listOf("library/thing.txt", "libs/thing.txt", "foo/lib/thing.so", "Lib/thing.so", "lib")
+            .forEach { assertTrue(coder.stagesRootEntry(it), "$it should be staged") }
+    }
+
     // ==================== root entries left in the input apk ====================
 
     /**
