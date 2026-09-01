@@ -393,7 +393,7 @@ internal class ArsclibResourceCoder(
                         name in strippedLibraries) return@entries
                     // Straight into the staging directory: these only need to reach the output,
                     // no patch is going to read them.
-                    val destination = staging.resolve(name)
+                    val destination = resolveInside(staging, name) ?: return@entries
                     if (!destination.exists()) {
                         destination.parentFile?.mkdirs()
                         zFile.get(name)?.open()?.use { input ->
@@ -840,10 +840,25 @@ internal class ArsclibResourceCoder(
         }
     }
 
+    /**
+     * Resolve an archive entry name inside a directory, refusing names that escape it. Archive
+     * names come from the input APK, so a crafted entry like `lib/../../x` must not become a
+     * write outside the working directory. ARSCLib's own staging sanitizes names when it builds
+     * its input sources; this is the equivalent guard for the paths extracted here.
+     */
+    private fun resolveInside(directory: File, entryName: String): File? {
+        val resolved = directory.resolve(entryName).normalize().absoluteFile
+        if (!resolved.startsWith(directory.normalize().absoluteFile)) {
+            logger.warning("Refusing archive entry escaping the working directory: $entryName")
+            return null
+        }
+        return resolved
+    }
+
     private fun extractEntry(zFile: ZFile, apkPath: String) {
         val entry = zFile.get(apkPath) ?: return
         if (entry.centralDirectoryHeader.name.endsWith("/")) return
-        val destination = otherResourcesRootDirectory.resolve(aliasOf(apkPath))
+        val destination = resolveInside(otherResourcesRootDirectory, aliasOf(apkPath)) ?: return
         if (destination.exists()) return
         destination.parentFile?.mkdirs()
         entry.open().use { input ->

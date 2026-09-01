@@ -1036,6 +1036,27 @@ internal class ArsclibResourceCoderTest {
     }
 
     @Test
+    fun `an archive entry cannot escape the working directory`(@TempDir tempDir: File) {
+        // A crafted APK can carry entry names with parent-directory segments; extracting one
+        // must never write outside the working directory.
+        val apk = tempDir.resolve("evil.apk")
+        ZFile.openReadWrite(apk).use { zFile ->
+            zFile.add("lib/../../escaped.txt", ByteArrayInputStream("evil".toByteArray()))
+            zFile.add("assets/ok.txt", ByteArrayInputStream("fine".toByteArray()))
+        }
+        val evilCoder = ArsclibResourceCoder(workingDir, apk)
+
+        evilCoder.getFile("lib/../../escaped.txt")
+        evilCoder.getFile("assets/ok.txt")
+
+        assertFalse(
+            workingDir.parentFile.resolve("escaped.txt").exists(),
+            "The crafted entry must not be written outside the working directory"
+        )
+        assertTrue(evilCoder.getFile("assets/ok.txt").exists(), "Well-formed entries still extract")
+    }
+
+    @Test
     fun `getFile leaves a path that the apk does not hold`(@TempDir tempDir: File) {
         val apk = createApkWithRootEntries(tempDir, mapOf("assets/data.bin" to "payload"))
         val rootCoder = ArsclibResourceCoder(workingDir, apk)
