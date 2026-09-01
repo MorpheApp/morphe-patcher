@@ -1,3 +1,10 @@
+## [1.11.1-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.11.1-dev.3...v1.11.1-dev.4) (2026-09-01)
+
+
+### Bug Fixes
+
+* Stage root entries other than native libraries ([#192](https://github.com/MorpheApp/morphe-patcher/issues/192)) ([b2e20fd](https://github.com/MorpheApp/morphe-patcher/commit/b2e20fd4a932f5d0ccade7dd28ec0fbeedb7accd))
+
 ## [1.11.1-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.11.1-dev.2...v1.11.1-dev.3) (2026-08-29)
 
 
