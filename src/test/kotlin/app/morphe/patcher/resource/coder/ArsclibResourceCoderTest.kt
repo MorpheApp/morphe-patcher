@@ -901,6 +901,44 @@ internal class ArsclibResourceCoderTest {
         return ArsclibResourceCoder(workingDir, dummyApk, keepArchitectures)
     }
 
+    // ==================== listApkEntries ====================
+
+    @Test
+    fun `listApkEntries lists entries without staging them`(@TempDir tempDir: File) {
+        val apk = createApkWithRootEntries(
+            tempDir,
+            mapOf("lib/arm64-v8a/a.so" to "a", "lib/x86/b.so" to "b", "assets/c.bin" to "c")
+        )
+        val listCoder = ArsclibResourceCoder(workingDir, apk)
+
+        val libs = listCoder.listApkEntries("lib/")
+
+        assertEquals(setOf("lib/arm64-v8a/a.so", "lib/x86/b.so"), libs.toSet())
+        assertFalse(
+            workingDir.resolve("root/lib").exists(),
+            "Listing must not stage anything to the working directory"
+        )
+    }
+
+    @Test
+    fun `listApkEntries with no prefix lists every entry`(@TempDir tempDir: File) {
+        val apk = createApkWithRootEntries(tempDir, mapOf("assets/a" to "a", "top.txt" to "t"))
+        val listCoder = ArsclibResourceCoder(workingDir, apk)
+
+        assertEquals(setOf("assets/a", "top.txt"), listCoder.listApkEntries().toSet())
+    }
+
+    @Test
+    fun `listApkEntries returns names get accepts`(@TempDir tempDir: File) {
+        val apk = createApkWithRootEntries(tempDir, mapOf("assets/data.bin" to "payload"))
+        val listCoder = ArsclibResourceCoder(workingDir, apk)
+
+        val name = listCoder.listApkEntries("assets/").single()
+        val file = listCoder.getFile(name)
+
+        assertEquals("payload", file.readText())
+    }
+
     // ==================== which root entries are staged ====================
 
     @Test

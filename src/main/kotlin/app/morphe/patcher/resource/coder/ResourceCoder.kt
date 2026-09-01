@@ -23,6 +23,19 @@ internal interface ResourceCoder : Closeable {
     fun getPackageMetadata(): PackageMetadata
 
     /**
+     * List the entries of the APK being patched, without reading them or staging them to the
+     * working directory.
+     *
+     * Names are archive names, as [getFile] accepts them. The listing describes the input APK, so
+     * it does not reflect files a patch has since added, changed or deleted.
+     *
+     * @param prefix Restricts the listing to entries starting with it, e.g. `lib/`. Empty lists
+     * every entry.
+     * @return The matching archive entry names.
+     */
+    fun listApkEntries(prefix: String = ""): List<String>
+
+    /**
      * Decode raw resources from the APK into the working directory and update the package metadata.
      *
      * @return The package's metadata.
