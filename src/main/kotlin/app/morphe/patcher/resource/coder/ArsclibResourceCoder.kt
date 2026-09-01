@@ -69,6 +69,9 @@ private const val PATCHED_CONFIGURATIONS_DIRECTORY = "patched-configurations"
  */
 private const val PATCHED_ROOT_DIRECTORY = "patched-root"
 
+/** The one archive directory left unstaged, because it dominates the APK's size. */
+private const val NATIVE_LIBRARY_DIRECTORY = "lib"
+
 internal class ArsclibResourceCoder(
     internal val workingDir: File,
     internal val apkFile: File,
@@ -97,10 +100,11 @@ internal class ArsclibResourceCoder(
     internal var fileSnapshotCache: MutableMap<String, FileSnapshot> = mutableMapOf()
 
     /**
-     * Root entries (lib/, assets/, ...) are left in the input APK instead of being
-     * staged to disk: [ApkUtils.applyTo] rebuilds the output from a copy of that same
-     * APK, so every unchanged root entry is already present and correct in the target.
-     * Only entries a patch actually asks for are extracted, by [getFile].
+     * Native libraries are left in the input APK instead of being staged to disk:
+     * [ApkUtils.applyTo] rebuilds the output from a copy of that same APK, so every unchanged
+     * entry is already present and correct in the target. They are extracted only when a patch
+     * asks for one by path, through [getFile]; every other root entry is staged during decode,
+     * because a patch that discovers files by walking the directory can only see what is there.
      */
     private val lazilyExtractedRootFiles = mutableMapOf<String, ExtractedRootFile>()
 
@@ -281,16 +285,14 @@ internal class ArsclibResourceCoder(
         ApkModule.loadApkFile(apkFile).use { apkModule ->
             val xmlDecoder = object : ApkModuleXmlDecoder(apkModule) {
                 override fun extractRootFiles(mainDirectory: File) {
-                    // Anything still unclaimed at this point that lives under res/ is not
-                    // referenced by the resource table, and applyTo drops every res/ entry of
-                    // the target before merging, so those have to be staged after all.
-                    // Everything else stays in the input APK, see [extractRootEntries].
-                    var staged = 0
+                    var skipped = 0
                     apkModule.inputSources.forEach { source ->
-                        if (!source.alias.startsWith("res/")) addDecodedPath(source.alias)
-                        else if (!containsDecodedPath(source.alias)) staged++
+                        if (!stagesRootEntry(source.alias)) {
+                            addDecodedPath(source.alias)
+                            skipped++
+                        }
                     }
-                    if (staged != 0) logger.info("Staging $staged unreferenced res files")
+                    if (skipped != 0) logger.info("Leaving $skipped native library files in the input APK")
                     super.extractRootFiles(mainDirectory)
                 }
             }.also {
@@ -321,8 +323,8 @@ internal class ArsclibResourceCoder(
 
         // Build a snapshot of all file metadata after decoding, so we can detect
         // which files are added or modified when it's time to encode.
-        // Nothing is staged under it any more, but patches add files here and the change
-        // detection walks it.
+        // Native libraries are not staged here, and patches also add files of their own, so
+        // make sure the directory exists for both.
         otherResourcesRootDirectory.mkdirs()
 
         fileSnapshotCache = buildFileSnapshot()
@@ -347,7 +349,7 @@ internal class ArsclibResourceCoder(
             zFile.entries().forEach { entry ->
                 val name = entry.centralDirectoryHeader.name
                 val parts = name.split("/")
-                if (name.startsWith("lib/") && parts.size > 1 &&
+                if (name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") && parts.size > 1 &&
                     CpuArchitecture.valueOfOrNull(parts[1]) !in keepArchitectures
                 ) {
                     strippedLibraries += name
@@ -356,7 +358,7 @@ internal class ArsclibResourceCoder(
         }
 
         // A patch may have pulled one of these in; drop the staged copy so it is not re-added.
-        otherResourcesRootDirectory.resolve("lib")
+        otherResourcesRootDirectory.resolve(NATIVE_LIBRARY_DIRECTORY)
             .takeIf { it.exists() }
             ?.listFiles { dir ->
                 dir.isDirectory && CpuArchitecture.valueOfOrNull(dir.name) !in keepArchitectures
@@ -387,11 +389,11 @@ internal class ArsclibResourceCoder(
         ZFile.openReadOnly(apkFile).use { zFile ->
             zFile.entries().forEach entries@{ entry ->
                     val name = entry.centralDirectoryHeader.name
-                    if (!name.startsWith("lib/") || name.endsWith("/") ||
+                    if (!name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") || name.endsWith("/") ||
                         name in strippedLibraries) return@entries
                     // Straight into the staging directory: these only need to reach the output,
                     // no patch is going to read them.
-                    val destination = staging.resolve(name)
+                    val destination = resolveInside(staging, name) ?: return@entries
                     if (!destination.exists()) {
                         destination.parentFile?.mkdirs()
                         zFile.get(name)?.open()?.use { input ->
@@ -407,8 +409,10 @@ internal class ArsclibResourceCoder(
     }
 
     /**
-     * Take root files out of the directory the encoder scans: unchanged ones are already in the
-     * target APK, and changed ones are written back through the other-files route.
+     * Move root files a patch changed out of the directory the encoder scans, so they are
+     * written back through the other-files route rather than compressed into the resource apk as
+     * well. Unchanged files a patch merely read are dropped, since the target APK still holds
+     * them; unchanged files staged during decode are left in place for the encoder.
      */
     private fun relocateChangedRootFiles() {
         val staging = workingDir.resolve(PATCHED_ROOT_DIRECTORY)
@@ -752,7 +756,7 @@ internal class ArsclibResourceCoder(
                     zFile.entries().forEach { entry ->
                         val name = entry.centralDirectoryHeader.name
                         val parts = name.split("/")
-                        if (name.startsWith("lib/") && parts.size > 1 &&
+                        if (name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") && parts.size > 1 &&
                             CpuArchitecture.valueOfOrNull(parts[1]) !in keepArchitectures
                         ) {
                             add(name)
@@ -771,9 +775,9 @@ internal class ArsclibResourceCoder(
      *
      * @param path The path of the file.
      * @param packageName The package name of the file. Defaults to the package name of the APK.
-     * @param copy Whether to extract the file from [apkFile] if it is not staged in the working
-     * directory yet. Root entries are not staged by [decodeResources], so this is what makes
-     * `assets/` and `lib/` reachable from a patch.
+     * @param copy Unused. A path that is not staged is extracted from [apkFile] on demand
+     * regardless, which is what makes native libraries reachable even though [decodeResources]
+     * leaves them in the archive.
      * @return a File object representing the desired file.
      */
     override fun getFile(
@@ -805,6 +809,15 @@ internal class ArsclibResourceCoder(
     }
 
     /**
+     * Whether a root entry is staged to the working directory during decode. Everything is,
+     * except native libraries: they are the bulk of an APK, and nothing enumerates them on disk.
+     * Staging the rest matters because a patch that discovers files by walking the directory can
+     * only see what is on disk, and the on-demand extraction in [getFile] cannot serve a walk.
+     */
+    internal fun stagesRootEntry(alias: String) =
+        !alias.startsWith("$NATIVE_LIBRARY_DIRECTORY/")
+
+    /**
      * Extract a single root entry from the input APK into the working directory, and record it
      * in the snapshot so that [detectFileChanges] treats it as pre-existing rather than added.
      * A patch that goes on to modify or delete it is then detected exactly as before.
@@ -827,10 +840,25 @@ internal class ArsclibResourceCoder(
         }
     }
 
+    /**
+     * Resolve an archive entry name inside a directory, refusing names that escape it. Archive
+     * names come from the input APK, so a crafted entry like `lib/../../x` must not become a
+     * write outside the working directory. ARSCLib's own staging sanitizes names when it builds
+     * its input sources; this is the equivalent guard for the paths extracted here.
+     */
+    private fun resolveInside(directory: File, entryName: String): File? {
+        val resolved = directory.resolve(entryName).normalize().absoluteFile
+        if (!resolved.startsWith(directory.normalize().absoluteFile)) {
+            logger.warning("Refusing archive entry escaping the working directory: $entryName")
+            return null
+        }
+        return resolved
+    }
+
     private fun extractEntry(zFile: ZFile, apkPath: String) {
         val entry = zFile.get(apkPath) ?: return
         if (entry.centralDirectoryHeader.name.endsWith("/")) return
-        val destination = otherResourcesRootDirectory.resolve(aliasOf(apkPath))
+        val destination = resolveInside(otherResourcesRootDirectory, aliasOf(apkPath)) ?: return
         if (destination.exists()) return
         destination.parentFile?.mkdirs()
         entry.open().use { input ->
