@@ -1,3 +1,10 @@
+# [1.12.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.11.1-dev.4...v1.12.0-dev.1) (2026-09-02)
+
+
+### Features
+
+* Add function to list the entries of the APK being patched ([#193](https://github.com/MorpheApp/morphe-patcher/issues/193)) ([37b9494](https://github.com/MorpheApp/morphe-patcher/commit/37b9494acba70bd6b780f9cc5ab48f4ed0988993))
+
 ## [1.11.1-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.11.1-dev.3...v1.11.1-dev.4) (2026-09-01)
 
 
