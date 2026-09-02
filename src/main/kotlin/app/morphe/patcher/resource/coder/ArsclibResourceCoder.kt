@@ -808,6 +808,13 @@ internal class ArsclibResourceCoder(
         return retval
     }
 
+    override fun listApkEntries(prefix: String): List<String> =
+        ZFile.openReadOnly(apkFile).use { zFile ->
+            zFile.entries().mapNotNull { entry ->
+                entry.centralDirectoryHeader.name.takeIf { it.startsWith(prefix) }
+            }
+        }
+
     /**
      * Whether a root entry is staged to the working directory during decode. Everything is,
      * except native libraries: they are the bulk of an APK, and nothing enumerates them on disk.

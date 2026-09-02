@@ -8,6 +8,7 @@ A handful of APIs are available to make patch development easier and more effici
 2. 🔄️️ Change immutable classes to mutable with `mutableClassDefBy(ClassDef)
 3. 💾 Read and write resource files with `get(String, Boolean)` and `delete(String)`
 4. 📃 Read and write DOM files using `document(String)` and  `document(InputStream)`
+5. 📜 List the entries of the APK being patched with `listApkEntries(String)`
 
 ### 🧰 APIs
 
@@ -87,6 +88,23 @@ execute {
     }
 }
 ```
+
+#### 📜 `listApkEntries(String)`
+
+The `listApkEntries` function lists the entries of the APK being patched, without staging them
+to the working directory. Use it to discover what an APK contains, rather than walking the
+working directory: not every entry is staged there, and native libraries in particular are left
+in the archive. Names are archive names, so they can be passed straight to `get(String, Boolean)`.
+An optional prefix restricts the listing.
+
+```kt
+execute {
+    val nativeLibraries = listApkEntries("lib/")
+}
+```
+
+The listing describes the input APK, so it does not reflect files a patch has since added,
+changed or deleted.
 
 ## 🎉 Afterword
 
