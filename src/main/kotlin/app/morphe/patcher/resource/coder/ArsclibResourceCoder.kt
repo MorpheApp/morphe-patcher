@@ -551,7 +551,6 @@ internal class ArsclibResourceCoder(
         modifiedBinaryResources.forEach { file ->
             file.archivePathRelativeToOrNull(otherResourcesRootDirectory)?.let(::add)
         }
-
     }
 
     /**

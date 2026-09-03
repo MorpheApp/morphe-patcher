@@ -427,7 +427,7 @@ internal class ArsclibResourceCoderTest {
             ApkModule().use { encoded ->
                 assertEquals(
                     2,
-                    testCoder.reuseUnchangedArchiveEntries(original, encoded, testCoder.changedArchiveEntries(false)),
+                    testCoder.reuseUnchangedArchiveEntries(original, encoded, testCoder.changedArchiveEntries()),
                 )
                 val output = tempDir.resolve("output.apk")
                 encoded.writeApk(output)

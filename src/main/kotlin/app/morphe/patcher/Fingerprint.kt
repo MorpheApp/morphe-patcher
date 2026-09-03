@@ -681,24 +681,22 @@ open class Fingerprint private constructor(
         return matches.ifEmpty { null }
     }
 
-    context(BytecodePatchContext)
+    context(patchContext: BytecodePatchContext)
     private fun instructionFilterCandidates(): List<PatchClasses.ClassDefWrapper>? {
         val filters = filters ?: return null
+        if (filters.any { it::class !in BUNDLED_INSTRUCTION_FILTERS }) return null
         val candidateSets = filters.mapNotNull { filter -> filter.indexedCandidatesOrNull() }
         if (candidateSets.isEmpty()) return null
 
         val smallestCandidates = candidateSets.minBy { it.size }
-        return patchClasses.classMap.values.filter(smallestCandidates::contains)
+        return patchContext.patchClasses.classMap.values.filter(smallestCandidates::contains)
     }
 
-    context(BytecodePatchContext)
+    context(patchContext: BytecodePatchContext)
     private fun InstructionFilter.indexedCandidatesOrNull(): Set<PatchClasses.ClassDefWrapper>? = when (this) {
-        is AnyInstruction -> filters.map { filter ->
-            filter.indexedCandidatesOrNull() ?: return null
-        }.flatten().toSet()
-        is LiteralFilter -> patchClasses.getClassesContainingLiteral(literalValue).orEmpty().toSet()
+        is LiteralFilter -> patchContext.patchClasses.getClassesContainingLiteral(literalValue).orEmpty().toSet()
         else -> exactReferencedTypesOrNull()?.flatMap { type ->
-            patchClasses.getClassesReferencingType(type).orEmpty()
+            patchContext.patchClasses.getClassesReferencingType(type).orEmpty()
         }?.toSet()
     }
 
