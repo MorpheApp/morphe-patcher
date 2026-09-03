@@ -24,18 +24,20 @@ abstract internal class StringsXmlProcessor(
     fun process() {
         logger.info(logString)
 
-        packageDirectories.forEach { (resPackageName, rootDir) ->
-            rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
-                // TODO Strings declared in arrays.xml may also need unescaping of string literals.
-                dir.listFiles { it.name == "strings.xml" }?.forEach { file ->
-                    val path = "res/${dir.name}/${file.name}"
-                    logger.fine { "Processing $path" }
-
-                    val targetFile = get(path, resPackageName)
-                    processFile(targetFile)
+        val stringFiles = buildList {
+            packageDirectories.forEach { (resPackageName, rootDir) ->
+                rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
+                    // TODO Strings declared in arrays.xml may also need unescaping of string literals.
+                    dir.listFiles { it.name == "strings.xml" }?.forEach { file ->
+                        val path = "res/${dir.name}/${file.name}"
+                        logger.fine { "Processing $path" }
+                        add(get(path, resPackageName))
+                    }
                 }
             }
         }
+
+        stringFiles.parallelStream().forEach(::processFile)
     }
 
     private fun processFile(file: File) {

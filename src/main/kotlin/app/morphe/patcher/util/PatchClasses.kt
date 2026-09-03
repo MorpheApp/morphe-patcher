@@ -14,7 +14,11 @@ import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.WideLiteralInstruction
+import com.android.tools.smali.dexlib2.iface.reference.FieldReference
+import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
+import com.android.tools.smali.dexlib2.iface.reference.TypeReference
 import java.util.LinkedList
 
 /**
@@ -39,6 +43,12 @@ internal class PatchClasses internal constructor(
          */
         var classDef: ClassDef,
     ) {
+        /** Sorted hashes of class types referenced by instructions in this class. */
+        var referencedTypeHashes: IntArray? = null
+
+        /** Sorted literal values used by instructions in this class. */
+        var literalValues: LongArray? = null
+
         fun getMutableClass(): MutableClass {
             if (classDef !is MutableClass) {
                 classDef = MutableClass(classDef)
@@ -47,30 +57,35 @@ internal class PatchClasses internal constructor(
         }
     }
 
-    /**
-     * @return All strings found anywhere in all class methods.
-     */
-    private fun ClassDef.findMethodStrings(): List<String>? {
-        var list : MutableList<String>? = null
+    private data class ClassIndexValues(
+        val strings: MutableSet<String> = HashSet(),
+        val referencedTypeHashes: MutableSet<Int> = HashSet(),
+        val literalValues: MutableSet<Long> = HashSet(),
+    )
 
+    /** Collect string, type-reference, and literal values in one traversal. */
+    private fun ClassDef.findIndexValues(): ClassIndexValues {
+        val values = ClassIndexValues()
         methods.forEach { method ->
-            // Add strings contained in the method as the key.
             method.instructionsOrNull?.forEach { instruction ->
-                val opcode = instruction.opcode
-                if (opcode != Opcode.CONST_STRING && opcode != Opcode.CONST_STRING_JUMBO) {
-                    return@forEach
+                if (instruction is WideLiteralInstruction) {
+                    values.literalValues += instruction.wideLiteral
                 }
-
-                val string = ((instruction as ReferenceInstruction).reference as StringReference).string
-
-                if (list == null) {
-                    list = mutableListOf()
+                val reference = (instruction as? ReferenceInstruction)?.reference ?: return@forEach
+                when (reference) {
+                    is StringReference -> if (
+                        instruction.opcode == Opcode.CONST_STRING ||
+                        instruction.opcode == Opcode.CONST_STRING_JUMBO
+                    ) {
+                        values.strings += reference.string
+                    }
+                    is MethodReference -> values.referencedTypeHashes += reference.definingClass.hashCode()
+                    is FieldReference -> values.referencedTypeHashes += reference.definingClass.hashCode()
+                    is TypeReference -> values.referencedTypeHashes += reference.type.hashCode()
                 }
-                list.add(string)
             }
         }
-
-        return list
+        return values
     }
 
     /**
@@ -108,6 +123,10 @@ internal class PatchClasses internal constructor(
     internal fun closeStringMap() {
         stringMap = null
         allClassesWithStrings = null
+        classMap.values.forEach { wrapper ->
+            wrapper.referencedTypeHashes = null
+            wrapper.literalValues = null
+        }
     }
 
     internal fun addClass(classDef: ClassDef) {
@@ -119,29 +138,37 @@ internal class PatchClasses internal constructor(
             return stringMap!!
         }
 
+        return buildInstructionIndexes()
+    }
+
+    private fun buildInstructionIndexes(): Map<String, List<ClassDefWrapper>> {
         // Default 0.75f load factor works well and a lower value does not improve patching time.
-        val map = HashMap<String, MutableList<ClassDefWrapper>>()
+        val strings = HashMap<String, MutableList<ClassDefWrapper>>()
         val classesWithStrings = mutableListOf<ClassDefWrapper>()
 
         classMap.values.forEach { wrapper ->
-            val methodStrings = wrapper.classDef.findMethodStrings()
-            if (methodStrings != null) {
-                methodStrings.forEach { stringLiteral ->
-                    val list = map.getOrPut(stringLiteral) {
-                        ArrayList(1)
-                    }
-                    if (!list.contains(wrapper)) {
-                        list += wrapper
-                    }
+            val values = wrapper.classDef.findIndexValues()
+            if (values.strings.isNotEmpty()) {
+                values.strings.forEach { stringLiteral ->
+                    strings.getOrPut(stringLiteral) { ArrayList(1) } += wrapper
                 }
-
                 classesWithStrings += wrapper
+            }
+            wrapper.referencedTypeHashes = if (values.referencedTypeHashes.isEmpty()) {
+                EMPTY_TYPE_HASHES
+            } else {
+                values.referencedTypeHashes.sorted().toIntArray()
+            }
+            wrapper.literalValues = if (values.literalValues.isEmpty()) {
+                EMPTY_LITERAL_VALUES
+            } else {
+                values.literalValues.sorted().toLongArray()
             }
         }
 
-        stringMap = map
+        stringMap = strings
         allClassesWithStrings = classesWithStrings
-        return map
+        return strings
     }
 
     internal fun getClassesFromOpcodeStringLiteral(stringLiteral: String): List<ClassDefWrapper>? {
@@ -151,6 +178,25 @@ internal class PatchClasses internal constructor(
     internal fun getAllClassesWithStrings(): List<ClassDefWrapper> {
         getClassesByStringMap() // Load string map if needed.
         return allClassesWithStrings!!
+    }
+
+    internal fun getClassesReferencingType(type: String): List<ClassDefWrapper>? {
+        getClassesByStringMap() // Both instruction indexes are built in the same traversal.
+        val typeHash = type.hashCode()
+        return classMap.values.filter { wrapper ->
+            val hashes = wrapper.referencedTypeHashes
+            // Mutable and newly added classes may have changed since indexing.
+            hashes == null || wrapper.classDef is MutableClass || hashes.binarySearch(typeHash) >= 0
+        }.ifEmpty { null }
+    }
+
+    internal fun getClassesContainingLiteral(literal: Long): List<ClassDefWrapper>? {
+        getClassesByStringMap() // All instruction indexes are built in the same traversal.
+        return classMap.values.filter { wrapper ->
+            val values = wrapper.literalValues
+            // Mutable and newly added classes may have changed since indexing.
+            values == null || wrapper.classDef is MutableClass || values.binarySearch(literal) >= 0
+        }.ifEmpty { null }
     }
 
     /**
@@ -193,6 +239,11 @@ internal class PatchClasses internal constructor(
      */
     fun classBy(predicate: (ClassDef) -> Boolean) = classByOrNull(predicate)
         ?: throw PatchException("Could not find any class match")
+
+    private companion object {
+        private val EMPTY_TYPE_HASHES = IntArray(0)
+        private val EMPTY_LITERAL_VALUES = LongArray(0)
+    }
 
     /**
      * Find a class with a predicate.

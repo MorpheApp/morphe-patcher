@@ -10,9 +10,11 @@ import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21c
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction31i
 import com.android.tools.smali.dexlib2.immutable.ImmutableClassDef
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableStringReference
+import com.android.tools.smali.dexlib2.immutable.reference.ImmutableTypeReference
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -280,6 +282,125 @@ internal object PatchClassesTest {
         val classesWithStrings = patchClasses.getAllClassesWithStrings()
 
         assertEquals(3, classesWithStrings.size)  // Class1, Class2, Class3 (EmptyClass excluded)
+    }
+
+    @Test
+    fun `getClassesReferencingType uses instruction references`() {
+        val implementation = MutableMethodImplementation(1).apply {
+            addInstruction(
+                BuilderInstruction21c(
+                    Opcode.NEW_INSTANCE,
+                    0,
+                    ImmutableTypeReference("Lcom/test/Target;"),
+                ),
+            )
+        }
+        val method = ImmutableMethod(
+            "Lcom/test/Referrer;",
+            "create",
+            emptyList(),
+            "V",
+            AccessFlags.PUBLIC.value,
+            null,
+            null,
+            implementation,
+        )
+        val classes = PatchClasses(setOf(createClassDef("Lcom/test/Referrer;", listOf(method))))
+
+        assertEquals(
+            listOf("Lcom/test/Referrer;"),
+            classes.getClassesReferencingType("Lcom/test/Target;")?.map { it.classDef.type },
+        )
+        assertNull(classes.getClassesReferencingType("Lcom/test/Missing;"))
+    }
+
+    @Test
+    fun `getClassesContainingLiteral uses instruction literals`() {
+        val implementation = MutableMethodImplementation(1).apply {
+            addInstruction(BuilderInstruction31i(Opcode.CONST, 0, 0x7f123456))
+        }
+        val method = ImmutableMethod(
+            "Lcom/test/LiteralOwner;",
+            "value",
+            emptyList(),
+            "V",
+            AccessFlags.PUBLIC.value,
+            null,
+            null,
+            implementation,
+        )
+        val classes = PatchClasses(setOf(createClassDef("Lcom/test/LiteralOwner;", listOf(method))))
+
+        assertEquals(
+            listOf("Lcom/test/LiteralOwner;"),
+            classes.getClassesContainingLiteral(0x7f123456)?.map { it.classDef.type },
+        )
+        assertNull(classes.getClassesContainingLiteral(0x7f654321))
+    }
+
+    @Test
+    fun `instruction indexes retain newly added classes as candidates`() {
+        patchClasses.getClassesByStringMap()
+        val newClass = createClassDef("Lcom/test/NewAfterIndex;")
+
+        patchClasses.addClass(newClass)
+
+        assertEquals(
+            listOf("Lcom/test/NewAfterIndex;"),
+            patchClasses.getClassesContainingLiteral(123)?.map { it.classDef.type },
+        )
+        assertEquals(
+            listOf("Lcom/test/NewAfterIndex;"),
+            patchClasses.getClassesReferencingType("Lcom/test/AddedTarget;")?.map { it.classDef.type },
+        )
+    }
+
+    @Test
+    fun `instruction indexes retain mutable classes as candidates`() {
+        patchClasses.getClassesByStringMap()
+        patchClasses.classMap.getValue("Lcom/test/Class1;").getMutableClass()
+
+        assertEquals(
+            listOf("Lcom/test/Class1;"),
+            patchClasses.getClassesContainingLiteral(123)?.map { it.classDef.type },
+        )
+        assertEquals(
+            listOf("Lcom/test/Class1;"),
+            patchClasses.getClassesReferencingType("Lcom/test/ChangedTarget;")?.map { it.classDef.type },
+        )
+    }
+
+    @Test
+    fun `reference hash collisions remain safe false positives`() {
+        val indexedType = "LAa;"
+        val collidingType = "LBB;"
+        assertEquals(indexedType.hashCode(), collidingType.hashCode())
+
+        val implementation = MutableMethodImplementation(1).apply {
+            addInstruction(
+                BuilderInstruction21c(
+                    Opcode.NEW_INSTANCE,
+                    0,
+                    ImmutableTypeReference(indexedType),
+                ),
+            )
+        }
+        val method = ImmutableMethod(
+            "Lcom/test/CollisionOwner;",
+            "create",
+            emptyList(),
+            "V",
+            AccessFlags.PUBLIC.value,
+            null,
+            null,
+            implementation,
+        )
+        val classes = PatchClasses(setOf(createClassDef("Lcom/test/CollisionOwner;", listOf(method))))
+
+        assertEquals(
+            listOf("Lcom/test/CollisionOwner;"),
+            classes.getClassesReferencingType(collidingType)?.map { it.classDef.type },
+        )
     }
 
     // ==================== close tests ====================

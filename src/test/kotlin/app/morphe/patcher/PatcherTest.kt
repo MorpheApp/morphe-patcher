@@ -43,6 +43,8 @@ import io.mockk.verify
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
@@ -55,6 +57,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 internal object PatcherTest {
@@ -333,6 +336,42 @@ internal object PatcherTest {
         }
     }
 
+    @ParameterizedTest
+    @CsvSource(
+        "custom,false", "custom,true", "any,false", "any,true",
+        "nested-any,false", "nested-any,true", "bundled,false", "bundled,true",
+    )
+    fun `instruction indexes only filter bundled non-union fingerprints`(kind: String, matchAll: Boolean) {
+        val method = ImmutableMethod(
+            "Lcandidate;", "value", emptyList(), "V", AccessFlags.PUBLIC.value,
+            null, null, MutableMethodImplementation(1),
+        ).toMutable().apply {
+            addInstructions(0, "const/4 v0, 0x0\nreturn-void")
+        }
+        val classDef = ImmutableClassDef(
+            "Lcandidate;", 0, null, null, null, null, null, listOf(method),
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns PatchClasses(setOf(classDef))
+
+        val firstFilter = when (kind) {
+            "custom" -> InstructionFilter { _, _ -> true }
+            "any" -> anyInstruction(literal(0))
+            "nested-any" -> anyInstruction(anyInstruction(literal(0)))
+            else -> literal(0)
+        }
+        var visitedMethods = 0
+        val fingerprint = Fingerprint(
+            filters = listOf(firstFilter, literal(1)),
+            custom = { _, _ -> visitedMethods++; true },
+        )
+
+        with(patcher.context.bytecodeContext) {
+            if (matchAll) assertNull(fingerprint.matchAllOrNull())
+            else assertNull(fingerprint.matchOrNull())
+        }
+        assertEquals(if (kind == "bundled") 0 else 1, visitedMethods)
+    }
+
     @Test
     fun `fingerprint matchAll`() {
         val class1 = ImmutableClassDef(
@@ -496,6 +535,29 @@ internal object PatcherTest {
         )
 
         with(patcher.context.bytecodeContext) {
+            val cachedLiteralFingerprint = Fingerprint(
+                returnType = "Ljava/lang/String;",
+                filters = listOf(literal(0)),
+            )
+            cachedLiteralFingerprint.match(patchClasses.classBy("Lclass2;"))
+            assertEquals(
+                listOf("Lclass1;", "Lclass2;", "Lclass3;", "Lclass4;", "Lclass5;"),
+                cachedLiteralFingerprint.matchAll().map { it.originalClassDef.type },
+                "matchAll must start a new search instead of consuming a cached single match",
+            )
+
+            assertNull(
+                Fingerprint(filters = listOf(literal(1))).matchAllOrNull(),
+                "An empty literal candidate set must produce no match",
+            )
+            assertEquals(
+                listOf("Lclass1;", "Lclass2;", "Lclass3;", "Lclass4;", "Lclass5;"),
+                Fingerprint(
+                    filters = listOf(anyInstruction(literal(1), literal(0))),
+                ).matchAll().map { it.originalClassDef.type },
+                "AnyInstruction must match through the full scan",
+            )
+
             class ProxyFilterCounter(val filter: InstructionFilter) : InstructionFilter {
                 var matchesCallCount = 0
 
