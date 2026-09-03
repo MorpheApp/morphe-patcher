@@ -100,6 +100,20 @@ class ResourcePatchContext internal constructor(
     ) = resourceCoder.getFile(path, copy = copy)
 
     /**
+     * List the entries of the APK being patched, without staging them to the working directory.
+     *
+     * Use this to discover what an APK contains, rather than walking the working directory: not
+     * every entry is staged there, and native libraries in particular are left in the archive.
+     * Names are archive names, so they can be passed straight to [get].
+     *
+     * The listing describes the input APK, so it does not reflect files a patch has since added,
+     * changed or deleted.
+     *
+     * @param prefix Restricts the listing to entries starting with it, e.g. `lib/`.
+     */
+    fun listApkEntries(prefix: String = "") = resourceCoder.listApkEntries(prefix)
+
+    /**
      * Mark a file for deletion when the APK is rebuilt.
      *
      * @param name The name of the file to delete.
