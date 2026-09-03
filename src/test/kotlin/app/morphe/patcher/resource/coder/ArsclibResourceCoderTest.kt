@@ -399,6 +399,52 @@ internal class ArsclibResourceCoderTest {
     }
 
     @Test
+    fun `reuseUnchangedArchiveEntries retains omitted root entries but not deleted files or dex`(
+        @TempDir tempDir: File,
+    ) {
+        val originalApk = tempDir.resolve("original.apk")
+        val entries = listOf(
+            "lib/arm64-v8a/keep.so", "lib/arm64-v8a/deleted.so", "lib/x86/stripped.so",
+            "assets/keep.txt", "assets/deleted.txt", "classes.dex", "res/raw/deleted.txt",
+        )
+        ZFile.openReadWrite(originalApk).use { zip ->
+            entries.forEach { zip.add(it, ByteArrayInputStream(it.toByteArray())) }
+        }
+        val testCoder = ArsclibResourceCoder(
+            tempDir.resolve("working").apply { mkdirs() }, originalApk, setOf(CpuArchitecture.ARM64_V8A),
+        )
+        val asset = testCoder.otherResourcesRootDirectory.resolve("assets/keep.txt").apply {
+            parentFile.mkdirs()
+            writeText("assets/keep.txt")
+        }
+        testCoder.fileSnapshotCache = testCoder.buildFileSnapshot()
+        asset.delete()
+        testCoder.deletedFiles += listOf("lib/arm64-v8a/deleted.so", "assets/deleted.txt")
+        testCoder.stripNativeLibraries()
+
+        ApkModule.loadApkFile(originalApk).use { original ->
+            ApkModule().use { encoded ->
+                assertEquals(
+                    2,
+                    testCoder.reuseUnchangedArchiveEntries(original, encoded, testCoder.changedArchiveEntries(false)),
+                )
+                val output = tempDir.resolve("output.apk")
+                encoded.writeApk(output)
+                ZipFile(output).use { zip ->
+                    assertEquals(
+                        setOf("lib/arm64-v8a/keep.so", "assets/keep.txt"),
+                        zip.entries().asSequence().map { it.name }.toSet(),
+                    )
+                    assertEquals(
+                        "assets/keep.txt",
+                        zip.getInputStream(zip.getEntry("assets/keep.txt")).bufferedReader().readText(),
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
     fun `detectFileChanges excludes public xml from tracking`() {
         val pkgDir = setupPackageDir()
         val resDir = pkgDir.resolve("res")

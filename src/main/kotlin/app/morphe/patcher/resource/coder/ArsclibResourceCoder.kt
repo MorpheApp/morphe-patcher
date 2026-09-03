@@ -5,7 +5,6 @@
 
 package app.morphe.patcher.resource.coder
 
-import com.reandroid.archive.InputSource
 import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherResult
@@ -30,6 +29,7 @@ import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
+import com.reandroid.archive.InputSource
 import com.reandroid.archive.block.ApkSignatureBlock
 import com.reandroid.arsc.chunk.PackageBlock
 import com.reandroid.arsc.coder.CoderSetting
@@ -111,10 +111,9 @@ internal class ArsclibResourceCoder(
 
     /**
      * Native libraries are left in the input APK instead of being staged to disk:
-     * [ApkUtils.applyTo] rebuilds the output from a copy of that same APK, so every unchanged
-     * entry is already present and correct in the target. They are extracted only when a patch
-     * asks for one by path, through [getFile]; every other root entry is staged during decode,
-     * because a patch that discovers files by walking the directory can only see what is there.
+     * [reuseUnchangedArchiveEntries] carries them into the compiled resource APK without extraction.
+     * They are extracted through [getFile] only when requested. Other root entries are staged
+     * during decode so patches can find them by walking the directory.
      */
     private val lazilyExtractedRootFiles = mutableMapOf<String, ExtractedRootFile>()
 
@@ -533,11 +532,14 @@ internal class ArsclibResourceCoder(
     }
 
     /**
-     * Returns original APK entry names which must be rebuilt from the decoded resource tree.
+     * Returns original APK entry names which cannot be reused.
      */
     internal fun changedArchiveEntries(packageRenamed: Boolean): Set<String> = buildSet {
         add("AndroidManifest.xml")
         add("resources.arsc")
+        addAll(deletedFiles)
+        addAll(strippedLibraries)
+        addAll(relocatedRootFiles.values)
 
         modifiedResResources.forEach { file ->
             packageDirectories.values.firstNotNullOfOrNull { packageDirectory ->
@@ -561,9 +563,8 @@ internal class ArsclibResourceCoder(
     }
 
     /**
-     * Replaces unchanged filesystem-backed encoder inputs with archive-backed inputs from [originalModule].
-     * ARSCLib can raw-copy those entries in their existing compressed form instead of reopening and recompressing
-     * every extracted file.
+     * Reuses unchanged archive entries, including root files omitted by the encoder.
+     * ARSCLib copies their compressed data without recompressing it.
      */
     internal fun reuseUnchangedArchiveEntries(
         originalModule: ApkModule,
@@ -575,7 +576,10 @@ internal class ArsclibResourceCoder(
 
         originalModule.zipEntryMap.listInputSources().forEach { originalSource: InputSource ->
             val entryName = originalSource.alias
-            if (entryName !in changedEntries && encodedEntries.contains(entryName)) {
+            val alias = aliasOf(entryName)
+            val rootEntry = !stagesRootEntry(alias) ||
+                    pathKey(otherResourcesRootDirectory.resolve(alias)) in fileSnapshotCache
+            if (entryName !in changedEntries && (encodedEntries.contains(entryName) || rootEntry)) {
                 encodedEntries.add(originalSource)
                 reusedEntries++
             }

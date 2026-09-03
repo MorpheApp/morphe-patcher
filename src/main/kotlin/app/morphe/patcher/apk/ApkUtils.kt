@@ -53,11 +53,8 @@ object ApkUtils {
      * 4. Write patched dex files.
      * 5. Realign the APK.
      *
-     * [apkFile] must be a copy of the APK that was patched. The result is a set of changes
-     * against that APK rather than a self-contained APK: entries a patch did not touch, such as
-     * native libraries and assets, are expected to already be present in [apkFile] and are not
-     * carried in the result. Applying this to any other file silently produces an APK missing
-     * those entries.
+     * Without a compiled resource APK, [apkFile] must be a copy of the input APK so that
+     * unchanged entries remain available. Otherwise, the compiled resource APK replaces it.
      *
      * @param apkFile A copy of the patched APK, to apply the patched files to.
      */
