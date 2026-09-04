@@ -116,8 +116,14 @@ class ResourcePatchContext internal constructor(
     /**
      * Mark a file for deletion when the APK is rebuilt.
      *
+     * The name is either a decoded resource path such as `res/drawable/icon.png`, or any other
+     * entry of the APK being patched as returned by [listApkEntries], such as
+     * `lib/x86/libfoo.so` or `assets/data.bin`. Archive entries are excluded from the rebuilt APK
+     * whether or not they were staged to the working directory, so this works for native
+     * libraries too. Deleting a name that exists nowhere is a no-op.
+     *
      * @param name The name of the file to delete.
-     * @param packageName The package name the file exists in. Defaults to the package name of the APK.
+     * @param packageName The package name a decoded resource exists in. Defaults to the package name of the APK.
      */
     @Suppress("unused")
     fun delete(name: String, packageName: String? = null) = resourceCoder.deleteFile(name, packageName)

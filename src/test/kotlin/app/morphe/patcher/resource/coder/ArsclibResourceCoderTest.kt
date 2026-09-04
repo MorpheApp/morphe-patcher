@@ -30,6 +30,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.assertDoesNotThrow
+import org.junit.jupiter.api.assertThrows
+import app.morphe.patcher.patch.PatchException
 
 internal class ArsclibResourceCoderTest {
 
@@ -2034,4 +2037,82 @@ internal class ArsclibResourceCoderTest {
         assertFalse("classes.dex" in uncompressed, "non-listed file should be compressed in $mode")
     }
 
+
+    // ==================== deleteFile tests ====================
+
+    private fun coderWithApk(tempDir: File, vararg entries: String): ArsclibResourceCoder {
+        val apk = tempDir.resolve("input.apk")
+        ZFile.openReadWrite(apk).use { zip ->
+            entries.forEach { zip.add(it, ByteArrayInputStream("data of $it".toByteArray())) }
+        }
+        return ArsclibResourceCoder(tempDir.resolve("working").apply { mkdirs() }, apk)
+    }
+
+    @Test
+    fun `deleteFile excludes an unstaged archive entry from the rebuilt APK`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "lib/x86/libfoo.so", "lib/arm64-v8a/libfoo.so")
+
+        testCoder.deleteFile("lib/x86/libfoo.so")
+
+        assertTrue("lib/x86/libfoo.so" in testCoder.getDeletedFiles(ResourceMode.FULL))
+        assertFalse("lib/arm64-v8a/libfoo.so" in testCoder.getDeletedFiles(ResourceMode.FULL))
+        assertTrue("lib/x86/libfoo.so" in testCoder.changedArchiveEntries(packageRenamed = false))
+        assertTrue("lib/x86/libfoo.so" in testCoder.getDeletedFiles(ResourceMode.NONE))
+    }
+
+    @Test
+    fun `deleteFile removes an extracted copy and still excludes the entry`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "lib/x86/libfoo.so")
+        val extracted = testCoder.getFile("lib/x86/libfoo.so", null, copy = true)
+        assertTrue(extracted.isFile)
+
+        testCoder.deleteFile("lib/x86/libfoo.so")
+
+        assertFalse(extracted.exists())
+        assertTrue("lib/x86/libfoo.so" in testCoder.getDeletedFiles(ResourceMode.FULL))
+    }
+
+    @Test
+    fun `deleteFile is not fooled by the reuse pass`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "lib/x86/libfoo.so", "lib/arm64-v8a/libfoo.so")
+        testCoder.deleteFile("lib/x86/libfoo.so")
+
+        ApkModule.loadApkFile(tempDir.resolve("input.apk")).use { originalModule ->
+            ApkModule().use { encoded ->
+                testCoder.reuseUnchangedArchiveEntries(
+                    originalModule,
+                    encoded,
+                    testCoder.changedArchiveEntries(packageRenamed = false),
+                )
+                assertFalse(encoded.zipEntryMap.contains("lib/x86/libfoo.so"))
+                assertTrue(encoded.zipEntryMap.contains("lib/arm64-v8a/libfoo.so"))
+            }
+        }
+    }
+
+    @Test
+    fun `deleteFile of a name that exists nowhere is a no-op`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "assets/keep.bin")
+
+        assertDoesNotThrow { testCoder.deleteFile("assets/missing.bin") }
+
+        assertTrue(testCoder.getDeletedFiles(ResourceMode.FULL).isEmpty())
+    }
+
+    @Test
+    fun `deleteFile still removes decoded resources from the package directory`() {
+        val pkgDir = setupPackageDir()
+        val file = pkgDir.resolve("res/values/strings.xml").apply { parentFile.mkdirs(); writeText("<resources/>") }
+
+        coder.deleteFile("res/values/strings.xml", "com.test.app")
+
+        assertFalse(file.exists())
+    }
+
+    @Test
+    fun `deleteFile refuses the manifest`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "AndroidManifest.xml")
+
+        assertThrows<PatchException> { testCoder.deleteFile("AndroidManifest.xml") }
+    }
 }

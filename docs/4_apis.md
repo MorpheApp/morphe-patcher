@@ -55,11 +55,18 @@ execute {
 }
 ```
 
-The `delete` function can mark files for deletion when the APK is rebuilt.
+The `delete` function can mark files for deletion when the APK is rebuilt. It accepts decoded
+resource paths as well as any other entry of the APK as returned by `listApkEntries(String)`,
+including native libraries, which are never staged to the working directory.
 
 ```kt
 execute {
     delete("res/values/strings.xml")
+
+    // Keep only one architecture.
+    listApkEntries("lib/")
+        .filterNot { it.startsWith("lib/arm64-v8a/") }
+        .forEach(::delete)
 }
 ```
 
