@@ -124,6 +124,27 @@ internal class ApkUtilsTest {
         assertTrue(primaryDex.closed)
     }
 
+    @Test
+    fun `an entry deleted and then recreated keeps the recreated content`() {
+        val targetApk = temporaryDirectory.resolve("target.apk").also { apk ->
+            writeZip(apk, mapOf("assets/data.bin" to "original".toByteArray()))
+        }
+        val otherResources = temporaryDirectory.resolve("other-resources").also { directory ->
+            directory.resolve("assets/data.bin").apply {
+                parentFile.mkdirs()
+                writeText("recreated")
+            }
+        }
+        val result = PatcherResult(
+            emptySet(),
+            PatcherResult.PatchedResources(null, otherResources, emptySet(), setOf("assets/data.bin")),
+        )
+
+        result.applyTo(targetApk)
+
+        assertContentEquals("recreated".toByteArray(), readZip(targetApk)["assets/data.bin"])
+    }
+
     private fun writeZip(file: File, entries: Map<String, ByteArray>) {
         ZipOutputStream(file.outputStream()).use { output ->
             entries.forEach { (name, contents) ->

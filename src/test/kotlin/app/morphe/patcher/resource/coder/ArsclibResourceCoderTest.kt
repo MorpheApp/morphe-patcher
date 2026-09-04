@@ -2115,4 +2115,39 @@ internal class ArsclibResourceCoderTest {
 
         assertThrows<PatchException> { testCoder.deleteFile("AndroidManifest.xml") }
     }
+
+    @Test
+    fun `deleteFile of a directory entry deletes everything below it without throwing`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "lib/", "lib/x86/", "lib/x86/liba.so", "lib/x86/libb.so", "lib/arm64-v8a/liba.so")
+        // A staged, non-empty directory used to make deleteIfExists throw DirectoryNotEmptyException.
+        val extracted = testCoder.getFile("lib/x86/liba.so", null, copy = true)
+        assertTrue(extracted.isFile)
+
+        assertDoesNotThrow { testCoder.deleteFile("lib/x86/") }
+
+        assertFalse(extracted.parentFile.exists())
+        val deleted = testCoder.getDeletedFiles(ResourceMode.FULL)
+        assertTrue(setOf("lib/x86/", "lib/x86/liba.so", "lib/x86/libb.so").all { it in deleted })
+        assertFalse("lib/arm64-v8a/liba.so" in deleted)
+        assertFalse("lib/" in deleted)
+    }
+
+    @Test
+    fun `deleteFile refuses names escaping the working directory`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "assets/keep.bin")
+        val outside = tempDir.resolve("outside.txt").apply { writeText("keep me") }
+
+        assertThrows<PatchException> { testCoder.deleteFile("../../outside.txt") }
+        assertThrows<PatchException> { testCoder.deleteFile(outside.absolutePath) }
+
+        assertTrue(outside.exists())
+        assertTrue(testCoder.getDeletedFiles(ResourceMode.FULL).isEmpty())
+    }
+
+    @Test
+    fun `deleteFile refuses the resource table`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "resources.arsc")
+
+        assertThrows<PatchException> { testCoder.deleteFile("resources.arsc") }
+    }
 }

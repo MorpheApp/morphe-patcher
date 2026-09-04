@@ -48,8 +48,9 @@ object ApkUtils {
      *
      * The order of operation is as follows:
      * 1. Use resources.apk compiled by AAPT as the output base, when present.
-     * 2. Write raw resources.
-     * 3. Delete resources staged for deletion.
+     * 2. Delete resources staged for deletion.
+     * 3. Write raw resources. This comes after the deletion so that an entry a patch deleted and
+     *    then recreated ends up with the recreated content rather than removed.
      * 4. Write patched dex files.
      * 5. Realign the APK.
      *
@@ -77,18 +78,19 @@ object ApkUtils {
                     }.forEach(StoredEntry::delete)
                 }
 
+                // Delete resources that were staged for deletion, before adding the raw resources:
+                // everything in otherResources is the newest version of its entry by construction.
+                if (resources.deleteResources.isNotEmpty()) {
+                    targetApkZFile.entries().filter { entry ->
+                        entry.centralDirectoryHeader.name in resources.deleteResources
+                    }.forEach(StoredEntry::delete)
+                }
+
                 // Add resources not compiled by AAPT.
                 resources.otherResources?.let { otherResources ->
                     targetApkZFile.addAllRecursively(otherResources) { file ->
                         file.relativeTo(otherResources).invariantSeparatorsPath !in resources.doNotCompress
                     }
-                }
-
-                // Delete resources that were staged for deletion.
-                if (resources.deleteResources.isNotEmpty()) {
-                    targetApkZFile.entries().filter { entry ->
-                        entry.centralDirectoryHeader.name in resources.deleteResources
-                    }.forEach(StoredEntry::delete)
                 }
             }
 

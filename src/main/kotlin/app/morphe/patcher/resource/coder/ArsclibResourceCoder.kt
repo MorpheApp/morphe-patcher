@@ -1031,22 +1031,40 @@ internal class ArsclibResourceCoder(
         // file there is enough, the snapshot diff reports it as deleted.
         if (alias == "res" || alias.startsWith("res/") || alias == "package.json") {
             val pkgName = packageName ?: lazyPackageInfo.value.packageName
-            val file = packageDirectories[pkgName]?.resolve(alias)
-                ?: throw PatchException("Package $pkgName not found")
+            val packageDirectory = packageDirectories[pkgName] ?: throw PatchException("Package $pkgName not found")
+            val file = resolveInside(packageDirectory, alias)
+                ?: throw PatchException("Refusing to delete \"$path\": it escapes the working directory")
             Files.deleteIfExists(file.toPath())
             return
         }
 
-        if (alias == "AndroidManifest.xml") throw PatchException("The manifest cannot be deleted")
+        if (alias == "AndroidManifest.xml" || alias == "resources.arsc") {
+            throw PatchException("\"$path\" cannot be deleted")
+        }
 
         // Anything else is an archive entry, as named by listApkEntries. A staged copy is removed,
         // but that alone is not enough: native libraries are never staged, and a copy extracted on
         // demand is not in the decode snapshot, so its removal would only discard the extraction
         // and leave the original entry in the output. Record the entry for exclusion instead, the
         // same way stripped native libraries are.
-        val staged = otherResourcesRootDirectory.resolve(alias)
-        val removedStagedCopy = Files.deleteIfExists(staged.toPath())
+        val staged = resolveInside(otherResourcesRootDirectory, alias)
+            ?: throw PatchException("Refusing to delete \"$path\": it escapes the working directory")
         val archiveName = archiveNameOf(alias)
+
+        // A directory, either named with a trailing slash as archives list them or staged as one,
+        // stands for everything below it.
+        if (alias.endsWith("/") || staged.isDirectory) {
+            val prefix = "${archiveName.trimEnd('/')}/"
+            val removedStagedCopies = staged.exists() && staged.deleteRecursively()
+            val entries = apkEntryNames.filter { it == archiveName || it.startsWith(prefix) }
+            deletedArchiveEntries += entries
+            if (entries.isEmpty() && !removedStagedCopies) {
+                logger.fine { "Nothing to delete for \"$path\": not a decoded resource or an APK entry" }
+            }
+            return
+        }
+
+        val removedStagedCopy = Files.deleteIfExists(staged.toPath())
         if (archiveName in apkEntryNames) {
             deletedArchiveEntries += archiveName
         } else if (!removedStagedCopy) {
