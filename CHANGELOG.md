@@ -1,3 +1,10 @@
+## [1.12.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.12.0...v1.12.1-dev.1) (2026-09-04)
+
+
+### Performance Improvements
+
+* Avoid rebuilding unchanged APK resources ([#169](https://github.com/MorpheApp/morphe-patcher/issues/169)) ([883bd28](https://github.com/MorpheApp/morphe-patcher/commit/883bd289a4572f68822d0087c5fe4e942805e980))
+
 # [1.12.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.11.0...v1.12.0) (2026-09-03)
 
 
