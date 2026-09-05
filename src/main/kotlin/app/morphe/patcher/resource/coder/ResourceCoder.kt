@@ -103,10 +103,12 @@ internal interface ResourceCoder : Closeable {
     fun addFile(destPath: String, srcFile: File, packageName: String? = null): File
 
     /**
-     * Delete a file from the working directory. The file will be tracked for deletion in the final resources.apk.
+     * Delete a decoded resource from the working directory, tracked for deletion in the final APK,
+     * or exclude any other archive entry (as named by [listApkEntries]) from the rebuilt APK,
+     * whether or not it was staged to the working directory.
      *
-     * @param path The path of the file to delete, relative to the package directory.
-     * @param packageName The package name of the resources bundle this file should be deleted from. Defaults to the package name of the application. The package name should be the original package name before any patches are applied.
+     * @param path The path of the decoded resource relative to the package directory, or the archive entry name.
+     * @param packageName The package name of the resources bundle a decoded resource should be deleted from. Defaults to the package name of the application. The package name should be the original package name before any patches are applied.
      */
     fun deleteFile(path: String, packageName: String? = null)
 }
