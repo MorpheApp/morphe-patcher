@@ -1,3 +1,10 @@
+# [1.13.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.12.1-dev.1...v1.13.0-dev.1) (2026-09-05)
+
+
+### Features
+
+* Let delete() exclude unstaged archive entries from the patched APK ([#199](https://github.com/MorpheApp/morphe-patcher/issues/199)) ([cb2b7fd](https://github.com/MorpheApp/morphe-patcher/commit/cb2b7fdf2965749ef90a95405d3bc0d032b38d7b))
+
 ## [1.12.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.12.0...v1.12.1-dev.1) (2026-09-04)
 
 
