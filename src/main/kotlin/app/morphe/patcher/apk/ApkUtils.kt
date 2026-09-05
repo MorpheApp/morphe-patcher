@@ -33,8 +33,7 @@ object ApkUtils {
     // Alignment for all other files.
     private const val DEFAULT_ALIGNMENT = 4
 
-    // Prefix for resources.
-    private const val RES_PREFIX = "res/"
+    private val dexEntryName = Regex("""classes(?:\d+)?\.dex""")
 
     private val zFileOptions =
         ZFileOptions().setAlignmentRule(
@@ -48,44 +47,43 @@ object ApkUtils {
      * Applies the [PatcherResult] to the given [apkFile].
      *
      * The order of operation is as follows:
-     * 1. Delete all resources in the target APK.
-     * 2. Merge resources.apk compiled by AAPT.
-     * 3. Write raw resources.
-     * 4. Delete resources staged for deletion.
-     * 5. Write patched dex files.
-     * 6. Realign the APK.
+     * 1. Use resources.apk compiled by AAPT as the output base, when present.
+     * 2. Delete resources staged for deletion.
+     * 3. Write raw resources. This comes after the deletion so that an entry a patch deleted and
+     *    then recreated ends up with the recreated content rather than removed.
+     * 4. Write patched dex files.
+     * 5. Realign the APK.
      *
-     * [apkFile] must be a copy of the APK that was patched. The result is a set of changes
-     * against that APK rather than a self-contained APK: entries a patch did not touch, such as
-     * native libraries and assets, are expected to already be present in [apkFile] and are not
-     * carried in the result. Applying this to any other file silently produces an APK missing
-     * those entries.
+     * Without a compiled resource APK, [apkFile] must be a copy of the input APK so that
+     * unchanged entries remain available. Otherwise, the compiled resource APK replaces it.
      *
      * @param apkFile A copy of the patched APK, to apply the patched files to.
      */
     fun PatcherResult.applyTo(apkFile: File) {
+        resources.resourcesApk?.let { resourcesApk ->
+            logger.info("Using compiled resource APK as output base")
+
+            if (resourcesApk.canonicalFile != apkFile.canonicalFile) {
+                resourcesApk.copyTo(apkFile, overwrite = true)
+            }
+        }
+
         ZFile.openReadWrite(apkFile, zFileOptions).use { targetApkZFile ->
             resources.let { resources ->
-                // Add resources compiled by AAPT.
-                resources.resourcesApk?.let { resourcesApk ->
-                    ZFile.openReadOnly(resourcesApk).use { resourcesApkZFile ->
-                        // Delete all resources in the target APK before merging the new ones.
-                        // This is necessary because the resources.apk renames resources.
-                        // So unless, the old resources are deleted, there will be orphaned resources in the APK.
-                        // It is not necessary, but for the sake of cleanliness, it is done.
-                        targetApkZFile.entries().filter { entry ->
-                            entry.centralDirectoryHeader.name.startsWith(RES_PREFIX)
-                        }.forEach(StoredEntry::delete)
+                // A compiled resource APK is a complete non-DEX APK. Remove any accidentally packaged DEX files
+                // before adding the final patched DEX set.
+                if (resources.resourcesApk != null) {
+                    targetApkZFile.entries().filter { entry ->
+                        entry.centralDirectoryHeader.name.matches(dexEntryName)
+                    }.forEach(StoredEntry::delete)
+                }
 
-                        targetApkZFile.mergeFrom(resourcesApkZFile) { entry ->
-                            // Filter any dex files in case they were packaged inside resources.apk for some reason.
-                            (entry.startsWith("classes") && entry.endsWith(".dex"))
-
-                            // Filter any files that are already marked for deletion so we don't needlessly copy them,
-                            // in case they made it into the resources.apk.
-                            || entry in resources.deleteResources
-                        }
-                    }
+                // Delete resources that were staged for deletion, before adding the raw resources:
+                // everything in otherResources is the newest version of its entry by construction.
+                if (resources.deleteResources.isNotEmpty()) {
+                    targetApkZFile.entries().filter { entry ->
+                        entry.centralDirectoryHeader.name in resources.deleteResources
+                    }.forEach(StoredEntry::delete)
                 }
 
                 // Add resources not compiled by AAPT.
@@ -94,19 +92,17 @@ object ApkUtils {
                         file.relativeTo(otherResources).invariantSeparatorsPath !in resources.doNotCompress
                     }
                 }
-
-                // Delete resources that were staged for deletion.
-                if (resources.deleteResources.isNotEmpty()) {
-                    targetApkZFile.entries().filter { entry ->
-                        entry.centralDirectoryHeader.name in resources.deleteResources
-                    }.forEach(StoredEntry::delete)
-                }
             }
 
             // Run this after resource updates to ensure our dex files don't get overwritten.
-            dexFiles.forEach { dexFile ->
-                targetApkZFile.add(dexFile.name, dexFile.stream)
-                dexFile.stream.close()
+            try {
+                dexFiles.forEach { dexFile ->
+                    targetApkZFile.add(dexFile.name, dexFile.stream)
+                }
+            } finally {
+                dexFiles.forEach { dexFile ->
+                    runCatching { dexFile.stream.close() }
+                }
             }
 
             logger.info("Aligning APK")

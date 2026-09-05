@@ -9,16 +9,30 @@ import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.PathMap
 import app.morphe.patcher.resource.ResourceMode
 import com.android.tools.build.apkzlib.zip.ZFile
+import com.reandroid.apk.ApkModule
+import com.reandroid.archive.FileInputSource
+import com.reandroid.archive.io.ArchiveFileEntrySource
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.FileTime
+import java.util.concurrent.TimeUnit
+import java.util.zip.ZipFile
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.assertDoesNotThrow
+import org.junit.jupiter.api.assertThrows
+import app.morphe.patcher.patch.PatchException
 
 internal class ArsclibResourceCoderTest {
 
@@ -129,7 +143,7 @@ internal class ArsclibResourceCoderTest {
         val snapshot = coder.buildFileSnapshot()
         val entry = snapshot[file.snapshotKey]!!
 
-        assertEquals(file.lastModified(), entry.lastModified)
+        assertEquals(Files.getLastModifiedTime(file.toPath()), entry.lastModified)
         assertEquals(file.length(), entry.size)
     }
 
@@ -199,10 +213,7 @@ internal class ArsclibResourceCoderTest {
 
         // Build a snapshot with the original size.
         val originalLastModified = file.lastModified()
-        val originalSize = file.length()
-        val snapshotEntry = ArsclibResourceCoder.FileSnapshot(originalLastModified, originalSize)
-
-        coder.fileSnapshotCache = mutableMapOf(file.snapshotKey to snapshotEntry)
+        coder.fileSnapshotCache = coder.buildFileSnapshot()
 
         // Change the content (and thus the size) but preserve the timestamp.
         file.writeText("this is a much longer string to change the file size")
@@ -230,6 +241,210 @@ internal class ArsclibResourceCoderTest {
 
         assertTrue(coder.modifiedResResources.isEmpty(), "No files should be in modifiedResResources")
         assertTrue(coder.modifiedBinaryResources.isEmpty(), "No files should be in modifiedBinaryResources")
+    }
+
+    @Test
+    fun `detectFileChanges identifies replacement when filesystem exposes changed metadata`() {
+        val pkgDir = setupPackageDir()
+        val file = pkgDir.resolve("res/values/strings.xml").apply {
+            parentFile.mkdirs()
+            writeText("before")
+        }
+        val originalAttributes = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+        coder.fileSnapshotCache = coder.buildFileSnapshot()
+
+        Thread.sleep(10)
+        val replacement = file.resolveSibling("replacement.xml").apply { writeText("after!") }
+        Files.setLastModifiedTime(replacement.toPath(), originalAttributes.lastModifiedTime())
+        Files.move(replacement.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        val replacementAttributes = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+        assumeTrue(
+            replacementAttributes.creationTime() != originalAttributes.creationTime() ||
+                    replacementAttributes.fileKey() != originalAttributes.fileKey(),
+            "Filesystem does not expose distinguishable metadata for this replacement",
+        )
+
+        coder.detectFileChanges()
+
+        assertTrue(
+            coder.modifiedResResources.contains(file),
+            "A replacement file must not be hidden by identical size and timestamp metadata",
+        )
+    }
+
+    @Test
+    fun `detectFileChanges identifies high-resolution timestamp changes`() {
+        val file = coder.otherResourcesRootDirectory.resolve("assets/data.bin").apply {
+            parentFile.mkdirs()
+            writeBytes(byteArrayOf(1, 2, 3, 4))
+        }
+        val originalLastModified = FileTime.fromMillis(System.currentTimeMillis() - 1_000)
+        Files.setLastModifiedTime(file.toPath(), originalLastModified)
+        coder.fileSnapshotCache = coder.buildFileSnapshot()
+
+        file.writeBytes(byteArrayOf(4, 3, 2, 1))
+        val subMillisecondChange = FileTime.from(
+            originalLastModified.to(TimeUnit.NANOSECONDS) + 100_000,
+            TimeUnit.NANOSECONDS,
+        )
+        Files.setLastModifiedTime(
+            file.toPath(),
+            subMillisecondChange,
+        )
+        val storedLastModified = Files.getLastModifiedTime(file.toPath())
+        assumeTrue(storedLastModified != originalLastModified, "Filesystem does not retain sub-millisecond timestamps")
+        assumeTrue(storedLastModified.toMillis() == originalLastModified.toMillis())
+
+        coder.detectFileChanges()
+
+        assertTrue(
+            coder.modifiedBinaryResources.contains(file),
+            "Same-size changes must be detected from the filesystem timestamp",
+        )
+    }
+
+    // ==================== resource APK input reuse tests ====================
+
+    @Test
+    fun `changedArchiveEntries maps decoded aliases back to original APK paths`() {
+        val packageDir = setupPackageDir()
+        val modifiedResource = packageDir.resolve("res/layout/readable.xml").apply {
+            parentFile.mkdirs()
+            writeText("<LinearLayout/>")
+        }
+        val modifiedBinary = coder.otherResourcesRootDirectory.resolve("assets/readable.bin").apply {
+            parentFile.mkdirs()
+            writeBytes(byteArrayOf(1, 2, 3))
+        }
+        coder.pathMap = PathMap(
+            """[
+                {"name":"res/a.xml","alias":"res/layout/readable.xml"},
+                {"name":"assets/b.bin","alias":"assets/readable.bin"}
+            ]""".trimIndent(),
+        )
+        coder.modifiedResResources += modifiedResource
+        coder.modifiedBinaryResources += modifiedBinary
+
+        val changedEntries = coder.changedArchiveEntries(packageRenamed = false)
+
+        assertEquals(
+            setOf("AndroidManifest.xml", "resources.arsc", "res/a.xml", "assets/b.bin"),
+            changedEntries,
+        )
+    }
+
+    @Test
+    fun `changedArchiveEntries rebuilds all compiled resources after package rename`() {
+        val packageDir = setupPackageDir()
+        packageDir.resolve("res/layout/unchanged.xml").apply {
+            parentFile.mkdirs()
+            writeText("<LinearLayout/>")
+        }
+        packageDir.resolve("res/drawable/unchanged.png").apply {
+            parentFile.mkdirs()
+            writeBytes(byteArrayOf(1, 2, 3))
+        }
+
+        val changedEntries = coder.changedArchiveEntries(packageRenamed = true)
+
+        assertTrue("res/layout/unchanged.xml" in changedEntries)
+        assertTrue("res/drawable/unchanged.png" in changedEntries)
+    }
+
+    @Test
+    fun `reuseUnchangedArchiveEntries preserves changed and new encoder inputs`(@TempDir tempDir: File) {
+        val originalApk = tempDir.resolve("original.apk")
+        ZFile.openReadWrite(originalApk).use { zip ->
+            zip.add("unchanged.bin", ByteArrayInputStream("original unchanged".toByteArray()))
+            zip.add("changed.bin", ByteArrayInputStream("original changed".toByteArray()))
+            zip.add("deleted.bin", ByteArrayInputStream("deleted".toByteArray()))
+        }
+
+        val encodedModule = ApkModule()
+        val unchangedFile = tempDir.resolve("unchanged.bin").apply { writeText("filesystem unchanged") }
+        val changedFile = tempDir.resolve("changed.bin").apply { writeText("patched changed") }
+        val newFile = tempDir.resolve("new.bin").apply { writeText("new") }
+        encodedModule.add(FileInputSource(unchangedFile, "unchanged.bin"))
+        encodedModule.add(FileInputSource(changedFile, "changed.bin"))
+        encodedModule.add(FileInputSource(newFile, "new.bin"))
+
+        val testCoder = ArsclibResourceCoder(tempDir.resolve("working").apply { mkdirs() }, originalApk)
+        ApkModule.loadApkFile(originalApk).use { originalModule ->
+            encodedModule.use { module ->
+                val reused = testCoder.reuseUnchangedArchiveEntries(
+                    originalModule,
+                    module,
+                    setOf("changed.bin"),
+                )
+
+                assertEquals(1, reused)
+                assertIs<ArchiveFileEntrySource>(module.zipEntryMap.getInputSource("unchanged.bin"))
+                assertIs<FileInputSource>(module.zipEntryMap.getInputSource("changed.bin"))
+                assertIs<FileInputSource>(module.zipEntryMap.getInputSource("new.bin"))
+                assertFalse(module.zipEntryMap.contains("deleted.bin"))
+
+                val outputApk = tempDir.resolve("output.apk")
+                module.writeApk(outputApk)
+                ZipFile(outputApk).use { zip ->
+                    assertEquals(
+                        "original unchanged",
+                        zip.getInputStream(zip.getEntry("unchanged.bin")).bufferedReader().readText(),
+                    )
+                    assertEquals(
+                        "patched changed",
+                        zip.getInputStream(zip.getEntry("changed.bin")).bufferedReader().readText(),
+                    )
+                    assertEquals("new", zip.getInputStream(zip.getEntry("new.bin")).bufferedReader().readText())
+                    assertEquals(null, zip.getEntry("deleted.bin"))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `reuseUnchangedArchiveEntries retains omitted root entries but not deleted files or dex`(
+        @TempDir tempDir: File,
+    ) {
+        val originalApk = tempDir.resolve("original.apk")
+        val entries = listOf(
+            "lib/arm64-v8a/keep.so", "lib/arm64-v8a/deleted.so", "lib/x86/stripped.so",
+            "assets/keep.txt", "assets/deleted.txt", "classes.dex", "res/raw/deleted.txt",
+        )
+        ZFile.openReadWrite(originalApk).use { zip ->
+            entries.forEach { zip.add(it, ByteArrayInputStream(it.toByteArray())) }
+        }
+        val testCoder = ArsclibResourceCoder(
+            tempDir.resolve("working").apply { mkdirs() }, originalApk, setOf(CpuArchitecture.ARM64_V8A),
+        )
+        val asset = testCoder.otherResourcesRootDirectory.resolve("assets/keep.txt").apply {
+            parentFile.mkdirs()
+            writeText("assets/keep.txt")
+        }
+        testCoder.fileSnapshotCache = testCoder.buildFileSnapshot()
+        asset.delete()
+        testCoder.deletedFiles += listOf("lib/arm64-v8a/deleted.so", "assets/deleted.txt")
+        testCoder.stripNativeLibraries()
+
+        ApkModule.loadApkFile(originalApk).use { original ->
+            ApkModule().use { encoded ->
+                assertEquals(
+                    2,
+                    testCoder.reuseUnchangedArchiveEntries(original, encoded, testCoder.changedArchiveEntries(false)),
+                )
+                val output = tempDir.resolve("output.apk")
+                encoded.writeApk(output)
+                ZipFile(output).use { zip ->
+                    assertEquals(
+                        setOf("lib/arm64-v8a/keep.so", "assets/keep.txt"),
+                        zip.entries().asSequence().map { it.name }.toSet(),
+                    )
+                    assertEquals(
+                        "assets/keep.txt",
+                        zip.getInputStream(zip.getEntry("assets/keep.txt")).bufferedReader().readText(),
+                    )
+                }
+            }
+        }
     }
 
     @Test
@@ -1822,4 +2037,117 @@ internal class ArsclibResourceCoderTest {
         assertFalse("classes.dex" in uncompressed, "non-listed file should be compressed in $mode")
     }
 
+
+    // ==================== deleteFile tests ====================
+
+    private fun coderWithApk(tempDir: File, vararg entries: String): ArsclibResourceCoder {
+        val apk = tempDir.resolve("input.apk")
+        ZFile.openReadWrite(apk).use { zip ->
+            entries.forEach { zip.add(it, ByteArrayInputStream("data of $it".toByteArray())) }
+        }
+        return ArsclibResourceCoder(tempDir.resolve("working").apply { mkdirs() }, apk)
+    }
+
+    @Test
+    fun `deleteFile excludes an unstaged archive entry from the rebuilt APK`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "lib/x86/libfoo.so", "lib/arm64-v8a/libfoo.so")
+
+        testCoder.deleteFile("lib/x86/libfoo.so")
+
+        assertTrue("lib/x86/libfoo.so" in testCoder.getDeletedFiles(ResourceMode.FULL))
+        assertFalse("lib/arm64-v8a/libfoo.so" in testCoder.getDeletedFiles(ResourceMode.FULL))
+        assertTrue("lib/x86/libfoo.so" in testCoder.changedArchiveEntries(packageRenamed = false))
+        assertTrue("lib/x86/libfoo.so" in testCoder.getDeletedFiles(ResourceMode.NONE))
+    }
+
+    @Test
+    fun `deleteFile removes an extracted copy and still excludes the entry`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "lib/x86/libfoo.so")
+        val extracted = testCoder.getFile("lib/x86/libfoo.so", null, copy = true)
+        assertTrue(extracted.isFile)
+
+        testCoder.deleteFile("lib/x86/libfoo.so")
+
+        assertFalse(extracted.exists())
+        assertTrue("lib/x86/libfoo.so" in testCoder.getDeletedFiles(ResourceMode.FULL))
+    }
+
+    @Test
+    fun `deleteFile is not fooled by the reuse pass`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "lib/x86/libfoo.so", "lib/arm64-v8a/libfoo.so")
+        testCoder.deleteFile("lib/x86/libfoo.so")
+
+        ApkModule.loadApkFile(tempDir.resolve("input.apk")).use { originalModule ->
+            ApkModule().use { encoded ->
+                testCoder.reuseUnchangedArchiveEntries(
+                    originalModule,
+                    encoded,
+                    testCoder.changedArchiveEntries(packageRenamed = false),
+                )
+                assertFalse(encoded.zipEntryMap.contains("lib/x86/libfoo.so"))
+                assertTrue(encoded.zipEntryMap.contains("lib/arm64-v8a/libfoo.so"))
+            }
+        }
+    }
+
+    @Test
+    fun `deleteFile of a name that exists nowhere is a no-op`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "assets/keep.bin")
+
+        assertDoesNotThrow { testCoder.deleteFile("assets/missing.bin") }
+
+        assertTrue(testCoder.getDeletedFiles(ResourceMode.FULL).isEmpty())
+    }
+
+    @Test
+    fun `deleteFile still removes decoded resources from the package directory`() {
+        val pkgDir = setupPackageDir()
+        val file = pkgDir.resolve("res/values/strings.xml").apply { parentFile.mkdirs(); writeText("<resources/>") }
+
+        coder.deleteFile("res/values/strings.xml", "com.test.app")
+
+        assertFalse(file.exists())
+    }
+
+    @Test
+    fun `deleteFile refuses the manifest`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "AndroidManifest.xml")
+
+        assertThrows<PatchException> { testCoder.deleteFile("AndroidManifest.xml") }
+    }
+
+    @Test
+    fun `deleteFile of a directory entry deletes everything below it without throwing`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "lib/", "lib/x86/", "lib/x86/liba.so", "lib/x86/libb.so", "lib/arm64-v8a/liba.so")
+        // A staged, non-empty directory used to make deleteIfExists throw DirectoryNotEmptyException.
+        val extracted = testCoder.getFile("lib/x86/liba.so", null, copy = true)
+        assertTrue(extracted.isFile)
+
+        assertDoesNotThrow { testCoder.deleteFile("lib/x86/") }
+
+        assertFalse(extracted.parentFile.exists())
+        val deleted = testCoder.getDeletedFiles(ResourceMode.FULL)
+        assertTrue(setOf("lib/x86/", "lib/x86/liba.so", "lib/x86/libb.so").all { it in deleted })
+        assertFalse("lib/arm64-v8a/liba.so" in deleted)
+        assertFalse("lib/" in deleted)
+    }
+
+    @Test
+    fun `deleteFile refuses names escaping the working directory`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "assets/keep.bin")
+        val outside = tempDir.resolve("outside.txt").apply { writeText("keep me") }
+
+        assertThrows<PatchException> { testCoder.deleteFile("../../outside.txt") }
+        assertThrows<PatchException> { testCoder.deleteFile(outside.absolutePath) }
+
+        assertTrue(outside.exists())
+        assertTrue(testCoder.getDeletedFiles(ResourceMode.FULL).isEmpty())
+    }
+
+    @Test
+    fun `deleteFile refuses the resource table`(@TempDir tempDir: File) {
+        val testCoder = coderWithApk(tempDir, "resources.arsc")
+
+        assertThrows<PatchException> { testCoder.deleteFile("resources.arsc") }
+    }
 }
