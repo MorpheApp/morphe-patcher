@@ -70,9 +70,11 @@ object ApkUtils {
 
         ZFile.openReadWrite(apkFile, zFileOptions).use { targetApkZFile ->
             resources.let { resources ->
-                // A compiled resource APK is a complete non-DEX APK. Remove any accidentally packaged DEX files
-                // before adding the final patched DEX set.
-                if (resources.resourcesApk != null) {
+                // A compiled resource APK carries the input's DEX files as unchanged root entries. When
+                // there is a patched DEX set, remove them first so no stale DEX file survives beside it.
+                // Without bytecode patching (BytecodeMode.NONE) the set is empty and the input's DEX
+                // files are the output, so they must stay.
+                if (resources.resourcesApk != null && dexFiles.isNotEmpty()) {
                     targetApkZFile.entries().filter { entry ->
                         entry.centralDirectoryHeader.name.matches(dexEntryName)
                     }.forEach(StoredEntry::delete)
