@@ -1,3 +1,36 @@
+# [1.13.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.12.1-dev.1...v1.13.0-dev.1) (2026-09-05)
+
+
+### Features
+
+* Let delete() exclude unstaged archive entries from the patched APK ([#199](https://github.com/MorpheApp/morphe-patcher/issues/199)) ([cb2b7fd](https://github.com/MorpheApp/morphe-patcher/commit/cb2b7fdf2965749ef90a95405d3bc0d032b38d7b))
+
+## [1.12.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.12.0...v1.12.1-dev.1) (2026-09-04)
+
+
+### Performance Improvements
+
+* Avoid rebuilding unchanged APK resources ([#169](https://github.com/MorpheApp/morphe-patcher/issues/169)) ([883bd28](https://github.com/MorpheApp/morphe-patcher/commit/883bd289a4572f68822d0087c5fe4e942805e980))
+
+# [1.12.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.11.0...v1.12.0) (2026-09-03)
+
+
+### Bug Fixes
+
+* Prevent STRIP_SAFE from crashing and stabilise its DEX file naming ([#185](https://github.com/MorpheApp/morphe-patcher/issues/185)) ([81bac92](https://github.com/MorpheApp/morphe-patcher/commit/81bac92fea5237766f4bf1fb32444e92b2b0c495))
+* Report a deleted root file when the working directory is relative ([#190](https://github.com/MorpheApp/morphe-patcher/issues/190)) ([57674e2](https://github.com/MorpheApp/morphe-patcher/commit/57674e2b917a249209686869fae6dfec7cc854ba))
+* Stage root entries other than native libraries ([#192](https://github.com/MorpheApp/morphe-patcher/issues/192)) ([b2e20fd](https://github.com/MorpheApp/morphe-patcher/commit/b2e20fd4a932f5d0ccade7dd28ec0fbeedb7accd))
+
+
+### Features
+
+* Add function to list the entries of the APK being patched ([#193](https://github.com/MorpheApp/morphe-patcher/issues/193)) ([37b9494](https://github.com/MorpheApp/morphe-patcher/commit/37b9494acba70bd6b780f9cc5ab48f4ed0988993))
+
+
+### Performance Improvements
+
+* Leave unchanged root entries in the input APK ([#188](https://github.com/MorpheApp/morphe-patcher/issues/188)) ([3263df5](https://github.com/MorpheApp/morphe-patcher/commit/3263df5857e1f091deeb76d7ffbca5277a627296))
+
 # [1.12.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.11.1-dev.4...v1.12.0-dev.1) (2026-09-02)
 
 

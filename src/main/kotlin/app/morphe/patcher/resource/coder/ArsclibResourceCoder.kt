@@ -149,6 +149,20 @@ internal class ArsclibResourceCoder(
      */
     private val strippedLibraries = mutableSetOf<String>()
 
+    /**
+     * Archive entries a patch deleted by name through [deleteFile] that are not decoded resources:
+     * native libraries, or root entries a patch discovered with [listApkEntries]. Held apart from
+     * [deletedFiles] for the same reason as [strippedLibraries].
+     */
+    private val deletedArchiveEntries = mutableSetOf<String>()
+
+    /** Entry names of the input APK, read once, since [deleteFile] is often called per entry. */
+    private val apkEntryNames: Set<String> by lazy {
+        ZFile.openReadOnly(apkFile).use { zFile ->
+            zFile.entries().mapTo(HashSet()) { it.centralDirectoryHeader.name }
+        }
+    }
+
     /** Paths that must be stored uncompressed regardless of what the input APK did. */
     private val uncompressedOverrides = mutableSetOf<String>()
     internal var pathMap: PathMap = PathMap.EMPTY
@@ -321,12 +335,12 @@ internal class ArsclibResourceCoder(
         }
 
         StringsXmlSanitizeProcessor(
-            this::getFile,
+            { path, pkg -> getFile(path, pkg) },
             packageDirectories,
         ).process()
 
         StringsXmlEscapeProcessor(
-            this::getFile,
+            { path, pkg -> getFile(path, pkg) },
             packageDirectories,
         ).process()
 
@@ -399,7 +413,7 @@ internal class ArsclibResourceCoder(
             zFile.entries().forEach entries@{ entry ->
                     val name = entry.centralDirectoryHeader.name
                     if (!name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") || name.endsWith("/") ||
-                        name in strippedLibraries) return@entries
+                        name in strippedLibraries || name in deletedArchiveEntries) return@entries
                     // Straight into the staging directory: these only need to reach the output,
                     // no patch is going to read them.
                     val destination = resolveInside(staging, name) ?: return@entries
@@ -464,12 +478,12 @@ internal class ArsclibResourceCoder(
 
         PublicXmlManager(getFile("res/values/public.xml")).use { publicXmlManager ->
             StringsXmlUnEscapeProcessor(
-                this@ArsclibResourceCoder::getFile,
+                { path, pkg -> getFile(path, pkg) },
                 packageDirectories,
             ).process()
 
             val renamedResources = PackageRenamingProcessor(
-                this@ArsclibResourceCoder::getFile,
+                { path, pkg -> getFile(path, pkg) },
                 publicXmlManager,
                 packageDirectories,
                 originalPackageName,
@@ -479,13 +493,13 @@ internal class ArsclibResourceCoder(
 
             // Post process all aapt:attr macros in XML files.
             AaptMacroProcessor(
-                this@ArsclibResourceCoder::getFile,
+                { path -> getFile(path) },
                 modifiedResResources
             ).process()
 
             // Process all XMLs to ensure we have IDs generated for each one.
             ResourceIdProcessor(
-                this@ArsclibResourceCoder::getFile,
+                { path -> getFile(path) },
                 publicXmlManager,
                 modifiedResResources
             ).process()
@@ -508,7 +522,7 @@ internal class ArsclibResourceCoder(
                 }
 
                 ApkModule.loadApkFile(apkFile).use { originalModule ->
-                    val changedEntries = changedArchiveEntries()
+                    val changedEntries = changedArchiveEntries(originalPackageName != newPackageName)
                     val reusedEntries = reuseUnchangedArchiveEntries(originalModule, loadedModule, changedEntries)
                     val rebuiltEntries = loadedModule.zipEntryMap.listInputSources().size - reusedEntries
 
@@ -535,11 +549,12 @@ internal class ArsclibResourceCoder(
     /**
      * Returns original APK entry names which cannot be reused.
      */
-    internal fun changedArchiveEntries(): Set<String> = buildSet {
+    internal fun changedArchiveEntries(packageRenamed: Boolean = false): Set<String> = buildSet {
         add("AndroidManifest.xml")
         add("resources.arsc")
         addAll(deletedFiles)
         addAll(strippedLibraries)
+        addAll(deletedArchiveEntries)
         addAll(relocatedRootFiles.values)
 
         modifiedResResources.forEach { file ->
@@ -550,6 +565,16 @@ internal class ArsclibResourceCoder(
 
         modifiedBinaryResources.forEach { file ->
             file.archivePathRelativeToOrNull(otherResourcesRootDirectory)?.let(::add)
+        }
+
+        // PackageRenamingProcessor may rewrite resource XMLs which patches did not directly touch.
+        // Rebuild all compiled resources when that processor ran, while still reusing unchanged APK-root files.
+        if (packageRenamed) {
+            packageDirectories.values.forEach { packageDirectory ->
+                packageDirectory.resolve("res").walkTopDown().filter { it.isFile }.forEach { file ->
+                    file.archivePathRelativeToOrNull(packageDirectory)?.let(::add)
+                }
+            }
         }
     }
 
@@ -868,9 +893,9 @@ internal class ArsclibResourceCoder(
                     }
                 }
                 logger.info("Stripped $strippedLibCount lib files")
-            } + deletedFiles + strippedLibraries
+            } + deletedFiles + strippedLibraries + deletedArchiveEntries
         } else {
-            deletedFiles + strippedLibraries
+            deletedFiles + strippedLibraries + deletedArchiveEntries
         }
 
     /**
@@ -1001,10 +1026,51 @@ internal class ArsclibResourceCoder(
     }
 
     override fun deleteFile(path: String, packageName: String?) {
-        val pkgName = packageName ?: lazyPackageInfo.value.packageName
-        val file = packageDirectories[pkgName]?.resolve(path) ?: throw PatchException("Package $pkgName not found")
+        val alias = aliasOf(path)
 
-        Files.deleteIfExists(file.toPath())
+        // Decoded resources are package scoped and live in the working directory; removing the
+        // file there is enough, the snapshot diff reports it as deleted.
+        if (alias == "res" || alias.startsWith("res/") || alias == "package.json") {
+            val pkgName = packageName ?: lazyPackageInfo.value.packageName
+            val packageDirectory = packageDirectories[pkgName] ?: throw PatchException("Package $pkgName not found")
+            val file = resolveInside(packageDirectory, alias)
+                ?: throw PatchException("Refusing to delete \"$path\": it escapes the working directory")
+            Files.deleteIfExists(file.toPath())
+            return
+        }
+
+        if (alias == "AndroidManifest.xml" || alias == "resources.arsc") {
+            throw PatchException("\"$path\" cannot be deleted")
+        }
+
+        // Anything else is an archive entry, as named by listApkEntries. A staged copy is removed,
+        // but that alone is not enough: native libraries are never staged, and a copy extracted on
+        // demand is not in the decode snapshot, so its removal would only discard the extraction
+        // and leave the original entry in the output. Record the entry for exclusion instead, the
+        // same way stripped native libraries are.
+        val staged = resolveInside(otherResourcesRootDirectory, alias)
+            ?: throw PatchException("Refusing to delete \"$path\": it escapes the working directory")
+        val archiveName = archiveNameOf(alias)
+
+        // A directory, either named with a trailing slash as archives list them or staged as one,
+        // stands for everything below it.
+        if (alias.endsWith("/") || staged.isDirectory) {
+            val prefix = "${archiveName.trimEnd('/')}/"
+            val removedStagedCopies = staged.exists() && staged.deleteRecursively()
+            val entries = apkEntryNames.filter { it == archiveName || it.startsWith(prefix) }
+            deletedArchiveEntries += entries
+            if (entries.isEmpty() && !removedStagedCopies) {
+                logger.fine { "Nothing to delete for \"$path\": not a decoded resource or an APK entry" }
+            }
+            return
+        }
+
+        val removedStagedCopy = Files.deleteIfExists(staged.toPath())
+        if (archiveName in apkEntryNames) {
+            deletedArchiveEntries += archiveName
+        } else if (!removedStagedCopy) {
+            logger.fine { "Nothing to delete for \"$path\": not a decoded resource or an APK entry" }
+        }
     }
 
     override fun close() {
@@ -1015,6 +1081,7 @@ internal class ArsclibResourceCoder(
         lazilyExtractedRootFiles.clear()
         relocatedRootFiles.clear()
         strippedLibraries.clear()
+        deletedArchiveEntries.clear()
         uncompressedOverrides.clear()
         fileSnapshotCache = mutableMapOf()
     }

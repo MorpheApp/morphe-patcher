@@ -204,6 +204,11 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     /**
      * Find a class with a predicate.
      *
+     * **Important:** Use this method only if you are going to modify the class or any of its methods.
+     * Calling this method without making any modifications can cause out of memory errors.
+     *
+     * If your code does not modify the class or any of its methods, then instead use [classDefBy].
+     *
      * @param classType The full classname.
      * @return A mutable version of the class type.
      */
@@ -212,6 +217,9 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     /**
      * Find a class with a predicate.
      *
+     * **Important:** Use this method only if you are going to modify the class or any of its methods.
+     * Calling this method without making any modifications can cause out of memory errors.
+     *
      * @param classDef An immutable class.
      * @return A mutable version of the class definition.
      */
@@ -219,6 +227,11 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
     /**
      * Find a class with a predicate.
+     *
+     * **Important:** Use this method only if you are going to modify the class or any of its methods.
+     * Calling this method without making any modifications can cause out of memory errors.
+     *
+     * If your code does not modify the class or any of its methods, then instead use [classDefBy].
      *
      * @param predicate A predicate to match the class.
      * @return A mutable class that matches the predicate.
@@ -229,6 +242,11 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * Mutable class from a full class name.
      * Returns `null` if class is not available, such as a built in Android or Java library.
      *
+     * **Important:** Use this method only if you are going to modify the class or any of its methods.
+     * Calling this method without making any modifications can cause out of memory errors.
+     *
+     * If your code does not modify the class or any of its methods, then instead use [classDefByOrNull].
+     *
      * @param classType The full classname.
      * @return A mutable version of the class type.
      */
@@ -236,6 +254,11 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
     /**
      * Find a mutable class with a predicate.
+     *
+     * **Important:** Use this method only if you are going to modify the class or any of its methods.
+     * Calling this method without making any modifications can cause out of memory errors.
+     *
+     * If your code does not modify the class or any of its methods, then instead use [classDefByOrNull].
      *
      * @param predicate A predicate to match the class.
      * @return A mutable class that matches the predicate.
