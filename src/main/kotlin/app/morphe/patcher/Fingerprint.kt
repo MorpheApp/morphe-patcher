@@ -294,6 +294,16 @@ open class Fingerprint private constructor(
             }
         }
 
+        instructionFilterCandidates()?.let { candidates ->
+            candidates.forEach { value ->
+                val match = machAllClassMethods(value)
+                if (match != null) return match
+            }
+
+            // Exact indexed filters make this candidate set exhaustive.
+            return null
+        }
+
         // Check all classes.
         patchContext.patchClasses.classMap.values.forEach { value ->
             val value = machAllClassMethods(value)
@@ -609,6 +619,9 @@ open class Fingerprint private constructor(
      */
     context(patchContext: BytecodePatchContext)
     fun matchAllOrNull(): List<Match>? {
+        // matchAll is an independent search, not an extension of a cached match.
+        clearMatch()
+
         if (classFingerprint != null) {
             return matchAll(classFingerprint.classDef)
         }
@@ -653,6 +666,11 @@ open class Fingerprint private constructor(
                 // If multiple fingerprint strings are declared then duplicates matches can exist.
                 return matches.distinctBy(Match::originalMethod)
             }
+
+            instructionFilterCandidates()?.let { candidates ->
+                candidates.forEach(::machAllClassMethods)
+                return matches.distinctBy(Match::originalMethod).ifEmpty { null }
+            }
         }
 
         // Check all classes.
@@ -662,6 +680,37 @@ open class Fingerprint private constructor(
 
         return matches.ifEmpty { null }
     }
+
+    context(patchContext: BytecodePatchContext)
+    private fun instructionFilterCandidates(): List<PatchClasses.ClassDefWrapper>? {
+        val filters = filters ?: return null
+        if (filters.any { it::class !in BUNDLED_INSTRUCTION_FILTERS }) return null
+        val candidateSets = filters.mapNotNull { filter -> filter.indexedCandidatesOrNull() }
+        if (candidateSets.isEmpty()) return null
+
+        val smallestCandidates = candidateSets.minBy { it.size }
+        return patchContext.patchClasses.classMap.values.filter(smallestCandidates::contains)
+    }
+
+    context(patchContext: BytecodePatchContext)
+    private fun InstructionFilter.indexedCandidatesOrNull(): Set<PatchClasses.ClassDefWrapper>? = when (this) {
+        is LiteralFilter -> patchContext.patchClasses.getClassesContainingLiteral(literalValue).orEmpty().toSet()
+        else -> exactReferencedTypesOrNull()?.flatMap { type ->
+            patchContext.patchClasses.getClassesReferencingType(type).orEmpty()
+        }?.toSet()
+    }
+
+    private fun InstructionFilter.exactReferencedTypesOrNull(): Set<String>? = when (this) {
+        is MethodCallFilter -> definingClass?.takeIf(::isExactType)?.let(::setOf)
+        is FieldAccessFilter -> definingClass?.takeIf(::isExactType)?.let(::setOf)
+        is NewInstanceFilter -> typeValue.takeIf(::isExactType)?.let(::setOf)
+        is InstanceOfFilter -> typeValue.takeIf(::isExactType)?.let(::setOf)
+        is CheckCastFilter -> typeValue.takeIf(::isExactType)?.let(::setOf)
+        else -> null
+    }
+
+    private fun isExactType(type: String): Boolean =
+        type != "this" && StringComparisonType.typeDeclarationToComparison(type) == StringComparisonType.EQUALS
 
     fun patchException() = PatchException("Failed to match the fingerprint: $this")
 

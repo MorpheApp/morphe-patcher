@@ -144,7 +144,6 @@ internal class ApkUtilsTest {
 
         assertContentEquals("recreated".toByteArray(), readZip(targetApk)["assets/data.bin"])
     }
-
     private fun writeZip(file: File, entries: Map<String, ByteArray>) {
         ZipOutputStream(file.outputStream()).use { output ->
             entries.forEach { (name, contents) ->

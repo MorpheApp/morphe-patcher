@@ -348,7 +348,7 @@ class LiteralFilter internal constructor(
     /**
      * Store the lambda value instead of calling it more than once.
      */
-    private val literalValue: Long by lazy(literal)
+    internal val literalValue: Long by lazy(literal)
 
     override fun matches(
         enclosingMethod: Method,
@@ -990,7 +990,7 @@ class NewInstanceFilter internal constructor (
     /**
      * Store the lambda value instead of calling it more than once.
      */
-    private val typeValue: String by lazy {
+    internal val typeValue: String by lazy {
         val typeValue = type()
         typeValue
     }
@@ -1074,7 +1074,7 @@ class InstanceOfFilter internal constructor(
     /**
      * Store the lambda value instead of calling it more than once.
      */
-    private val typeValue: String by lazy {
+    internal val typeValue: String by lazy {
         val typeValue = type()
         typeValue
     }
@@ -1154,7 +1154,7 @@ class CheckCastFilter internal constructor(
     /**
      * Store the lambda value instead of calling it more than once.
      */
-    private val typeValue: String by lazy {
+    internal val typeValue: String by lazy {
         val typeValue = type()
         typeValue
     }

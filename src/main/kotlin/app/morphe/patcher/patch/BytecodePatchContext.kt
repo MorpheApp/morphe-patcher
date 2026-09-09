@@ -280,7 +280,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         comparison: StringComparisonType = StringComparisonType.EQUALS
     ): List<ClassDef> {
         val result = mutableSetOf<ClassDef>()
-        patchClasses.getClassesByStringMap().forEach { (string, list) ->
+        patchClasses.getClassesByReferenceMap().forEach { (string, list) ->
             if (comparison.compare(string, literalString)) {
                 list.forEach { wrapper ->
                     result += wrapper.classDef

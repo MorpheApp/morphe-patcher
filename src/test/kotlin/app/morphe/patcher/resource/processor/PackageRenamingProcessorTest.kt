@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import kotlin.test.assertContains
+import kotlin.test.assertContentEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -217,6 +218,30 @@ internal object PackageRenamingProcessorTest {
         )
     }
 
+    @Test
+    fun `process preserves byte exact XML when no package reference changes`() {
+        val xml = """<?xml version="1.0" encoding="UTF-8"?>
+            <resources>
+              <item name="untouched">  unusual whitespace  </item>
+            </resources>
+        """.trimIndent()
+
+        val result = processFile(xml)
+
+        assertContentEquals(xml.toByteArray(Charsets.UTF_8), result.bytes)
+        assertTrue(result.modifiedFiles.isEmpty())
+    }
+
+    @Test
+    fun `process reports only XML files containing renamed package references`() {
+        val result = processFile(
+            """<?xml version="1.0" encoding="UTF-8"?><resources><item>@com.original.app:id/value</item></resources>""",
+        )
+
+        assertTrue(result.modifiedFiles.single().name == "attrs.xml")
+        assertContains(result.text, "@com.new.app:id/value")
+    }
+
     // ==================== Helpers ====================
 
     private fun processFileAndRead(xmlContent: String): String {
@@ -224,6 +249,17 @@ internal object PackageRenamingProcessorTest {
     }
 
     private fun processFileAndReadBytes(xmlContent: String): Pair<String, ByteArray> {
+        val result = processFile(xmlContent)
+        return Pair(result.text, result.bytes)
+    }
+
+    private data class ProcessResult(
+        val text: String,
+        val bytes: ByteArray,
+        val modifiedFiles: Set<File>,
+    )
+
+    private fun processFile(xmlContent: String): ProcessResult {
         val originalPackageName = "com.original.app"
         val newPackageName = "com.new.app"
 
@@ -268,11 +304,11 @@ internal object PackageRenamingProcessorTest {
             newPackageName = newPackageName,
         )
 
-        processor.process()
+        val modifiedFiles = processor.process()
         publicXmlManager.close()
 
         val bytes = xmlFile.readBytes()
-        return Pair(String(bytes, Charsets.UTF_8), bytes)
+        return ProcessResult(String(bytes, Charsets.UTF_8), bytes, modifiedFiles)
     }
 
     private fun containsSubArray(haystack: ByteArray, needle: ByteArray): Boolean {
