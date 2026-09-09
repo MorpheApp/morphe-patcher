@@ -1,3 +1,10 @@
+# [1.13.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.0-dev.1...v1.13.0-dev.2) (2026-09-09)
+
+
+### Performance Improvements
+
+* Avoid redundant fingerprint and resource work ([#170](https://github.com/MorpheApp/morphe-patcher/issues/170)) ([5c7d2f6](https://github.com/MorpheApp/morphe-patcher/commit/5c7d2f6e8fe0372046a514983d2a03ffd131700e))
+
 # [1.13.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.12.1-dev.1...v1.13.0-dev.1) (2026-09-05)
 
 
