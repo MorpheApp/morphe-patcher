@@ -19,7 +19,6 @@ import com.android.tools.smali.dexlib2.iface.reference.FieldReference
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.iface.reference.TypeReference
-import java.util.LinkedList
 
 /**
  * All classes for the target app and any extension classes.
@@ -117,10 +116,10 @@ internal class PatchClasses internal constructor(
 
     internal fun close() {
         classMap.clear()
-        closeStringMap()
+        closeReferenceMap()
     }
 
-    internal fun closeStringMap() {
+    internal fun closeReferenceMap() {
         stringMap = null
         allClassesWithStrings = null
         classMap.values.forEach { wrapper ->
@@ -133,7 +132,7 @@ internal class PatchClasses internal constructor(
         classMap[classDef.type] = ClassDefWrapper(classDef)
     }
 
-    internal fun getClassesByStringMap(): Map<String, List<ClassDefWrapper>> {
+    internal fun getClassesByReferenceMap(): Map<String, List<ClassDefWrapper>> {
         if (stringMap != null) {
             return stringMap!!
         }
@@ -172,16 +171,16 @@ internal class PatchClasses internal constructor(
     }
 
     internal fun getClassesFromOpcodeStringLiteral(stringLiteral: String): List<ClassDefWrapper>? {
-        return getClassesByStringMap()[stringLiteral]
+        return getClassesByReferenceMap()[stringLiteral]
     }
 
     internal fun getAllClassesWithStrings(): List<ClassDefWrapper> {
-        getClassesByStringMap() // Load string map if needed.
+        getClassesByReferenceMap() // Load string map if needed.
         return allClassesWithStrings!!
     }
 
     internal fun getClassesReferencingType(type: String): List<ClassDefWrapper>? {
-        getClassesByStringMap() // Both instruction indexes are built in the same traversal.
+        getClassesByReferenceMap() // Load reference map if needed.
         val typeHash = type.hashCode()
         return classMap.values.filter { wrapper ->
             val hashes = wrapper.referencedTypeHashes
@@ -191,7 +190,7 @@ internal class PatchClasses internal constructor(
     }
 
     internal fun getClassesContainingLiteral(literal: Long): List<ClassDefWrapper>? {
-        getClassesByStringMap() // All instruction indexes are built in the same traversal.
+        getClassesByReferenceMap() // Load reference map if needed.
         return classMap.values.filter { wrapper ->
             val values = wrapper.literalValues
             // Mutable and newly added classes may have changed since indexing.

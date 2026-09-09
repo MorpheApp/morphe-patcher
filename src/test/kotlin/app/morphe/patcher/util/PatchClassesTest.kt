@@ -253,7 +253,7 @@ internal object PatchClassesTest {
 
     @Test
     fun `getClassesByStringMap returns map of strings to classes`() {
-        val stringMap = patchClasses.getClassesByStringMap()
+        val stringMap = patchClasses.getClassesByReferenceMap()
 
         assertTrue(stringMap.isNotEmpty())
         assertTrue(stringMap.containsKey("hello"))
@@ -340,7 +340,7 @@ internal object PatchClassesTest {
 
     @Test
     fun `instruction indexes retain newly added classes as candidates`() {
-        patchClasses.getClassesByStringMap()
+        patchClasses.getClassesByReferenceMap()
         val newClass = createClassDef("Lcom/test/NewAfterIndex;")
 
         patchClasses.addClass(newClass)
@@ -357,7 +357,7 @@ internal object PatchClassesTest {
 
     @Test
     fun `instruction indexes retain mutable classes as candidates`() {
-        patchClasses.getClassesByStringMap()
+        patchClasses.getClassesByReferenceMap()
         patchClasses.classMap.getValue("Lcom/test/Class1;").getMutableClass()
 
         assertEquals(
@@ -415,12 +415,12 @@ internal object PatchClassesTest {
     }
 
     @Test
-    fun `closeStringMap clears only string map`() {
+    fun `getClassesByReferenceMap clears only reference map`() {
         // First build the string map
-        patchClasses.getClassesByStringMap()
+        patchClasses.getClassesByReferenceMap()
 
         // Close string map
-        patchClasses.closeStringMap()
+        patchClasses.closeReferenceMap()
 
         // Classes should still be accessible
         assertNotNull(patchClasses.classByOrNull("Lcom/test/Class1;"))
