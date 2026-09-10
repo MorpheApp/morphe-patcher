@@ -1,3 +1,10 @@
+# [1.13.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.0-dev.3...v1.13.0-dev.4) (2026-09-10)
+
+
+### Bug Fixes
+
+* Keep the input DEX files when no bytecode was patched ([#201](https://github.com/MorpheApp/morphe-patcher/issues/201)) ([90d9715](https://github.com/MorpheApp/morphe-patcher/commit/90d9715f23b5d866bb023f0de90d6cecf244cd79))
+
 # [1.13.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.0-dev.2...v1.13.0-dev.3) (2026-09-09)
 
 
