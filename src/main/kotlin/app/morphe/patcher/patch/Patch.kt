@@ -40,6 +40,8 @@ typealias Package = Pair<PackageName, Set<VersionName>?>
  * in reverse order of execution.
  * @param availability Optional resolver that decides the patch's [PatchAvailability] for a given
  *   [InstallerType] and [ApkArchitecture]. When null, callers should fall back to [default].
+ * @param category Optional group this patch belongs to, used by callers to section their patch
+ *   list. Free-form, so a bundle picks its own taxonomy. Null leaves the patch ungrouped.
  *
  * @constructor Create a new patch.
  */
@@ -54,10 +56,11 @@ sealed class Patch<C : PatchContext<*>>(
     // Must be internal and nullable, so that Patcher.invoke can check,
     // if a patch has a finalizing block in order to not emit it twice.
     internal var finalizeBlock: ((C) -> Unit)?,
-    // Additive field. Trailing position with a default keeps binary compatibility for existing
+    // Additive fields. Trailing position with a default keeps binary compatibility for existing
     // pre-compiled patch bundles: they call the previous constructor arity, and Kotlin generates
-    // an overload that fills this in as null.
+    // an overload that fills these in as null.
     val availability: AvailabilityResolver? = null,
+    val category: String? = null,
 ) {
 
     @Deprecated("Use constructor with Compatibility object")
@@ -192,6 +195,7 @@ class BytecodePatch internal constructor(
     executeBlock: (BytecodePatchContext) -> Unit,
     finalizeBlock: ((BytecodePatchContext) -> Unit)?,
     availability: AvailabilityResolver? = null,
+    category: String? = null,
 ) : Patch<BytecodePatchContext>(
     name,
     description,
@@ -202,6 +206,7 @@ class BytecodePatch internal constructor(
     executeBlock,
     finalizeBlock,
     availability,
+    category,
 ) {
 
     @Deprecated("Use constructor with extensionInputStreams parameter")
@@ -291,6 +296,7 @@ class RawResourcePatch internal constructor(
     executeBlock: (ResourcePatchContext) -> Unit,
     finalizeBlock: ((ResourcePatchContext) -> Unit)?,
     availability: AvailabilityResolver? = null,
+    category: String? = null,
 ) : Patch<ResourcePatchContext>(
     name,
     description,
@@ -301,6 +307,7 @@ class RawResourcePatch internal constructor(
     executeBlock,
     finalizeBlock,
     availability,
+    category,
 ) {
 
     @Deprecated("Use constructor with Compatibility object")
@@ -358,6 +365,7 @@ class ResourcePatch internal constructor(
     executeBlock: (ResourcePatchContext) -> Unit,
     finalizeBlock: ((ResourcePatchContext) -> Unit)?,
     availability: AvailabilityResolver? = null,
+    category: String? = null,
 ) : Patch<ResourcePatchContext>(
     name,
     description,
@@ -368,6 +376,7 @@ class ResourcePatch internal constructor(
     executeBlock,
     finalizeBlock,
     availability,
+    category,
 ) {
 
     @Deprecated("Use constructor with Compatibility object")
@@ -427,6 +436,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
     protected var executeBlock: ((C) -> Unit) = { }
     protected var finalizeBlock: ((C) -> Unit)? = null
     protected var availability: AvailabilityResolver? = null
+    protected var category: String? = null
 
     @Deprecated(
         message = "Use 'default' instead of 'use'",
@@ -556,6 +566,18 @@ sealed class PatchBuilder<C : PatchContext<*>>(
         availability = block
     }
 
+    /**
+     * Declare the group this patch belongs to, so callers can section a long patch list.
+     *
+     * The taxonomy belongs to the bundle rather than to the patcher: [name] is free-form and is
+     * matched by callers as an opaque key. Patches that do not call this stay ungrouped.
+     *
+     * @param name The category name, as the user reads it.
+     */
+    fun category(name: String) {
+        category = name
+    }
+
     internal fun resolveDefaultValue(): Boolean {
         return if (name != null && default
             && (compatibility == null || compatibility!!.any { it.packageName == null })
@@ -677,6 +699,7 @@ class BytecodePatchBuilder internal constructor(
         executeBlock = executeBlock,
         finalizeBlock = finalizeBlock,
         availability = availability,
+        category = category,
     )
 }
 
@@ -723,6 +746,7 @@ class RawResourcePatchBuilder internal constructor(
         executeBlock,
         finalizeBlock,
         availability,
+        category,
     )
 }
 
@@ -769,6 +793,7 @@ class ResourcePatchBuilder internal constructor(
         executeBlock,
         finalizeBlock,
         availability,
+        category,
     )
 }
 

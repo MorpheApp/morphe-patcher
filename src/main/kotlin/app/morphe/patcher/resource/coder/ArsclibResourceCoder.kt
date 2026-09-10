@@ -335,12 +335,12 @@ internal class ArsclibResourceCoder(
         }
 
         StringsXmlSanitizeProcessor(
-            this::getFile,
+            { path, pkg -> getFile(path, pkg) },
             packageDirectories,
         ).process()
 
         StringsXmlEscapeProcessor(
-            this::getFile,
+            { path, pkg -> getFile(path, pkg) },
             packageDirectories,
         ).process()
 
@@ -478,27 +478,28 @@ internal class ArsclibResourceCoder(
 
         PublicXmlManager(getFile("res/values/public.xml")).use { publicXmlManager ->
             StringsXmlUnEscapeProcessor(
-                this@ArsclibResourceCoder::getFile,
+                { path, pkg -> getFile(path, pkg) },
                 packageDirectories,
             ).process()
 
-            PackageRenamingProcessor(
-                this@ArsclibResourceCoder::getFile,
+            val renamedResources = PackageRenamingProcessor(
+                { path, pkg -> getFile(path, pkg) },
                 publicXmlManager,
                 packageDirectories,
                 originalPackageName,
                 newPackageName
             ).process()
+            modifiedResResources += renamedResources
 
             // Post process all aapt:attr macros in XML files.
             AaptMacroProcessor(
-                this@ArsclibResourceCoder::getFile,
+                { path -> getFile(path) },
                 modifiedResResources
             ).process()
 
             // Process all XMLs to ensure we have IDs generated for each one.
             ResourceIdProcessor(
-                this@ArsclibResourceCoder::getFile,
+                { path -> getFile(path) },
                 publicXmlManager,
                 modifiedResResources
             ).process()
@@ -548,7 +549,7 @@ internal class ArsclibResourceCoder(
     /**
      * Returns original APK entry names which cannot be reused.
      */
-    internal fun changedArchiveEntries(packageRenamed: Boolean): Set<String> = buildSet {
+    internal fun changedArchiveEntries(packageRenamed: Boolean = false): Set<String> = buildSet {
         add("AndroidManifest.xml")
         add("resources.arsc")
         addAll(deletedFiles)

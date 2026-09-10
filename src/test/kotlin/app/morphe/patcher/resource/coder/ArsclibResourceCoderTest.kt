@@ -334,6 +334,25 @@ internal class ArsclibResourceCoderTest {
     }
 
     @Test
+    fun `changedArchiveEntries rebuilds only resources reported as modified`() {
+        val packageDir = setupPackageDir()
+        val unchanged = packageDir.resolve("res/layout/unchanged.xml").apply {
+            parentFile.mkdirs()
+            writeText("<LinearLayout/>")
+        }
+        val changed = packageDir.resolve("res/drawable/changed.png").apply {
+            parentFile.mkdirs()
+            writeBytes(byteArrayOf(1, 2, 3))
+        }
+        coder.modifiedResResources += changed
+
+        val changedEntries = coder.changedArchiveEntries(packageRenamed = false)
+
+        assertFalse(unchanged.relativeTo(packageDir).invariantSeparatorsPath in changedEntries)
+        assertTrue("res/drawable/changed.png" in changedEntries)
+    }
+
+    @Test
     fun `changedArchiveEntries rebuilds all compiled resources after package rename`() {
         val packageDir = setupPackageDir()
         packageDir.resolve("res/layout/unchanged.xml").apply {

@@ -16,7 +16,7 @@ class PublicXmlManager(
 ) : Closeable {
     private val logger = Logger.getLogger(this::class.java.name)
     private val resourceIds = mutableMapOf<String, Int>()
-    private val definedIds = mutableMapOf<Pair<String, String>, Int>()
+    private val definedIdsByType = mutableMapOf<String, MutableMap<String, Int>>()
     private lateinit var packageName: String
     private lateinit var packageId: String
 
@@ -57,7 +57,7 @@ class PublicXmlManager(
                                 resourceIds[typeString] = id
                             }
                             // Need to add type because it is possible to have multiple resources with the same name but different types.
-                            definedIds[Pair(typeString, nameString)] = id
+                            definedIdsByType.getOrPut(typeString) { mutableMapOf() }[nameString] = id
                         }
                     }
                 }
@@ -67,7 +67,7 @@ class PublicXmlManager(
     }
 
     fun idExists(type: String, name: String): Boolean {
-        return definedIds.contains(Pair(type, name))
+        return definedIdsByType[type]?.containsKey(name) == true
     }
 
     fun getHighestResourceIds(): Map<String, Int> {
@@ -75,7 +75,11 @@ class PublicXmlManager(
     }
 
     fun getDefinedIds(): Map<Pair<String, String>, Int> {
-        return definedIds
+        return buildMap {
+            definedIdsByType.forEach { (type, ids) ->
+                ids.forEach { (name, id) -> put(type to name, id) }
+            }
+        }
     }
 
     fun createPublicId(type: String, name: String?) {
@@ -87,7 +91,7 @@ class PublicXmlManager(
 
         val resourceId = resourceIds.getOrElse(type) { 0 } + 1
         resourceIds[type] = resourceId
-        definedIds[Pair(type, name)] = resourceId
+        definedIdsByType.getOrPut(type) { mutableMapOf() }[name] = resourceId
     }
 
     internal fun changePackageName(packageName: String) {
@@ -109,10 +113,8 @@ class PublicXmlManager(
             serializer.attribute(null, "id", packageId)
 
             // Write <public> tags for each resource ID
-            definedIds.map {
-                val (type, name) = it.key
-                val id = it.value
-                Triple(type, name, id)
+            definedIdsByType.flatMap { (type, ids) ->
+                ids.map { (name, id) -> Triple(type, name, id) }
             }.sortedBy { it.third }.forEach { (type, name, id) ->
                 serializer.startTag(null, "public")
                 serializer.attribute(null, "id", "0x${id.toString(16)}")

@@ -883,12 +883,13 @@ public final class app/morphe/patcher/patch/Options : java/util/Map, kotlin/jvm/
 }
 
 public abstract class app/morphe/patcher/patch/Patch {
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lapp/morphe/patcher/patch/AvailabilityResolver;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lapp/morphe/patcher/patch/AvailabilityResolver;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lapp/morphe/patcher/patch/AvailabilityResolver;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lapp/morphe/patcher/patch/AvailabilityResolver;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun execute (Lapp/morphe/patcher/patch/PatchContext;)V
 	public final fun finalize (Lapp/morphe/patcher/patch/PatchContext;)V
 	public final fun getAvailability ()Lapp/morphe/patcher/patch/AvailabilityResolver;
+	public final fun getCategory ()Ljava/lang/String;
 	public final fun getCompatibility ()Ljava/util/List;
 	public final fun getCompatiblePackages ()Ljava/util/Set;
 	public final fun getDefault ()Z
@@ -917,6 +918,7 @@ public final class app/morphe/patcher/patch/PatchAvailabilityKt {
 public abstract class app/morphe/patcher/patch/PatchBuilder {
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun availability (Lapp/morphe/patcher/patch/AvailabilityResolver;)V
+	public final fun category (Ljava/lang/String;)V
 	public final fun compatibleWith ([Lapp/morphe/patcher/patch/Compatibility;)V
 	public final fun compatibleWith ([Ljava/lang/String;)V
 	public final fun compatibleWith ([Lkotlin/Pair;)V
@@ -924,6 +926,7 @@ public abstract class app/morphe/patcher/patch/PatchBuilder {
 	public final fun execute (Lkotlin/jvm/functions/Function1;)V
 	public final fun finalize (Lkotlin/jvm/functions/Function1;)V
 	protected final fun getAvailability ()Lapp/morphe/patcher/patch/AvailabilityResolver;
+	protected final fun getCategory ()Ljava/lang/String;
 	protected final fun getCompatibility ()Ljava/util/List;
 	protected final fun getCompatiblePackages ()Ljava/util/Set;
 	protected final fun getDefault ()Z
@@ -938,6 +941,7 @@ public abstract class app/morphe/patcher/patch/PatchBuilder {
 	public final fun invoke (Lapp/morphe/patcher/patch/Option;)Lapp/morphe/patcher/patch/Option;
 	public final fun invoke (Ljava/lang/String;[Ljava/lang/String;)Lkotlin/Pair;
 	protected final fun setAvailability (Lapp/morphe/patcher/patch/AvailabilityResolver;)V
+	protected final fun setCategory (Ljava/lang/String;)V
 	protected final fun setCompatibility (Ljava/util/List;)V
 	protected final fun setCompatiblePackages (Ljava/util/Set;)V
 	protected final fun setDependencies (Ljava/util/Set;)V

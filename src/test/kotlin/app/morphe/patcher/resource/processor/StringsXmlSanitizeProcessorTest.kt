@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
 
 internal object StringsXmlSanitizeProcessorTest {
 
@@ -52,6 +53,19 @@ internal object StringsXmlSanitizeProcessorTest {
     fun `sanitizeXmlText preserves standard XML whitespace characters`() {
         val input = "<resources>\t\n\r</resources>"
         assertEquals(input, sanitizeXmlText(input))
+    }
+
+    @Test
+    fun `sanitizeXmlText preserves supplementary Unicode characters without allocating`() {
+        val input = "<resources><string name=\"emoji\">\uD83D\uDE80</string></resources>"
+        assertSame(input, sanitizeXmlText(input))
+    }
+
+    @Test
+    fun `sanitizeXmlText removes an overflowing numeric character reference`() {
+        val input = "<resources><string name=\"bad\">&#999999999999999999999;</string></resources>"
+        val expected = "<resources><string name=\"bad\"></string></resources>"
+        assertEquals(expected, sanitizeXmlText(input))
     }
 
     // ==================== StringsXmlSanitizeProcessor round-trip tests ====================

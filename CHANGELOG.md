@@ -1,3 +1,17 @@
+# [1.13.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.0-dev.2...v1.13.0-dev.3) (2026-09-09)
+
+
+### Features
+
+* Add an optional patch category ([#198](https://github.com/MorpheApp/morphe-patcher/issues/198)) ([fa2b47f](https://github.com/MorpheApp/morphe-patcher/commit/fa2b47f86669b62522aaada863d1c67d6b847f35))
+
+# [1.13.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.0-dev.1...v1.13.0-dev.2) (2026-09-09)
+
+
+### Performance Improvements
+
+* Avoid redundant fingerprint and resource work ([#170](https://github.com/MorpheApp/morphe-patcher/issues/170)) ([5c7d2f6](https://github.com/MorpheApp/morphe-patcher/commit/5c7d2f6e8fe0372046a514983d2a03ffd131700e))
+
 # [1.13.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.12.1-dev.1...v1.13.0-dev.1) (2026-09-05)
 
 
