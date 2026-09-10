@@ -48,8 +48,9 @@ internal class ResourceIdProcessor(
 
         createPublicIdsFromValuesXml(get("res/values/ids.xml"))
 
-        // Step 3: Ensure all other resources have a public ID
-        // TODO: Only enumerate through files that have been modified by patches.
+        // Ensure every file-based resource has a public ID. ARSCLib can decode synthetic inline-AAPT
+        // resources which are not initially present in public.xml, so this must retain filesystem order:
+        // newly added patch resource IDs are assigned after those synthetic entries.
         for (type in fileResourceTypes) {
             val directories = resDirectories.filter { it.name.startsWith(type) }
             for (dir in directories) {

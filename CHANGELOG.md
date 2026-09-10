@@ -1,3 +1,38 @@
+# [1.13.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.0-dev.3...v1.13.0-dev.4) (2026-09-10)
+
+
+### Bug Fixes
+
+* Keep the input DEX files when no bytecode was patched ([#201](https://github.com/MorpheApp/morphe-patcher/issues/201)) ([90d9715](https://github.com/MorpheApp/morphe-patcher/commit/90d9715f23b5d866bb023f0de90d6cecf244cd79))
+
+# [1.13.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.0-dev.2...v1.13.0-dev.3) (2026-09-09)
+
+
+### Features
+
+* Add an optional patch category ([#198](https://github.com/MorpheApp/morphe-patcher/issues/198)) ([fa2b47f](https://github.com/MorpheApp/morphe-patcher/commit/fa2b47f86669b62522aaada863d1c67d6b847f35))
+
+# [1.13.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.0-dev.1...v1.13.0-dev.2) (2026-09-09)
+
+
+### Performance Improvements
+
+* Avoid redundant fingerprint and resource work ([#170](https://github.com/MorpheApp/morphe-patcher/issues/170)) ([5c7d2f6](https://github.com/MorpheApp/morphe-patcher/commit/5c7d2f6e8fe0372046a514983d2a03ffd131700e))
+
+# [1.13.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.12.1-dev.1...v1.13.0-dev.1) (2026-09-05)
+
+
+### Features
+
+* Let delete() exclude unstaged archive entries from the patched APK ([#199](https://github.com/MorpheApp/morphe-patcher/issues/199)) ([cb2b7fd](https://github.com/MorpheApp/morphe-patcher/commit/cb2b7fdf2965749ef90a95405d3bc0d032b38d7b))
+
+## [1.12.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.12.0...v1.12.1-dev.1) (2026-09-04)
+
+
+### Performance Improvements
+
+* Avoid rebuilding unchanged APK resources ([#169](https://github.com/MorpheApp/morphe-patcher/issues/169)) ([883bd28](https://github.com/MorpheApp/morphe-patcher/commit/883bd289a4572f68822d0087c5fe4e942805e980))
+
 # [1.12.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.11.0...v1.12.0) (2026-09-03)
 
 
