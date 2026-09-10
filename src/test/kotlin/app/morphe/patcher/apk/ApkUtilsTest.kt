@@ -144,6 +144,33 @@ internal class ApkUtilsTest {
 
         assertContentEquals("recreated".toByteArray(), readZip(targetApk)["assets/data.bin"])
     }
+
+    @Test
+    fun `input dex files survive when no bytecode was patched`() {
+        val resourcesApk = temporaryDirectory.resolve("resources.apk").also { apk ->
+            writeZip(
+                apk,
+                mapOf(
+                    "resources.arsc" to "table".toByteArray(),
+                    "classes.dex" to "original dex".toByteArray(),
+                    "classes2.dex" to "original dex 2".toByteArray(),
+                ),
+            )
+        }
+        val targetApk = temporaryDirectory.resolve("target.apk")
+        val result = PatcherResult(
+            emptySet(),
+            PatcherResult.PatchedResources(resourcesApk, null, emptySet(), emptySet()),
+        )
+
+        result.applyTo(targetApk)
+
+        val entries = readZip(targetApk)
+        assertContentEquals("original dex".toByteArray(), entries["classes.dex"])
+        assertContentEquals("original dex 2".toByteArray(), entries["classes2.dex"])
+        assertContentEquals("table".toByteArray(), entries["resources.arsc"])
+    }
+
     private fun writeZip(file: File, entries: Map<String, ByteArray>) {
         ZipOutputStream(file.outputStream()).use { output ->
             entries.forEach { (name, contents) ->
