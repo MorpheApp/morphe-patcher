@@ -421,7 +421,7 @@ internal class ArsclibResourceCoderTest {
     }
 
     @Test
-    fun `reuseUnchangedArchiveEntries retains omitted root entries but not deleted files or dex`(
+    fun `reuseUnchangedArchiveEntries retains omitted root entries and dex but not deleted files`(
         @TempDir tempDir: File,
     ) {
         val originalApk = tempDir.resolve("original.apk")
@@ -446,15 +446,17 @@ internal class ArsclibResourceCoderTest {
 
         ApkModule.loadApkFile(originalApk).use { original ->
             ApkModule().use { encoded ->
+                // Unstaged lib, staged-and-unchanged asset, and the input DEX (never staged; the
+                // bytecode side replaces it in applyTo when it produced a patched set).
                 assertEquals(
-                    2,
+                    3,
                     testCoder.reuseUnchangedArchiveEntries(original, encoded, testCoder.changedArchiveEntries(false)),
                 )
                 val output = tempDir.resolve("output.apk")
                 encoded.writeApk(output)
                 ZipFile(output).use { zip ->
                     assertEquals(
-                        setOf("lib/arm64-v8a/keep.so", "assets/keep.txt"),
+                        setOf("lib/arm64-v8a/keep.so", "assets/keep.txt", "classes.dex"),
                         zip.entries().asSequence().map { it.name }.toSet(),
                     )
                     assertEquals(
@@ -2168,5 +2170,29 @@ internal class ArsclibResourceCoderTest {
         val testCoder = coderWithApk(tempDir, "resources.arsc")
 
         assertThrows<PatchException> { testCoder.deleteFile("resources.arsc") }
+    }
+
+    @Test
+    fun `reuse carries the input dex files into the compiled resource APK`(@TempDir tempDir: File) {
+        val originalApk = tempDir.resolve("original.apk")
+        ZFile.openReadWrite(originalApk).use { zip ->
+            zip.add("classes.dex", ByteArrayInputStream("dex".toByteArray()))
+            zip.add("classes2.dex", ByteArrayInputStream("dex 2".toByteArray()))
+            zip.add("lib/x86/libfoo.so", ByteArrayInputStream("so".toByteArray()))
+        }
+        val testCoder = ArsclibResourceCoder(tempDir.resolve("working").apply { mkdirs() }, originalApk)
+        assertFalse(testCoder.stagesRootEntry("classes.dex"))
+        assertFalse(testCoder.stagesRootEntry("classes2.dex"))
+        assertTrue(testCoder.stagesRootEntry("assets/classes.dex.txt"))
+
+        ApkModule.loadApkFile(originalApk).use { originalModule ->
+            ApkModule().use { encoded ->
+                // Nothing staged, nothing in the snapshot: exactly the state after a resource-only decode.
+                val reused = testCoder.reuseUnchangedArchiveEntries(originalModule, encoded, emptySet())
+                assertEquals(3, reused)
+                assertTrue(encoded.zipEntryMap.contains("classes.dex"))
+                assertTrue(encoded.zipEntryMap.contains("classes2.dex"))
+            }
+        }
     }
 }
