@@ -1,3 +1,10 @@
+## [1.13.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.0...v1.13.1-dev.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* Carry the input DEX files into the compiled resource APK ([#203](https://github.com/MorpheApp/morphe-patcher/issues/203)) ([9da07ed](https://github.com/MorpheApp/morphe-patcher/commit/9da07edd158ef8956c73f43187c131ddc0ab5be7))
+
 # [1.13.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.12.0...v1.13.0) (2026-09-10)
 
 
