@@ -75,6 +75,7 @@ private const val PATCHED_ROOT_DIRECTORY = "patched-root"
 
 /** The one archive directory left unstaged, because it dominates the APK's size. */
 private const val NATIVE_LIBRARY_DIRECTORY = "lib"
+private val DEX_ENTRY_NAME = Regex("classes\\d*\\.dex")
 
 internal class ArsclibResourceCoder(
     internal val workingDir: File,
@@ -945,12 +946,16 @@ internal class ArsclibResourceCoder(
 
     /**
      * Whether a root entry is staged to the working directory during decode. Everything is,
-     * except native libraries: they are the bulk of an APK, and nothing enumerates them on disk.
+     * except native libraries and DEX files. Native libraries are the bulk of an APK, and nothing
+     * enumerates them on disk. DEX files are never written by the decoder either (the DEX decoder
+     * is a no-op) and are handled by the bytecode side; declaring them unstaged here lets
+     * [reuseUnchangedArchiveEntries] carry them into the compiled resource APK, which is what the
+     * output is built from, so they survive when no bytecode was patched.
      * Staging the rest matters because a patch that discovers files by walking the directory can
      * only see what is on disk, and the on-demand extraction in [getFile] cannot serve a walk.
      */
     internal fun stagesRootEntry(alias: String) =
-        !alias.startsWith("$NATIVE_LIBRARY_DIRECTORY/")
+        !alias.startsWith("$NATIVE_LIBRARY_DIRECTORY/") && !DEX_ENTRY_NAME.matches(alias)
 
     /**
      * Extract a single root entry from the input APK into the working directory, and record it
