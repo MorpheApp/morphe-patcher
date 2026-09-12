@@ -156,8 +156,8 @@ public final class app/morphe/patcher/InstructionFilterKt {
 	public static synthetic fun newInstance$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/NewInstanceFilter;
 	public static final fun opcode (Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/OpcodeFilter;
 	public static synthetic fun opcode$default (Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/OpcodeFilter;
-	public static final fun resourceLiteral (Lapp/morphe/patcher/resource/ResourceType;Ljava/lang/String;ZLjava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/LiteralFilter;
-	public static synthetic fun resourceLiteral$default (Lapp/morphe/patcher/resource/ResourceType;Ljava/lang/String;ZLjava/util/List;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/LiteralFilter;
+	public static final fun resourceLiteral (Lapp/morphe/patcher/resource/ResourceType;Ljava/lang/String;ZLapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/LiteralFilter;
+	public static synthetic fun resourceLiteral$default (Lapp/morphe/patcher/resource/ResourceType;Ljava/lang/String;ZLapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/LiteralFilter;
 	public static final fun string (Ljava/lang/String;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/StringFilter;
 	public static final fun string (Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/StringFilter;
 	public static final fun string (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/StringFilter;

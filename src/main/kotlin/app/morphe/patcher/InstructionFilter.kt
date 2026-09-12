@@ -453,29 +453,24 @@ fun literal(
 
 /**
  * Literal equal to the id of a resource of the APK being patched, such as a layout or view id.
- * The id is looked up when the fingerprint is first matched, from the APK's resource table, so
- * it is available whether or not resources are decoded. Declared this way the patcher can use
- * its literal index to find candidate classes instead of scanning every class.
  *
  * @param type The resource type.
  * @param name The resource name.
  * @param exceptionIfResourceNotFound If `false` and the APK has no such resource, the filter
- *                                    never matches instead of failing. Useful with [anyInstruction]
- *                                    when a resource exists only in some app versions.
- * @param opcodes Opcodes to match. By default this matches any literal number opcode.
+ *                                    never matches instead of failing. Intended only for use with
+ *                                    [anyInstruction] when a resource exists only in some app versions.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
 fun resourceLiteral(
     type: ResourceType,
     name: String,
     exceptionIfResourceNotFound: Boolean = true,
-    opcodes: List<Opcode>? = null,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
 ) = LiteralFilter(
     {
         if (exceptionIfResourceNotFound || hasResourceId(type, name)) resourceId(type, name) else null
     },
-    opcodes,
+    null,
     location,
 )
 
@@ -523,7 +518,7 @@ class MethodCallFilter internal constructor(
             // up to the root class since class defs are mere Strings.
             if (definingClassLocal == "this") {
                 if (referenceClass != enclosingMethod.definingClass) {
-                    return false;
+                    return false
                 }
             } else if (!definingClassComparison.compare(referenceClass, definingClassLocal)) {
                 return false
@@ -778,7 +773,7 @@ class FieldAccessFilter internal constructor(
 
             if (definingClassLocal == "this") {
                 if (referenceClass != enclosingMethod.definingClass) {
-                    return false;
+                    return false
                 }
             } else if (!definingClassComparison.compare(referenceClass, definingClassLocal)) {
                 return false
@@ -897,7 +892,8 @@ fun fieldAccess(
  * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
  *
  * @param reference Exact reference to match.
- * @param opcode Single opcode to match.
+ * @param opcodes List of all possible opcodes to match. Defaults to matching all get/put opcodes.
+ *                (`Opcode.IGET`, `Opcode.SGET`, `Opcode.IPUT`, `Opcode.SPUT`, etc).
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
 fun fieldAccess(
