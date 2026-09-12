@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ */
+
 package app.morphe.patcher.resource
 
 import com.reandroid.json.JSONObject

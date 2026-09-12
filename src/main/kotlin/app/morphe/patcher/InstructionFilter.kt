@@ -1,6 +1,15 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ */
+
 @file:Suppress("unused")
 
 package app.morphe.patcher
+
+import app.morphe.patcher.resource.ResourceType
+import app.morphe.patcher.resource.hasResourceId
+import app.morphe.patcher.resource.resourceId
 
 import app.morphe.patcher.FieldAccessFilter.Companion.parseJvmFieldAccess
 import app.morphe.patcher.MethodCallFilter.Companion.parseJvmMethodCall
@@ -340,15 +349,23 @@ open class OpcodesFilter protected constructor(
 
 
 class LiteralFilter internal constructor(
-    val literal: () -> Long,
+    literalOrNull: () -> Long?,
     opcodes: List<Opcode>? = null,
     location: InstructionLocation
 ) : OpcodesFilter(opcodes, location) {
 
     /**
      * Store the lambda value instead of calling it more than once.
+     * `null` means the literal does not exist in this app, and the filter never matches.
      */
-    internal val literalValue: Long by lazy(literal)
+    internal val literalValue: Long? by lazy(literalOrNull)
+
+    /**
+     * The literal this filter matches.
+     *
+     * @throws IllegalStateException If the literal does not exist in this app.
+     */
+    val literal: () -> Long = { literalValue ?: error("Literal does not exist in this app") }
 
     override fun matches(
         enclosingMethod: Method,
@@ -429,10 +446,33 @@ fun literal(
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
 fun literal(
-    literal: () -> Long,
+    literal: () -> Long?,
     opcodes: List<Opcode>? = null,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
 ) = LiteralFilter(literal, opcodes, location)
+
+/**
+ * Literal equal to the id of a resource of the APK being patched, such as a layout or view id.
+ *
+ * @param type The resource type.
+ * @param name The resource name.
+ * @param exceptionIfResourceNotFound If `false` and the APK has no such resource, the filter
+ *                                    never matches instead of failing. Intended only for use with
+ *                                    [anyInstruction] when a resource exists only in some app versions.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun resourceLiteral(
+    type: ResourceType,
+    name: String,
+    exceptionIfResourceNotFound: Boolean = true,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = LiteralFilter(
+    {
+        if (exceptionIfResourceNotFound || hasResourceId(type, name)) resourceId(type, name) else null
+    },
+    null,
+    location,
+)
 
 
 
@@ -478,7 +518,7 @@ class MethodCallFilter internal constructor(
             // up to the root class since class defs are mere Strings.
             if (definingClassLocal == "this") {
                 if (referenceClass != enclosingMethod.definingClass) {
-                    return false;
+                    return false
                 }
             } else if (!definingClassComparison.compare(referenceClass, definingClassLocal)) {
                 return false
@@ -733,7 +773,7 @@ class FieldAccessFilter internal constructor(
 
             if (definingClassLocal == "this") {
                 if (referenceClass != enclosingMethod.definingClass) {
-                    return false;
+                    return false
                 }
             } else if (!definingClassComparison.compare(referenceClass, definingClassLocal)) {
                 return false
@@ -852,7 +892,8 @@ fun fieldAccess(
  * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
  *
  * @param reference Exact reference to match.
- * @param opcode Single opcode to match.
+ * @param opcodes List of all possible opcodes to match. Defaults to matching all get/put opcodes.
+ *                (`Opcode.IGET`, `Opcode.SGET`, `Opcode.IPUT`, `Opcode.SPUT`, etc).
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
 fun fieldAccess(
