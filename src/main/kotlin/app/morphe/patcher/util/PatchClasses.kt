@@ -57,9 +57,9 @@ internal class PatchClasses internal constructor(
     }
 
     private data class ClassIndexValues(
-        val strings: MutableSet<String> = HashSet(),
-        val referencedTypeHashes: MutableSet<Int> = HashSet(),
-        val literalValues: MutableSet<Long> = HashSet(),
+        val strings: MutableSet<String> = HashSet(1024, 0.5f),
+        val referencedTypeHashes: MutableSet<Int> = HashSet(1024, 0.5f),
+        val literalValues: MutableSet<Long> = HashSet(1024, 0.5f),
     )
 
     /** Collect string, type-reference, and literal values in one traversal. */
