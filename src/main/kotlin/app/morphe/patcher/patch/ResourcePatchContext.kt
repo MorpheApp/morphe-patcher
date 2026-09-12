@@ -12,6 +12,7 @@ import app.morphe.patcher.InternalApi
 import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherResult
+import app.morphe.patcher.resource.ResourceIds
 import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.resource.coder.ArsclibResourceCoder
 import app.morphe.patcher.resource.coder.ResourceCoder
@@ -32,6 +33,13 @@ class ResourcePatchContext internal constructor(
     override val fileWorkspace = config.fileWorkspace
 
     private val resourceCoder: ResourceCoder = ArsclibResourceCoder(config.apkFiles, config.apkFile, config.keepArchitectures)
+
+    /**
+     * The resource ids of the APK being patched, read from its resource table on first use.
+     * Also reachable without a context through [app.morphe.patcher.resource.resourceId] and
+     * [app.morphe.patcher.resource.hasResourceId], which is what [app.morphe.patcher.resourceLiteral] uses.
+     */
+    val resourceIds: ResourceIds = ResourceIds { resourceCoder.resourceIds() }.also { ResourceIds.current = it }
 
     val packageMetadata = resourceCoder.getPackageMetadata()
 
@@ -130,5 +138,8 @@ class ResourcePatchContext internal constructor(
     @Suppress("unused")
     fun delete(name: String, packageName: String? = null) = resourceCoder.deleteFile(name, packageName)
 
-    override fun close() = resourceCoder.close()
+    override fun close() {
+        if (ResourceIds.current === resourceIds) ResourceIds.current = null
+        resourceCoder.close()
+    }
 }

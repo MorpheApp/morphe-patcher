@@ -2,6 +2,10 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.resource.ResourceType
+import app.morphe.patcher.resource.hasResourceId
+import app.morphe.patcher.resource.resourceId
+
 import app.morphe.patcher.FieldAccessFilter.Companion.parseJvmFieldAccess
 import app.morphe.patcher.MethodCallFilter.Companion.parseJvmMethodCall
 import com.android.tools.smali.dexlib2.Opcode
@@ -340,15 +344,23 @@ open class OpcodesFilter protected constructor(
 
 
 class LiteralFilter internal constructor(
-    val literal: () -> Long,
+    literalOrNull: () -> Long?,
     opcodes: List<Opcode>? = null,
     location: InstructionLocation
 ) : OpcodesFilter(opcodes, location) {
 
     /**
      * Store the lambda value instead of calling it more than once.
+     * `null` means the literal does not exist in this app, and the filter never matches.
      */
-    internal val literalValue: Long by lazy(literal)
+    internal val literalValue: Long? by lazy(literalOrNull)
+
+    /**
+     * The literal this filter matches.
+     *
+     * @throws IllegalStateException If the literal does not exist in this app.
+     */
+    val literal: () -> Long = { literalValue ?: error("Literal does not exist in this app") }
 
     override fun matches(
         enclosingMethod: Method,
@@ -429,10 +441,38 @@ fun literal(
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
 fun literal(
-    literal: () -> Long,
+    literal: () -> Long?,
     opcodes: List<Opcode>? = null,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
 ) = LiteralFilter(literal, opcodes, location)
+
+/**
+ * Literal equal to the id of a resource of the APK being patched, such as a layout or view id.
+ * The id is looked up when the fingerprint is first matched, from the APK's resource table, so
+ * it is available whether or not resources are decoded. Declared this way the patcher can use
+ * its literal index to find candidate classes instead of scanning every class.
+ *
+ * @param type The resource type.
+ * @param name The resource name.
+ * @param exceptionIfResourceNotFound If `false` and the APK has no such resource, the filter
+ *                                    never matches instead of failing. Useful with [anyInstruction]
+ *                                    when a resource exists only in some app versions.
+ * @param opcodes Opcodes to match. By default this matches any literal number opcode.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun resourceLiteral(
+    type: ResourceType,
+    name: String,
+    exceptionIfResourceNotFound: Boolean = true,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
+) = LiteralFilter(
+    {
+        if (exceptionIfResourceNotFound || hasResourceId(type, name)) resourceId(type, name) else null
+    },
+    opcodes,
+    location,
+)
 
 
 

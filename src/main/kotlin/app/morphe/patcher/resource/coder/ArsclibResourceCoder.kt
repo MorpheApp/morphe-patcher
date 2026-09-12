@@ -937,6 +937,26 @@ internal class ArsclibResourceCoder(
         return retval
     }
 
+    override fun resourceIds(): Map<String, Long> =
+        ApkModule.loadApkFile(apkFile).use { module ->
+            if (!module.hasTableBlock()) return@use emptyMap()
+            val ids = HashMap<String, Long>()
+            module.tableBlock.forEach { packageBlock ->
+                packageBlock.listSpecTypePairs().forEach { specTypePair ->
+                    specTypePair.forEach { typeBlock ->
+                        typeBlock.listEntries(true).forEach { entry ->
+                            // Unsigned: ids are 0x7fxxxxxx for the app, so this is a plain Long.
+                            ids.putIfAbsent(
+                                "${typeBlock.typeName}/${entry.name}",
+                                entry.resourceId.toLong() and 0xffffffffL,
+                            )
+                        }
+                    }
+                }
+            }
+            ids
+        }
+
     override fun listApkEntries(prefix: String): List<String> =
         ZFile.openReadOnly(apkFile).use { zFile ->
             zFile.entries().mapNotNull { entry ->
