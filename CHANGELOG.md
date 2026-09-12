@@ -1,3 +1,10 @@
+# [1.14.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.1-dev.1...v1.14.0-dev.1) (2026-09-12)
+
+
+### Features
+
+* Add resource ids and `resourceLiteral` instruction filter ([#207](https://github.com/MorpheApp/morphe-patcher/issues/207)) ([5ab050b](https://github.com/MorpheApp/morphe-patcher/commit/5ab050b3a676c0c4226fcd15918226633bf60f9b))
+
 ## [1.13.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.0...v1.13.1-dev.1) (2026-09-11)
 
 
