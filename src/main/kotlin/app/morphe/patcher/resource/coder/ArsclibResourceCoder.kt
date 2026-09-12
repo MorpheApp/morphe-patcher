@@ -46,6 +46,8 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
 import java.util.logging.Logger
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.measureTime
 
 /**
@@ -517,10 +519,16 @@ internal class ArsclibResourceCoder(
             val encoder = ApkModuleXmlEncoder()
             encoder.apkModule.use { loadedModule ->
                 loadedModule.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
+
+                fun Duration.roundToTenths(): Duration {
+                    val roundedMs = ((inWholeMilliseconds + 50) / 100) * 100
+                    return roundedMs.milliseconds
+                }
+
                 val scanDuration = measureTime {
                     encoder.scanDirectory(workingDir)
                     loadedModule.encodePatchedConfigurations(patchedConfigurations)
-                }
+                }.roundToTenths()
 
                 ApkModule.loadApkFile(apkFile).use { originalModule ->
                     val changedEntries = changedArchiveEntries(originalPackageName != newPackageName)
@@ -534,7 +542,7 @@ internal class ArsclibResourceCoder(
 
                     val writeDuration = measureTime {
                         loadedModule.writeApk(outputApk)
-                    }
+                    }.roundToTenths()
 
                     logger.info("Resource APK timings: scan=$scanDuration, write=$writeDuration")
                 }
@@ -936,6 +944,27 @@ internal class ArsclibResourceCoder(
 
         return retval
     }
+
+    override fun resourceIds(): Map<String, Long> =
+        ApkModule.loadApkFile(apkFile).use { module ->
+            if (!module.hasTableBlock()) return@use emptyMap()
+
+            val ids = HashMap<String, Long>(1024, 0.5f)
+            module.tableBlock.forEach { packageBlock ->
+                packageBlock.listSpecTypePairs().forEach { specTypePair ->
+                    specTypePair.forEach { typeBlock ->
+                        typeBlock.listEntries(true).forEach { entry ->
+                            // Unsigned: ids are 0x7fxxxxxx for the app, so this is a plain Long.
+                            ids.putIfAbsent(
+                                "${typeBlock.typeName}/${entry.name}",
+                                entry.resourceId.toLong() and 0xffffffffL,
+                            )
+                        }
+                    }
+                }
+            }
+            ids
+        }
 
     override fun listApkEntries(prefix: String): List<String> =
         ZFile.openReadOnly(apkFile).use { zFile ->

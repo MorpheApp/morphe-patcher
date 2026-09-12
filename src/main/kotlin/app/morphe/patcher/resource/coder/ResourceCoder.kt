@@ -36,6 +36,11 @@ internal interface ResourceCoder : Closeable {
     fun listApkEntries(prefix: String = ""): List<String>
 
     /**
+     * The resource ids of the input APK, keyed by `type/name`, read from its resource table.
+     */
+    fun resourceIds(): Map<String, Long>
+
+    /**
      * Decode raw resources from the APK into the working directory and update the package metadata.
      *
      * @return The package's metadata.

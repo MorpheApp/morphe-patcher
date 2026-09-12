@@ -156,6 +156,8 @@ public final class app/morphe/patcher/InstructionFilterKt {
 	public static synthetic fun newInstance$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/NewInstanceFilter;
 	public static final fun opcode (Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/OpcodeFilter;
 	public static synthetic fun opcode$default (Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/OpcodeFilter;
+	public static final fun resourceLiteral (Lapp/morphe/patcher/resource/ResourceType;Ljava/lang/String;ZLapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/LiteralFilter;
+	public static synthetic fun resourceLiteral$default (Lapp/morphe/patcher/resource/ResourceType;Ljava/lang/String;ZLapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/LiteralFilter;
 	public static final fun string (Ljava/lang/String;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/StringFilter;
 	public static final fun string (Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/StringFilter;
 	public static final fun string (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/StringFilter;
@@ -1068,6 +1070,7 @@ public final class app/morphe/patcher/patch/ResourcePatchContext : app/morphe/pa
 	public static synthetic fun get$default (Lapp/morphe/patcher/patch/ResourcePatchContext;Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
 	public fun getFileWorkspace ()Ljava/io/File;
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
+	public final fun getResourceIds ()Lapp/morphe/patcher/resource/ResourceIds;
 	public final fun listApkEntries (Ljava/lang/String;)Ljava/util/List;
 	public static synthetic fun listApkEntries$default (Lapp/morphe/patcher/patch/ResourcePatchContext;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/List;
 }
@@ -1140,6 +1143,17 @@ public final class app/morphe/patcher/resource/PublicXmlManager : java/io/Closea
 	public final fun idExists (Ljava/lang/String;Ljava/lang/String;)Z
 }
 
+public final class app/morphe/patcher/resource/ResourceIds {
+	public final fun get (Lapp/morphe/patcher/resource/ResourceType;Ljava/lang/String;)J
+	public final fun getOrNull (Lapp/morphe/patcher/resource/ResourceType;Ljava/lang/String;)Ljava/lang/Long;
+	public final fun has (Lapp/morphe/patcher/resource/ResourceType;Ljava/lang/String;)Z
+}
+
+public final class app/morphe/patcher/resource/ResourceIdsKt {
+	public static final fun hasResourceId (Lapp/morphe/patcher/resource/ResourceType;Ljava/lang/String;)Z
+	public static final fun resourceId (Lapp/morphe/patcher/resource/ResourceType;Ljava/lang/String;)J
+}
+
 public final class app/morphe/patcher/resource/ResourceMode : java/lang/Enum {
 	public static final field FULL Lapp/morphe/patcher/resource/ResourceMode;
 	public static final field NONE Lapp/morphe/patcher/resource/ResourceMode;
@@ -1147,6 +1161,44 @@ public final class app/morphe/patcher/resource/ResourceMode : java/lang/Enum {
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/resource/ResourceMode;
 	public static fun values ()[Lapp/morphe/patcher/resource/ResourceMode;
+}
+
+public final class app/morphe/patcher/resource/ResourceType : java/lang/Enum {
+	public static final field ANIM Lapp/morphe/patcher/resource/ResourceType;
+	public static final field ANIMATOR Lapp/morphe/patcher/resource/ResourceType;
+	public static final field ARRAY Lapp/morphe/patcher/resource/ResourceType;
+	public static final field ATTR Lapp/morphe/patcher/resource/ResourceType;
+	public static final field BOOL Lapp/morphe/patcher/resource/ResourceType;
+	public static final field COLOR Lapp/morphe/patcher/resource/ResourceType;
+	public static final field Companion Lapp/morphe/patcher/resource/ResourceType$Companion;
+	public static final field DIMEN Lapp/morphe/patcher/resource/ResourceType;
+	public static final field DRAWABLE Lapp/morphe/patcher/resource/ResourceType;
+	public static final field FONT Lapp/morphe/patcher/resource/ResourceType;
+	public static final field FRACTION Lapp/morphe/patcher/resource/ResourceType;
+	public static final field ID Lapp/morphe/patcher/resource/ResourceType;
+	public static final field INTEGER Lapp/morphe/patcher/resource/ResourceType;
+	public static final field INTERPOLATOR Lapp/morphe/patcher/resource/ResourceType;
+	public static final field LAYOUT Lapp/morphe/patcher/resource/ResourceType;
+	public static final field MENU Lapp/morphe/patcher/resource/ResourceType;
+	public static final field MIPMAP Lapp/morphe/patcher/resource/ResourceType;
+	public static final field NAVIGATION Lapp/morphe/patcher/resource/ResourceType;
+	public static final field PLURALS Lapp/morphe/patcher/resource/ResourceType;
+	public static final field RAW Lapp/morphe/patcher/resource/ResourceType;
+	public static final field STRING Lapp/morphe/patcher/resource/ResourceType;
+	public static final field STYLE Lapp/morphe/patcher/resource/ResourceType;
+	public static final field STYLEABLE Lapp/morphe/patcher/resource/ResourceType;
+	public static final field TRANSITION Lapp/morphe/patcher/resource/ResourceType;
+	public static final field VALUES Lapp/morphe/patcher/resource/ResourceType;
+	public static final field XML Lapp/morphe/patcher/resource/ResourceType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getValue ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/resource/ResourceType;
+	public static fun values ()[Lapp/morphe/patcher/resource/ResourceType;
+}
+
+public final class app/morphe/patcher/resource/ResourceType$Companion {
+	public final fun fromValue (Ljava/lang/String;)Lapp/morphe/patcher/resource/ResourceType;
+	public final fun fromValueOrNull (Ljava/lang/String;)Lapp/morphe/patcher/resource/ResourceType;
 }
 
 public final class app/morphe/patcher/resource/XmlPullParserUtilsKt {

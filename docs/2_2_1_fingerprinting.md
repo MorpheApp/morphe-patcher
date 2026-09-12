@@ -61,6 +61,23 @@ object AdLoaderFingerprint : Fingerprint(
 )
 ```
 
+### 📦 Resource ids as literals
+
+Apps refer to their resources by id, and those ids differ per build. `resourceLiteral(type, name)`
+matches an instruction loading the id of a named resource of the APK being patched, looked up
+from its resource table when the fingerprint is first matched:
+
+```kt
+filters = listOf(
+    resourceLiteral(ResourceType.LAYOUT, "account_compact_link"),
+    opcode(Opcode.MOVE_RESULT_OBJECT, InstructionLocation.MatchAfterWithin(5)),
+)
+```
+
+Pass `exceptionIfResourceNotFound = false` for a resource that only some app versions have,
+typically inside `anyInstruction(...)`; the filter then never matches instead of failing. The
+same lookup is available directly with `resourceId(type, name)` and `hasResourceId(type, name)`.
+
 ## 🔎 Example target app in Java and Smali
 
 ```java
