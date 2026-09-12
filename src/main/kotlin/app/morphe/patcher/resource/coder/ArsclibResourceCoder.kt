@@ -46,6 +46,8 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
 import java.util.logging.Logger
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.measureTime
 
 /**
@@ -517,10 +519,16 @@ internal class ArsclibResourceCoder(
             val encoder = ApkModuleXmlEncoder()
             encoder.apkModule.use { loadedModule ->
                 loadedModule.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
+
+                fun Duration.roundToTenths(): Duration {
+                    val roundedMs = ((inWholeMilliseconds + 50) / 100) * 100
+                    return roundedMs.milliseconds
+                }
+
                 val scanDuration = measureTime {
                     encoder.scanDirectory(workingDir)
                     loadedModule.encodePatchedConfigurations(patchedConfigurations)
-                }
+                }.roundToTenths()
 
                 ApkModule.loadApkFile(apkFile).use { originalModule ->
                     val changedEntries = changedArchiveEntries(originalPackageName != newPackageName)
@@ -534,7 +542,7 @@ internal class ArsclibResourceCoder(
 
                     val writeDuration = measureTime {
                         loadedModule.writeApk(outputApk)
-                    }
+                    }.roundToTenths()
 
                     logger.info("Resource APK timings: scan=$scanDuration, write=$writeDuration")
                 }
