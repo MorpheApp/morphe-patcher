@@ -694,7 +694,8 @@ open class Fingerprint private constructor(
 
     context(patchContext: BytecodePatchContext)
     private fun InstructionFilter.indexedCandidatesOrNull(): Set<PatchClasses.ClassDefWrapper>? = when (this) {
-        is LiteralFilter -> patchContext.patchClasses.getClassesContainingLiteral(literalValue).orEmpty().toSet()
+        // A literal that does not exist in this app cannot match anywhere.
+        is LiteralFilter -> literalValue?.let { patchContext.patchClasses.getClassesContainingLiteral(it) }.orEmpty().toSet()
         else -> exactReferencedTypesOrNull()?.flatMap { type ->
             patchContext.patchClasses.getClassesReferencingType(type).orEmpty()
         }?.toSet()

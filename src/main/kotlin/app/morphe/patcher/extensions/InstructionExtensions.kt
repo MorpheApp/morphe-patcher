@@ -2,9 +2,10 @@
  * Copyright 2026 Morphe.
  * https://github.com/MorpheApp/morphe-patcher
  *
- * Continuation of: https://github.com/LisoUseInAIKyrios/revanced-patcher/tree/feat/instruction_filters
- * and a hard fork of: https://github.com/ReVanced/revanced-patcher
+ * Original forked code:
+ * https://github.com/LisoUseInAIKyrios/revanced-patcher
  */
+
 package app.morphe.patcher.extensions
 
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod

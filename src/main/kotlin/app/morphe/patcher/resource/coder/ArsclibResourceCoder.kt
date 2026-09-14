@@ -46,6 +46,8 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
 import java.util.logging.Logger
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.measureTime
 
 /**
@@ -75,6 +77,7 @@ private const val PATCHED_ROOT_DIRECTORY = "patched-root"
 
 /** The one archive directory left unstaged, because it dominates the APK's size. */
 private const val NATIVE_LIBRARY_DIRECTORY = "lib"
+private val DEX_ENTRY_NAME = Regex("classes\\d*\\.dex")
 
 internal class ArsclibResourceCoder(
     internal val workingDir: File,
@@ -516,10 +519,16 @@ internal class ArsclibResourceCoder(
             val encoder = ApkModuleXmlEncoder()
             encoder.apkModule.use { loadedModule ->
                 loadedModule.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
+
+                fun Duration.roundToTenths(): Duration {
+                    val roundedMs = ((inWholeMilliseconds + 50) / 100) * 100
+                    return roundedMs.milliseconds
+                }
+
                 val scanDuration = measureTime {
                     encoder.scanDirectory(workingDir)
                     loadedModule.encodePatchedConfigurations(patchedConfigurations)
-                }
+                }.roundToTenths()
 
                 ApkModule.loadApkFile(apkFile).use { originalModule ->
                     val changedEntries = changedArchiveEntries(originalPackageName != newPackageName)
@@ -533,7 +542,7 @@ internal class ArsclibResourceCoder(
 
                     val writeDuration = measureTime {
                         loadedModule.writeApk(outputApk)
-                    }
+                    }.roundToTenths()
 
                     logger.info("Resource APK timings: scan=$scanDuration, write=$writeDuration")
                 }
@@ -936,6 +945,27 @@ internal class ArsclibResourceCoder(
         return retval
     }
 
+    override fun resourceIds(): Map<String, Long> =
+        ApkModule.loadApkFile(apkFile).use { module ->
+            if (!module.hasTableBlock()) return@use emptyMap()
+
+            val ids = HashMap<String, Long>(1024, 0.5f)
+            module.tableBlock.forEach { packageBlock ->
+                packageBlock.listSpecTypePairs().forEach { specTypePair ->
+                    specTypePair.forEach { typeBlock ->
+                        typeBlock.listEntries(true).forEach { entry ->
+                            // Unsigned: ids are 0x7fxxxxxx for the app, so this is a plain Long.
+                            ids.putIfAbsent(
+                                "${typeBlock.typeName}/${entry.name}",
+                                entry.resourceId.toLong() and 0xffffffffL,
+                            )
+                        }
+                    }
+                }
+            }
+            ids
+        }
+
     override fun listApkEntries(prefix: String): List<String> =
         ZFile.openReadOnly(apkFile).use { zFile ->
             zFile.entries().mapNotNull { entry ->
@@ -945,12 +975,16 @@ internal class ArsclibResourceCoder(
 
     /**
      * Whether a root entry is staged to the working directory during decode. Everything is,
-     * except native libraries: they are the bulk of an APK, and nothing enumerates them on disk.
+     * except native libraries and DEX files. Native libraries are the bulk of an APK, and nothing
+     * enumerates them on disk. DEX files are never written by the decoder either (the DEX decoder
+     * is a no-op) and are handled by the bytecode side; declaring them unstaged here lets
+     * [reuseUnchangedArchiveEntries] carry them into the compiled resource APK, which is what the
+     * output is built from, so they survive when no bytecode was patched.
      * Staging the rest matters because a patch that discovers files by walking the directory can
      * only see what is on disk, and the on-demand extraction in [getFile] cannot serve a walk.
      */
     internal fun stagesRootEntry(alias: String) =
-        !alias.startsWith("$NATIVE_LIBRARY_DIRECTORY/")
+        !alias.startsWith("$NATIVE_LIBRARY_DIRECTORY/") && !DEX_ENTRY_NAME.matches(alias)
 
     /**
      * Extract a single root entry from the input APK into the working directory, and record it

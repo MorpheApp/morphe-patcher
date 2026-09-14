@@ -1,3 +1,17 @@
+# [1.14.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.1-dev.1...v1.14.0-dev.1) (2026-09-12)
+
+
+### Features
+
+* Add resource ids and `resourceLiteral` instruction filter ([#207](https://github.com/MorpheApp/morphe-patcher/issues/207)) ([5ab050b](https://github.com/MorpheApp/morphe-patcher/commit/5ab050b3a676c0c4226fcd15918226633bf60f9b))
+
+## [1.13.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.0...v1.13.1-dev.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* Carry the input DEX files into the compiled resource APK ([#203](https://github.com/MorpheApp/morphe-patcher/issues/203)) ([9da07ed](https://github.com/MorpheApp/morphe-patcher/commit/9da07edd158ef8956c73f43187c131ddc0ab5be7))
+
 # [1.13.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.12.0...v1.13.0) (2026-09-10)
 
 
