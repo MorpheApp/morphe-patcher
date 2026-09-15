@@ -45,6 +45,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -56,6 +57,12 @@ import kotlin.time.measureTime
  * a code of this range for one of the two.
  */
 private val PATCH_MOBILE_CODES = 1000..9999
+
+/**
+ * Set to `true` to rebuild the resource table from every decoded values file instead of encoding
+ * only the resources patches changed into the table of the input APK.
+ */
+internal const val FULL_RESOURCE_ENCODE_PROPERTY = "morphe.patcher.fullResourceEncode"
 
 /**
  * A resource table that uses sparse entries cannot be read below Android 8.
@@ -98,6 +105,12 @@ internal class ArsclibResourceCoder(
      * by [getDeletedFiles] so [ApkUtils.applyTo] can exclude them from the rebuilt APK.
      */
     internal val deletedFiles = mutableSetOf<String>()
+
+    /**
+     * Archive entry names of decoded resource files under `res/` a patch deleted. The entries
+     * of the table that named them are emptied, and the archive entries are not carried over.
+     */
+    internal val deletedResourceFiles = mutableSetOf<String>()
 
     /**
      * Snapshot of file metadata and identity captured after decoding resources.
@@ -191,6 +204,7 @@ internal class ArsclibResourceCoder(
         modifiedResResources.clear()
         modifiedBinaryResources.clear()
         deletedFiles.clear()
+        deletedResourceFiles.clear()
 
         packageDirectories.forEach { (_, packageDir) ->
             packageDir.resolve("res").walkTopDown().filter { it.isFile }.forEach { file ->
@@ -223,8 +237,12 @@ internal class ArsclibResourceCoder(
         // Detect files that existed at decode time but are now removed.
         // These need to be communicated to applyTo() so that they're excluded from the rebuilt APK.
         val rootPathPrefix = otherResourcesRootDirectory.absoluteFile.invariantSeparatorsPath
+        val packagePathPrefixes = packageDirectories.values.map { "${it.absoluteFile.invariantSeparatorsPath}/res/" }
         fileSnapshotCache.keys.forEach { key ->
             if (File(key).exists()) return@forEach
+            packagePathPrefixes.firstOrNull { key.startsWith(it) }?.let { prefix ->
+                deletedResourceFiles += archiveNameOf("res/" + key.removePrefix(prefix))
+            }
             if (key.startsWith("$rootPathPrefix/")) {
                 // Snapshot keys are absolute while the working directory may be relative
                 // (PatcherConfig defaults it to one), and relativising across that throws.
@@ -478,12 +496,21 @@ internal class ArsclibResourceCoder(
             manifestNode.getAttribute("package")
         }
         val originalPackageName = lazyPackageInfo.value.packageName
+        val packageRenamed = originalPackageName != newPackageName
 
-        PublicXmlManager(getFile("res/values/public.xml")).use { publicXmlManager ->
+        val incremental = !System.getProperty(FULL_RESOURCE_ENCODE_PROPERTY).toBoolean()
+
+        // The incremental encoder re-encodes only the files patches changed, so only those need
+        // the processing the encoder expects. The full rebuild reads every file.
+        val changedStringsFiles = if (incremental) modifiedResResources.filter { it.name == "strings.xml" } else null
+        val renamedFiles = if (incremental) modifiedResResources.toList() else null
+
+        val publicXmlManager = PublicXmlManager(getFile("res/values/public.xml"))
+        publicXmlManager.use {
             StringsXmlUnEscapeProcessor(
                 { path, pkg -> getFile(path, pkg) },
                 packageDirectories,
-            ).process()
+            ).process(changedStringsFiles)
 
             val renamedResources = PackageRenamingProcessor(
                 { path, pkg -> getFile(path, pkg) },
@@ -491,7 +518,7 @@ internal class ArsclibResourceCoder(
                 packageDirectories,
                 originalPackageName,
                 newPackageName
-            ).process()
+            ).process(renamedFiles)
             modifiedResResources += renamedResources
 
             // Post process all aapt:attr macros in XML files.
@@ -513,6 +540,102 @@ internal class ArsclibResourceCoder(
             it.stringDecoder = AaptXmlStringDecoder()
         }
 
+        if (incremental) {
+            try {
+                return encodeResourcesIncrementally(
+                    outputApk,
+                    publicXmlManager.getDefinedIds(),
+                    originalPackageName,
+                    newPackageName,
+                )
+            } catch (exception: Exception) {
+                logger.log(
+                    Level.WARNING,
+                    "Encoding the changed resources into the resource table failed, rebuilding the table: $exception",
+                    exception
+                )
+                // Finish the processing the incremental path limited to the changed files.
+                StringsXmlUnEscapeProcessor(
+                    { path, pkg -> getFile(path, pkg) },
+                    packageDirectories,
+                ).process(files = null, except = changedStringsFiles.orEmpty().toSet())
+                if (packageRenamed) {
+                    PackageRenamingProcessor(
+                        { path, pkg -> getFile(path, pkg) },
+                        null,
+                        packageDirectories,
+                        originalPackageName,
+                        newPackageName
+                    ).process(null)
+                }
+            }
+        }
+
+        return encodeResourcesFully(outputApk, packageRenamed)
+    }
+
+    /**
+     * Encodes the resources patches changed into the resource table of the input APK, which is
+     * then written out with the archive entries it still holds.
+     */
+    private fun encodeResourcesIncrementally(
+        outputApk: File,
+        publicIds: Map<Pair<String, String>, Int>,
+        originalPackageName: String,
+        newPackageName: String,
+    ): File {
+        ApkModule.loadApkFile(apkFile).use { module ->
+            module.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
+
+            val minSdk = module.androidManifest.minSdkVersion
+            val useSparseEntries = minSdk != null && minSdk >= SPARSE_ENTRIES_MIN_SDK
+
+            val encoder = IncrementalResourceEncoder(
+                module,
+                workingDir,
+                packageDirectories,
+                ::archiveNameOf,
+                { file -> fileSnapshotCache[pathKey(file)] == null },
+            )
+
+            val scanDuration = measureTime {
+                encoder.encode(
+                    modifiedResResources,
+                    deletedResourceFiles + deletedArchiveEntries,
+                    packageDirectories.values.flatMap(::patchedConfigurationDirectories),
+                    useSparseEntries,
+                    publicIds,
+                    originalPackageName,
+                    newPackageName,
+                )
+            }.roundToTenths()
+
+            // A rename needs no rebuild here: compiled resources reference the package by id.
+            val droppedEntries = changedArchiveEntries(packageRenamed = false)
+                .filter { it !in encoder.encodedEntries }
+                .count { module.zipEntryMap.remove(it) != null }
+            module.zipEntryMap.autoSortApkFiles()
+
+            logger.info(
+                "Resource APK inputs: reusing ${module.zipEntryMap.listInputSources().size - encoder.encodedEntries.size} " +
+                        "unchanged archive entries, rebuilding ${encoder.encodedEntries.size} entries, " +
+                        "dropping $droppedEntries entries",
+            )
+
+            val writeDuration = measureTime {
+                module.writeApk(outputApk)
+            }.roundToTenths()
+
+            logger.info("Resource APK timings: scan=$scanDuration, write=$writeDuration")
+        }
+
+        return outputApk
+    }
+
+    /**
+     * Rebuilds the resource table from every decoded values file.
+     */
+    private fun encodeResourcesFully(outputApk: File, packageRenamed: Boolean): File {
         val patchedConfigurations = stashPatchedConfigurations()
 
         try {
@@ -520,18 +643,13 @@ internal class ArsclibResourceCoder(
             encoder.apkModule.use { loadedModule ->
                 loadedModule.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
 
-                fun Duration.roundToTenths(): Duration {
-                    val roundedMs = ((inWholeMilliseconds + 50) / 100) * 100
-                    return roundedMs.milliseconds
-                }
-
                 val scanDuration = measureTime {
                     encoder.scanDirectory(workingDir)
                     loadedModule.encodePatchedConfigurations(patchedConfigurations)
                 }.roundToTenths()
 
                 ApkModule.loadApkFile(apkFile).use { originalModule ->
-                    val changedEntries = changedArchiveEntries(originalPackageName != newPackageName)
+                    val changedEntries = changedArchiveEntries(packageRenamed)
                     val reusedEntries = reuseUnchangedArchiveEntries(originalModule, loadedModule, changedEntries)
                     val rebuiltEntries = loadedModule.zipEntryMap.listInputSources().size - reusedEntries
 
@@ -555,6 +673,11 @@ internal class ArsclibResourceCoder(
         return outputApk
     }
 
+    private fun Duration.roundToTenths(): Duration {
+        val roundedMs = ((inWholeMilliseconds + 50) / 100) * 100
+        return roundedMs.milliseconds
+    }
+
     /**
      * Returns original APK entry names which cannot be reused.
      */
@@ -562,6 +685,7 @@ internal class ArsclibResourceCoder(
         add("AndroidManifest.xml")
         add("resources.arsc")
         addAll(deletedFiles)
+        addAll(deletedResourceFiles)
         addAll(strippedLibraries)
         addAll(deletedArchiveEntries)
         addAll(relocatedRootFiles.values)
@@ -668,12 +792,7 @@ internal class ArsclibResourceCoder(
             val publicXml = packageDirectory.resolve("res/values/public.xml")
             if (!publicXml.isFile) return@flatMap emptyList()
 
-            packageDirectory.resolve("res").listFiles { file: File ->
-                file.isDirectory && file.name.startsWith("values-")
-            }.orEmpty().filter { valuesDirectory ->
-                val config = ResConfig.parse(qualifiersOf(valuesDirectory))
-                config.mcc in PATCH_MOBILE_CODES || config.mnc in PATCH_MOBILE_CODES
-            }.map { valuesDirectory ->
+            patchedConfigurationDirectories(packageDirectory).map { valuesDirectory ->
                 val heldDirectory = heldRoot
                     .resolve(packageDirectory.name)
                     .resolve(valuesDirectory.name)
@@ -688,6 +807,18 @@ internal class ArsclibResourceCoder(
             }
         }
     }
+
+    /**
+     * The values directories of the resource configurations patches added to a package, told
+     * apart by a mobile country or network code no device reports.
+     */
+    internal fun patchedConfigurationDirectories(packageDirectory: File): List<File> =
+        packageDirectory.resolve("res").listFiles { file: File ->
+            file.isDirectory && file.name.startsWith("values-")
+        }.orEmpty().filter { valuesDirectory ->
+            val config = ResConfig.parse(qualifiersOf(valuesDirectory))
+            config.mcc in PATCH_MOBILE_CODES || config.mnc in PATCH_MOBILE_CODES
+        }
 
     /**
      * Encodes the configurations [stashPatchedConfigurations] held back, into a table that is

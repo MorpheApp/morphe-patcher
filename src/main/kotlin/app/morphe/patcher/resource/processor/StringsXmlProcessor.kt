@@ -21,10 +21,14 @@ abstract internal class StringsXmlProcessor(
 ) {
     private val logger = Logger.getLogger(this::class.java.name)
 
-    fun process() {
+    /**
+     * @param files The strings files to process, or null for every strings file of every package.
+     * @param except Files to leave alone, because they were processed before.
+     */
+    fun process(files: Collection<File>? = null, except: Set<File> = emptySet()) {
         logger.info(logString)
 
-        val stringFiles = buildList {
+        val stringFiles = files?.filter { it.name == "strings.xml" && it.isFile } ?: buildList {
             packageDirectories.forEach { (resPackageName, rootDir) ->
                 rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
                     // TODO Strings declared in arrays.xml may also need unescaping of string literals.
@@ -37,7 +41,7 @@ abstract internal class StringsXmlProcessor(
             }
         }
 
-        stringFiles.parallelStream().forEach(::processFile)
+        stringFiles.filter { it !in except }.parallelStream().forEach(::processFile)
     }
 
     private fun processFile(file: File) {

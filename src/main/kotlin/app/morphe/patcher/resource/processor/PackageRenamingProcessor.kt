@@ -14,7 +14,7 @@ import java.util.logging.Logger
 
 internal class PackageRenamingProcessor(
     private val get: (String, String) -> File,
-    private val publicXmlManager: PublicXmlManager,
+    private val publicXmlManager: PublicXmlManager?,
     private val packageDirectories: Map<String, File>,
     private val originalPackageName: String,
     private val newPackageName: String
@@ -22,29 +22,45 @@ internal class PackageRenamingProcessor(
     private val logger = Logger.getLogger(PackageRenamingProcessor::class.java.name)
     private val regex = Regex("^[@?]$originalPackageName:.*")
 
-    fun process(): Set<File> {
+    /**
+     * @param files The resource files whose references to the package are rewritten, or null for
+     * every XML of every package but the renamed one. Compiled resources reference a package by
+     * id, so only files that are encoded again need this.
+     * @return The files this changed.
+     */
+    fun process(files: Collection<File>? = null): Set<File> {
         if (originalPackageName == newPackageName) return emptySet()
 
         logger.info("Post-processing package name change")
         val modifiedFiles = mutableSetOf<File>()
 
-        // Update public.xml package
-        publicXmlManager.changePackageName(newPackageName)
+        // Update public.xml package. Null when the declarations were updated by an earlier pass.
+        publicXmlManager?.let { manager ->
+            manager.changePackageName(newPackageName)
 
-        // Update package.json
-        get("package.json", originalPackageName).apply {
-            val packageJson = JSONObject(this)
-            packageJson.put("package_name", newPackageName)
-            packageJson.write(this)
+            // Update package.json
+            get("package.json", originalPackageName).apply {
+                val packageJson = JSONObject(this)
+                packageJson.put("package_name", newPackageName)
+                packageJson.write(this)
+            }
         }
 
-        // Process all other XMLs in resource bundles
-        packageDirectories.filter { it.key != originalPackageName }.forEach { (resPackageName, rootDir) ->
-            rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
-                dir.listFiles { it.extension == "xml" && it.name != "strings.xml" }?.forEach { file ->
-                    if (processFile(file)) modifiedFiles += file
+        val otherPackageDirectories = packageDirectories.filter { it.key != originalPackageName }.values
+        val candidates = files?.filter { file ->
+            file.isFile && file.extension == "xml" && file.name != "strings.xml" &&
+                    otherPackageDirectories.any { file.startsWith(it) }
+        } ?: buildList {
+            // Process all other XMLs in resource bundles
+            otherPackageDirectories.forEach { rootDir ->
+                rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
+                    dir.listFiles { it.extension == "xml" && it.name != "strings.xml" }?.forEach { add(it) }
                 }
             }
+        }
+
+        candidates.forEach { file ->
+            if (processFile(file)) modifiedFiles += file
         }
 
         return modifiedFiles
