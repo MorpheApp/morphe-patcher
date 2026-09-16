@@ -290,6 +290,20 @@ internal class ArsclibResourceCoder(
         }
     }
 
+    /**
+     * The input APK with its resource table parsed, shared by the resource id lookups of
+     * fingerprints and the incremental encoder, which builds the output from it. Parsing the
+     * table of a large app takes over a second on a phone, so it is done once and kept until
+     * [close].
+     */
+    private var inputModule: ApkModule? = null
+
+    @Synchronized
+    private fun inputModule(): ApkModule = inputModule ?: ApkModule.loadApkFile(apkFile).also {
+        if (it.hasAndroidManifest()) it.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
+        inputModule = it
+    }
+
     private fun readPathMap(): PathMap {
         val pathMapJsonFile = workingDir.resolve("path-map.json")
         return if (pathMapJsonFile.exists()) {
@@ -584,9 +598,10 @@ internal class ArsclibResourceCoder(
         originalPackageName: String,
         newPackageName: String,
     ): File {
-        ApkModule.loadApkFile(apkFile).use { module ->
-            module.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
-
+        // The module becomes the output, so it is not usable for lookups afterwards.
+        val module = inputModule()
+        inputModule = null
+        module.use {
             val minSdk = module.androidManifest.minSdkVersion
             val useSparseEntries = minSdk != null && minSdk >= SPARSE_ENTRIES_MIN_SDK
 
@@ -1077,8 +1092,8 @@ internal class ArsclibResourceCoder(
     }
 
     override fun resourceIds(): Map<String, Long> =
-        ApkModule.loadApkFile(apkFile).use { module ->
-            if (!module.hasTableBlock()) return@use emptyMap()
+        inputModule().let { module ->
+            if (!module.hasTableBlock()) return@let emptyMap()
 
             val ids = HashMap<String, Long>(1024, 0.5f)
             module.tableBlock.forEach { packageBlock ->
@@ -1249,5 +1264,7 @@ internal class ArsclibResourceCoder(
         deletedArchiveEntries.clear()
         uncompressedOverrides.clear()
         fileSnapshotCache = mutableMapOf()
+        inputModule?.close()
+        inputModule = null
     }
 }
