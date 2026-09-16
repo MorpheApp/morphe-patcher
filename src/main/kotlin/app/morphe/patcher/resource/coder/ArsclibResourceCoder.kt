@@ -65,6 +65,12 @@ private val PATCH_MOBILE_CODES = 1000..9999
 internal const val FULL_RESOURCE_ENCODE_PROPERTY = "morphe.patcher.fullResourceEncode"
 
 /**
+ * The heap below which the parsed resource table is not kept between the resource id lookups of
+ * fingerprints and the encoding of the resources.
+ */
+private const val RETAINED_TABLE_MIN_HEAP = 1024L * 1024 * 1024
+
+/**
  * A resource table that uses sparse entries cannot be read below Android 8.
  */
 internal const val SPARSE_ENTRIES_MIN_SDK = 26
@@ -310,6 +316,19 @@ internal class ArsclibResourceCoder(
     /** Hands the module over to a consumer that changes it, so no lookup uses it afterwards. */
     @Synchronized
     private fun takeInputModule(): ApkModule = inputModule().also { inputModule = null }
+
+    /**
+     * Lets go of the parsed table unless the heap can afford to hold it until the resources are
+     * encoded. It is parsed again then, which costs about a second on a phone, while holding the
+     * table of a large app through the DEX compilation costs a few hundred megabytes right
+     * where small heaps run out.
+     */
+    @Synchronized
+    private fun releaseInputModuleUnlessRetainable() {
+        if (Runtime.getRuntime().maxMemory() >= RETAINED_TABLE_MIN_HEAP) return
+        inputModule?.close()
+        inputModule = null
+    }
 
     private fun readPathMap(): PathMap {
         val pathMapJsonFile = workingDir.resolve("path-map.json")
@@ -1065,7 +1084,7 @@ internal class ArsclibResourceCoder(
         return retval
     }
 
-    override fun resourceIds(): Map<String, Long> =
+    override fun resourceIds(): Map<String, Long> = try {
         inputModule().let { module ->
             if (!module.hasTableBlock()) return@let emptyMap()
 
@@ -1085,6 +1104,9 @@ internal class ArsclibResourceCoder(
             }
             ids
         }
+    } finally {
+        releaseInputModuleUnlessRetainable()
+    }
 
     override fun listApkEntries(prefix: String): List<String> =
         ZFile.openReadOnly(apkFile).use { zFile ->
