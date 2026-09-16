@@ -302,6 +302,54 @@ internal class IncrementalResourceEncoderTest {
         assertEquals(crcOf(apk, "res/drawable/icon.png"), crcOf(output, "res/drawable/icon.png"))
     }
 
+    @ParameterizedTest(name = "full rebuild = {0}")
+    @ValueSource(booleans = [false, true])
+    fun `a deleted values file takes its resources out of the configuration`(fullRebuild: Boolean, @TempDir tempDir: File) {
+        val (_, coder) = decode(fullRebuild, tempDir)
+
+        // Patches strip translations by deleting whole locale directories.
+        assertTrue(coder.getFile("res/values-de/strings.xml", null, false).parentFile.deleteRecursively())
+        coder.getFile("res/values/strings.xml", null, false).edit { it.replace(">Hello<", ">Hello!<") }
+
+        val output = encode(coder, fullRebuild, tempDir)
+
+        ApkModule.loadApkFile(output).use { module ->
+            val pkg = module.tableBlock.pickOne()
+            assertNull(pkg.string("-de", "hello"), "the deleted locale defines nothing")
+            assertNull(pkg.string("-de", "keep"))
+            assertEquals("Hello!", pkg.string("", "hello"))
+            assertEquals("Keep", pkg.string("", "keep"))
+        }
+    }
+
+    @ParameterizedTest(name = "full rebuild = {0}")
+    @ValueSource(booleans = [false, true])
+    fun `an id a patch declares in public xml itself is honoured`(fullRebuild: Boolean, @TempDir tempDir: File) {
+        val (_, coder) = decode(fullRebuild, tempDir)
+
+        // Some patches append their own <public> declarations instead of relying on allocation.
+        val publicXml = coder.getFile("res/values/public.xml", null, false)
+        val stringIds = Regex("""<public id="(0x7f[0-9a-f]{6})" type="string"""").findAll(publicXml.readText())
+            .map { it.groupValues[1].removePrefix("0x").toLong(16) }.toList()
+        val manualId = stringIds.max() + 1
+        publicXml.edit {
+            it.replace("</resources>", """<public id="0x${manualId.toString(16)}" type="string" name="manual"/></resources>""")
+        }
+        coder.getFile("res/values/strings.xml", null, false).edit {
+            it.replace("</resources>", """<string name="manual">Declared by hand</string></resources>""")
+        }
+
+        val output = encode(coder, fullRebuild, tempDir)
+
+        ApkModule.loadApkFile(output).use { module ->
+            val pkg = module.tableBlock.pickOne()
+            val entry = pkg.getEntry("", "string", "manual")
+            assertNotNull(entry)
+            assertEquals(manualId, entry.resourceId.toLong() and 0xffffffffL)
+            assertEquals("Declared by hand", entry.resValue.valueAsString)
+        }
+    }
+
     private fun PackageBlock.dump(): List<String> = buildList {
         listSpecTypePairs().forEach { pair ->
             pair.forEach { typeBlock ->

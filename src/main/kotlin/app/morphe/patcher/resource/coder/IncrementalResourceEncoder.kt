@@ -64,17 +64,21 @@ internal class IncrementalResourceEncoder(
     /**
      * @param modifiedResources Decoded `res/` files a patch added or changed.
      * @param deletedEntries Archive entry names of resource files a patch deleted.
+     * @param deletedValuesFiles Decoded values files a patch deleted, whose resources are gone
+     * from their configuration. Patches strip translations this way.
      * @param patchedConfigurations Values directories of resource configurations patches added,
      * which are encoded sparse.
-     * @param newIds Resource ids allocated this run, by type and name.
+     * @param publicIds Every resource id of the package as `public.xml` now declares them, which
+     * includes ids patches declared there themselves.
      * @param originalPackageName The package name of the app as decoded.
      * @param newPackageName The package name the manifest now declares.
      */
     fun encode(
         modifiedResources: Set<File>,
         deletedEntries: Set<String>,
+        deletedValuesFiles: Set<File>,
         patchedConfigurations: List<File>,
-        newIds: Map<Pair<String, String>, Int>,
+        publicIds: Map<Pair<String, String>, Int>,
         originalPackageName: String,
         newPackageName: String,
     ) {
@@ -102,7 +106,7 @@ internal class IncrementalResourceEncoder(
                 ?: tableBlock.pickOne()
                 ?: throw PatchException("No resource package for $packageName in the table")
 
-            val registered = measureTime { packageBlock.registerIds(newIds) }
+            val registered = measureTime { packageBlock.declareIds(publicIds) }
             if (packageName == originalPackageName && packageBlock.name != newPackageName) {
                 packageBlock.name = newPackageName
             }
@@ -131,6 +135,13 @@ internal class IncrementalResourceEncoder(
                     val counts = encodeValuesFile(valuesFile, typeBlock, valuesCoder, isDefinedByFile)
                     encoded += counts.first
                     declared += counts.second
+                }
+
+                deletedValuesFiles.filter { it.startsWith(resDirectory) }.forEach { valuesFile ->
+                    val typeBlock = packageBlock.getSpecTypePair(XmlEncodeUtil.getTypeFromValuesXml(valuesFile))
+                        ?.getTypeBlock(ResConfig.parse(XmlEncodeUtil.getQualifiersFromValuesXml(valuesFile)))
+                        ?: return@forEach
+                    typeBlock.listEntries(true).forEach { if (!isDefinedByFile(it)) it.empty() }
                 }
 
                 if (overlayable in modifiedResources && overlayable.isFile) {
@@ -179,16 +190,21 @@ internal class IncrementalResourceEncoder(
     }
 
     /**
-     * Creates an empty, named entry for every allocated id the table does not define, so the
-     * values file or resource file that declares the resource has an entry to encode into. An id
-     * resource has no file to come from, so it is given its value here, as ARSCLib's
-     * [PackageBlock.PublicXmlParser] does.
+     * Brings the table's ids in line with `public.xml`, as ARSCLib's [PackageBlock.PublicXmlParser]
+     * does: an id the table lacks gets an empty, named entry for the values file or resource file
+     * that declares the resource to encode into, and an id whose name changed is renamed. An id
+     * resource has no file to come from, so it is given its value here.
      */
-    private fun PackageBlock.registerIds(newIds: Map<Pair<String, String>, Int>) {
-        newIds.forEach { (typeAndName, resourceId) ->
-            if ((resourceId ushr 24) != id || getResource(resourceId) != null) return@forEach
-
+    private fun PackageBlock.declareIds(publicIds: Map<Pair<String, String>, Int>) {
+        publicIds.forEach { (typeAndName, resourceId) ->
+            if ((resourceId ushr 24) != id) return@forEach
             val (type, name) = typeAndName
+
+            getResource(resourceId)?.let { existing ->
+                if (existing.name != name) existing.name = name
+                return@forEach
+            }
+
             val typeId = (resourceId shr 16) and 0xff
             getOrCreateTypeString(typeId, type)
             val entry = getOrCreateTypeBlock(typeId.toByte(), "").getOrCreateEntry(resourceId and 0xffff)

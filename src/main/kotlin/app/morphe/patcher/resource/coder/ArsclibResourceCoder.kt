@@ -26,6 +26,7 @@ import app.morphe.patcher.util.FileUtils.safelyDelete
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import com.android.tools.build.apkzlib.zip.ZFile
 import com.reandroid.apk.ApkModule
+import com.reandroid.apk.ApkUtil
 import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
@@ -123,6 +124,9 @@ internal class ArsclibResourceCoder(
      */
     internal val deletedResourceFiles = mutableSetOf<String>()
 
+    /** Decoded values files a patch deleted, whose resources are gone from their configuration. */
+    internal val deletedValuesFiles = mutableSetOf<File>()
+
     /**
      * Snapshot of file metadata and identity captured after decoding resources.
      * High-resolution timestamps and file keys improve same-size change detection when the filesystem exposes
@@ -216,6 +220,7 @@ internal class ArsclibResourceCoder(
         modifiedBinaryResources.clear()
         deletedFiles.clear()
         deletedResourceFiles.clear()
+        deletedValuesFiles.clear()
 
         packageDirectories.forEach { (_, packageDir) ->
             packageDir.resolve("res").walkTopDown().filter { it.isFile }.forEach { file ->
@@ -250,8 +255,11 @@ internal class ArsclibResourceCoder(
         val rootPathPrefix = otherResourcesRootDirectory.absoluteFile.invariantSeparatorsPath
         fileSnapshotCache.keys.forEach { key ->
             if (File(key).exists()) return@forEach
-            packageDirectories.values.firstNotNullOfOrNull { File(key).archivePathRelativeToOrNull(it) }
-                ?.let(deletedResourceFiles::add)
+            val deleted = File(key)
+            packageDirectories.values.firstNotNullOfOrNull { deleted.archivePathRelativeToOrNull(it) }?.let {
+                if (ApkUtil.isValuesDirectoryName(deleted.parentFile.name, true)) deletedValuesFiles += deleted
+                else deletedResourceFiles += it
+            }
             if (key.startsWith("$rootPathPrefix/")) {
                 // Snapshot keys are absolute while the working directory may be relative
                 // (PatcherConfig defaults it to one), and relativising across that throws.
@@ -553,7 +561,7 @@ internal class ArsclibResourceCoder(
         )
         val changedFiles = modifiedResResources.toList()
 
-        val createdIds = PublicXmlManager(getFile("res/values/public.xml")).use { publicXmlManager ->
+        val publicIds = PublicXmlManager(getFile("res/values/public.xml")).use { publicXmlManager ->
             unescaper.process(if (incremental) changedFiles else unescaper.stringsFiles())
 
             renamer.renameDeclarations(publicXmlManager)
@@ -572,7 +580,7 @@ internal class ArsclibResourceCoder(
                 modifiedResResources
             ).process()
 
-            publicXmlManager.getCreatedIds()
+            publicXmlManager.getDefinedIds()
         }
 
         logger.info("Writing resource APK")
@@ -593,7 +601,7 @@ internal class ArsclibResourceCoder(
 
         if (incremental) {
             try {
-                return encodeResourcesIncrementally(outputApk, createdIds, originalPackageName, newPackageName)
+                return encodeResourcesIncrementally(outputApk, publicIds, originalPackageName, newPackageName)
             } catch (exception: Exception) {
                 fallBack(exception)
             } catch (error: LinkageError) {
@@ -611,7 +619,7 @@ internal class ArsclibResourceCoder(
      */
     private fun encodeResourcesIncrementally(
         outputApk: File,
-        createdIds: Map<Pair<String, String>, Int>,
+        publicIds: Map<Pair<String, String>, Int>,
         originalPackageName: String,
         newPackageName: String,
     ): File {
@@ -631,8 +639,9 @@ internal class ArsclibResourceCoder(
                 encoder.encode(
                     modifiedResResources,
                     deletedResourceFiles,
+                    deletedValuesFiles,
                     packageDirectories.values.flatMap(::patchedConfigurationDirectories),
-                    createdIds,
+                    publicIds,
                     originalPackageName,
                     newPackageName,
                 )
@@ -1255,6 +1264,7 @@ internal class ArsclibResourceCoder(
         modifiedBinaryResources.clear()
         deletedFiles.clear()
         deletedResourceFiles.clear()
+        deletedValuesFiles.clear()
         lazilyExtractedRootFiles.clear()
         relocatedRootFiles.clear()
         strippedLibraries.clear()
