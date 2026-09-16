@@ -67,7 +67,7 @@ internal const val FULL_RESOURCE_ENCODE_PROPERTY = "morphe.patcher.fullResourceE
 /**
  * A resource table that uses sparse entries cannot be read below Android 8.
  */
-private const val SPARSE_ENTRIES_MIN_SDK = 26
+internal const val SPARSE_ENTRIES_MIN_SDK = 26
 
 /**
  * Holds the resource configurations of patches while the rest of the table is built.
@@ -86,10 +86,15 @@ private const val PATCHED_ROOT_DIRECTORY = "patched-root"
 private const val NATIVE_LIBRARY_DIRECTORY = "lib"
 private val DEX_ENTRY_NAME = Regex("classes\\d*\\.dex")
 
+/**
+ * @param fullResourceEncode Whether to rebuild the resource table from every decoded values file
+ * instead of encoding only the resources patches changed into the table of the input APK.
+ */
 internal class ArsclibResourceCoder(
     internal val workingDir: File,
     internal val apkFile: File,
-    private val keepArchitectures: Set<CpuArchitecture> = emptySet()
+    private val keepArchitectures: Set<CpuArchitecture> = emptySet(),
+    private val fullResourceEncode: Boolean = System.getProperty(FULL_RESOURCE_ENCODE_PROPERTY).toBoolean(),
 ) : ResourceCoder {
     private val logger = Logger.getLogger(ArsclibResourceCoder::class.java.name)
 
@@ -237,12 +242,10 @@ internal class ArsclibResourceCoder(
         // Detect files that existed at decode time but are now removed.
         // These need to be communicated to applyTo() so that they're excluded from the rebuilt APK.
         val rootPathPrefix = otherResourcesRootDirectory.absoluteFile.invariantSeparatorsPath
-        val packagePathPrefixes = packageDirectories.values.map { "${it.absoluteFile.invariantSeparatorsPath}/res/" }
         fileSnapshotCache.keys.forEach { key ->
             if (File(key).exists()) return@forEach
-            packagePathPrefixes.firstOrNull { key.startsWith(it) }?.let { prefix ->
-                deletedResourceFiles += archiveNameOf("res/" + key.removePrefix(prefix))
-            }
+            packageDirectories.values.firstNotNullOfOrNull { File(key).archivePathRelativeToOrNull(it) }
+                ?.let(deletedResourceFiles::add)
             if (key.startsWith("$rootPathPrefix/")) {
                 // Snapshot keys are absolute while the working directory may be relative
                 // (PatcherConfig defaults it to one), and relativising across that throws.
@@ -304,6 +307,10 @@ internal class ArsclibResourceCoder(
         inputModule = it
     }
 
+    /** Hands the module over to a consumer that changes it, so no lookup uses it afterwards. */
+    @Synchronized
+    private fun takeInputModule(): ApkModule = inputModule().also { inputModule = null }
+
     private fun readPathMap(): PathMap {
         val pathMapJsonFile = workingDir.resolve("path-map.json")
         return if (pathMapJsonFile.exists()) {
@@ -340,6 +347,8 @@ internal class ArsclibResourceCoder(
     }
 
     override fun decodeResources(): PackageMetadata {
+        // The decoder renames the resource files of the table it works on to the paths it writes
+        // them under, so the module is not the one the encoder builds the output from.
         ApkModule.loadApkFile(apkFile).use { apkModule ->
             val xmlDecoder = object : ApkModuleXmlDecoder(apkModule) {
                 override fun extractRootFiles(mainDirectory: File) {
@@ -512,28 +521,24 @@ internal class ArsclibResourceCoder(
         val originalPackageName = lazyPackageInfo.value.packageName
         val packageRenamed = originalPackageName != newPackageName
 
-        val incremental = !System.getProperty(FULL_RESOURCE_ENCODE_PROPERTY).toBoolean()
+        val incremental = !fullResourceEncode
 
         // The incremental encoder re-encodes only the files patches changed, so only those need
         // the processing the encoder expects. The full rebuild reads every file.
-        val changedStringsFiles = if (incremental) modifiedResResources.filter { it.name == "strings.xml" } else null
-        val renamedFiles = if (incremental) modifiedResResources.toList() else null
+        val unescaper = StringsXmlUnEscapeProcessor({ path, pkg -> getFile(path, pkg) }, packageDirectories)
+        val renamer = PackageRenamingProcessor(
+            { path, pkg -> getFile(path, pkg) },
+            packageDirectories,
+            originalPackageName,
+            newPackageName,
+        )
+        val changedFiles = modifiedResResources.toList()
 
-        val publicXmlManager = PublicXmlManager(getFile("res/values/public.xml"))
-        publicXmlManager.use {
-            StringsXmlUnEscapeProcessor(
-                { path, pkg -> getFile(path, pkg) },
-                packageDirectories,
-            ).process(changedStringsFiles)
+        val createdIds = PublicXmlManager(getFile("res/values/public.xml")).use { publicXmlManager ->
+            unescaper.process(if (incremental) changedFiles else unescaper.stringsFiles())
 
-            val renamedResources = PackageRenamingProcessor(
-                { path, pkg -> getFile(path, pkg) },
-                publicXmlManager,
-                packageDirectories,
-                originalPackageName,
-                newPackageName
-            ).process(renamedFiles)
-            modifiedResResources += renamedResources
+            renamer.renameDeclarations(publicXmlManager)
+            modifiedResResources += renamer.process(if (incremental) changedFiles else renamer.resourceXmlFiles())
 
             // Post process all aapt:attr macros in XML files.
             AaptMacroProcessor(
@@ -547,6 +552,8 @@ internal class ArsclibResourceCoder(
                 publicXmlManager,
                 modifiedResResources
             ).process()
+
+            publicXmlManager.getCreatedIds()
         }
 
         logger.info("Writing resource APK")
@@ -554,34 +561,25 @@ internal class ArsclibResourceCoder(
             it.stringDecoder = AaptXmlStringDecoder()
         }
 
+        fun fallBack(cause: Throwable) {
+            logger.log(
+                Level.WARNING,
+                "Encoding the changed resources into the resource table failed, rebuilding the table: $cause",
+                cause
+            )
+            // Finish the processing the incremental path limited to the changed files.
+            unescaper.process(unescaper.stringsFiles() - changedFiles.toSet())
+            modifiedResResources += renamer.process()
+        }
+
         if (incremental) {
             try {
-                return encodeResourcesIncrementally(
-                    outputApk,
-                    publicXmlManager.getDefinedIds(),
-                    originalPackageName,
-                    newPackageName,
-                )
+                return encodeResourcesIncrementally(outputApk, createdIds, originalPackageName, newPackageName)
             } catch (exception: Exception) {
-                logger.log(
-                    Level.WARNING,
-                    "Encoding the changed resources into the resource table failed, rebuilding the table: $exception",
-                    exception
-                )
-                // Finish the processing the incremental path limited to the changed files.
-                StringsXmlUnEscapeProcessor(
-                    { path, pkg -> getFile(path, pkg) },
-                    packageDirectories,
-                ).process(files = null, except = changedStringsFiles.orEmpty().toSet())
-                if (packageRenamed) {
-                    PackageRenamingProcessor(
-                        { path, pkg -> getFile(path, pkg) },
-                        null,
-                        packageDirectories,
-                        originalPackageName,
-                        newPackageName
-                    ).process(null)
-                }
+                fallBack(exception)
+            } catch (error: LinkageError) {
+                // A host may run this against an ARSCLib that lacks something this path calls.
+                fallBack(error)
             }
         }
 
@@ -594,32 +592,28 @@ internal class ArsclibResourceCoder(
      */
     private fun encodeResourcesIncrementally(
         outputApk: File,
-        publicIds: Map<Pair<String, String>, Int>,
+        createdIds: Map<Pair<String, String>, Int>,
         originalPackageName: String,
         newPackageName: String,
     ): File {
-        // The module becomes the output, so it is not usable for lookups afterwards.
-        val module = inputModule()
-        inputModule = null
-        module.use {
-            val minSdk = module.androidManifest.minSdkVersion
-            val useSparseEntries = minSdk != null && minSdk >= SPARSE_ENTRIES_MIN_SDK
-
+        takeInputModule().use { module ->
             val encoder = IncrementalResourceEncoder(
                 module,
                 workingDir,
                 packageDirectories,
-                ::archiveNameOf,
-                { file -> fileSnapshotCache[pathKey(file)] == null },
+                archiveNameOf = { file ->
+                    packageDirectories.values.firstNotNullOfOrNull { file.archivePathRelativeToOrNull(it) }
+                        ?: throw PatchException("$file is not a decoded resource")
+                },
+                isNewFile = { file -> fileSnapshotCache[pathKey(file)] == null },
             )
 
             val scanDuration = measureTime {
                 encoder.encode(
                     modifiedResResources,
-                    deletedResourceFiles + deletedArchiveEntries,
+                    deletedResourceFiles,
                     packageDirectories.values.flatMap(::patchedConfigurationDirectories),
-                    useSparseEntries,
-                    publicIds,
+                    createdIds,
                     originalPackageName,
                     newPackageName,
                 )
@@ -849,10 +843,9 @@ internal class ArsclibResourceCoder(
     private fun ApkModule.encodePatchedConfigurations(configurations: List<HeldConfiguration>) {
         if (configurations.isEmpty()) return
 
-        val minSdk = androidManifest.minSdkVersion
-        val useSparseEntries = minSdk != null && minSdk >= SPARSE_ENTRIES_MIN_SDK
+        val useSparseEntries = useSparseEntries()
         if (!useSparseEntries) {
-            logger.info("Not using sparse entries, the app supports Android $minSdk")
+            logger.info("Not using sparse entries, the app supports Android ${androidManifest.minSdkVersion}")
         }
 
         val valuesCoder = XmlCoder.getInstance().VALUES_XML
@@ -865,26 +858,7 @@ internal class ArsclibResourceCoder(
                 )
 
             configuration.valuesFiles.forEach { valuesFile ->
-                val resConfig = ResConfig.parse(
-                    XmlEncodeUtil.getQualifiersFromValuesXml(valuesFile)
-                )
-                val specTypePair = packageBlock.getOrCreateSpecTypePair(
-                    XmlEncodeUtil.getTypeFromValuesXml(valuesFile)
-                )
-
-                val denseEntryCount = specTypePair.highestEntryCount
-
-                val typeBlock = specTypePair.getTypeBlock(resConfig)
-                    ?: specTypePair.getOrCreateTypeBlock(resConfig).also {
-                        if (useSparseEntries) {
-                            it.headerBlock.isSparse = true
-                        } else {
-                            // The dense table the encoder gives a configuration of its own,
-                            // sized to the largest configuration of the type
-                            it.ensureEntriesCount(denseEntryCount)
-                        }
-                    }
-
+                val typeBlock = packageBlock.patchedTypeBlock(valuesFile, useSparseEntries)
                 valuesCoder.encode(XMLFactory.newPullParser(valuesFile), typeBlock)
             }
 
@@ -1258,6 +1232,7 @@ internal class ArsclibResourceCoder(
         modifiedResResources.clear()
         modifiedBinaryResources.clear()
         deletedFiles.clear()
+        deletedResourceFiles.clear()
         lazilyExtractedRootFiles.clear()
         relocatedRootFiles.clear()
         strippedLibraries.clear()

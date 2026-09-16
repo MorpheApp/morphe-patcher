@@ -92,7 +92,13 @@ class PublicXmlManager(
         val resourceId = resourceIds.getOrElse(type) { 0 } + 1
         resourceIds[type] = resourceId
         definedIdsByType.getOrPut(type) { mutableMapOf() }[name] = resourceId
+        createdIds[type to name] = resourceId
     }
+
+    private val createdIds = mutableMapOf<Pair<String, String>, Int>()
+
+    /** The ids allocated since the file was read, by type and name. */
+    internal fun getCreatedIds(): Map<Pair<String, String>, Int> = createdIds.toMap()
 
     internal fun changePackageName(packageName: String) {
         this.packageName = packageName

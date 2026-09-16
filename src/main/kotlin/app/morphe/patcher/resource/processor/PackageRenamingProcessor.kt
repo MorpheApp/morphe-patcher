@@ -12,9 +12,12 @@ import org.xmlpull.v1.XmlPullParser
 import java.io.File
 import java.util.logging.Logger
 
+/**
+ * Rewrites references to a renamed package in resource XML. The declarations of the name itself,
+ * in `public.xml` and `package.json`, are the caller's, see [renameDeclarations].
+ */
 internal class PackageRenamingProcessor(
     private val get: (String, String) -> File,
-    private val publicXmlManager: PublicXmlManager?,
     private val packageDirectories: Map<String, File>,
     private val originalPackageName: String,
     private val newPackageName: String
@@ -23,48 +26,50 @@ internal class PackageRenamingProcessor(
     private val regex = Regex("^[@?]$originalPackageName:.*")
 
     /**
-     * @param files The resource files whose references to the package are rewritten, or null for
-     * every XML of every package but the renamed one. Compiled resources reference a package by
-     * id, so only files that are encoded again need this.
+     * Every resource XML of every package but the renamed one. The renamed package refers to its
+     * own resources without a package name; other packages may name it.
+     */
+    fun resourceXmlFiles(): List<File> = buildList {
+        otherPackageDirectories().forEach { rootDir ->
+            rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
+                dir.listFiles { it.extension == "xml" && it.name != "strings.xml" }?.forEach { add(it) }
+            }
+        }
+    }
+
+    /**
+     * Updates the declarations of the package name: `public.xml` through [publicXmlManager] and
+     * `package.json`.
+     */
+    fun renameDeclarations(publicXmlManager: PublicXmlManager) {
+        if (originalPackageName == newPackageName) return
+        publicXmlManager.changePackageName(newPackageName)
+        get("package.json", originalPackageName).apply {
+            val packageJson = JSONObject(this)
+            packageJson.put("package_name", newPackageName)
+            packageJson.write(this)
+        }
+    }
+
+    /**
+     * @param files The resource files whose references to the package are rewritten. Compiled
+     * resources reference a package by id, so only files that are encoded again need this.
+     * Files of the renamed package and strings files are ignored.
      * @return The files this changed.
      */
-    fun process(files: Collection<File>? = null): Set<File> {
+    fun process(files: Collection<File> = resourceXmlFiles()): Set<File> {
         if (originalPackageName == newPackageName) return emptySet()
 
         logger.info("Post-processing package name change")
-        val modifiedFiles = mutableSetOf<File>()
-
-        // Update public.xml package. Null when the declarations were updated by an earlier pass.
-        publicXmlManager?.let { manager ->
-            manager.changePackageName(newPackageName)
-
-            // Update package.json
-            get("package.json", originalPackageName).apply {
-                val packageJson = JSONObject(this)
-                packageJson.put("package_name", newPackageName)
-                packageJson.write(this)
-            }
-        }
-
-        val otherPackageDirectories = packageDirectories.filter { it.key != originalPackageName }.values
-        val candidates = files?.filter { file ->
+        val otherPackageDirectories = otherPackageDirectories()
+        return files.filterTo(mutableSetOf()) { file ->
             file.isFile && file.extension == "xml" && file.name != "strings.xml" &&
-                    otherPackageDirectories.any { file.startsWith(it) }
-        } ?: buildList {
-            // Process all other XMLs in resource bundles
-            otherPackageDirectories.forEach { rootDir ->
-                rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
-                    dir.listFiles { it.extension == "xml" && it.name != "strings.xml" }?.forEach { add(it) }
-                }
-            }
+                    otherPackageDirectories.any { file.startsWith(it) } &&
+                    processFile(file)
         }
-
-        candidates.forEach { file ->
-            if (processFile(file)) modifiedFiles += file
-        }
-
-        return modifiedFiles
     }
+
+    private fun otherPackageDirectories() = packageDirectories.filter { it.key != originalPackageName }.values
 
     private fun processFile(file: File): Boolean {
         val tempFile = File(file.parentFile, file.name + ".tmp")

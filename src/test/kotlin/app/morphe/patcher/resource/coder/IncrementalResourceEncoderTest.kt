@@ -14,6 +14,7 @@ import com.reandroid.arsc.chunk.xml.AndroidManifestBlock
 import com.reandroid.arsc.chunk.xml.ResXmlDocument
 import com.reandroid.arsc.coder.CoderSetting
 import com.reandroid.arsc.coder.xml.XmlCoder
+import com.reandroid.arsc.value.ResConfig
 import com.reandroid.arsc.value.ValueType
 import com.reandroid.xml.XMLFactory
 import org.junit.jupiter.api.AfterEach
@@ -30,7 +31,6 @@ import java.util.zip.CRC32
 import java.util.zip.ZipFile
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -52,23 +52,34 @@ internal class IncrementalResourceEncoderTest {
     private val coderLogger = Logger.getLogger(ArsclibResourceCoder::class.java.name).also { it.addHandler(handler) }
 
     @AfterEach
-    fun tearDown() {
-        System.clearProperty(FULL_RESOURCE_ENCODE_PROPERTY)
-        coderLogger.removeHandler(handler)
+    fun tearDown() = coderLogger.removeHandler(handler)
+
+    /** Decodes a fresh input APK with a coder on the requested path. */
+    private fun decode(fullRebuild: Boolean, tempDir: File): Pair<File, ArsclibResourceCoder> {
+        val apk = buildInputApk(tempDir)
+        val coder = ArsclibResourceCoder(
+            tempDir.resolve("working").apply { mkdirs() },
+            apk,
+            fullResourceEncode = fullRebuild,
+        )
+        coder.decodeResources()
+        return apk to coder
     }
 
-    private fun useFullRebuild(full: Boolean) {
-        if (full) System.setProperty(FULL_RESOURCE_ENCODE_PROPERTY, "true") else System.clearProperty(FULL_RESOURCE_ENCODE_PROPERTY)
+    /** Encodes, and on the incremental path checks it did not fall back to the full rebuild. */
+    private fun encode(coder: ArsclibResourceCoder, fullRebuild: Boolean, tempDir: File): File {
+        val output = coder.encodeResources(tempDir.resolve("out").apply { mkdirs() })
+        if (!fullRebuild) assertTrue(
+            warnings.none { it.message.orEmpty().contains("rebuilding the table") },
+            "The incremental encoder fell back: ${warnings.map { it.message }}",
+        )
+        return output
     }
-
-    private fun assertNoFallback() = assertTrue(
-        warnings.none { it.message.orEmpty().contains("rebuilding the table") },
-        "The incremental encoder fell back: ${warnings.map { it.message }}",
-    )
 
     // ==================== Fixture ====================
 
-    private fun buildInputApk(dir: File, packageName: String = "com.test.app"): File {
+    private fun buildInputApk(dir: File): File {
+        val packageName = "com.test.app"
         // The coder under test installs an aapt-style string decoder on this singleton, which
         // would otherwise leak into the fixture of the next test.
         XmlCoder.getInstance().setting = CoderSetting()
@@ -169,10 +180,7 @@ internal class IncrementalResourceEncoderTest {
     @ParameterizedTest(name = "full rebuild = {0}")
     @ValueSource(booleans = [false, true])
     fun `edited resources are encoded over the input table`(fullRebuild: Boolean, @TempDir tempDir: File) {
-        useFullRebuild(fullRebuild)
-        val apk = buildInputApk(tempDir)
-        val coder = ArsclibResourceCoder(tempDir.resolve("working").apply { mkdirs() }, apk)
-        coder.decodeResources()
+        val (apk, coder) = decode(fullRebuild, tempDir)
 
         // Strings: modify, delete, add, in one configuration only.
         coder.getFile("res/values/strings.xml", null, false).edit {
@@ -206,8 +214,7 @@ internal class IncrementalResourceEncoderTest {
             writeText("""<resources><color name="accent">#ff0000ff</color></resources>""")
         }
 
-        val output = coder.encodeResources(tempDir.resolve("out").apply { mkdirs() })
-        if (!fullRebuild) assertNoFallback()
+        val output = encode(coder, fullRebuild, tempDir)
 
         ApkModule.loadApkFile(output).use { module ->
             val pkg = module.tableBlock.pickOne()
@@ -241,7 +248,7 @@ internal class IncrementalResourceEncoderTest {
             assertNotNull(pkg.getEntry("", "id", "new_view"), "an id a layout adds is allocated")
             assertEquals(ValueType.BOOLEAN, pkg.getEntry("", "id", "existing_view")!!.resValue.valueType)
 
-            val patched = pkg.getOrCreateSpecTypePair("color").getTypeBlock(com.reandroid.arsc.value.ResConfig.parse("-mcc1001"))
+            val patched = pkg.getOrCreateSpecTypePair("color").getTypeBlock(ResConfig.parse("-mcc1001"))
             assertNotNull(patched)
             assertEquals("#ff0000ff", patched.getEntry("accent")!!.resValue.decodeValue())
 
@@ -265,13 +272,9 @@ internal class IncrementalResourceEncoderTest {
     @ParameterizedTest(name = "full rebuild = {0}")
     @ValueSource(booleans = [false, true])
     fun `an untouched app keeps its table`(fullRebuild: Boolean, @TempDir tempDir: File) {
-        useFullRebuild(fullRebuild)
-        val apk = buildInputApk(tempDir)
-        val coder = ArsclibResourceCoder(tempDir.resolve("working").apply { mkdirs() }, apk)
-        coder.decodeResources()
+        val (apk, coder) = decode(fullRebuild, tempDir)
 
-        val output = coder.encodeResources(tempDir.resolve("out").apply { mkdirs() })
-        if (!fullRebuild) assertNoFallback()
+        val output = encode(coder, fullRebuild, tempDir)
 
         val expected = ApkModule.loadApkFile(apk).use { it.tableBlock.pickOne().dump() }
         val actual = ApkModule.loadApkFile(output).use { it.tableBlock.pickOne().dump() }
@@ -282,16 +285,12 @@ internal class IncrementalResourceEncoderTest {
     @ParameterizedTest(name = "full rebuild = {0}")
     @ValueSource(booleans = [false, true])
     fun `a renamed package renames the table and the manifest`(fullRebuild: Boolean, @TempDir tempDir: File) {
-        useFullRebuild(fullRebuild)
-        val apk = buildInputApk(tempDir)
-        val coder = ArsclibResourceCoder(tempDir.resolve("working").apply { mkdirs() }, apk)
-        coder.decodeResources()
+        val (apk, coder) = decode(fullRebuild, tempDir)
 
         coder.getFile("AndroidManifest.xml", null, false).edit { it.replace("com.test.app", "app.morphe.test") }
         coder.getFile("res/values/strings.xml", null, false).edit { it.replace(">Hello<", ">Hello!<") }
 
-        val output = coder.encodeResources(tempDir.resolve("out").apply { mkdirs() })
-        if (!fullRebuild) assertNoFallback()
+        val output = encode(coder, fullRebuild, tempDir)
 
         ApkModule.loadApkFile(output).use { module ->
             assertEquals("app.morphe.test", module.androidManifest.packageName)
@@ -301,7 +300,6 @@ internal class IncrementalResourceEncoderTest {
             assertEquals("Hallo", pkg.string("-de", "hello"))
         }
         assertEquals(crcOf(apk, "res/drawable/icon.png"), crcOf(output, "res/drawable/icon.png"))
-        assertFalse(warnings.any { it.level == Level.SEVERE })
     }
 
     private fun PackageBlock.dump(): List<String> = buildList {

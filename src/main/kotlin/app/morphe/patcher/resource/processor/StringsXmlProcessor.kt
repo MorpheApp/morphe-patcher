@@ -21,27 +21,26 @@ abstract internal class StringsXmlProcessor(
 ) {
     private val logger = Logger.getLogger(this::class.java.name)
 
-    /**
-     * @param files The strings files to process, or null for every strings file of every package.
-     * @param except Files to leave alone, because they were processed before.
-     */
-    fun process(files: Collection<File>? = null, except: Set<File> = emptySet()) {
-        logger.info(logString)
-
-        val stringFiles = files?.filter { it.name == "strings.xml" && it.isFile } ?: buildList {
-            packageDirectories.forEach { (resPackageName, rootDir) ->
-                rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
-                    // TODO Strings declared in arrays.xml may also need unescaping of string literals.
-                    dir.listFiles { it.name == "strings.xml" }?.forEach { file ->
-                        val path = "res/${dir.name}/${file.name}"
-                        logger.fine { "Processing $path" }
-                        add(get(path, resPackageName))
-                    }
+    /** Every strings file of every package. */
+    fun stringsFiles(): List<File> = buildList {
+        packageDirectories.forEach { (resPackageName, rootDir) ->
+            rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
+                // TODO Strings declared in arrays.xml may also need unescaping of string literals.
+                dir.listFiles { it.name == "strings.xml" }?.forEach { file ->
+                    val path = "res/${dir.name}/${file.name}"
+                    logger.fine { "Processing $path" }
+                    add(get(path, resPackageName))
                 }
             }
         }
+    }
 
-        stringFiles.filter { it !in except }.parallelStream().forEach(::processFile)
+    /**
+     * @param files The strings files to process. Anything else in the collection is ignored.
+     */
+    fun process(files: Collection<File> = stringsFiles()) {
+        logger.info(logString)
+        files.filter { it.name == "strings.xml" && it.isFile }.parallelStream().forEach(::processFile)
     }
 
     private fun processFile(file: File) {
