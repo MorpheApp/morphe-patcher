@@ -182,11 +182,11 @@ internal class IncrementalResourceEncoder(
         timed("refresh") { tableBlock.refresh() }
         encodedEntries += "resources.arsc"
 
-        logger.info(
+        logger.fine {
             "Resource table update timings: " + timings.entries.joinToString { "${it.key}=${it.value}ms" } +
                     " (values: parse=${parseNanos / 1_000_000}ms check=${checkNanos / 1_000_000}ms " +
                     "encode=${encodeNanos / 1_000_000}ms)"
-        )
+        }
     }
 
     /**
