@@ -1,3 +1,10 @@
+## [1.14.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.0...v1.14.1-dev.1) (2026-09-17)
+
+
+### Performance Improvements
+
+* Encode changed resources into the input APK's resource table ([#209](https://github.com/MorpheApp/morphe-patcher/issues/209)) ([06a0469](https://github.com/MorpheApp/morphe-patcher/commit/06a0469497b29abf16c98a344c1540719ae4c213))
+
 # [1.14.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.0...v1.14.0) (2026-09-14)
 
 
