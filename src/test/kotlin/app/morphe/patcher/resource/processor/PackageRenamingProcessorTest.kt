@@ -294,7 +294,6 @@ internal object PackageRenamingProcessorTest {
                 if (path == "package.json") packageJsonFile
                 else throw IllegalArgumentException("Unexpected get call: $path")
             },
-            publicXmlManager = publicXmlManager,
             packageDirectories = mapOf(
                 // The original package is skipped, so we put the test data under a different key
                 originalPackageName to packageDir,
@@ -304,6 +303,7 @@ internal object PackageRenamingProcessorTest {
             newPackageName = newPackageName,
         )
 
+        processor.renameDeclarations(publicXmlManager)
         val modifiedFiles = processor.process()
         publicXmlManager.close()
 
