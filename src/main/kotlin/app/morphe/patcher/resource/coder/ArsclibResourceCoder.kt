@@ -282,7 +282,10 @@ internal class ArsclibResourceCoder(
         val packageName: String,
         val versionName: String,
         val versionCode: String,
-        val frameworkVersion: Int,
+        // Null when the manifest declares none of compileSdkVersion, platformBuildVersionCode or
+        // targetSdkVersion, as old APKs that only carry minSdkVersion do. ARSCLib then loads its
+        // latest framework by itself.
+        val frameworkVersion: Int?,
         val signatureBlock: ApkSignatureBlock?
     )
 
@@ -317,7 +320,9 @@ internal class ArsclibResourceCoder(
 
     @Synchronized
     private fun inputModule(): ApkModule = inputModule ?: ApkModule.loadApkFile(apkFile).also {
-        if (it.hasAndroidManifest()) it.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
+        if (it.hasAndroidManifest()) {
+            lazyPackageInfo.value.frameworkVersion?.let { version -> it.setPreferredFramework(version) }
+        }
         inputModule = it
     }
 
@@ -678,7 +683,7 @@ internal class ArsclibResourceCoder(
         try {
             val encoder = ApkModuleXmlEncoder()
             encoder.apkModule.use { loadedModule ->
-                loadedModule.setPreferredFramework(lazyPackageInfo.value.frameworkVersion)
+                lazyPackageInfo.value.frameworkVersion?.let { loadedModule.setPreferredFramework(it) }
 
                 val scanDuration = measureTime {
                     encoder.scanDirectory(workingDir)
