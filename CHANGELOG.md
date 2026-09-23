@@ -1,3 +1,10 @@
+## [1.14.1-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.1-dev.3...v1.14.1-dev.4) (2026-09-23)
+
+
+### Bug Fixes
+
+* Take emptied entries out of sparse resource chunks ([#217](https://github.com/MorpheApp/morphe-patcher/issues/217)) ([40938b8](https://github.com/MorpheApp/morphe-patcher/commit/40938b80c07841e885710c9050788aa4e8071695))
+
 ## [1.14.1-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.1-dev.2...v1.14.1-dev.3) (2026-09-20)
 
 
