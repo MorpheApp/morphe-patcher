@@ -95,7 +95,7 @@ internal class IncrementalResourceEncoderTest {
         declare("style", "S")
         declare("array", "arr")
         declare("layout", "main")
-        declare("drawable", "icon")
+        declare("drawable", "icon", "sparse_a", "sparse_b", "sparse_c")
         declare("id", "existing_view")
 
         fun values(qualifiers: String, type: String, xml: String) {
@@ -119,6 +119,11 @@ internal class IncrementalResourceEncoderTest {
         pkg.getOrCreate("", "layout", "main").setValueAsString("res/layout/main.xml")
         pkg.getOrCreate("", "drawable", "icon").setValueAsString("res/drawable/icon.png")
         pkg.getOrCreate("-xxhdpi", "drawable", "icon").setValueAsString("res/drawable-xxhdpi/icon.png")
+        // A sparse configuration, as apps built with aapt2 --enable-sparse-encoding ship them.
+        pkg.getOrCreate("-hdpi", "drawable", "sparse_a").setValueAsString("res/drawable-hdpi/sparse_a.png")
+        pkg.getOrCreate("-hdpi", "drawable", "sparse_b").setValueAsString("res/drawable-hdpi/sparse_b.png")
+        pkg.getOrCreate("-hdpi", "drawable", "sparse_c").setValueAsString("res/drawable-hdpi/sparse_c.png")
+        pkg.getOrCreateSpecTypePair("drawable").getTypeBlock(ResConfig.parse("-hdpi"))!!.headerBlock.isSparse = true
         pkg.getOrCreate("", "color", "selector").setValueAsString("res/color/selector.xml")
         table.refresh()
 
@@ -161,6 +166,9 @@ internal class IncrementalResourceEncoderTest {
             zip.add("res/color/selector.xml", ByteArrayInputStream(selector))
             zip.add("res/drawable/icon.png", ByteArrayInputStream("PNG default".toByteArray()))
             zip.add("res/drawable-xxhdpi/icon.png", ByteArrayInputStream("PNG xxhdpi".toByteArray()))
+            for (name in listOf("sparse_a", "sparse_b", "sparse_c")) {
+                zip.add("res/drawable-hdpi/$name.png", ByteArrayInputStream("PNG $name".toByteArray()))
+            }
             zip.add("assets/data.bin", ByteArrayInputStream(ByteArray(1024) { it.toByte() }))
         }
         return apk
@@ -300,6 +308,40 @@ internal class IncrementalResourceEncoderTest {
             assertEquals("Hallo", pkg.string("-de", "hello"))
         }
         assertEquals(crcOf(apk, "res/drawable/icon.png"), crcOf(output, "res/drawable/icon.png"))
+    }
+
+    @ParameterizedTest(name = "full rebuild = {0}")
+    @ValueSource(booleans = [false, true])
+    fun `deleting some files of a sparse configuration leaves no phantom entries`(fullRebuild: Boolean, @TempDir tempDir: File) {
+        val (_, coder) = decode(fullRebuild, tempDir)
+
+        // A patch thinning drawables deletes some, not all, files of a density.
+        assertTrue(coder.getFile("res/drawable-hdpi/sparse_a.png", null, false).delete())
+        assertTrue(coder.getFile("res/drawable-hdpi/sparse_c.png", null, false).delete())
+
+        val output = encode(coder, fullRebuild, tempDir)
+
+        ApkModule.loadApkFile(output).use { module ->
+            val pkg = module.tableBlock.pickOne()
+            val hdpi = pkg.getOrCreateSpecTypePair("drawable").getTypeBlock(ResConfig.parse("-hdpi"))
+            assertNotNull(hdpi, "the configuration still defines a resource")
+            // The full rebuild encodes every app configuration dense; only the incremental path keeps it sparse.
+            if (!fullRebuild) assertTrue(hdpi.isSparse)
+            assertEquals(
+                listOf("sparse_b"),
+                hdpi.listEntries(true).map { it.name },
+                "only the surviving file has an entry; a phantom pair would resolve to it",
+            )
+            // A dense chunk, which the full rebuild produces, legitimately keeps null slots.
+            if (!fullRebuild) assertEquals(1, hdpi.entryArray.size(), "a sparse chunk holds no null entries")
+            assertEquals("res/drawable-hdpi/sparse_b.png", pkg.getEntry("-hdpi", "drawable", "sparse_b")!!.resValue.valueAsString)
+            assertTrue(pkg.getEntry("-hdpi", "drawable", "sparse_a")?.isNull ?: true)
+            assertTrue(pkg.getEntry("-hdpi", "drawable", "sparse_c")?.isNull ?: true)
+        }
+        ZipFile(output).use { zip ->
+            assertNull(zip.getEntry("res/drawable-hdpi/sparse_a.png"))
+            assertNotNull(zip.getEntry("res/drawable-hdpi/sparse_b.png"))
+        }
     }
 
     @ParameterizedTest(name = "full rebuild = {0}")

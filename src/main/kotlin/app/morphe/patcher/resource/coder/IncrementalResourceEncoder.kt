@@ -171,6 +171,8 @@ internal class IncrementalResourceEncoder(
         // Empties the entries of a deleted file and drops its archive entry.
         deletedEntries.forEach { module.removeResFile(it, true) }
 
+        tableBlock.forEach { it.compactSparseTypeBlocks() }
+
         val manifest = workingDir.resolve(AndroidManifestBlock.FILE_NAME)
         if (manifest.isFile) {
             val packageBlock = tableBlock.firstOrNull { it.name == newPackageName } ?: tableBlock.pickOne()
@@ -213,6 +215,33 @@ internal class IncrementalResourceEncoder(
                 entry.setValueAsBoolean(false)
                 entry.header.isPublic = true
                 entry.header.isWeak = true
+            }
+        }
+    }
+
+    /**
+     * Takes emptied entries out of the sparse chunks. A sparse chunk lists only the resources it
+     * defines, each as a pair of id and offset, so an emptied entry cannot stay behind as a pair
+     * with no offset: the resource system reads that as the chunk's first entry, and every
+     * resource a patch deleted would resolve to whichever file survived. This is also how
+     * ARSCLib itself builds a sparse chunk, without its null entries.
+     */
+    private fun PackageBlock.compactSparseTypeBlocks() {
+        listSpecTypePairs().forEach { specTypePair ->
+            specTypePair.forEach { typeBlock ->
+                if (!typeBlock.isSparse) return@forEach
+                val entries = typeBlock.entryArray
+                // The id of a sparse entry is read off its pair, so collect them before rebuilding.
+                val definedIds = (0 until entries.size()).mapNotNull { index ->
+                    entries.get(index).takeUnless { it.isNull }?.id
+                }
+                if (definedIds.size == entries.size()) return@forEach
+
+                val pairs = entries.getOffsetReferenceList()
+                pairs.clearChildes()
+                pairs.setSize(definedIds.size)
+                definedIds.forEachIndexed { index, id -> pairs.get(index).idx = id }
+                entries.removeIf { it.isNull }
             }
         }
     }
