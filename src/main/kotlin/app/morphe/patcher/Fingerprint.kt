@@ -216,6 +216,7 @@ open class Fingerprint private constructor(
     // TODO: On next major version bump change this to return the fingerprint.
     fun clearMatch() {
         _matchOrNull = null
+        classFingerprint?.clearMatch()
     }
 
     /**
