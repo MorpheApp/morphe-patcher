@@ -62,6 +62,7 @@ public class app/morphe/patcher/Fingerprint {
 	public final fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/Match;
 	public final fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
 	public final fun patchException ()Lapp/morphe/patcher/patch/PatchException;
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class app/morphe/patcher/FingerprintBuilder {
