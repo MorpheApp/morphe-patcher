@@ -1,3 +1,10 @@
+# [1.15.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.1...v1.15.0-dev.2) (2026-09-24)
+
+
+### Bug Fixes
+
+* Clear parent fingerprint ([2e9005e](https://github.com/MorpheApp/morphe-patcher/commit/2e9005e4883446afceabf92cdc2966da74c0160d))
+
 # [1.15.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.1...v1.15.0-dev.1) (2026-09-24)
 
 
