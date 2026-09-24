@@ -1,3 +1,10 @@
+# [1.15.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.1...v1.15.0-dev.1) (2026-09-24)
+
+
+### Features
+
+* Describe fingerprints without a class name in toString() ([#218](https://github.com/MorpheApp/morphe-patcher/issues/218)) ([2f3f218](https://github.com/MorpheApp/morphe-patcher/commit/2f3f21817b7579fe1d9c6361f85bb74037303429))
+
 ## [1.14.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.0...v1.14.1) (2026-09-24)
 
 
