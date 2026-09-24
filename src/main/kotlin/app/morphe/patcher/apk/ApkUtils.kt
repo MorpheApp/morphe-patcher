@@ -10,6 +10,8 @@ import app.morphe.patcher.apk.ApkSigner.newApkSigner
 import app.morphe.patcher.apk.ApkSigner.newKeyStore
 import app.morphe.patcher.apk.ApkSigner.newPrivateKeyCertificatePair
 import com.android.tools.build.apkzlib.zip.AlignmentRules
+import com.android.tools.build.apkzlib.zip.CompressionMethod
+import com.android.tools.build.apkzlib.zip.DataDescriptorType
 import com.android.tools.build.apkzlib.zip.StoredEntry
 import com.android.tools.build.apkzlib.zip.ZFile
 import com.android.tools.build.apkzlib.zip.ZFileOptions
@@ -69,6 +71,8 @@ object ApkUtils {
         }
 
         ZFile.openReadWrite(apkFile, zFileOptions).use { targetApkZFile ->
+            rewriteDataDescriptorEntries(targetApkZFile)
+
             resources.let { resources ->
                 // A compiled resource APK carries the input's DEX files as unchanged root entries. When
                 // there is a patched DEX set, remove them first so no stale DEX file survives beside it.
@@ -113,6 +117,27 @@ object ApkUtils {
 
             logger.fine("Writing changes")
         }
+    }
+
+    /**
+     * Rewrites every entry that was written with a data descriptor (general purpose bit 3).
+     *
+     * Once the archive changes, apkzlib writes each central directory header again, without
+     * bit 3, but it leaves the local header of an entry it does not move as it was, bit 3 and
+     * zeroed sizes included. The headers then disagree and apksig refuses to sign the APK. Old
+     * build tools wrote deflated entries this way, and entries reused from such an input keep it.
+     * Adding the entry again makes apkzlib write both headers itself.
+     */
+    private fun rewriteDataDescriptorEntries(zFile: ZFile) {
+        zFile.entries()
+            .filter { it.dataDescriptorType != DataDescriptorType.NO_DATA_DESCRIPTOR }
+            .forEach { entry ->
+                val name = entry.centralDirectoryHeader.name
+                val deflated = entry.centralDirectoryHeader.compressionInfoWithWait.method ==
+                        CompressionMethod.DEFLATE
+                val contents = entry.read()
+                zFile.add(name, contents.inputStream(), deflated)
+            }
     }
 
     /**

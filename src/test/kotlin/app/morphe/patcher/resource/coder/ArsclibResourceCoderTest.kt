@@ -2195,4 +2195,39 @@ internal class ArsclibResourceCoderTest {
             }
         }
     }
+
+    // ==================== Legacy manifests ====================
+
+    /**
+     * An APK whose manifest carries only minSdkVersion, as builds from before compileSdkVersion
+     * and platformBuildVersionCode existed do. ARSCLib has no framework version for it.
+     */
+    private fun legacyManifestApk(dir: File): File {
+        val apk = dir.resolve("legacy.apk")
+        ApkModule().use { module ->
+            val manifest = com.reandroid.arsc.chunk.xml.AndroidManifestBlock()
+            manifest.packageName = "com.test.legacy"
+            manifest.setVersionCode(310)
+            manifest.versionName = "3.1.0"
+            manifest.setMinSdkVersion(7)
+            module.setManifest(manifest)
+            module.writeApk(apk)
+        }
+        return apk
+    }
+
+    @Test
+    fun `package metadata of an APK that declares only minSdkVersion`(@TempDir tempDir: File) {
+        val apk = legacyManifestApk(tempDir)
+        ApkModule.loadApkFile(apk).use { module ->
+            assertEquals(null, module.androidFrameworkVersion, "precondition: ARSCLib finds no framework version")
+        }
+
+        val legacyCoder = ArsclibResourceCoder(tempDir.resolve("working").apply { mkdirs() }, apk)
+        val metadata = assertDoesNotThrow { legacyCoder.getPackageMetadata() }
+
+        assertEquals("com.test.legacy", metadata.packageName)
+        assertEquals("3.1.0", metadata.versionName)
+        assertEquals("310", metadata.versionCode)
+    }
 }

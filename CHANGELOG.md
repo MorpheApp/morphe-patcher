@@ -1,3 +1,31 @@
+## [1.14.1-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.1-dev.3...v1.14.1-dev.4) (2026-09-23)
+
+
+### Bug Fixes
+
+* Take emptied entries out of sparse resource chunks ([#217](https://github.com/MorpheApp/morphe-patcher/issues/217)) ([40938b8](https://github.com/MorpheApp/morphe-patcher/commit/40938b80c07841e885710c9050788aa4e8071695))
+
+## [1.14.1-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.1-dev.2...v1.14.1-dev.3) (2026-09-20)
+
+
+### Bug Fixes
+
+* Accept APKs without a framework version ([#214](https://github.com/MorpheApp/morphe-patcher/issues/214)) ([9ed8bcd](https://github.com/MorpheApp/morphe-patcher/commit/9ed8bcd10d1b62610055e9c074b3c710200d3c2b))
+
+## [1.14.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.1-dev.1...v1.14.1-dev.2) (2026-09-20)
+
+
+### Bug Fixes
+
+* Rewrite data descriptor entries before editing the APK ([#215](https://github.com/MorpheApp/morphe-patcher/issues/215)) ([3b2c7cd](https://github.com/MorpheApp/morphe-patcher/commit/3b2c7cd2299b40ace868dd1667ae1150e54b29a4))
+
+## [1.14.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.0...v1.14.1-dev.1) (2026-09-17)
+
+
+### Performance Improvements
+
+* Encode changed resources into the input APK's resource table ([#209](https://github.com/MorpheApp/morphe-patcher/issues/209)) ([06a0469](https://github.com/MorpheApp/morphe-patcher/commit/06a0469497b29abf16c98a344c1540719ae4c213))
+
 # [1.14.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.13.0...v1.14.0) (2026-09-14)
 
 
