@@ -638,6 +638,7 @@ internal class ArsclibResourceCoder(
                         ?: throw PatchException("$file is not a decoded resource")
                 },
                 isNewFile = { file -> fileSnapshotCache[pathKey(file)] == null },
+                originalNameOf = pathMap::getOriginalName,
             )
 
             val scanDuration = measureTime {
