@@ -1,3 +1,10 @@
+# [1.15.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.3...v1.15.0-dev.4) (2026-09-25)
+
+
+### Bug Fixes
+
+* Keep the description in the AppTarget version code constructor ([#222](https://github.com/MorpheApp/morphe-patcher/issues/222)) ([e9998c5](https://github.com/MorpheApp/morphe-patcher/commit/e9998c5332046dca6e4e8bb703d5a4cd73d639cd))
+
 # [1.15.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.2...v1.15.0-dev.3) (2026-09-25)
 
 
