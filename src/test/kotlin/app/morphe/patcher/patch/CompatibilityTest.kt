@@ -15,6 +15,23 @@ import kotlin.test.assertTrue
 internal object CompatibilityTest {
 
     @Test
+    fun `version code constructor keeps every argument`() {
+        val target = AppTarget(
+            version = "1.2.3",
+            versionCode = 123,
+            isExperimental = true,
+            minSdk = 26,
+            description = "Recommended release",
+        )
+
+        assertEquals("1.2.3", target.version)
+        assertEquals(SupportedAbi.entries.associateWith { 123 }, target.versionCodes)
+        assertTrue(target.isExperimental)
+        assertEquals(26, target.minSdk)
+        assertEquals("Recommended release", target.description)
+    }
+
+    @Test
     fun `package name validation`() {
         assertDoesNotThrow {
             Compatibility(

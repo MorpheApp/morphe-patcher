@@ -1,3 +1,31 @@
+# [1.15.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.3...v1.15.0-dev.4) (2026-09-25)
+
+
+### Bug Fixes
+
+* Keep the description in the AppTarget version code constructor ([#222](https://github.com/MorpheApp/morphe-patcher/issues/222)) ([e9998c5](https://github.com/MorpheApp/morphe-patcher/commit/e9998c5332046dca6e4e8bb703d5a4cd73d639cd))
+
+# [1.15.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.2...v1.15.0-dev.3) (2026-09-25)
+
+
+### Bug Fixes
+
+* Keep archive names of shared resource files in edited values files ([#220](https://github.com/MorpheApp/morphe-patcher/issues/220)) ([03aee7a](https://github.com/MorpheApp/morphe-patcher/commit/03aee7abb3ed8a81f53d771110d0fa182222b5d4))
+
+# [1.15.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.1...v1.15.0-dev.2) (2026-09-24)
+
+
+### Bug Fixes
+
+* Clear parent fingerprint ([2e9005e](https://github.com/MorpheApp/morphe-patcher/commit/2e9005e4883446afceabf92cdc2966da74c0160d))
+
+# [1.15.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.1...v1.15.0-dev.1) (2026-09-24)
+
+
+### Features
+
+* Describe fingerprints without a class name in toString() ([#218](https://github.com/MorpheApp/morphe-patcher/issues/218)) ([2f3f218](https://github.com/MorpheApp/morphe-patcher/commit/2f3f21817b7579fe1d9c6361f85bb74037303429))
+
 ## [1.14.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.0...v1.14.1) (2026-09-24)
 
 

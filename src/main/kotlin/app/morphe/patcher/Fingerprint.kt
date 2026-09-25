@@ -216,6 +216,7 @@ open class Fingerprint private constructor(
     // TODO: On next major version bump change this to return the fingerprint.
     fun clearMatch() {
         _matchOrNull = null
+        classFingerprint?.clearMatch()
     }
 
     /**
@@ -714,6 +715,29 @@ open class Fingerprint private constructor(
         type != "this" && StringComparisonType.typeDeclarationToComparison(type) == StringComparisonType.EQUALS
 
     fun patchException() = PatchException("Failed to match the fingerprint: $this")
+
+    /**
+     * A named fingerprint class (such as an `object` declaration) is identified by its class name.
+     * Other fingerprints, such as ones built inside a patch, are described by their declared fields.
+     */
+    override fun toString(): String {
+        if (javaClass != Fingerprint::class.java && !javaClass.isAnonymousClass) {
+            return super.toString()
+        }
+
+        val fields = buildList {
+            classFingerprint?.let { add("classFingerprint=$it") }
+            definingClass?.let { add("definingClass=$it") }
+            name?.let { add("name=$it") }
+            accessFlags?.let { add("accessFlags=${AccessFlags.formatAccessFlagsForMethod(it)}") }
+            returnType?.let { add("returnType=$it") }
+            parameters?.let { add("parameters=$it") }
+            filters?.let { filters -> add("filters=${filters.map { it.javaClass.simpleName }}") }
+            strings?.let { add("strings=$it") }
+            custom?.let { add("custom") }
+        }
+        return "Fingerprint(${fields.joinToString()})"
+    }
 
     /**
      * The match for this [Fingerprint].
