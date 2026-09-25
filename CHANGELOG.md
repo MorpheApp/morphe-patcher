@@ -1,3 +1,10 @@
+# [1.15.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.2...v1.15.0-dev.3) (2026-09-25)
+
+
+### Bug Fixes
+
+* Keep archive names of shared resource files in edited values files ([#220](https://github.com/MorpheApp/morphe-patcher/issues/220)) ([03aee7a](https://github.com/MorpheApp/morphe-patcher/commit/03aee7abb3ed8a81f53d771110d0fa182222b5d4))
+
 # [1.15.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.1...v1.15.0-dev.2) (2026-09-24)
 
 
