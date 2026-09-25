@@ -91,7 +91,7 @@ internal class IncrementalResourceEncoderTest {
         fun declare(type: String, vararg names: String) = names.forEach { pkg.getOrCreate("", type, it) }
         declare("attr", "myAttr")
         declare("string", "app_name", "hello", "keep", "styled", "escaped")
-        declare("color", "accent", "selector")
+        declare("color", "accent", "selector", "shared_a", "shared_b")
         declare("style", "S")
         declare("array", "arr")
         declare("layout", "main")
@@ -125,6 +125,9 @@ internal class IncrementalResourceEncoderTest {
         pkg.getOrCreate("-hdpi", "drawable", "sparse_c").setValueAsString("res/drawable-hdpi/sparse_c.png")
         pkg.getOrCreateSpecTypePair("drawable").getTypeBlock(ResConfig.parse("-hdpi"))!!.headerBlock.isSparse = true
         pkg.getOrCreate("", "color", "selector").setValueAsString("res/color/selector.xml")
+        // aapt shares one file between resources with the same content, under an obfuscated name.
+        pkg.getOrCreate("", "color", "shared_a").setValueAsString("res/color/x.xml")
+        pkg.getOrCreate("", "color", "shared_b").setValueAsString("res/color/x.xml")
         table.refresh()
 
         fun binaryXml(xml: String) = ResXmlDocument().apply {
@@ -164,6 +167,7 @@ internal class IncrementalResourceEncoderTest {
             zip.add("AndroidManifest.xml", ByteArrayInputStream(manifest.bytes))
             zip.add("res/layout/main.xml", ByteArrayInputStream(layout))
             zip.add("res/color/selector.xml", ByteArrayInputStream(selector))
+            zip.add("res/color/x.xml", ByteArrayInputStream(selector))
             zip.add("res/drawable/icon.png", ByteArrayInputStream("PNG default".toByteArray()))
             zip.add("res/drawable-xxhdpi/icon.png", ByteArrayInputStream("PNG xxhdpi".toByteArray()))
             for (name in listOf("sparse_a", "sparse_b", "sparse_c")) {
@@ -389,6 +393,25 @@ internal class IncrementalResourceEncoderTest {
             assertNotNull(entry)
             assertEquals(manualId, entry.resourceId.toLong() and 0xffffffffL)
             assertEquals("Declared by hand", entry.resValue.valueAsString)
+        }
+    }
+
+    @ParameterizedTest(name = "full rebuild = {0}")
+    @ValueSource(booleans = [false, true])
+    fun `a resource sharing a file keeps its archive name when its values file is edited`(fullRebuild: Boolean, @TempDir tempDir: File) {
+        val (_, coder) = decode(fullRebuild, tempDir)
+
+        // The decoded values file names the shared file by its alias, which is not in the archive.
+        coder.getFile("res/values/colors.xml", null, false).edit { it.replace(">#ffff0000<", ">#ff00ff00<") }
+
+        val output = encode(coder, fullRebuild, tempDir)
+
+        ApkModule.loadApkFile(output).use { module ->
+            val pkg = module.tableBlock.pickOne()
+            listOf("shared_a", "shared_b").forEach { name ->
+                val path = pkg.getEntry("", "color", name)!!.resValue.valueAsString
+                assertTrue(module.zipEntryMap.contains(path), "$name names $path, which is not in the archive")
+            }
         }
     }
 
