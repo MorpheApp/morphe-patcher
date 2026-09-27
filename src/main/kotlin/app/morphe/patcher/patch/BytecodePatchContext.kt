@@ -279,6 +279,13 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         literalString: String,
         comparison: StringComparisonType = StringComparisonType.EQUALS
     ): List<ClassDef> {
+        // Exact matches can only ever come from the one key equal to literalString, so look it
+        // up directly instead of comparing against every string in the index.
+        if (comparison == StringComparisonType.EQUALS) {
+            return patchClasses.getClassesFromOpcodeStringLiteral(literalString)
+                ?.map { it.classDef } ?: emptyList()
+        }
+
         val result = mutableSetOf<ClassDef>()
         patchClasses.getClassesByReferenceMap().forEach { (string, list) ->
             if (comparison.compare(string, literalString)) {
