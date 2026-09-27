@@ -339,20 +339,79 @@ internal object PatchClassesTest {
     }
 
     @Test
-    fun `instruction indexes retain newly added classes as candidates`() {
+    fun `classes added after index build are indexed incrementally`() {
         patchClasses.getClassesByReferenceMap()
-        val newClass = createClassDef("Lcom/test/NewAfterIndex;")
+        val implementation = MutableMethodImplementation(2).apply {
+            addInstruction(BuilderInstruction31i(Opcode.CONST, 0, 123))
+            addInstruction(
+                BuilderInstruction21c(
+                    Opcode.NEW_INSTANCE,
+                    0,
+                    ImmutableTypeReference("Lcom/test/AddedTarget;"),
+                ),
+            )
+        }
+        val method = ImmutableMethod(
+            "Lcom/test/NewAfterIndex;",
+            "value",
+            emptyList(),
+            "V",
+            AccessFlags.PUBLIC.value,
+            null,
+            null,
+            implementation,
+        )
 
-        patchClasses.addClass(newClass)
+        patchClasses.addClass(createClassDef("Lcom/test/NewAfterIndex;", listOf(method)))
 
         assertEquals(
             listOf("Lcom/test/NewAfterIndex;"),
             patchClasses.getClassesContainingLiteral(123)?.map { it.classDef.type },
         )
+        assertNull(patchClasses.getClassesContainingLiteral(456))
         assertEquals(
             listOf("Lcom/test/NewAfterIndex;"),
             patchClasses.getClassesReferencingType("Lcom/test/AddedTarget;")?.map { it.classDef.type },
         )
+        assertNull(patchClasses.getClassesReferencingType("Lcom/test/Missing;"))
+    }
+
+    @Test
+    fun `strings of classes added after index build are found`() {
+        patchClasses.getClassesFromOpcodeStringLiteral("hello")
+
+        val lateClass = createClassDef(
+            "Lcom/test/LateClass;",
+            listOf(createMethodWithStrings("Lcom/test/LateClass;", "lateMethod", listOf("lateString")))
+        )
+        patchClasses.addClass(lateClass)
+
+        assertEquals(
+            listOf("Lcom/test/LateClass;"),
+            patchClasses.getClassesFromOpcodeStringLiteral("lateString")?.map { it.classDef.type },
+        )
+        assertTrue(patchClasses.getAllClassesWithStrings().any { it.classDef.type == "Lcom/test/LateClass;" })
+    }
+
+    @Test
+    fun `strings of replaced classes are reindexed`() {
+        patchClasses.getClassesFromOpcodeStringLiteral("hello")
+
+        val mergedClass = createClassDef(
+            "Lcom/test/Class1;",
+            listOf(
+                createMethodWithStrings("Lcom/test/Class1;", "method1", listOf("hello", "world")),
+                createMethodWithStrings("Lcom/test/Class1;", "extraMethod", listOf("brandNew")),
+            )
+        )
+        patchClasses.addClass(mergedClass)
+
+        assertEquals(
+            "Lcom/test/Class1;",
+            patchClasses.getClassesFromOpcodeStringLiteral("brandNew")?.single()?.classDef?.type,
+        )
+        assertTrue(patchClasses.getClassesFromOpcodeStringLiteral("hello")!!.any { it.classDef === mergedClass })
+        assertTrue(patchClasses.classByOrNull("Lcom/test/Class1;") === mergedClass)
     }
 
     @Test
