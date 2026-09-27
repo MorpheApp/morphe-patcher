@@ -306,11 +306,14 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
     /**
      * @return All classes that contain the exact string.
+     * @see classDefByStrings
      */
+    @Deprecated(
+        "Use classDefByStrings instead, which handles all string comparisons",
+        ReplaceWith("classDefByStrings(stringLiteral)")
+    )
     fun getAllClassesWithString(stringLiteral: String): List<ClassDef> {
-        val classes = patchClasses.getClassesFromOpcodeStringLiteral(stringLiteral)
-            ?: return emptyList()
-        return classes.map { it.classDef }
+        return classDefByStrings(stringLiteral)
     }
 
     /**
