@@ -2230,4 +2230,45 @@ internal class ArsclibResourceCoderTest {
         assertEquals("3.1.0", metadata.versionName)
         assertEquals("310", metadata.versionCode)
     }
+
+    // ==================== streaming content hash parity ====================
+
+    @Test
+    fun `streaming content hashes match readBytes contentHashCode`(@TempDir tempDir: File) {
+        val random = java.util.Random(42)
+        val sizes = listOf(
+            0,
+            1,
+            DEFAULT_BUFFER_SIZE - 1,
+            DEFAULT_BUFFER_SIZE,
+            DEFAULT_BUFFER_SIZE + 1,
+            3 * DEFAULT_BUFFER_SIZE + 123,
+        )
+
+        sizes.forEach { size ->
+            val bytes = ByteArray(size).also(random::nextBytes)
+            val file = tempDir.resolve("hash-$size.bin")
+            file.writeBytes(bytes)
+
+            with(coder) {
+                assertEquals(
+                    bytes.contentHashCode(),
+                    file.contentHashStreaming(),
+                    "streaming hash mismatch for size=$size",
+                )
+
+                val copied = tempDir.resolve("hash-copy-$size.bin")
+                val copiedHash = copied.copyFromComputingHash(ByteArrayInputStream(bytes))
+                assertEquals(
+                    bytes.contentHashCode(),
+                    copiedHash,
+                    "copy-with-hash mismatch for size=$size",
+                )
+                assertTrue(
+                    copied.readBytes().contentEquals(bytes),
+                    "copied content mismatch for size=$size",
+                )
+            }
+        }
+    }
 }

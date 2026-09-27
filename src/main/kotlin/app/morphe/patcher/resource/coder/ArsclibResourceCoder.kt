@@ -1201,7 +1201,7 @@ internal class ArsclibResourceCoder(
      * Copies [input] into this file while hashing what was written in the same pass, so a root
      * entry as large as a native library or a bundled asset never needs a full second read.
      */
-    private fun File.copyFromComputingHash(input: InputStream): Int {
+    internal fun File.copyFromComputingHash(input: InputStream): Int {
         var hash = 1
         outputStream().use { output ->
             val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
@@ -1216,9 +1216,9 @@ internal class ArsclibResourceCoder(
     }
 
     /** Same result as `readBytes().contentHashCode()`, bounded to one buffer instead of the whole file. */
-    private fun File.contentHashStreaming(): Int {
+    internal fun File.contentHashStreaming(): Int {
         var hash = 1
-        inputStream().buffered().use { input ->
+        inputStream().use { input ->
             val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
             while (true) {
                 val read = input.read(buffer)
