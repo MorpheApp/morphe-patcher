@@ -1,3 +1,10 @@
+# [1.15.0-dev.9](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.8...v1.15.0-dev.9) (2026-09-28)
+
+
+### Bug Fixes
+
+* Delete the DEX extracted to list a bundle's classes once they are read ([802875e](https://github.com/MorpheApp/morphe-patcher/commit/802875e6121f7efcb2b1bc57f487fb08b021d8c6))
+
 # [1.15.0-dev.8](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.7...v1.15.0-dev.8) (2026-09-28)
 
 
