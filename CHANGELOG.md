@@ -1,3 +1,10 @@
+# [1.15.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.6...v1.15.0-dev.7) (2026-09-28)
+
+
+### Performance Improvements
+
+* Stream root entry content hashing instead of loading the whole file into memory ([#226](https://github.com/MorpheApp/morphe-patcher/issues/226)) ([65cc108](https://github.com/MorpheApp/morphe-patcher/commit/65cc10893f85b9d5df69323f8a802496f1896a37))
+
 # [1.15.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.5...v1.15.0-dev.6) (2026-09-28)
 
 
