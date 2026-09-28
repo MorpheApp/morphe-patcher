@@ -842,6 +842,7 @@ class PatchResult internal constructor(val patch: Patch<*>, val exception: Patch
  *
  * @param byPatchesFile The patches associated by the patches file they were loaded from.
  */
+@Suppress("JavaDefaultMethodsNotOverriddenByDelegation")
 sealed class PatchLoader(
     val byPatchesFile: Map<File, Set<Patch<*>>>,
 ) : Set<Patch<*>> by byPatchesFile.values.flatten().toSet() {
@@ -887,11 +888,17 @@ sealed class PatchLoader(
             patchesFiles,
             { patchBundle ->
                 val tempDir = Files.createTempDirectory("morphe-extracted-patches").toFile()
-                DexReadWrite.readMultidexFileFromZip(patchBundle, tempDir).use { readResult ->
-                    readResult.dexFile.classes
-                        .map { classDef ->
-                            classDef.type.substring(1, classDef.length - 1)
-                        }
+                try {
+                    DexReadWrite.readMultidexFileFromZip(patchBundle, tempDir).use { readResult ->
+                        readResult.dexFile.classes
+                            .map { classDef ->
+                                classDef.type.substring(1, classDef.length - 1)
+                            }
+                    }
+                } finally {
+                    // The extracted DEX only serves to list class names, and the class loader
+                    // reads the bundle itself, so nothing needs it once the mappings are closed
+                    tempDir.deleteRecursively()
                 }
             },
             DexClassLoader(
