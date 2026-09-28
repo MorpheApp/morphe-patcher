@@ -758,9 +758,9 @@ class SdkDexVerifier(
          * classes), then by the signature/candidate checked from that start.
          */
         private class HierarchyCache {
-            val methods = HashMap<String, HashMap<String, Boolean>>()
-            val fields = HashMap<String, HashMap<String, Boolean>>()
-            val supertypes = HashMap<String, HashMap<String, Boolean>>()
+            val methods = HashMap<String, HashMap<String, Boolean>>(1024, 0.5f)
+            val fields = HashMap<String, HashMap<String, Boolean>>(1024, 0.5f)
+            val supertypes = HashMap<String, HashMap<String, Boolean>>(1024, 0.5f)
         }
 
         private fun findMethodInHierarchyCached(
