@@ -1,3 +1,10 @@
+# [1.15.0-dev.8](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.7...v1.15.0-dev.8) (2026-09-28)
+
+
+### Performance Improvements
+
+* Memoize class hierarchy walks in the debug verifier ([#228](https://github.com/MorpheApp/morphe-patcher/issues/228)) ([23ceada](https://github.com/MorpheApp/morphe-patcher/commit/23ceada5bbd8a48897e7e7cb2510002b62727f69))
+
 # [1.15.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.6...v1.15.0-dev.7) (2026-09-28)
 
 
