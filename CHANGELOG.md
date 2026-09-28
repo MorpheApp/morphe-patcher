@@ -1,3 +1,10 @@
+# [1.15.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.4...v1.15.0-dev.5) (2026-09-28)
+
+
+### Performance Improvements
+
+* Look up exact string matches directly instead of scanning the whole index ([#227](https://github.com/MorpheApp/morphe-patcher/issues/227)) ([67f6328](https://github.com/MorpheApp/morphe-patcher/commit/67f6328ad9646fdff5fab7a7cb034255b42457ad))
+
 # [1.15.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.3...v1.15.0-dev.4) (2026-09-25)
 
 
