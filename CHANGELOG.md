@@ -1,3 +1,10 @@
+# [1.15.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.5...v1.15.0-dev.6) (2026-09-28)
+
+
+### Bug Fixes
+
+* Index classes added while patches are executing ([#229](https://github.com/MorpheApp/morphe-patcher/issues/229)) ([87d26a1](https://github.com/MorpheApp/morphe-patcher/commit/87d26a18222beec198503f5eca2a147c16a685c9))
+
 # [1.15.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.4...v1.15.0-dev.5) (2026-09-28)
 
 
