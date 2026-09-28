@@ -277,6 +277,10 @@ class SdkDexVerifier(
             fieldIndex[type] = fSigs
         }
 
+        // Memoizes the hierarchy walks below: real apps repeat the same (type, signature)
+        // lookups across huge numbers of call sites (e.g. every call into a common base class).
+        val hierarchyCache = HierarchyCache()
+
         for ((type, classDef) in classMap) {
             for (method in classDef.methods) {
                 val impl = method.implementation ?: continue
@@ -287,14 +291,14 @@ class SdkDexVerifier(
                     // Primary reference (present on all ReferenceInstructions).
                     validateReference(
                         insn.reference, insn.opcode, callerDesc, type,
-                        classMap, classSourceMap, methodIndex, fieldIndex, errors
+                        classMap, classSourceMap, methodIndex, fieldIndex, hierarchyCache, errors
                     )
 
                     // Secondary reference (invoke-polymorphic has a METHOD_PROTO as reference2).
                     if (insn is DualReferenceInstruction) {
                         validateReference(
                             insn.reference2, insn.opcode, callerDesc, type,
-                            classMap, classSourceMap, methodIndex, fieldIndex, errors
+                            classMap, classSourceMap, methodIndex, fieldIndex, hierarchyCache, errors
                         )
                     }
                 }
@@ -488,13 +492,14 @@ class SdkDexVerifier(
             classSourceMap: Map<String, String>,
             methodIndex: Map<String, Set<String>>,
             fieldIndex: Map<String, Set<String>>,
+            cache: HierarchyCache,
             errors: MutableList<String>,
         ) {
             when (ref) {
-                is MethodReference -> validateMethodRef(ref, opcode, callerDesc, callerType, classMap, classSourceMap, methodIndex, errors)
-                is FieldReference -> validateFieldRef(ref, opcode, callerDesc, classMap, classSourceMap, fieldIndex, errors)
+                is MethodReference -> validateMethodRef(ref, opcode, callerDesc, callerType, classMap, classSourceMap, methodIndex, cache, errors)
+                is FieldReference -> validateFieldRef(ref, opcode, callerDesc, classMap, classSourceMap, fieldIndex, cache, errors)
                 is TypeReference -> validateTypeRef(ref, opcode, callerDesc, classMap, errors)
-                is MethodHandleReference -> validateMethodHandleRef(ref, opcode, callerDesc, callerType, classMap, classSourceMap, methodIndex, fieldIndex, errors)
+                is MethodHandleReference -> validateMethodHandleRef(ref, opcode, callerDesc, callerType, classMap, classSourceMap, methodIndex, fieldIndex, cache, errors)
                 // MethodProtoReference (const-method-type, invoke-polymorphic reference2):
                 //   Contains only parameter types and a return type — no class or member name.
                 //   Nothing to cross-validate against the class pool.
@@ -504,7 +509,7 @@ class SdkDexVerifier(
                 is com.android.tools.smali.dexlib2.iface.reference.CallSiteReference -> {
                     validateMethodHandleRef(
                         ref.methodHandle, opcode, callerDesc, callerType,
-                        classMap, classSourceMap, methodIndex, fieldIndex, errors
+                        classMap, classSourceMap, methodIndex, fieldIndex, cache, errors
                     )
                 }
                 // StringReference, MethodProtoReference, etc. — no class/member to validate.
@@ -534,6 +539,7 @@ class SdkDexVerifier(
             classMap: Map<String, ClassDef>,
             classSourceMap: Map<String, String>,
             methodIndex: Map<String, Set<String>>,
+            cache: HierarchyCache,
             errors: MutableList<String>,
         ) {
             val definingClass = ref.definingClass
@@ -568,7 +574,7 @@ class SdkDexVerifier(
                 definingClass != callerType &&
                 !isFrameworkType(callerType)
             ) {
-                val isAssignable = isSupertype(definingClass, callerType, classMap)
+                val isAssignable = isSupertypeCached(definingClass, callerType, classMap, cache)
                 if (!isAssignable) {
                     errors.add(
                         "[INVOKE_BAD_RECEIVER] In $callerDesc: ${opcode.name} targets " +
@@ -581,7 +587,7 @@ class SdkDexVerifier(
 
             // Check method existence.
             val refSig = methodRefSignature(ref)
-            val found = findMethodInHierarchy(definingClass, refSig, classMap, methodIndex)
+            val found = findMethodInHierarchyCached(definingClass, refSig, classMap, methodIndex, cache)
 
             if (!found) {
                 errors.add(
@@ -603,6 +609,7 @@ class SdkDexVerifier(
             classMap: Map<String, ClassDef>,
             classSourceMap: Map<String, String>,
             fieldIndex: Map<String, Set<String>>,
+            cache: HierarchyCache,
             errors: MutableList<String>,
         ) {
             val definingClass = ref.definingClass
@@ -620,7 +627,7 @@ class SdkDexVerifier(
             val refSig = fieldRefSignature(ref)
 
             // Fields resolve up the hierarchy (both instance and static).
-            val found = findFieldInHierarchy(definingClass, refSig, classMap, fieldIndex)
+            val found = findFieldInHierarchyCached(definingClass, refSig, classMap, fieldIndex, cache)
 
             if (!found) {
                 errors.add(
@@ -673,6 +680,7 @@ class SdkDexVerifier(
             classSourceMap: Map<String, String>,
             methodIndex: Map<String, Set<String>>,
             fieldIndex: Map<String, Set<String>>,
+            cache: HierarchyCache,
             errors: MutableList<String>,
         ) {
             val member = ref.memberReference
@@ -690,7 +698,7 @@ class SdkDexVerifier(
                             MethodHandleType.INVOKE_INSTANCE -> Opcode.INVOKE_VIRTUAL
                             else -> Opcode.INVOKE_STATIC // direct/static/constructor → no hierarchy walk
                         }
-                        validateMethodRef(member, pseudoOpcode, callerDesc, callerType, classMap, classSourceMap, methodIndex, errors)
+                        validateMethodRef(member, pseudoOpcode, callerDesc, callerType, classMap, classSourceMap, methodIndex, cache, errors)
                     }
                 }
                 MethodHandleType.STATIC_PUT,
@@ -704,7 +712,7 @@ class SdkDexVerifier(
                             MethodHandleType.INSTANCE_GET -> Opcode.IGET
                             else -> Opcode.IPUT
                         }
-                        validateFieldRef(member, pseudoOpcode, callerDesc, classMap, classSourceMap, fieldIndex, errors)
+                        validateFieldRef(member, pseudoOpcode, callerDesc, classMap, classSourceMap, fieldIndex, cache, errors)
                     }
                 }
             }
@@ -743,6 +751,61 @@ class SdkDexVerifier(
          * Creates a signature string from a [FieldReference] to match against [fieldSignature].
          */
         private fun fieldRefSignature(ref: FieldReference): String = "${ref.name}|${ref.type}"
+
+        /**
+         * Per-run memoization for the hierarchy walks below, keyed first by the walk's starting
+         * class since the same start type recurs across many call sites (e.g. common base
+         * classes), then by the signature/candidate checked from that start.
+         */
+        private class HierarchyCache {
+            val methods = HashMap<String, HashMap<String, Boolean>>(1024, 0.5f)
+            val fields = HashMap<String, HashMap<String, Boolean>>(1024, 0.5f)
+            val supertypes = HashMap<String, HashMap<String, Boolean>>(1024, 0.5f)
+        }
+
+        private fun findMethodInHierarchyCached(
+            startType: String,
+            signature: String,
+            classMap: Map<String, ClassDef>,
+            methodIndex: Map<String, Set<String>>,
+            cache: HierarchyCache,
+        ): Boolean {
+            val bySignature = cache.methods.getOrPut(startType) { HashMap() }
+            bySignature[signature]?.let { return it }
+
+            val found = findMethodInHierarchy(startType, signature, classMap, methodIndex)
+            bySignature[signature] = found
+            return found
+        }
+
+        private fun findFieldInHierarchyCached(
+            startType: String,
+            signature: String,
+            classMap: Map<String, ClassDef>,
+            fieldIndex: Map<String, Set<String>>,
+            cache: HierarchyCache,
+        ): Boolean {
+            val bySignature = cache.fields.getOrPut(startType) { HashMap() }
+            bySignature[signature]?.let { return it }
+
+            val found = findFieldInHierarchy(startType, signature, classMap, fieldIndex)
+            bySignature[signature] = found
+            return found
+        }
+
+        private fun isSupertypeCached(
+            candidateSupertype: String,
+            subtype: String,
+            classMap: Map<String, ClassDef>,
+            cache: HierarchyCache,
+        ): Boolean {
+            val bySubtype = cache.supertypes.getOrPut(subtype) { HashMap() }
+            bySubtype[candidateSupertype]?.let { return it }
+
+            val result = isSupertype(candidateSupertype, subtype, classMap)
+            bySubtype[candidateSupertype] = result
+            return result
+        }
 
         /**
          * Walks the class hierarchy (superclasses and interfaces) starting from [startType],
