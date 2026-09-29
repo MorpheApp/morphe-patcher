@@ -49,7 +49,7 @@ repositories {
         url = uri("https://jitpack.io")
         content {
             includeGroup("com.github.MorpheApp.smali")
-            includeGroup("com.github.REAndroid")
+            includeGroup("com.github.MorpheApp")
         }
     }
     maven {
