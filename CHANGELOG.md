@@ -1,3 +1,10 @@
+# [1.15.0-dev.12](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.11...v1.15.0-dev.12) (2026-09-29)
+
+
+### Bug Fixes
+
+* Add binary backwards compatibility for now hidden fingerprint fields ([f214fa9](https://github.com/MorpheApp/morphe-patcher/commit/f214fa93c880225a4abd4d1a15897cce37310659))
+
 # [1.15.0-dev.11](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.10...v1.15.0-dev.11) (2026-09-29)
 
 
