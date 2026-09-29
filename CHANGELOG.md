@@ -1,3 +1,10 @@
+# [1.15.0-dev.11](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.10...v1.15.0-dev.11) (2026-09-29)
+
+
+### Performance Improvements
+
+* Use the MorpheApp ARSCLib fork with faster, leaner split merging ([#231](https://github.com/MorpheApp/morphe-patcher/issues/231)) ([4a6e437](https://github.com/MorpheApp/morphe-patcher/commit/4a6e4370852ca85a89895da42ea34e7221973bcf))
+
 # [1.15.0-dev.10](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.9...v1.15.0-dev.10) (2026-09-29)
 
 
