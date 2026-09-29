@@ -37,15 +37,28 @@ import java.lang.ref.WeakReference
  */
 open class Fingerprint private constructor(
     val classFingerprint: Fingerprint? = null,
-    internal val definingClass: String? = null,
-    internal val name: String? = null,
+    definingClass: String? = null,
+    name: String? = null,
     accessFlags: List<AccessFlags>? = null,
     returnType: String? = null,
-    internal val parameters: List<String>? = null,
+    parameters: List<String>? = null,
     val filters: List<InstructionFilter>? = null,
     val strings: List<String>? = null,
     val custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
 ) {
+    // TODO: Eventually remove these.
+    internal val definingClass: String? = definingClass
+    @Deprecated("Binary compatibility for legacy compiled callers", level = DeprecationLevel.HIDDEN)
+    fun getDefiningClass(): String? = definingClass
+
+    internal val name: String? = name
+    @Deprecated("Binary compatibility for legacy compiled callers", level = DeprecationLevel.HIDDEN)
+    fun getName(): String? = name
+
+    internal val parameters: List<String>? = parameters
+    @Deprecated("Binary compatibility for legacy compiled callers", level = DeprecationLevel.HIDDEN)
+    fun getParameters(): List<String>? = parameters
+
     /**
      * A fingerprint for a method. A fingerprint is a partial description of a method,
      * used to uniquely match a method by its characteristics.
