@@ -29,13 +29,19 @@ import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.util.MethodUtil
 import java.lang.ref.WeakReference
 
+/**
+ * @param classFingerprint Fingerprint that finds the class this fingerprint resolves against.
+ * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+ * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+ * @param custom A custom condition for this fingerprint.
+ */
 open class Fingerprint private constructor(
     val classFingerprint: Fingerprint? = null,
-    val definingClass: String? = null,
-    val name: String? = null,
+    internal val definingClass: String? = null,
+    internal val name: String? = null,
     accessFlags: List<AccessFlags>? = null,
     returnType: String? = null,
-    val parameters: List<String>? = null,
+    internal val parameters: List<String>? = null,
     val filters: List<InstructionFilter>? = null,
     val strings: List<String>? = null,
     val custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
@@ -182,10 +188,10 @@ open class Fingerprint private constructor(
 
     private val parameterTypeComparison = StringComparisonType.typeDeclarationToComparison(parameters)
 
-    val accessFlags: Int? = accessFlags?.fold(0) { acc, it -> acc or it.value }
+    internal val accessFlags: Int? = accessFlags?.fold(0) { acc, it -> acc or it.value }
 
     // Constructor always has return type of void.
-    val returnType: String? = if (this.accessFlags != null && AccessFlags.CONSTRUCTOR.isSet(this.accessFlags)
+    internal val returnType: String? = if (this.accessFlags != null && AccessFlags.CONSTRUCTOR.isSet(this.accessFlags)
         && returnType == "V"
     ) null else returnType
 
