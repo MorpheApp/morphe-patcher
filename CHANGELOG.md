@@ -1,3 +1,10 @@
+# [1.15.0-dev.10](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.9...v1.15.0-dev.10) (2026-09-29)
+
+
+### Bug Fixes
+
+* Hide partial match declarations that may be confused with the matched full type names ([#230](https://github.com/MorpheApp/morphe-patcher/issues/230)) ([bcc019e](https://github.com/MorpheApp/morphe-patcher/commit/bcc019eda7ba1f17be743eaf8f5c0b449e908253))
+
 # [1.15.0-dev.9](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.8...v1.15.0-dev.9) (2026-09-28)
 
 
