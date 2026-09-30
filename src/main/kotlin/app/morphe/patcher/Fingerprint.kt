@@ -66,6 +66,13 @@ open class Fingerprint private constructor(
 
     @Deprecated(
         "Instead use matched method fields",
+        replaceWith = ReplaceWith("method.returnType"),
+        level = DeprecationLevel.ERROR // TODO: Change this to hidden level
+    )
+    fun getReturnType(): String? = returnType
+
+    @Deprecated(
+        "Instead use matched method fields",
         replaceWith = ReplaceWith("method.parameterTypes"),
         level = DeprecationLevel.ERROR // TODO: Change this to hidden level
     )
