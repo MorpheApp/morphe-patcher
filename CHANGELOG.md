@@ -1,3 +1,10 @@
+# [1.15.0-dev.15](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.14...v1.15.0-dev.15) (2026-09-30)
+
+
+### Bug Fixes
+
+* Add additional deprecated binary backwards compatibility ([528ddfa](https://github.com/MorpheApp/morphe-patcher/commit/528ddfacea953b0bf969395c71347dab47d99f4b))
+
 # [1.15.0-dev.14](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.13...v1.15.0-dev.14) (2026-09-30)
 
 
