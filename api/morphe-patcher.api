@@ -400,6 +400,7 @@ public final class app/morphe/patcher/apk/ApkUtils {
 	public static final field INSTANCE Lapp/morphe/patcher/apk/ApkUtils;
 	public final fun applyTo (Lapp/morphe/patcher/PatcherResult;Ljava/io/File;)V
 	public final fun signApk (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Lapp/morphe/patcher/apk/ApkUtils$KeyStoreDetails;)V
+	public final fun verifiedSigningCertificates (Ljava/io/File;I)Ljava/util/List;
 }
 
 public final class app/morphe/patcher/apk/ApkUtils$KeyStoreDetails {

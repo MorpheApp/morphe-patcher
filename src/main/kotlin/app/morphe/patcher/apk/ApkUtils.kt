@@ -9,6 +9,8 @@ import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.ApkSigner.newApkSigner
 import app.morphe.patcher.apk.ApkSigner.newKeyStore
 import app.morphe.patcher.apk.ApkSigner.newPrivateKeyCertificatePair
+import com.android.apksig.ApkVerifier
+import com.android.apksig.apk.ApkFormatException
 import com.android.tools.build.apkzlib.zip.AlignmentRules
 import com.android.tools.build.apkzlib.zip.CompressionMethod
 import com.android.tools.build.apkzlib.zip.DataDescriptorType
@@ -16,6 +18,9 @@ import com.android.tools.build.apkzlib.zip.StoredEntry
 import com.android.tools.build.apkzlib.zip.ZFile
 import com.android.tools.build.apkzlib.zip.ZFileOptions
 import java.io.File
+import java.io.IOException
+import java.security.NoSuchAlgorithmException
+import java.security.cert.X509Certificate
 import java.util.*
 import java.util.logging.Logger
 import kotlin.time.Duration.Companion.days
@@ -210,6 +215,42 @@ object ApkUtils {
             newPrivateKeyCertificatePair(PrivateKeyCertificatePairDetails(), keyStoreDetails)
         },
     ).signApk(inputApkFile, outputApkFile)
+
+    /**
+     * Verifies the signature of [apkFile] as a device running [platformVersion] checks it on
+     * install, and returns the certificates the APK is signed with.
+     *
+     * A signer that rotated its key reports its whole lineage, oldest first, as Android reports
+     * it for an installed package, so a certificate the app was once signed with still matches.
+     *
+     * @param apkFile The APK file to verify.
+     * @param platformVersion The Android API level to verify for, such as `Build.VERSION.SDK_INT`.
+     *
+     * @return The certificates of [apkFile], an empty list if it is unsigned, malformed or its
+     *   signature does not verify, or null if it could not be read, which a later attempt may not repeat.
+     */
+    fun verifiedSigningCertificates(apkFile: File, platformVersion: Int): List<X509Certificate>? =
+        try {
+            val result = ApkVerifier.Builder(apkFile)
+                .setMinCheckedPlatformVersion(platformVersion)
+                .setMaxCheckedPlatformVersion(platformVersion)
+                .build()
+                .verify()
+
+            if (result.isVerified) {
+                result.signingCertificateLineage?.certificatesInLineage ?: result.signerCertificates
+            } else {
+                emptyList()
+            }
+        } catch (_: ApkFormatException) {
+            emptyList()
+        } catch (e: IOException) {
+            logger.warning("Failed to read $apkFile for verification: $e")
+            null
+        } catch (e: NoSuchAlgorithmException) {
+            logger.warning("Failed to verify $apkFile: $e")
+            null
+        }
 
     /**
      * Details for a keystore.

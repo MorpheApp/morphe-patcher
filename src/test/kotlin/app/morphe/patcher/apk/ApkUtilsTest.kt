@@ -7,9 +7,12 @@ package app.morphe.patcher.apk
 
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.ApkUtils.applyTo
+import com.reandroid.apk.ApkModule
+import com.reandroid.arsc.chunk.xml.AndroidManifestBlock
 import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.util.Date
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
@@ -17,6 +20,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 internal class ApkUtilsTest {
@@ -195,6 +199,49 @@ internal class ApkUtilsTest {
         assertContentEquals(payload, readZip(targetApk)["res/raw/first.dat"])
     }
 
+    @Test
+    fun `a signed APK verifies to the certificate it was signed with`() {
+        val signedApk = temporaryDirectory.resolve("signed.apk")
+        ApkSigner.newApkSigner("Test", signingKey).signApk(manifestApk(), signedApk)
+
+        assertEquals(
+            listOf(signingKey.certificate),
+            ApkUtils.verifiedSigningCertificates(signedApk, PLATFORM_VERSION),
+        )
+    }
+
+    @Test
+    fun `an unsigned APK verifies to no certificates`() {
+        assertEquals(emptyList(), ApkUtils.verifiedSigningCertificates(manifestApk(), PLATFORM_VERSION))
+    }
+
+    @Test
+    fun `a file that is not an APK verifies to no certificates`() {
+        val notApk = temporaryDirectory.resolve("not.apk").apply { writeText("not an archive") }
+
+        assertEquals(emptyList(), ApkUtils.verifiedSigningCertificates(notApk, PLATFORM_VERSION))
+    }
+
+    @Test
+    fun `a file that cannot be read gives no answer`() {
+        assertNull(ApkUtils.verifiedSigningCertificates(temporaryDirectory.resolve("missing.apk"), PLATFORM_VERSION))
+    }
+
+    /** An unsigned APK carrying only a manifest, which is all signing and verifying read. */
+    private fun manifestApk(): File {
+        val apk = temporaryDirectory.resolve("unsigned.apk")
+        ApkModule().use { module ->
+            val manifest = AndroidManifestBlock()
+            manifest.packageName = "com.test.signed"
+            manifest.versionCode = 1
+            manifest.versionName = "1.0"
+            manifest.setMinSdkVersion(PLATFORM_VERSION)
+            module.setManifest(manifest)
+            module.writeApk(apk)
+        }
+        return apk
+    }
+
     /** Entry name to (local header flags, central directory flags), read straight from the bytes. */
     private fun generalPurposeFlags(file: File): Map<String, Pair<Int, Int>> {
         val bytes = file.readBytes()
@@ -231,6 +278,15 @@ internal class ApkUtilsTest {
                 entry.name to zip.getInputStream(entry).use { it.readBytes() }
             }
         }
+
+    private companion object {
+        const val PLATFORM_VERSION = 30
+
+        // Generating a key takes a while, so every test signs with the same one
+        val signingKey by lazy {
+            ApkSigner.newPrivateKeyCertificatePair("Test", Date(System.currentTimeMillis() + 86_400_000L))
+        }
+    }
 
     private class CloseTrackingInputStream(contents: ByteArray) : ByteArrayInputStream(contents) {
         var closed = false
