@@ -187,6 +187,10 @@ internal class IncrementalResourceEncoder(
             encodedEntries += AndroidManifestBlock.FILE_NAME
         }
 
+        // The table starts as the input's, so the strings of emptied entries, such as a removed
+        // locale's, would stay in the pool unreferenced. A full rebuild only writes used ones.
+        tableBlock.stringPool.removeUnusedStrings()
+
         // Written without this, the table's styled strings came out misaligned, although the
         // archive refreshes the table again when it writes it.
         tableBlock.refresh()
