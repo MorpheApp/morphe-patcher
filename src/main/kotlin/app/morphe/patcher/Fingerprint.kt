@@ -29,17 +29,55 @@ import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.util.MethodUtil
 import java.lang.ref.WeakReference
 
+/**
+ * @param classFingerprint Fingerprint that finds the class this fingerprint resolves against.
+ * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+ * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+ * @param custom A custom condition for this fingerprint.
+ */
 open class Fingerprint private constructor(
     val classFingerprint: Fingerprint? = null,
-    val definingClass: String? = null,
-    val name: String? = null,
+    definingClass: String? = null,
+    name: String? = null,
     accessFlags: List<AccessFlags>? = null,
     returnType: String? = null,
-    val parameters: List<String>? = null,
+    parameters: List<String>? = null,
     val filters: List<InstructionFilter>? = null,
     val strings: List<String>? = null,
     val custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
 ) {
+    internal val definingClass: String? = definingClass
+    internal val name: String? = name
+    internal val parameters: List<String>? = parameters
+
+    @Deprecated(
+        "Instead use matched method fields",
+        replaceWith = ReplaceWith("method.definingClass"),
+        level = DeprecationLevel.ERROR // TODO: Change this to hidden level
+    )
+    fun getDefiningClass(): String? = definingClass
+
+    @Deprecated(
+        "Instead use matched method fields",
+        replaceWith = ReplaceWith("method.name"),
+        level = DeprecationLevel.ERROR // TODO: Change this to hidden level
+    )
+    fun getName(): String? = name
+
+    @Deprecated(
+        "Instead use matched method fields",
+        replaceWith = ReplaceWith("method.returnType"),
+        level = DeprecationLevel.ERROR // TODO: Change this to hidden level
+    )
+    fun getReturnType(): String? = returnType
+
+    @Deprecated(
+        "Instead use matched method fields",
+        replaceWith = ReplaceWith("method.parameterTypes"),
+        level = DeprecationLevel.ERROR // TODO: Change this to hidden level
+    )
+    fun getParameters(): List<String>? = parameters
+
     /**
      * A fingerprint for a method. A fingerprint is a partial description of a method,
      * used to uniquely match a method by its characteristics.
@@ -182,10 +220,10 @@ open class Fingerprint private constructor(
 
     private val parameterTypeComparison = StringComparisonType.typeDeclarationToComparison(parameters)
 
-    val accessFlags: Int? = accessFlags?.fold(0) { acc, it -> acc or it.value }
+    internal val accessFlags: Int? = accessFlags?.fold(0) { acc, it -> acc or it.value }
 
     // Constructor always has return type of void.
-    val returnType: String? = if (this.accessFlags != null && AccessFlags.CONSTRUCTOR.isSet(this.accessFlags)
+    internal val returnType: String? = if (this.accessFlags != null && AccessFlags.CONSTRUCTOR.isSet(this.accessFlags)
         && returnType == "V"
     ) null else returnType
 
@@ -216,6 +254,7 @@ open class Fingerprint private constructor(
     // TODO: On next major version bump change this to return the fingerprint.
     fun clearMatch() {
         _matchOrNull = null
+        classFingerprint?.clearMatch()
     }
 
     /**
@@ -714,6 +753,29 @@ open class Fingerprint private constructor(
         type != "this" && StringComparisonType.typeDeclarationToComparison(type) == StringComparisonType.EQUALS
 
     fun patchException() = PatchException("Failed to match the fingerprint: $this")
+
+    /**
+     * A named fingerprint class (such as an `object` declaration) is identified by its class name.
+     * Other fingerprints, such as ones built inside a patch, are described by their declared fields.
+     */
+    override fun toString(): String {
+        if (javaClass != Fingerprint::class.java && !javaClass.isAnonymousClass) {
+            return super.toString()
+        }
+
+        val fields = buildList {
+            classFingerprint?.let { add("classFingerprint=$it") }
+            definingClass?.let { add("definingClass=$it") }
+            name?.let { add("name=$it") }
+            accessFlags?.let { add("accessFlags=${AccessFlags.formatAccessFlagsForMethod(it)}") }
+            returnType?.let { add("returnType=$it") }
+            parameters?.let { add("parameters=$it") }
+            filters?.let { filters -> add("filters=${filters.map { it.javaClass.simpleName }}") }
+            strings?.let { add("strings=$it") }
+            custom?.let { add("custom") }
+        }
+        return "Fingerprint(${fields.joinToString()})"
+    }
 
     /**
      * The match for this [Fingerprint].

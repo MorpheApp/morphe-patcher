@@ -160,6 +160,33 @@ internal object FingerprintTest {
         // toString should include class info
     }
 
+    private object NamedFingerprint : Fingerprint(name = "namedMethod")
+
+    @Test
+    fun `toString describes the declared fields`() {
+        val fingerprint = Fingerprint(
+            definingClass = "Lcom/test/TestClass;",
+            name = "testMethod",
+            accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.STATIC),
+            returnType = "V",
+            parameters = listOf("I", "Ljava/lang/String;"),
+            filters = listOf(string("test")),
+            strings = listOf("a"),
+            custom = { _, _ -> true },
+        )
+
+        assertEquals(
+            "Fingerprint(definingClass=Lcom/test/TestClass;, name=testMethod, accessFlags=public static, " +
+                "returnType=V, parameters=[I, Ljava/lang/String;], filters=[StringFilter], strings=[a], custom)",
+            fingerprint.toString(),
+        )
+    }
+
+    @Test
+    fun `toString of a named fingerprint uses the class name`() {
+        assertTrue(NamedFingerprint.toString().startsWith(NamedFingerprint::class.java.name + "@"))
+    }
+
     // ==================== patchException tests ====================
 
     @Test

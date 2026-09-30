@@ -1,3 +1,108 @@
+# [1.15.0-dev.15](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.14...v1.15.0-dev.15) (2026-09-30)
+
+
+### Bug Fixes
+
+* Add additional deprecated binary backwards compatibility ([528ddfa](https://github.com/MorpheApp/morphe-patcher/commit/528ddfacea953b0bf969395c71347dab47d99f4b))
+
+# [1.15.0-dev.14](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.13...v1.15.0-dev.14) (2026-09-30)
+
+
+### Bug Fixes
+
+* Drop strings no resource uses any more from the table ([#233](https://github.com/MorpheApp/morphe-patcher/issues/233)) ([7fa2160](https://github.com/MorpheApp/morphe-patcher/commit/7fa2160b9c755452445aab7ac8af9d552596d670))
+
+# [1.15.0-dev.13](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.12...v1.15.0-dev.13) (2026-09-30)
+
+
+### Features
+
+* Verify an APK's signature and return its certificates ([f10ce04](https://github.com/MorpheApp/morphe-patcher/commit/f10ce041612ad0f6dca2941680386c844f1ff14a))
+
+# [1.15.0-dev.12](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.11...v1.15.0-dev.12) (2026-09-29)
+
+
+### Bug Fixes
+
+* Add binary backwards compatibility for now hidden fingerprint fields ([f214fa9](https://github.com/MorpheApp/morphe-patcher/commit/f214fa93c880225a4abd4d1a15897cce37310659))
+
+# [1.15.0-dev.11](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.10...v1.15.0-dev.11) (2026-09-29)
+
+
+### Performance Improvements
+
+* Use the MorpheApp ARSCLib fork with faster, leaner split merging ([#231](https://github.com/MorpheApp/morphe-patcher/issues/231)) ([4a6e437](https://github.com/MorpheApp/morphe-patcher/commit/4a6e4370852ca85a89895da42ea34e7221973bcf))
+
+# [1.15.0-dev.10](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.9...v1.15.0-dev.10) (2026-09-29)
+
+
+### Bug Fixes
+
+* Hide partial match declarations that may be confused with the matched full type names ([#230](https://github.com/MorpheApp/morphe-patcher/issues/230)) ([bcc019e](https://github.com/MorpheApp/morphe-patcher/commit/bcc019eda7ba1f17be743eaf8f5c0b449e908253))
+
+# [1.15.0-dev.9](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.8...v1.15.0-dev.9) (2026-09-28)
+
+
+### Bug Fixes
+
+* Delete the DEX extracted to list a bundle's classes once they are read ([802875e](https://github.com/MorpheApp/morphe-patcher/commit/802875e6121f7efcb2b1bc57f487fb08b021d8c6))
+
+# [1.15.0-dev.8](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.7...v1.15.0-dev.8) (2026-09-28)
+
+
+### Performance Improvements
+
+* Memoize class hierarchy walks in the debug verifier ([#228](https://github.com/MorpheApp/morphe-patcher/issues/228)) ([23ceada](https://github.com/MorpheApp/morphe-patcher/commit/23ceada5bbd8a48897e7e7cb2510002b62727f69))
+
+# [1.15.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.6...v1.15.0-dev.7) (2026-09-28)
+
+
+### Performance Improvements
+
+* Stream root entry content hashing instead of loading the whole file into memory ([#226](https://github.com/MorpheApp/morphe-patcher/issues/226)) ([65cc108](https://github.com/MorpheApp/morphe-patcher/commit/65cc10893f85b9d5df69323f8a802496f1896a37))
+
+# [1.15.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.5...v1.15.0-dev.6) (2026-09-28)
+
+
+### Bug Fixes
+
+* Index classes added while patches are executing ([#229](https://github.com/MorpheApp/morphe-patcher/issues/229)) ([87d26a1](https://github.com/MorpheApp/morphe-patcher/commit/87d26a18222beec198503f5eca2a147c16a685c9))
+
+# [1.15.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.4...v1.15.0-dev.5) (2026-09-28)
+
+
+### Performance Improvements
+
+* Look up exact string matches directly instead of scanning the whole index ([#227](https://github.com/MorpheApp/morphe-patcher/issues/227)) ([67f6328](https://github.com/MorpheApp/morphe-patcher/commit/67f6328ad9646fdff5fab7a7cb034255b42457ad))
+
+# [1.15.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.3...v1.15.0-dev.4) (2026-09-25)
+
+
+### Bug Fixes
+
+* Keep the description in the AppTarget version code constructor ([#222](https://github.com/MorpheApp/morphe-patcher/issues/222)) ([e9998c5](https://github.com/MorpheApp/morphe-patcher/commit/e9998c5332046dca6e4e8bb703d5a4cd73d639cd))
+
+# [1.15.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.2...v1.15.0-dev.3) (2026-09-25)
+
+
+### Bug Fixes
+
+* Keep archive names of shared resource files in edited values files ([#220](https://github.com/MorpheApp/morphe-patcher/issues/220)) ([03aee7a](https://github.com/MorpheApp/morphe-patcher/commit/03aee7abb3ed8a81f53d771110d0fa182222b5d4))
+
+# [1.15.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.1...v1.15.0-dev.2) (2026-09-24)
+
+
+### Bug Fixes
+
+* Clear parent fingerprint ([2e9005e](https://github.com/MorpheApp/morphe-patcher/commit/2e9005e4883446afceabf92cdc2966da74c0160d))
+
+# [1.15.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.1...v1.15.0-dev.1) (2026-09-24)
+
+
+### Features
+
+* Describe fingerprints without a class name in toString() ([#218](https://github.com/MorpheApp/morphe-patcher/issues/218)) ([2f3f218](https://github.com/MorpheApp/morphe-patcher/commit/2f3f21817b7579fe1d9c6361f85bb74037303429))
+
 ## [1.14.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.0...v1.14.1) (2026-09-24)
 
 

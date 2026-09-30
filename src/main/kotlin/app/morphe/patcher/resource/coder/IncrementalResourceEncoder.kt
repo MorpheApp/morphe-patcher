@@ -48,6 +48,7 @@ import kotlin.time.measureTime
  * @param packageDirectories Original package name to the directory it was decoded to.
  * @param archiveNameOf The name of the archive entry a decoded `res/` file stands for.
  * @param isNewFile Whether a decoded file did not exist at decode time.
+ * @param originalNameOf The archive entry name a decoded path stands for, or null if it is not an alias.
  */
 internal class IncrementalResourceEncoder(
     private val module: ApkModule,
@@ -55,6 +56,7 @@ internal class IncrementalResourceEncoder(
     private val packageDirectories: Map<String, File>,
     private val archiveNameOf: (File) -> String,
     private val isNewFile: (File) -> Boolean,
+    private val originalNameOf: (String) -> String?,
 ) {
     private val logger = Logger.getLogger(IncrementalResourceEncoder::class.java.name)
 
@@ -185,6 +187,10 @@ internal class IncrementalResourceEncoder(
             encodedEntries += AndroidManifestBlock.FILE_NAME
         }
 
+        // The table starts as the input's, so the strings of emptied entries, such as a removed
+        // locale's, would stay in the pool unreferenced. A full rebuild only writes used ones.
+        tableBlock.stringPool.removeUnusedStrings()
+
         // Written without this, the table's styled strings came out misaligned, although the
         // archive refreshes the table again when it writes it.
         tableBlock.refresh()
@@ -311,6 +317,7 @@ internal class IncrementalResourceEncoder(
                 // Encoding a bag over an existing one appends its children instead.
                 if (entry.isComplex) entry.empty()
                 valuesCoder.encodeEntry(element, typeBlock)
+                entry.restoreArchiveName()
                 encoded++
             }
         } catch (exception: XmlEncodeException) {
@@ -346,6 +353,18 @@ internal class IncrementalResourceEncoder(
         // Text without an escape or quoting encodes to itself.
         if (text == current && text[0] != '"' && text.indexOf('\\') < 0) return true
         return current == XmlSanitizer.unEscapeUnQuote(StyleDocument.copyInner(element).getXml(false))
+    }
+
+    /**
+     * An entry that shares a file with another resource is decoded as the path of that file, and
+     * the path is its decoded alias. The table must name the archive entry the file really is.
+     */
+    private fun Entry.restoreArchiveName() {
+        val value = resValue ?: return
+        if (value.valueType != ValueType.STRING) return
+        val path = value.valueAsString ?: return
+        if (!path.startsWith("res/")) return
+        originalNameOf(path)?.let { if (it != path) setValueAsString(it) }
     }
 
     /**

@@ -26,24 +26,22 @@ public class app/morphe/patcher/Fingerprint {
 	public fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
 	public synthetic fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun clearMatch ()V
-	public final fun getAccessFlags ()Ljava/lang/Integer;
 	public final fun getClassDef (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun getClassDefOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun getClassFingerprint ()Lapp/morphe/patcher/Fingerprint;
 	public final fun getCustom ()Lkotlin/jvm/functions/Function2;
-	public final fun getDefiningClass ()Ljava/lang/String;
+	public final synthetic fun getDefiningClass ()Ljava/lang/String;
 	public final fun getFilters ()Ljava/util/List;
 	public final fun getInstructionMatches (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
 	public final fun getInstructionMatchesOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
 	public final fun getMethod (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
 	public final fun getMethodOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
-	public final fun getName ()Ljava/lang/String;
+	public final synthetic fun getName ()Ljava/lang/String;
 	public final fun getOriginalClassDef (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
 	public final fun getOriginalClassDefOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
 	public final fun getOriginalMethod (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/Method;
 	public final fun getOriginalMethodOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/Method;
-	public final fun getParameters ()Ljava/util/List;
-	public final fun getReturnType ()Ljava/lang/String;
+	public final synthetic fun getParameters ()Ljava/util/List;
 	public final fun getStringMatches (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
 	public final fun getStringMatchesOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
 	public final fun getStrings ()Ljava/util/List;
@@ -62,6 +60,7 @@ public class app/morphe/patcher/Fingerprint {
 	public final fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/Match;
 	public final fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
 	public final fun patchException ()Lapp/morphe/patcher/patch/PatchException;
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class app/morphe/patcher/FingerprintBuilder {
@@ -401,6 +400,7 @@ public final class app/morphe/patcher/apk/ApkUtils {
 	public static final field INSTANCE Lapp/morphe/patcher/apk/ApkUtils;
 	public final fun applyTo (Lapp/morphe/patcher/PatcherResult;Ljava/io/File;)V
 	public final fun signApk (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Lapp/morphe/patcher/apk/ApkUtils$KeyStoreDetails;)V
+	public final fun verifiedSigningCertificates (Ljava/io/File;I)Ljava/util/List;
 }
 
 public final class app/morphe/patcher/apk/ApkUtils$KeyStoreDetails {

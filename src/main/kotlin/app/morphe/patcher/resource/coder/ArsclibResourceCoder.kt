@@ -42,6 +42,7 @@ import com.reandroid.json.JSONObject
 import com.reandroid.xml.XMLFactory
 import org.w3c.dom.Element
 import java.io.File
+import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
@@ -240,7 +241,7 @@ internal class ArsclibResourceCoder(
                 // Extracted mid-run, so a timestamp comparison is unreliable here; compare the
                 // content instead, length first since that settles most edits without a read.
                 if (file.length() != extracted.length ||
-                    file.readBytes().contentHashCode() != extracted.hash
+                    file.contentHashStreaming() != extracted.hash
                 ) modifiedBinaryResources.add(file)
                 return@forEach
             }
@@ -638,6 +639,7 @@ internal class ArsclibResourceCoder(
                         ?: throw PatchException("$file is not a decoded resource")
                 },
                 isNewFile = { file -> fileSnapshotCache[pathKey(file)] == null },
+                originalNameOf = pathMap::getOriginalName,
             )
 
             val scanDuration = measureTime {
@@ -1186,16 +1188,45 @@ internal class ArsclibResourceCoder(
         val destination = resolveInside(otherResourcesRootDirectory, aliasOf(apkPath)) ?: return
         if (destination.exists()) return
         destination.parentFile?.mkdirs()
-        entry.open().use { input ->
-            destination.outputStream().use { output -> input.copyTo(output) }
-        }
+        val hash = entry.open().use { input -> destination.copyFromComputingHash(input) }
         if (!destination.exists()) return
         // Hash rather than (mtime, size): a patch usually rewrites the file within the same
         // filesystem timestamp tick, and same-length edits would otherwise read as unchanged.
-        lazilyExtractedRootFiles[pathKey(destination)] =
-            ExtractedRootFile(destination.length(), destination.readBytes().contentHashCode())
+        lazilyExtractedRootFiles[pathKey(destination)] = ExtractedRootFile(destination.length(), hash)
         fileSnapshotCache[pathKey(destination)] = destination.snapshot()
         logger.fine("Extracted root entry on demand: $apkPath")
+    }
+
+    /**
+     * Copies [input] into this file while hashing what was written in the same pass, so a root
+     * entry as large as a native library or a bundled asset never needs a full second read.
+     */
+    internal fun File.copyFromComputingHash(input: InputStream): Int {
+        var hash = 1
+        outputStream().use { output ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                output.write(buffer, 0, read)
+                for (i in 0 until read) hash = 31 * hash + buffer[i]
+            }
+        }
+        return hash
+    }
+
+    /** Same result as `readBytes().contentHashCode()`, bounded to one buffer instead of the whole file. */
+    internal fun File.contentHashStreaming(): Int {
+        var hash = 1
+        inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                for (i in 0 until read) hash = 31 * hash + buffer[i]
+            }
+        }
+        return hash
     }
 
     /**

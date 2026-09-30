@@ -97,7 +97,7 @@ data class AppTarget(
         versionCodes = SupportedAbi.entries.associateWith { versionCode },
         isExperimental = isExperimental,
         minSdk = minSdk,
-        description = null
+        description = description
     )
 
     // @Deprecated("Here only for binary backwards compatibility") // TODO: Remove after next major version bump.

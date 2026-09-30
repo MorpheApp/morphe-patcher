@@ -279,6 +279,13 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         literalString: String,
         comparison: StringComparisonType = StringComparisonType.EQUALS
     ): List<ClassDef> {
+        // Exact matches can only ever come from the one key equal to literalString, so look it
+        // up directly instead of comparing against every string in the index.
+        if (comparison == StringComparisonType.EQUALS) {
+            return patchClasses.getClassesFromOpcodeStringLiteral(literalString)
+                ?.map { it.classDef } ?: emptyList()
+        }
+
         val result = mutableSetOf<ClassDef>()
         patchClasses.getClassesByReferenceMap().forEach { (string, list) ->
             if (comparison.compare(string, literalString)) {
@@ -299,11 +306,14 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
     /**
      * @return All classes that contain the exact string.
+     * @see classDefByStrings
      */
+    @Deprecated(
+        "Use classDefByStrings instead, which handles all string comparisons",
+        ReplaceWith("classDefByStrings(stringLiteral)")
+    )
     fun getAllClassesWithString(stringLiteral: String): List<ClassDef> {
-        val classes = patchClasses.getClassesFromOpcodeStringLiteral(stringLiteral)
-            ?: return emptyList()
-        return classes.map { it.classDef }
+        return classDefByStrings(stringLiteral)
     }
 
     /**

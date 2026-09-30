@@ -90,13 +90,13 @@ internal class PatchClasses internal constructor(
     /**
      * Opcode string constant -> List<ClassDefWrapper>
      */
-    private var stringMap: Map<String, List<ClassDefWrapper>>? = null
+    private var stringMap: MutableMap<String, MutableList<ClassDefWrapper>>? = null
 
     /**
      * All classes that contain at least 1 string.
      * Same contents as [stringMap] values except contains no duplicates.
      */
-    private var allClassesWithStrings: List<ClassDefWrapper>? = null
+    private var allClassesWithStrings: MutableList<ClassDefWrapper>? = null
 
     internal constructor(set: Set<ClassDef>) : this(set.map {
         ClassDefWrapper(it)
@@ -129,7 +129,17 @@ internal class PatchClasses internal constructor(
     }
 
     internal fun addClass(classDef: ClassDef) {
-        classMap[classDef.type] = ClassDefWrapper(classDef)
+        val wrapper = ClassDefWrapper(classDef)
+        classMap[classDef.type] = wrapper
+
+        // Classes are added while patches execute (extension merges), which can happen after the
+        // instruction indexes were built. Index the new class incrementally, otherwise string
+        // lookups and candidate scans never see it.
+        val stringMapLocal = stringMap
+        val classesWithStringsLocal = allClassesWithStrings
+        if (stringMapLocal != null && classesWithStringsLocal != null) {
+            indexWrapper(wrapper, wrapper.classDef.findIndexValues(), stringMapLocal, classesWithStringsLocal)
+        }
     }
 
     internal fun getClassesByReferenceMap(): Map<String, List<ClassDefWrapper>> {
@@ -146,28 +156,36 @@ internal class PatchClasses internal constructor(
         val classesWithStrings = mutableListOf<ClassDefWrapper>()
 
         classMap.values.forEach { wrapper ->
-            val values = wrapper.classDef.findIndexValues()
-            if (values.strings.isNotEmpty()) {
-                values.strings.forEach { stringLiteral ->
-                    strings.getOrPut(stringLiteral) { ArrayList(1) } += wrapper
-                }
-                classesWithStrings += wrapper
-            }
-            wrapper.referencedTypeHashes = if (values.referencedTypeHashes.isEmpty()) {
-                EMPTY_TYPE_HASHES
-            } else {
-                values.referencedTypeHashes.sorted().toIntArray()
-            }
-            wrapper.literalValues = if (values.literalValues.isEmpty()) {
-                EMPTY_LITERAL_VALUES
-            } else {
-                values.literalValues.sorted().toLongArray()
-            }
+            indexWrapper(wrapper, wrapper.classDef.findIndexValues(), strings, classesWithStrings)
         }
 
         stringMap = strings
         allClassesWithStrings = classesWithStrings
         return strings
+    }
+
+    private fun indexWrapper(
+        wrapper: ClassDefWrapper,
+        values: ClassIndexValues,
+        strings: MutableMap<String, MutableList<ClassDefWrapper>>,
+        classesWithStrings: MutableList<ClassDefWrapper>,
+    ) {
+        if (values.strings.isNotEmpty()) {
+            values.strings.forEach { stringLiteral ->
+                strings.getOrPut(stringLiteral) { ArrayList(1) } += wrapper
+            }
+            classesWithStrings += wrapper
+        }
+        wrapper.referencedTypeHashes = if (values.referencedTypeHashes.isEmpty()) {
+            EMPTY_TYPE_HASHES
+        } else {
+            values.referencedTypeHashes.sorted().toIntArray()
+        }
+        wrapper.literalValues = if (values.literalValues.isEmpty()) {
+            EMPTY_LITERAL_VALUES
+        } else {
+            values.literalValues.sorted().toLongArray()
+        }
     }
 
     internal fun getClassesFromOpcodeStringLiteral(stringLiteral: String): List<ClassDefWrapper>? {
