@@ -46,17 +46,29 @@ open class Fingerprint private constructor(
     val strings: List<String>? = null,
     val custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
 ) {
-    // TODO: Eventually remove these.
     internal val definingClass: String? = definingClass
-    @Deprecated("Binary compatibility for legacy compiled callers", level = DeprecationLevel.HIDDEN)
+    internal val name: String? = name
+    internal val parameters: List<String>? = parameters
+
+    @Deprecated(
+        "Instead use matched method fields",
+        replaceWith = ReplaceWith("method.definingClass"),
+        level = DeprecationLevel.ERROR // TODO: Change this to hidden level
+    )
     fun getDefiningClass(): String? = definingClass
 
-    internal val name: String? = name
-    @Deprecated("Binary compatibility for legacy compiled callers", level = DeprecationLevel.HIDDEN)
+    @Deprecated(
+        "Instead use matched method fields",
+        replaceWith = ReplaceWith("method.name"),
+        level = DeprecationLevel.ERROR // TODO: Change this to hidden level
+    )
     fun getName(): String? = name
 
-    internal val parameters: List<String>? = parameters
-    @Deprecated("Binary compatibility for legacy compiled callers", level = DeprecationLevel.HIDDEN)
+    @Deprecated(
+        "Instead use matched method fields",
+        replaceWith = ReplaceWith("method.parameterTypes"),
+        level = DeprecationLevel.ERROR // TODO: Change this to hidden level
+    )
     fun getParameters(): List<String>? = parameters
 
     /**
