@@ -1,3 +1,10 @@
+# [1.15.0-dev.13](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.12...v1.15.0-dev.13) (2026-09-30)
+
+
+### Features
+
+* Verify an APK's signature and return its certificates ([f10ce04](https://github.com/MorpheApp/morphe-patcher/commit/f10ce041612ad0f6dca2941680386c844f1ff14a))
+
 # [1.15.0-dev.12](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.11...v1.15.0-dev.12) (2026-09-29)
 
 
