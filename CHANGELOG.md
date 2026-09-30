@@ -1,3 +1,10 @@
+# [1.15.0-dev.14](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.13...v1.15.0-dev.14) (2026-09-30)
+
+
+### Bug Fixes
+
+* Drop strings no resource uses any more from the table ([#233](https://github.com/MorpheApp/morphe-patcher/issues/233)) ([7fa2160](https://github.com/MorpheApp/morphe-patcher/commit/7fa2160b9c755452445aab7ac8af9d552596d670))
+
 # [1.15.0-dev.13](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0-dev.12...v1.15.0-dev.13) (2026-09-30)
 
 
