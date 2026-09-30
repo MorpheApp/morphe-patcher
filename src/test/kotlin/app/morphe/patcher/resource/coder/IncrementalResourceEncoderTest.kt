@@ -31,6 +31,7 @@ import java.util.zip.CRC32
 import java.util.zip.ZipFile
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -365,6 +366,28 @@ internal class IncrementalResourceEncoderTest {
             assertNull(pkg.string("-de", "keep"))
             assertEquals("Hello!", pkg.string("", "hello"))
             assertEquals("Keep", pkg.string("", "keep"))
+        }
+    }
+
+    @ParameterizedTest(name = "full rebuild = {0}")
+    @ValueSource(booleans = [false, true])
+    fun `strings no entry uses any more leave the string pool`(fullRebuild: Boolean, @TempDir tempDir: File) {
+        val (_, coder) = decode(fullRebuild, tempDir)
+
+        assertTrue(coder.getFile("res/values-de/strings.xml", null, false).parentFile.deleteRecursively())
+        coder.getFile("res/values/strings.xml", null, false).edit { it.replace(">Hello<", ">Hello!<") }
+
+        val output = encode(coder, fullRebuild, tempDir)
+
+        ApkModule.loadApkFile(output).use { module ->
+            val pool = module.tableBlock.stringPool
+            val strings = (0 until pool.size()).mapNotNull { pool[it]?.get() }.toSet()
+            listOf("Hallo", "Behalten", "Hello").forEach {
+                assertFalse(it in strings, "\"$it\" is no longer used but is still in the pool")
+            }
+            listOf("Hello!", "Keep", "res/drawable/icon.png").forEach {
+                assertTrue(it in strings, "\"$it\" is still used but left the pool")
+            }
         }
     }
 
