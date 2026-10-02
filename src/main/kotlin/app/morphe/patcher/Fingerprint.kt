@@ -728,7 +728,13 @@ open class Fingerprint private constructor(
         if (candidateSets.isEmpty()) return null
 
         val smallestCandidates = candidateSets.minBy { it.size }
-        return patchContext.patchClasses.classMap.values.filter(smallestCandidates::contains)
+        if (candidateSets.size == 1) {
+            return smallestCandidates.toList()
+        }
+        val remainingSets = candidateSets.filter { it !== smallestCandidates }
+        return smallestCandidates.filter { candidate ->
+            remainingSets.all { it.contains(candidate) }
+        }
     }
 
     context(patchContext: BytecodePatchContext)
