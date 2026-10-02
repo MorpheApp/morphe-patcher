@@ -87,11 +87,12 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         val readResult = DexReadWrite.readMultidexFileFromZip(config.apkFile, dexWorkingDir)
         opcodes = readResult.dexFile.opcodes
-        originalClassDescriptors = readResult.dexFile.classes.let { classes ->
-            classes.mapTo(HashSet(2 * classes.size)) { it.type }
+        val classes = readResult.dexFile.classes
+        originalClassDescriptors = classes.let { defs ->
+            defs.mapTo(HashSet(2 * defs.size)) { it.type }
         }
         classDescriptorsByEntry = readResult.classDescriptorsByEntry
-        patchClasses = PatchClasses(readResult.dexFile.classes)
+        patchClasses = PatchClasses(classes)
 
         // Insertion-ordered so iteration follows the original classes*.dex order; a plain
         // HashMap iterates in File-hash order, which varies with the temporary directory

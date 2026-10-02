@@ -87,9 +87,11 @@ internal object DexReadWrite {
 
         val opcodes = memoryMappedDexFiles.maxByOrNull { it.opcodes.api }!!.opcodes
 
+        val mergedClasses = memoryMappedDexFiles.flatMap { it.classes }.toSet()
+
         val mergedDexFile = object : DexFile {
             override fun getClasses(): Set<ClassDef> {
-                return memoryMappedDexFiles.flatMap { it.classes }.toSet()
+                return mergedClasses
             }
 
             override fun getOpcodes(): Opcodes {
@@ -124,7 +126,7 @@ internal object DexReadWrite {
                 val outputFile = outputDir.resolve(entry.name)
                 zip.getInputStream(entry).use { input ->
                     outputFile.outputStream().use { output ->
-                        input.copyTo(output)
+                        input.copyTo(output, bufferSize = 256 * 1024)
                     }
                     outputFiles += outputFile
                 }

@@ -42,6 +42,7 @@ internal class PatchClasses internal constructor(
          * Can be immutable or mutable.
          */
         var classDef: ClassDef,
+        internal var onMakeMutable: ((ClassDefWrapper) -> Unit)? = null,
     ) {
         /** Sorted hashes of class types referenced by instructions in this class. */
         var referencedTypeHashes: IntArray? = null
@@ -52,24 +53,46 @@ internal class PatchClasses internal constructor(
         fun getMutableClass(): MutableClass {
             if (classDef !is MutableClass) {
                 classDef = MutableClass(classDef)
+                onMakeMutable?.invoke(this)
             }
             return classDef as MutableClass
         }
     }
 
-    private data class ClassIndexValues(
-        val strings: MutableSet<String> = HashSet(1024, 0.5f),
-        val referencedTypeHashes: MutableSet<Int> = HashSet(1024, 0.5f),
-        val literalValues: MutableSet<Long> = HashSet(1024, 0.5f),
-    )
+    private val mutableWrappers = LinkedHashSet<ClassDefWrapper>()
 
-    /** Collect string, type-reference, and literal values in one traversal. */
-    private fun ClassDef.findIndexValues(): ClassIndexValues {
-        val values = ClassIndexValues()
+    private val onWrapperMadeMutable: (ClassDefWrapper) -> Unit = { wrapper ->
+        mutableWrappers.add(wrapper)
+    }
+
+    init {
+        classMap.values.forEach { wrapper ->
+            wrapper.onMakeMutable = onWrapperMadeMutable
+            if (wrapper.classDef is MutableClass) {
+                mutableWrappers.add(wrapper)
+            }
+        }
+    }
+
+    private class ClassIndexCollector {
+        val strings: MutableSet<String> = HashSet()
+        val referencedTypeHashes: MutableSet<Int> = HashSet()
+        val literalValues: MutableSet<Long> = HashSet()
+
+        fun clear() {
+            strings.clear()
+            referencedTypeHashes.clear()
+            literalValues.clear()
+        }
+    }
+
+    /** Collect string, type-reference, and literal values into [collector] in one traversal. */
+    private fun ClassDef.collectIndexValues(collector: ClassIndexCollector) {
+        collector.clear()
         methods.forEach { method ->
             method.instructionsOrNull?.forEach { instruction ->
                 if (instruction is WideLiteralInstruction) {
-                    values.literalValues += instruction.wideLiteral
+                    collector.literalValues += instruction.wideLiteral
                 }
                 val reference = (instruction as? ReferenceInstruction)?.reference ?: return@forEach
                 when (reference) {
@@ -77,15 +100,14 @@ internal class PatchClasses internal constructor(
                         instruction.opcode == Opcode.CONST_STRING ||
                         instruction.opcode == Opcode.CONST_STRING_JUMBO
                     ) {
-                        values.strings += reference.string
+                        collector.strings += reference.string
                     }
-                    is MethodReference -> values.referencedTypeHashes += reference.definingClass.hashCode()
-                    is FieldReference -> values.referencedTypeHashes += reference.definingClass.hashCode()
-                    is TypeReference -> values.referencedTypeHashes += reference.type.hashCode()
+                    is MethodReference -> collector.referencedTypeHashes += reference.definingClass.hashCode()
+                    is FieldReference -> collector.referencedTypeHashes += reference.definingClass.hashCode()
+                    is TypeReference -> collector.referencedTypeHashes += reference.type.hashCode()
                 }
             }
         }
-        return values
     }
 
     /**
@@ -94,14 +116,22 @@ internal class PatchClasses internal constructor(
     private var stringMap: MutableMap<String, MutableList<ClassDefWrapper>>? = null
 
     /**
+     * Referenced type hash -> List<ClassDefWrapper>
+     */
+    private var typeMap: MutableMap<Int, MutableList<ClassDefWrapper>>? = null
+
+    /**
+     * Literal value -> List<ClassDefWrapper>
+     */
+    private var literalMap: MutableMap<Long, MutableList<ClassDefWrapper>>? = null
+
+    /**
      * All classes that contain at least 1 string.
      * Same contents as [stringMap] values except contains no duplicates.
      */
     private var allClassesWithStrings: MutableList<ClassDefWrapper>? = null
 
-    internal constructor(set: Set<ClassDef>) : this(set.map {
-        ClassDefWrapper(it)
-    }.associateByTo(
+    internal constructor(set: Set<ClassDef>) : this(
         // Must use linked hash map. A regular map does not preserve the order of classes found
         // in the apk, so old fingerprints that have multiple matches can match the wrong class
         // due to hashmap random class iteration during matching. The issue is with
@@ -110,10 +140,16 @@ internal class PatchClasses internal constructor(
         // See https://github.com/ReVanced/revanced-patcher/issues/74
         //
         // Pre-size so rehashing doesn't occur and use a more performant load factor.
-        LinkedHashMap(2 * set.size, 0.5f)
-    ) { wrapper ->
-        wrapper.classDef.type
-    })
+        LinkedHashMap<String, ClassDefWrapper>(2 * set.size, 0.5f)
+    ) {
+        for (classDef in set) {
+            val wrapper = ClassDefWrapper(classDef, onWrapperMadeMutable)
+            if (classDef is MutableClass) {
+                mutableWrappers.add(wrapper)
+            }
+            classMap[classDef.type] = wrapper
+        }
+    }
 
     internal fun close() {
         classMap.clear()
@@ -122,15 +158,24 @@ internal class PatchClasses internal constructor(
 
     internal fun closeReferenceMap() {
         stringMap = null
+        typeMap = null
+        literalMap = null
         allClassesWithStrings = null
+        mutableWrappers.clear()
         classMap.values.forEach { wrapper ->
             wrapper.referencedTypeHashes = null
             wrapper.literalValues = null
+            if (wrapper.classDef is MutableClass) {
+                mutableWrappers.add(wrapper)
+            }
         }
     }
 
     internal fun addClass(classDef: ClassDef) {
-        val wrapper = ClassDefWrapper(classDef)
+        val wrapper = ClassDefWrapper(classDef, onWrapperMadeMutable)
+        if (classDef is MutableClass) {
+            mutableWrappers.add(wrapper)
+        }
         classMap[classDef.type] = wrapper
 
         // Classes are added while patches execute (extension merges), which can happen after the
@@ -139,7 +184,9 @@ internal class PatchClasses internal constructor(
         val stringMapLocal = stringMap
         val classesWithStringsLocal = allClassesWithStrings
         if (stringMapLocal != null && classesWithStringsLocal != null) {
-            indexWrapper(wrapper, wrapper.classDef.findIndexValues(), stringMapLocal, classesWithStringsLocal)
+            val collector = ClassIndexCollector()
+            wrapper.classDef.collectIndexValues(collector)
+            indexWrapper(wrapper, collector, stringMapLocal, typeMap, literalMap, classesWithStringsLocal)
         }
     }
 
@@ -154,41 +201,60 @@ internal class PatchClasses internal constructor(
     private fun buildInstructionIndexes(): Map<String, List<ClassDefWrapper>> {
         // Default 0.75f load factor works well and a lower value does not improve patching time.
         val strings = HashMap<String, MutableList<ClassDefWrapper>>()
+        val types = HashMap<Int, MutableList<ClassDefWrapper>>()
+        val literals = HashMap<Long, MutableList<ClassDefWrapper>>()
         val classesWithStrings = mutableListOf<ClassDefWrapper>()
 
         // Scanning the instructions is the costly part and reads each class on its own, so it runs
         // in parallel, a chunk at a time to bound memory, while the indexes are filled in class order.
         classMap.values.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
-            chunk.parallelStream().map { it.classDef.findIndexValues() }.collect(Collectors.toList())
-                .forEachIndexed { i, values -> indexWrapper(chunk[i], values, strings, classesWithStrings) }
+            chunk.parallelStream().map { wrapper ->
+                ClassIndexCollector().also { collector -> wrapper.classDef.collectIndexValues(collector) }
+            }.collect(Collectors.toList()).forEachIndexed { i, collector ->
+                indexWrapper(chunk[i], collector, strings, types, literals, classesWithStrings)
+            }
         }
 
         stringMap = strings
+        typeMap = types
+        literalMap = literals
         allClassesWithStrings = classesWithStrings
         return strings
     }
 
     private fun indexWrapper(
         wrapper: ClassDefWrapper,
-        values: ClassIndexValues,
+        collector: ClassIndexCollector,
         strings: MutableMap<String, MutableList<ClassDefWrapper>>,
+        types: MutableMap<Int, MutableList<ClassDefWrapper>>?,
+        literals: MutableMap<Long, MutableList<ClassDefWrapper>>?,
         classesWithStrings: MutableList<ClassDefWrapper>,
     ) {
-        if (values.strings.isNotEmpty()) {
-            values.strings.forEach { stringLiteral ->
+        if (collector.strings.isNotEmpty()) {
+            collector.strings.forEach { stringLiteral ->
                 strings.getOrPut(stringLiteral) { ArrayList(1) } += wrapper
             }
             classesWithStrings += wrapper
         }
-        wrapper.referencedTypeHashes = if (values.referencedTypeHashes.isEmpty()) {
-            EMPTY_TYPE_HASHES
+        if (collector.referencedTypeHashes.isEmpty()) {
+            wrapper.referencedTypeHashes = EMPTY_TYPE_HASHES
         } else {
-            values.referencedTypeHashes.sorted().toIntArray()
+            types?.let { map ->
+                collector.referencedTypeHashes.forEach { hash ->
+                    map.getOrPut(hash) { ArrayList(1) } += wrapper
+                }
+            }
+            wrapper.referencedTypeHashes = collector.referencedTypeHashes.sorted().toIntArray()
         }
-        wrapper.literalValues = if (values.literalValues.isEmpty()) {
-            EMPTY_LITERAL_VALUES
+        if (collector.literalValues.isEmpty()) {
+            wrapper.literalValues = EMPTY_LITERAL_VALUES
         } else {
-            values.literalValues.sorted().toLongArray()
+            literals?.let { map ->
+                collector.literalValues.forEach { literal ->
+                    map.getOrPut(literal) { ArrayList(1) } += wrapper
+                }
+            }
+            wrapper.literalValues = collector.literalValues.sorted().toLongArray()
         }
     }
 
@@ -204,20 +270,26 @@ internal class PatchClasses internal constructor(
     internal fun getClassesReferencingType(type: String): List<ClassDefWrapper>? {
         getClassesByReferenceMap() // Load reference map if needed.
         val typeHash = type.hashCode()
-        return classMap.values.filter { wrapper ->
-            val hashes = wrapper.referencedTypeHashes
-            // Mutable and newly added classes may have changed since indexing.
-            hashes == null || wrapper.classDef is MutableClass || hashes.binarySearch(typeHash) >= 0
-        }.ifEmpty { null }
+        val indexed = typeMap?.get(typeHash)
+        if (mutableWrappers.isEmpty()) {
+            return indexed
+        }
+        val result = LinkedHashSet<ClassDefWrapper>()
+        indexed?.let { result.addAll(it) }
+        result.addAll(mutableWrappers)
+        return result.toList()
     }
 
     internal fun getClassesContainingLiteral(literal: Long): List<ClassDefWrapper>? {
         getClassesByReferenceMap() // Load reference map if needed.
-        return classMap.values.filter { wrapper ->
-            val values = wrapper.literalValues
-            // Mutable and newly added classes may have changed since indexing.
-            values == null || wrapper.classDef is MutableClass || values.binarySearch(literal) >= 0
-        }.ifEmpty { null }
+        val indexed = literalMap?.get(literal)
+        if (mutableWrappers.isEmpty()) {
+            return indexed
+        }
+        val result = LinkedHashSet<ClassDefWrapper>()
+        indexed?.let { result.addAll(it) }
+        result.addAll(mutableWrappers)
+        return result.toList()
     }
 
     /**
