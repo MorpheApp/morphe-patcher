@@ -198,15 +198,19 @@ object ApkUtils {
      * a new private key and certificate pair will be created and saved to the keystore.
      *
      * @param inputApkFile The apk file to sign.
-     * @param outputApkFile The file to save the signed apk to.
+     * @param outputApkFile The file to save the signed apk to. Passing [inputApkFile] signs it in place.
      * @param signer The name of the signer.
      * @param keyStoreDetails The details for the keystore.
+     * @param minSdkVersion The lowest API level the APK will be installed on,
+     *   if higher than the minimum it declares. From API level 24 no v1 signature is needed.
      */
+    @JvmOverloads
     fun signApk(
         inputApkFile: File,
         outputApkFile: File,
         signer: String,
         keyStoreDetails: KeyStoreDetails,
+        minSdkVersion: Int = 0,
     ) = newApkSigner(
         signer,
         if (keyStoreDetails.keyStore.exists()) {
@@ -214,7 +218,7 @@ object ApkUtils {
         } else {
             newPrivateKeyCertificatePair(PrivateKeyCertificatePairDetails(), keyStoreDetails)
         },
-    ).signApk(inputApkFile, outputApkFile)
+    ).signApk(inputApkFile, outputApkFile, minSdkVersion)
 
     /**
      * Verifies the signature of [apkFile] as a device running [platformVersion] checks it on

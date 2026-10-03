@@ -211,6 +211,23 @@ internal class ApkUtilsTest {
     }
 
     @Test
+    fun `signing in place replaces an earlier signature`() {
+        val apk = manifestApk()
+        ApkSigner.newApkSigner("Old", otherSigningKey).signApk(apk, apk)
+        ApkSigner.newApkSigner("Test", signingKey).signApk(apk, apk)
+
+        assertEquals(listOf(signingKey.certificate), ApkUtils.verifiedSigningCertificates(apk, PLATFORM_VERSION))
+    }
+
+    @Test
+    fun `an APK for devices without v2 verification is signed for them`() {
+        val apk = manifestApk(minSdkVersion = 21)
+        ApkSigner.newApkSigner("Test", signingKey).signApk(apk, apk)
+
+        assertEquals(listOf(signingKey.certificate), ApkUtils.verifiedSigningCertificates(apk, 21))
+    }
+
+    @Test
     fun `an unsigned APK verifies to no certificates`() {
         assertEquals(emptyList(), ApkUtils.verifiedSigningCertificates(manifestApk(), PLATFORM_VERSION))
     }
@@ -228,14 +245,14 @@ internal class ApkUtilsTest {
     }
 
     /** An unsigned APK carrying only a manifest, which is all signing and verifying read. */
-    private fun manifestApk(): File {
+    private fun manifestApk(minSdkVersion: Int = PLATFORM_VERSION): File {
         val apk = temporaryDirectory.resolve("unsigned.apk")
         ApkModule().use { module ->
             val manifest = AndroidManifestBlock()
             manifest.packageName = "com.test.signed"
             manifest.versionCode = 1
             manifest.versionName = "1.0"
-            manifest.setMinSdkVersion(PLATFORM_VERSION)
+            manifest.setMinSdkVersion(minSdkVersion)
             module.setManifest(manifest)
             module.writeApk(apk)
         }
@@ -285,6 +302,9 @@ internal class ApkUtilsTest {
         // Generating a key takes a while, so every test signs with the same one
         val signingKey by lazy {
             ApkSigner.newPrivateKeyCertificatePair("Test", Date(System.currentTimeMillis() + 86_400_000L))
+        }
+        val otherSigningKey by lazy {
+            ApkSigner.newPrivateKeyCertificatePair("Old", Date(System.currentTimeMillis() + 86_400_000L))
         }
     }
 
