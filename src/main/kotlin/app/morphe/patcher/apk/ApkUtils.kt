@@ -22,6 +22,9 @@ import com.reandroid.apk.ApkModule
 import com.reandroid.archive.writer.ZipAligner
 import java.io.File
 import java.io.IOException
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.NoSuchAlgorithmException
 import java.security.cert.X509Certificate
 import java.util.*
@@ -38,7 +41,8 @@ object ApkUtils {
 
     private const val LIBRARY_EXTENSION = ".so"
 
-    // Alignment for native libraries, loadable in place on devices with 16 KB pages.
+    // Alignment for native libraries. A device with 16 KiB pages maps a stored library only
+    // from a 16 KiB boundary, and the larger boundary is also a 4 KiB one.
     private const val LIBRARY_ALIGNMENT = 1024 * 16
 
     // Alignment for all other files.
@@ -175,25 +179,42 @@ object ApkUtils {
      *
      * @return The newly created private key and certificate pair.
      */
-    private fun newPrivateKeyCertificatePair(
+    internal fun newPrivateKeyCertificatePair(
         privateKeyCertificatePairDetails: PrivateKeyCertificatePairDetails,
         keyStoreDetails: KeyStoreDetails,
     ) = newPrivateKeyCertificatePair(
         privateKeyCertificatePairDetails.commonName,
         privateKeyCertificatePairDetails.validUntil,
     ).also { privateKeyCertificatePair ->
-        newKeyStore(
-            setOf(
-                ApkSigner.KeyStoreEntry(
-                    keyStoreDetails.alias,
-                    keyStoreDetails.password,
-                    privateKeyCertificatePair,
-                ),
-            ),
-        ).store(
-            keyStoreDetails.keyStore.outputStream(),
-            keyStoreDetails.keyStorePassword?.toCharArray(),
-        )
+        val keyStoreFile = keyStoreDetails.keyStore
+        // Written beside the target and moved over it, so an interrupted write cannot leave a
+        // truncated keystore that the next run takes for an existing one
+        val stagingFile = File(keyStoreFile.absoluteFile.parentFile, "${keyStoreFile.name}.tmp")
+        try {
+            stagingFile.outputStream().use { stream ->
+                newKeyStore(
+                    setOf(
+                        ApkSigner.KeyStoreEntry(
+                            keyStoreDetails.alias,
+                            keyStoreDetails.password,
+                            privateKeyCertificatePair,
+                        ),
+                    ),
+                ).store(stream, keyStoreDetails.keyStorePassword?.toCharArray())
+            }
+            try {
+                Files.move(
+                    stagingFile.toPath(),
+                    keyStoreFile.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(stagingFile.toPath(), keyStoreFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+        } finally {
+            stagingFile.delete()
+        }
     }
 
     /**
@@ -203,13 +224,12 @@ object ApkUtils {
      *
      * @return The private key and certificate pair.
      */
-    private fun readPrivateKeyCertificatePairFromKeyStore(
+    internal fun readPrivateKeyCertificatePairFromKeyStore(
         keyStoreDetails: KeyStoreDetails,
     ) = ApkSigner.readPrivateKeyCertificatePair(
-        ApkSigner.readKeyStore(
-            keyStoreDetails.keyStore.inputStream(),
-            keyStoreDetails.keyStorePassword,
-        ),
+        keyStoreDetails.keyStore.inputStream().use { stream ->
+            ApkSigner.readKeyStore(stream, keyStoreDetails.keyStorePassword)
+        },
         keyStoreDetails.alias,
         keyStoreDetails.password,
     )
