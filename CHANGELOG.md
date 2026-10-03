@@ -1,3 +1,10 @@
+## [1.15.1-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.2...v1.15.1-dev.3) (2026-10-03)
+
+
+### Bug Fixes
+
+* Validate DEX entry paths, write the keystore atomically, align libraries to 16 KiB ([#239](https://github.com/MorpheApp/morphe-patcher/issues/239)) ([f8d1a84](https://github.com/MorpheApp/morphe-patcher/commit/f8d1a84be720499d9e31ddcbad1131cfb7c6c8ec))
+
 ## [1.15.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.1...v1.15.1-dev.2) (2026-10-03)
 
 
