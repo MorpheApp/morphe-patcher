@@ -13,12 +13,19 @@ internal class StringsXmlEscapeProcessor(
 ) : StringsXmlProcessor(get, packageDirectories, "Escaping strings") {
 
     /**
-     * Single-pass escape (fast)
+     * Single-pass escape of backslashes, quotes and line breaks, which is the form older patches expect.
+     * Control characters and surrogates are written as unicode escapes, and other characters are kept.
      */
     override fun processString(text: String): String {
-        val sb = StringBuilder(text.length)
+        // Most strings need no escaping, so only copy a string that does.
+        var index = 0
+        while (index < text.length && !needsEscape(text[index])) index++
+        if (index == text.length) return text
 
-        for (ch in text) {
+        val sb = StringBuilder(text.length + 16).append(text, 0, index)
+
+        while (index < text.length) {
+            val ch = text[index++]
             when (ch) {
                 '\\' -> sb.append("\\\\")
                 '\'' -> sb.append("\\'")
@@ -26,24 +33,24 @@ internal class StringsXmlEscapeProcessor(
                 '\n' -> sb.append("\\n")
                 '\t' -> sb.append("\\t")
                 '\r' -> sb.append("\\r")
-                else -> {
-                    val code = ch.code
-                    if (code in 0x20..0x7E) {
-                        sb.append(ch)
-                    } else {
-                        appendUnicode(sb, code)
-                    }
-                }
+                else -> if (needsEscape(ch)) appendUnicode(sb, ch.code) else sb.append(ch)
             }
         }
 
         return sb.toString()
     }
 
+    private fun needsEscape(ch: Char) =
+        ch == '\\' || ch == '\'' || ch == '"' || ch.code < 0x20 || ch.code == 0x7F || ch.isSurrogate()
+
     private fun appendUnicode(sb: StringBuilder, code: Int) {
         sb.append("\\u")
-        val hex = code.toString(16).uppercase()
-        repeat(4 - hex.length) { sb.append('0') }
-        sb.append(hex)
+        for (shift in 12 downTo 0 step 4) {
+            sb.append(HEX_DIGITS[(code shr shift) and 0xF])
+        }
+    }
+
+    private companion object {
+        private const val HEX_DIGITS = "0123456789ABCDEF"
     }
 }

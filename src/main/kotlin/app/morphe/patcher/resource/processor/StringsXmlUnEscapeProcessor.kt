@@ -16,6 +16,10 @@ internal class StringsXmlUnEscapeProcessor(
      * Single-pass unescape of string content.
      */
     override fun processString(text: String): String {
+        // Most strings have no escapes or surrounding quotes, so only copy a string that does.
+        val quoted = text.length >= 2 && text[0] == '"' && text[text.length - 1] == '"'
+        if (!quoted && text.indexOf('\\') < 0) return text
+
         val sb = StringBuilder(text.length)
         var i = 0
         while (i < text.length) {
