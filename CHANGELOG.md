@@ -1,3 +1,10 @@
+## [1.15.1-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.5...v1.15.1-dev.6) (2026-10-03)
+
+
+### Performance Improvements
+
+* Do not escape non-ASCII characters in strings.xml and skip copying unchanged strings ([730f3b2](https://github.com/MorpheApp/morphe-patcher/commit/730f3b2cbbdaf5b1ed077b14041b5b7ea406e44e))
+
 ## [1.15.1-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.4...v1.15.1-dev.5) (2026-10-03)
 
 
