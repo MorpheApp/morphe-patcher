@@ -109,6 +109,19 @@ internal fun parametersMatch(
     fingerprintParameters: Iterable<CharSequence>,
     stringComparisonType: Iterable<StringComparisonType>
 ): Boolean {
+    // Method parameters and fingerprint parameters are lists in practice, and this runs once per
+    // candidate method, so index them rather than allocating three iterators
+    if (targetMethodParameters is List<CharSequence> &&
+        fingerprintParameters is List<CharSequence> &&
+        stringComparisonType is List<StringComparisonType>
+    ) {
+        if (targetMethodParameters.size != fingerprintParameters.size) return false
+        for (i in targetMethodParameters.indices) {
+            if (!stringComparisonType[i].compare(targetMethodParameters[i], fingerprintParameters[i])) return false
+        }
+        return true
+    }
+
     if (targetMethodParameters.count() != fingerprintParameters.count()) return false
     val fingerprintIterator = fingerprintParameters.iterator()
     val comparisonIterator = stringComparisonType.iterator()

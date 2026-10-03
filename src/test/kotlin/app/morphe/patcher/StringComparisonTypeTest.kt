@@ -242,6 +242,34 @@ internal object StringComparisonTypeTest {
         assertTrue(parametersMatch(actual, filter))
     }
 
+    @Test
+    fun `parametersMatch with explicit comparisons agrees for lists and plain iterables`() {
+        val actual = listOf("I", "Ljava/lang/String;", "Landroid/view/View;")
+        val filter = listOf("I", "java/lang/String", "/View;")
+        val comparisons = listOf(
+            StringComparisonType.EQUALS,
+            StringComparisonType.CONTAINS,
+            StringComparisonType.ENDS_WITH
+        )
+
+        fun <T> Iterable<T>.asPlainIterable() = Iterable { this.iterator() }
+
+        assertTrue(parametersMatch(actual, filter, comparisons))
+        assertTrue(parametersMatch(actual.asPlainIterable(), filter.asPlainIterable(), comparisons.asPlainIterable()))
+
+        val mismatched = listOf("I", "java/lang/Object", "/View;")
+        assertFalse(parametersMatch(actual, mismatched, comparisons))
+        assertFalse(parametersMatch(actual.asPlainIterable(), mismatched.asPlainIterable(), comparisons.asPlainIterable()))
+    }
+
+    @Test
+    fun `parametersMatch with explicit comparisons rejects different sizes`() {
+        val comparisons = listOf(StringComparisonType.EQUALS)
+        assertFalse(parametersMatch(listOf("I", "Z"), listOf("I"), comparisons))
+        assertFalse(parametersMatch(listOf("I"), listOf("I", "Z"), comparisons))
+        assertTrue(parametersMatch(emptyList(), emptyList(), emptyList()))
+    }
+
     // ==================== typeDeclarationToComparison for Iterable tests ====================
 
     @Test
