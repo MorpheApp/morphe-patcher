@@ -510,7 +510,7 @@ open class Fingerprint private constructor(
         val instructionMatches = if (filtersLocal == null) {
             null
         } else {
-            val instructions = method.instructionsOrNull?.toList() ?: return null
+            val instructions = method.instructionsOrNull?.let { it as? List<Instruction> ?: it.toList() } ?: return null
 
             fun matchFilters(): List<Match.InstructionMatch>? {
                 val lastMethodIndex = instructions.lastIndex

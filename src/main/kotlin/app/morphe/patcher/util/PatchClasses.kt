@@ -19,6 +19,7 @@ import com.android.tools.smali.dexlib2.iface.reference.FieldReference
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.iface.reference.TypeReference
+import java.util.stream.Collectors
 
 /**
  * All classes for the target app and any extension classes.
@@ -155,8 +156,11 @@ internal class PatchClasses internal constructor(
         val strings = HashMap<String, MutableList<ClassDefWrapper>>()
         val classesWithStrings = mutableListOf<ClassDefWrapper>()
 
-        classMap.values.forEach { wrapper ->
-            indexWrapper(wrapper, wrapper.classDef.findIndexValues(), strings, classesWithStrings)
+        // Scanning the instructions is the costly part and reads each class on its own, so it runs
+        // in parallel, a chunk at a time to bound memory, while the indexes are filled in class order.
+        classMap.values.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
+            chunk.parallelStream().map { it.classDef.findIndexValues() }.collect(Collectors.toList())
+                .forEachIndexed { i, values -> indexWrapper(chunk[i], values, strings, classesWithStrings) }
         }
 
         stringMap = strings
@@ -258,6 +262,7 @@ internal class PatchClasses internal constructor(
         ?: throw PatchException("Could not find any class match")
 
     private companion object {
+        private const val INDEX_CHUNK_SIZE = 4096
         private val EMPTY_TYPE_HASHES = IntArray(0)
         private val EMPTY_LITERAL_VALUES = LongArray(0)
     }
