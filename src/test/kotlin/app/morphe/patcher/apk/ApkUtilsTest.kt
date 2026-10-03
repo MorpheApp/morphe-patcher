@@ -13,6 +13,7 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.util.Date
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
@@ -260,6 +261,44 @@ internal class ApkUtilsTest {
             offset += 46 + nameLength + extraLength + commentLength
         }
         return flags
+    }
+
+    @Test
+    fun `stored native libraries start on a 16 KiB boundary`() {
+        val library = ByteArray(5000) { it.toByte() }
+        val targetApk = temporaryDirectory.resolve("target.apk")
+        ZipOutputStream(targetApk.outputStream()).use { output ->
+            output.putNextEntry(ZipEntry("assets/pad.txt").apply { setTime(0) })
+            output.write("padding to move the next entry off any boundary".toByteArray())
+            output.closeEntry()
+            output.putNextEntry(
+                ZipEntry("lib/arm64-v8a/libtest.so").apply {
+                    method = ZipEntry.STORED
+                    size = library.size.toLong()
+                    compressedSize = library.size.toLong()
+                    crc = CRC32().apply { update(library) }.value
+                },
+            )
+            output.write(library)
+            output.closeEntry()
+        }
+        val result = PatcherResult(
+            emptySet(),
+            PatcherResult.PatchedResources(null, temporaryDirectory.resolve("none"), emptySet(), emptySet()),
+        )
+
+        result.applyTo(targetApk)
+
+        val bytes = targetApk.readBytes()
+        val name = "lib/arm64-v8a/libtest.so".toByteArray()
+        val headerAt = (0..bytes.size - 4).first { i ->
+            bytes[i] == 0x50.toByte() && bytes[i + 1] == 0x4b.toByte() &&
+                bytes[i + 2] == 3.toByte() && bytes[i + 3] == 4.toByte() &&
+                bytes.copyOfRange(i + 30, i + 30 + name.size).contentEquals(name)
+        }
+        fun u16(at: Int) = (bytes[at].toInt() and 0xff) or ((bytes[at + 1].toInt() and 0xff) shl 8)
+        val dataAt = headerAt + 30 + u16(headerAt + 26) + u16(headerAt + 28)
+        assertEquals(0, dataAt % 16384)
     }
 
     private fun writeZip(file: File, entries: Map<String, ByteArray>) {

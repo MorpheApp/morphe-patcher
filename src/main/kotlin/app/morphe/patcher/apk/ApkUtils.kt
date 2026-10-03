@@ -37,8 +37,9 @@ object ApkUtils {
 
     private const val LIBRARY_EXTENSION = ".so"
 
-    // Alignment for native libraries.
-    private const val LIBRARY_ALIGNMENT = 1024 * 4
+    // Alignment for native libraries. A device with 16 KiB pages maps a stored library only
+    // from a 16 KiB boundary, and the larger boundary is also a 4 KiB one.
+    private const val LIBRARY_ALIGNMENT = 1024 * 16
 
     // Alignment for all other files.
     private const val DEFAULT_ALIGNMENT = 4
