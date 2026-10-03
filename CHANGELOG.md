@@ -1,3 +1,10 @@
+## [1.15.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0...v1.15.1-dev.1) (2026-10-03)
+
+
+### Performance Improvements
+
+* Faster signing, DEX output and fingerprint matching ([#240](https://github.com/MorpheApp/morphe-patcher/issues/240)) ([257dcf3](https://github.com/MorpheApp/morphe-patcher/commit/257dcf35eff1d33142683964be32093c5789d0bd))
+
 # [1.15.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.1...v1.15.0) (2026-09-30)
 
 
