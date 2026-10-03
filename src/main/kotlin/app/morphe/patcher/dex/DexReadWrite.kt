@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.dex
 
+import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
@@ -104,7 +105,8 @@ internal object DexReadWrite {
             }
         }
 
-        val opcodes = memoryMappedDexFiles.maxByOrNull { it.opcodes.api }!!.opcodes
+        val opcodes = memoryMappedDexFiles.maxByOrNull { it.opcodes.api }?.opcodes
+            ?: throw PatchException("APK contains no DEX files to patch")
 
         val mergedDexFile = object : DexFile {
             override fun getClasses(): Set<ClassDef> {
@@ -140,7 +142,11 @@ internal object DexReadWrite {
                     continue
                 }
 
-                val outputFile = outputDir.resolve(entry.name)
+                // An entry such as classes/../../x.dex would otherwise be written outside outputDir
+                val outputFile = outputDir.resolve(name).normalize()
+                if (!outputFile.toPath().startsWith(outputDir.toPath().normalize())) {
+                    throw SecurityException("DEX entry escapes the output directory: $name")
+                }
                 zip.getInputStream(entry).use { input ->
                     outputFile.outputStream().use { output ->
                         input.copyTo(output)
