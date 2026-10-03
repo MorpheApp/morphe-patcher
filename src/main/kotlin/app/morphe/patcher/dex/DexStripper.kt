@@ -35,6 +35,7 @@ internal object DexStripper {
     private const val SIGNATURE_SIZE = 20
     private const val MAP_OFF_OFF = 52          // uint: offset to map_list
     private const val STRING_IDS_OFF_OFF = 60   // uint: offset to string_ids
+    private const val TYPE_IDS_SIZE_OFF = 64    // uint: count of type_ids
     private const val TYPE_IDS_OFF_OFF = 68     // uint: offset to type_ids
     private const val CLASS_DEFS_SIZE_OFF = 96  // uint: count of class_defs
     private const val CLASS_DEFS_OFF_OFF = 100  // uint: offset to class_defs
@@ -64,12 +65,24 @@ internal object DexStripper {
         val buf = mappedFile.buffer.order(ByteOrder.LITTLE_ENDIAN)
 
         val stringIdsOff = buf.getInt(STRING_IDS_OFF_OFF)
+        val typeIdsSize = buf.getInt(TYPE_IDS_SIZE_OFF)
         val typeIdsOff = buf.getInt(TYPE_IDS_OFF_OFF)
         val classDefsSize = buf.getInt(CLASS_DEFS_SIZE_OFF)
         val classDefsOff = buf.getInt(CLASS_DEFS_OFF_OFF)
         val mapOff = buf.getInt(MAP_OFF_OFF)
 
-        if (classDefsSize == 0) return 0
+        if (classDefsSize == 0 || typeIdsSize == 0) return 0
+
+        // Map descriptors to strip to their type_ids indices in this DEX file.
+        val targetTypeIndices = HashSet<Int>(classDescriptorsToStrip.size)
+        for (descriptor in classDescriptorsToStrip) {
+            val typeIdx = findTypeIndex(buf, typeIdsOff, typeIdsSize, stringIdsOff, descriptor)
+            if (typeIdx >= 0) {
+                targetTypeIndices.add(typeIdx)
+            }
+        }
+
+        if (targetTypeIndices.isEmpty()) return 0
 
         // Identify which class_def indices to remove and their class_data offsets.
         val indicesToRemove = mutableListOf<Int>()
@@ -78,8 +91,7 @@ internal object DexStripper {
         for (i in 0 until classDefsSize) {
             val entryOff = classDefsOff + i * CLASS_DEF_ITEM_SIZE
             val classIdx = buf.getInt(entryOff)
-            val descriptor = resolveDescriptor(buf, classIdx, typeIdsOff, stringIdsOff)
-            if (descriptor in classDescriptorsToStrip) {
+            if (classIdx in targetTypeIndices) {
                 indicesToRemove.add(i)
                 val classDataOff = buf.getInt(entryOff + CLASS_DEF_CLASS_DATA_OFF)
                 if (classDataOff != 0) {
@@ -320,7 +332,7 @@ internal object DexStripper {
     /**
      * Resolves a type_ids index to its class descriptor string.
      */
-    private fun resolveDescriptor(
+    internal fun resolveDescriptor(
         buf: ByteBuffer,
         typeIdx: Int,
         typeIdsOff: Int,
@@ -332,12 +344,79 @@ internal object DexStripper {
     }
 
     /**
+     * Finds the index of [targetDescriptor] in the `type_ids` table using binary search.
+     * Returns the type index, or -1 if the descriptor is not in the DEX file.
+     */
+    internal fun findTypeIndex(
+        buf: ByteBuffer,
+        typeIdsOff: Int,
+        typeIdsSize: Int,
+        stringIdsOff: Int,
+        targetDescriptor: String,
+    ): Int {
+        var low = 0
+        var high = typeIdsSize - 1
+        while (low <= high) {
+            val mid = (low + high) ushr 1
+            val descriptorIdx = buf.getInt(typeIdsOff + mid * 4)
+            val stringDataOff = buf.getInt(stringIdsOff + descriptorIdx * 4)
+            val cmp = compareMutf8(buf, stringDataOff, targetDescriptor)
+            if (cmp < 0) {
+                low = mid + 1
+            } else if (cmp > 0) {
+                high = mid - 1
+            } else {
+                return mid
+            }
+        }
+        return -1
+    }
+
+    /**
+     * Compares the MUTF-8 string at [offset] in [buf] with [target] using UTF-16 code point order,
+     * without allocating any strings.
+     * Returns a negative integer, zero, or a positive integer as the string at [offset]
+     * is less than, equal to, or greater than [target].
+     */
+    internal fun compareMutf8(buf: ByteBuffer, offset: Int, target: String): Int {
+        var pos = skipUleb128(buf, offset)
+        var charIdx = 0
+        val targetLen = target.length
+
+        while (true) {
+            val b = buf.get(pos++).toInt() and 0xFF
+            if (b == 0) {
+                return if (charIdx == targetLen) 0 else -1
+            }
+            if (charIdx == targetLen) {
+                return 1
+            }
+
+            val c: Char = if (b and 0x80 == 0) {
+                b.toChar()
+            } else if (b and 0xE0 == 0xC0) {
+                val b2 = buf.get(pos++).toInt() and 0x3F
+                ((b and 0x1F shl 6) or b2).toChar()
+            } else if (b and 0xF0 == 0xE0) {
+                val b2 = buf.get(pos++).toInt() and 0x3F
+                val b3 = buf.get(pos++).toInt() and 0x3F
+                ((b and 0x0F shl 12) or (b2 shl 6) or b3).toChar()
+            } else {
+                b.toChar()
+            }
+
+            val targetChar = target[charIdx++]
+            if (c != targetChar) {
+                return c.code - targetChar.code
+            }
+        }
+    }
+
+    /**
      * Reads a MUTF-8 string from the DEX data section.
      */
-    private fun readMutf8(buf: ByteBuffer, offset: Int): String {
-        var pos = offset
-        while (buf.get(pos).toInt() and 0x80 != 0) pos++
-        pos++
+    internal fun readMutf8(buf: ByteBuffer, offset: Int): String {
+        var pos = skipUleb128(buf, offset)
 
         val sb = StringBuilder()
         while (true) {
