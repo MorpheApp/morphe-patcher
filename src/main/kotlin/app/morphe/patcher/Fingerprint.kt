@@ -699,7 +699,7 @@ open class Fingerprint private constructor(
                 }
 
                 if (matches.isEmpty()) {
-                    return null;
+                    return null
                 }
 
                 // If multiple fingerprint strings are declared then duplicates matches can exist.
@@ -1193,7 +1193,7 @@ fun parametersStartsWith(  // TODO: Delete on next major version release.
 @Deprecated(message = "DSL provides no functional benefits over class declarations " +
         "and can make stack traces impossible to know what fingerprint failed to resolve",
     replaceWith = ReplaceWith("app.morphe.patcher.Fingerprint()"))
-class FingerprintBuilder() {
+class FingerprintBuilder {
     private var accessFlags: List<AccessFlags>? = null
     private var returnType: String? = null
     private var parameters: List<String>? = null
@@ -1264,7 +1264,7 @@ class FingerprintBuilder() {
      * for all but the first opcode.
      *
      * Unless absolutely necessary, it is recommended to instead use [instructions]
-     * with more fine grained filters.
+     * with more fine-grained filters.
      *
      * ```
      * opcodes(
@@ -1354,6 +1354,7 @@ class FingerprintBuilder() {
 @Deprecated(message = "DSL provides no functional benefits over class declarations " +
         "and can make stack traces impossible to know what fingerprint failed to resolve",
     replaceWith = ReplaceWith("app.morphe.patcher.Fingerprint()"))
+@Suppress("DEPRECATION")
 fun fingerprint(
     block: FingerprintBuilder.() -> Unit,
 ) = FingerprintBuilder().apply(block).build()

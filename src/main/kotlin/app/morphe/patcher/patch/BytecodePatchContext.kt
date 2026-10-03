@@ -19,7 +19,6 @@ import app.morphe.patcher.dex.DexStripper
 import app.morphe.patcher.dex.MappedFile
 import app.morphe.patcher.util.ClassMerger.merge
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
-import app.morphe.patcher.util.MethodNavigator
 import app.morphe.patcher.util.PatchClasses
 import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import com.android.tools.smali.dexlib2.Opcodes
@@ -240,7 +239,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
     /**
      * Mutable class from a full class name.
-     * Returns `null` if class is not available, such as a built in Android or Java library.
+     * Returns `null` if class is not available, such as a built-in Android or Java library.
      *
      * **Important:** Use this method only if you are going to modify the class or any of its methods.
      * Calling this method without making any modifications can cause out of memory errors.
@@ -321,11 +320,12 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      *
      * @param method The method to navigate.
      *
-     * @return A [MethodNavigator] for the method.
+     * @return A [app.morphe.patcher.util.MethodNavigator] for the method.
      */
     @Deprecated("Instead use Fingerprint instruction match `getMethodCalled()`," +
             " or lookup a method from an index using BytecodeUtils MethodReference.getMutableMethod()")
-    fun navigate(method: MethodReference) = MethodNavigator(this, method)
+    @Suppress("DEPRECATION")
+    fun navigate(method: MethodReference) = app.morphe.patcher.util.MethodNavigator(this, method)
 
     /**
      * Compile bytecode from the [BytecodePatchContext].

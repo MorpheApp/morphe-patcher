@@ -37,7 +37,6 @@ import com.reandroid.arsc.chunk.PackageBlock
 import com.reandroid.arsc.coder.CoderSetting
 import com.reandroid.arsc.coder.xml.AaptXmlStringDecoder
 import com.reandroid.arsc.coder.xml.XmlCoder
-import com.reandroid.arsc.coder.xml.XmlEncodeUtil
 import com.reandroid.arsc.value.ResConfig
 import com.reandroid.json.JSONObject
 import com.reandroid.xml.XMLFactory
@@ -293,7 +292,7 @@ internal class ArsclibResourceCoder(
 
     /**
      * `android:extractNativeLibs` as the input APK declares it. Libraries are not rebuilt into
-     * resources.apk any more, so if a patch flips this the target's own libraries would keep the
+     * resources.apk anymore, so if a patch flips this the target's own libraries would keep the
      * old compression. [routeNativeLibrariesIfCompressionChanged] handles that case.
      */
     private var originalExtractNativeLibs: Boolean? = null
@@ -328,12 +327,12 @@ internal class ArsclibResourceCoder(
         inputModule = it
     }
 
-    /** Hands the module over to a consumer that changes it, so no lookup uses it afterwards. */
+    /** Hands the module over to a consumer that changes it, so no lookup uses it afterward. */
     @Synchronized
     private fun takeInputModule(): ApkModule = inputModule().also { inputModule = null }
 
     /**
-     * Lets go of the parsed table unless the heap can afford to hold it until the resources are
+     * Releases the parsed table unless the heap can afford to hold it until the resources are
      * encoded. It is parsed again then, which costs about a second on a phone, while holding the
      * table of a large app through the DEX compilation costs a few hundred megabytes right
      * where small heaps run out.
