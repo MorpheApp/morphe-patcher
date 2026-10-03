@@ -17,6 +17,7 @@
 // https://github.com/REAndroid/APKEditor/blob/ea49069ddbaf14bddbd23836082c2794815b18d1/src/main/java/com/reandroid/apkeditor/merge/Merger.java
 package app.morphe.patcher.apk
 
+import app.morphe.patcher.apk.ApkUtils.writeAlignedApk
 import app.morphe.patcher.logging.ArsclibLogger
 import app.morphe.patcher.logging.Logger
 import app.morphe.patcher.logging.NoOpLogger
@@ -33,14 +34,16 @@ import com.reandroid.utils.HexUtil
 import java.io.File
 import java.io.IOException
 import java.util.function.Predicate
-import java.util.regex.Pattern
 
-
+@Suppress("unused")
 class ApkMerger(
     private val logger: Logger = NoOpLogger
 ) {
     private val arsclibLogger = ArsclibLogger(logger)
 
+    /**
+     * @param cleanMetaInf Ignored: META-INF is always kept, so the signature block is retained.
+     */
     fun merge(
         inputFile: File,
         outputFile: File,
@@ -48,7 +51,7 @@ class ApkMerger(
         resDirName: String? = null,
         validateResDir: Boolean = true,
         extractNativeLibs: Boolean? = null,
-        cleanMetaInf: Boolean = false
+        @Suppress("UNUSED_PARAMETER") cleanMetaInf: Boolean = false
     ) {
         outputFile.safelyDelete()
         var dir: File = inputFile
@@ -71,13 +74,6 @@ class ApkMerger(
             logger.info("Validating resources dir ...")
             mergedModule.validateResourcesDir()
         }
-        /*
-        // Ignore cleanMetaInf so that we always retain the signature block (this is leftover code from APKEditor).
-        if (cleanMetaInf) {
-            logger.info("Clearing META-INF ...")
-            clearMeta(mergedModule)
-        }
-        */
         sanitizeManifest(mergedModule)
         mergedModule.refreshTable()
         mergedModule.refreshManifest()
@@ -85,7 +81,7 @@ class ApkMerger(
         logger.info("Setting extractNativeLibs=$shouldExtractNativeLibs")
         mergedModule.setExtractNativeLibs(shouldExtractNativeLibs)
         logger.info("Writing apk ...")
-        mergedModule.writeApk(outputFile)
+        mergedModule.writeAlignedApk(outputFile)
         mergedModule.close()
         bundle.close()
         if (extracted) {
@@ -116,26 +112,18 @@ class ApkMerger(
     }
 
     private fun fixFilePermissions(archive: ArchiveFile) {
-        val rw_all = 438 // equivalent to chmod 666
+        val rwAll = 438 // equivalent to chmod 666
         val iterator = archive.iterator()
         while (iterator.hasNext()) {
             val entry = iterator.next()
-            entry.getCentralEntryHeader().filePermissions.permissions(rw_all)
+            entry.getCentralEntryHeader().filePermissions.permissions(rwAll)
         }
     }
 
     private fun toTmpDir(file: File): File {
-        var name = file.name
-        name = HexUtil.toHex8("tmp_", name.hashCode())
-        val dir = file.parentFile
-        var tmp: File
-        if (dir == null) {
-            tmp = File(name)
-        } else {
-            tmp = File(dir, name)
-        }
-        tmp = ApkEditorUtil.ensureUniqueFile(tmp)
-        return tmp
+        val name = HexUtil.toHex8("tmp_", file.name.hashCode())
+        val tmp = file.parentFile?.let { File(it, name) } ?: File(name)
+        return ApkEditorUtil.ensureUniqueFile(tmp)
     }
 
     private fun sanitizeManifest(apkModule: ApkModule) {

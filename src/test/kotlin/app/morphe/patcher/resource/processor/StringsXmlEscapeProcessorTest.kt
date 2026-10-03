@@ -10,6 +10,7 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import kotlin.test.assertContains
 import kotlin.test.assertFalse
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 internal object StringsXmlEscapeProcessorTest {
@@ -45,10 +46,23 @@ internal object StringsXmlEscapeProcessorTest {
     }
 
     @Test
-    fun `process escapes non-ASCII Unicode characters as unicode escapes`() {
-        // U+2190 (←) should become \u2190
-        val result = processAndRead("<resources><string name=\"t\">\u2190 Back</string></resources>")
-        assertContains(result, "\\u2190")
+    fun `process keeps non-ASCII Unicode characters`() {
+        val result = processAndRead("<resources><string name=\"t\">\u2190 Back \u00E9\u4E2D</string></resources>")
+        assertContains(result, "\u2190 Back \u00E9\u4E2D")
+        assertFalse(result.contains("\\u"), "Non-ASCII characters should not be escaped")
+    }
+
+    @Test
+    fun `process escapes control characters and surrogates as unicode escapes`() {
+        val result = processAndRead("<resources><string name=\"t\">a\u007Fb \uD83D\uDE00</string></resources>")
+        assertContains(result, "a\\u007Fb \\uD83D\\uDE00")
+    }
+
+    @Test
+    fun `process leaves strings without special characters unchanged`() {
+        val processor = StringsXmlEscapeProcessor({ _, _ -> File("") }, emptyMap())
+        val text = "Plain text \u00E9"
+        assertSame(text, processor.processString(text))
     }
 
     @Test
@@ -104,14 +118,12 @@ internal object StringsXmlEscapeProcessorTest {
 
     @Test
     fun `process writes output as UTF-8`() {
-        // The escape processor converts non-ASCII to \uXXXX, but the XML
-        // structure itself (tags, attributes) must still be valid UTF-8.
         val input = "<resources><string name=\"t\">\u2190 Back</string></resources>"
         val (_, bytes) = processAndReadBytes(input)
 
-        // The output should be valid UTF-8
-        val decoded = String(bytes, Charsets.UTF_8)
-        assertContains(decoded, "\\u2190")
+        // U+2190 is kept as a character, so it must be written as the UTF-8 bytes E2 86 90.
+        val arrowUtf8 = byteArrayOf(0xE2.toByte(), 0x86.toByte(), 0x90.toByte())
+        assertTrue(containsSubArray(bytes, arrowUtf8), "Expected UTF-8 bytes E2 86 90, but bytes were: ${bytes.hex()}")
     }
 
     @Test
@@ -169,8 +181,7 @@ internal object StringsXmlEscapeProcessorTest {
         processor.process()
 
         val fixedBytes = stringsXml.readBytes()
-        // The escape processor converts ← to \u2190 in string text, but in the attribute
-        // it should still survive as UTF-8 bytes. The key: no corruption bytes (E2 86 3F).
+        // The attribute should survive as UTF-8 bytes. The key: no corruption bytes (E2 86 3F).
         assertFalse(
             containsSubArray(fixedBytes, corruptedArrow),
             "Found corrupted bytes E2 86 3F — UTF-8 was not used",

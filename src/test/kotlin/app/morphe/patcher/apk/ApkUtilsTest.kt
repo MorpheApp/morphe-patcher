@@ -13,6 +13,7 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.util.Date
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
@@ -98,6 +99,10 @@ internal class ApkUtilsTest {
                     "assets/delete-me.txt" to "delete me".toByteArray(),
                     "classes.dex" to "original dex".toByteArray(),
                     "classes2.dex" to "untouched dex".toByteArray(),
+                    "META-INF/MANIFEST.MF" to "manifest".toByteArray(),
+                    "META-INF/CERT.SF" to "signature file".toByteArray(),
+                    "META-INF/CERT.RSA" to "signature block".toByteArray(),
+                    "META-INF/services/kept" to "service".toByteArray(),
                 ),
             )
         }
@@ -116,6 +121,7 @@ internal class ApkUtilsTest {
                 emptySet(),
                 setOf("assets/delete-me.txt"),
             ),
+            dexFilesComplete = false,
         )
 
         result.applyTo(targetApk)
@@ -126,7 +132,31 @@ internal class ApkUtilsTest {
         assertContentEquals("raw resource".toByteArray(), entries["assets/raw-added.txt"])
         assertContentEquals("patched dex".toByteArray(), entries["classes.dex"])
         assertContentEquals("untouched dex".toByteArray(), entries["classes2.dex"])
+        assertEquals(setOf("META-INF/services/kept"), entries.keys.filterTo(HashSet()) { it.startsWith("META-INF/") })
         assertTrue(primaryDex.closed)
+    }
+
+    @Test
+    fun `a complete dex set replaces every input dex file`() {
+        val targetApk = temporaryDirectory.resolve("target.apk").also { apk ->
+            writeZip(
+                apk,
+                mapOf(
+                    "classes.dex" to "original dex".toByteArray(),
+                    "classes2.dex" to "stale dex".toByteArray(),
+                ),
+            )
+        }
+        val result = PatcherResult(
+            setOf(PatcherResult.PatchedDexFile("classes.dex", "patched dex".byteInputStream())),
+            PatcherResult.PatchedResources(null, null, emptySet(), emptySet()),
+        )
+
+        result.applyTo(targetApk)
+
+        val entries = readZip(targetApk)
+        assertContentEquals("patched dex".toByteArray(), entries["classes.dex"])
+        assertFalse("classes2.dex" in entries)
     }
 
     @Test
@@ -211,6 +241,23 @@ internal class ApkUtilsTest {
     }
 
     @Test
+    fun `signing in place replaces an earlier signature`() {
+        val apk = manifestApk()
+        ApkSigner.newApkSigner("Old", otherSigningKey).signApk(apk, apk)
+        ApkSigner.newApkSigner("Test", signingKey).signApk(apk, apk)
+
+        assertEquals(listOf(signingKey.certificate), ApkUtils.verifiedSigningCertificates(apk, PLATFORM_VERSION))
+    }
+
+    @Test
+    fun `an APK for devices without v2 verification is signed for them`() {
+        val apk = manifestApk(minSdkVersion = 21)
+        ApkSigner.newApkSigner("Test", signingKey).signApk(apk, apk)
+
+        assertEquals(listOf(signingKey.certificate), ApkUtils.verifiedSigningCertificates(apk, 21))
+    }
+
+    @Test
     fun `an unsigned APK verifies to no certificates`() {
         assertEquals(emptyList(), ApkUtils.verifiedSigningCertificates(manifestApk(), PLATFORM_VERSION))
     }
@@ -228,14 +275,14 @@ internal class ApkUtilsTest {
     }
 
     /** An unsigned APK carrying only a manifest, which is all signing and verifying read. */
-    private fun manifestApk(): File {
+    private fun manifestApk(minSdkVersion: Int = PLATFORM_VERSION): File {
         val apk = temporaryDirectory.resolve("unsigned.apk")
         ApkModule().use { module ->
             val manifest = AndroidManifestBlock()
             manifest.packageName = "com.test.signed"
             manifest.versionCode = 1
             manifest.versionName = "1.0"
-            manifest.setMinSdkVersion(PLATFORM_VERSION)
+            manifest.setMinSdkVersion(minSdkVersion)
             module.setManifest(manifest)
             module.writeApk(apk)
         }
@@ -262,6 +309,44 @@ internal class ApkUtilsTest {
         return flags
     }
 
+    @Test
+    fun `stored native libraries start on a 16 KiB boundary`() {
+        val library = ByteArray(5000) { it.toByte() }
+        val targetApk = temporaryDirectory.resolve("target.apk")
+        ZipOutputStream(targetApk.outputStream()).use { output ->
+            output.putNextEntry(ZipEntry("assets/pad.txt").apply { setTime(0) })
+            output.write("padding to move the next entry off any boundary".toByteArray())
+            output.closeEntry()
+            output.putNextEntry(
+                ZipEntry("lib/arm64-v8a/libtest.so").apply {
+                    method = ZipEntry.STORED
+                    size = library.size.toLong()
+                    compressedSize = library.size.toLong()
+                    crc = CRC32().apply { update(library) }.value
+                },
+            )
+            output.write(library)
+            output.closeEntry()
+        }
+        val result = PatcherResult(
+            emptySet(),
+            PatcherResult.PatchedResources(null, temporaryDirectory.resolve("none"), emptySet(), emptySet()),
+        )
+
+        result.applyTo(targetApk)
+
+        val bytes = targetApk.readBytes()
+        val name = "lib/arm64-v8a/libtest.so".toByteArray()
+        val headerAt = (0..bytes.size - 4).first { i ->
+            bytes[i] == 0x50.toByte() && bytes[i + 1] == 0x4b.toByte() &&
+                bytes[i + 2] == 3.toByte() && bytes[i + 3] == 4.toByte() &&
+                bytes.copyOfRange(i + 30, i + 30 + name.size).contentEquals(name)
+        }
+        fun u16(at: Int) = (bytes[at].toInt() and 0xff) or ((bytes[at + 1].toInt() and 0xff) shl 8)
+        val dataAt = headerAt + 30 + u16(headerAt + 26) + u16(headerAt + 28)
+        assertEquals(0, dataAt % 16384)
+    }
+
     private fun writeZip(file: File, entries: Map<String, ByteArray>) {
         ZipOutputStream(file.outputStream()).use { output ->
             entries.forEach { (name, contents) ->
@@ -285,6 +370,9 @@ internal class ApkUtilsTest {
         // Generating a key takes a while, so every test signs with the same one
         val signingKey by lazy {
             ApkSigner.newPrivateKeyCertificatePair("Test", Date(System.currentTimeMillis() + 86_400_000L))
+        }
+        val otherSigningKey by lazy {
+            ApkSigner.newPrivateKeyCertificatePair("Old", Date(System.currentTimeMillis() + 86_400_000L))
         }
     }
 

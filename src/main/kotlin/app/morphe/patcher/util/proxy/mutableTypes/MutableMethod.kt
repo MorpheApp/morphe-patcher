@@ -1,3 +1,11 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ *
+ * Original forked code:
+ * https://github.com/LisoUseInAIKyrios/revanced-patcher
+ */
+
 package app.morphe.patcher.util.proxy.mutableTypes
 
 import app.morphe.patcher.util.proxy.mutableTypes.MutableAnnotation.Companion.toMutable
@@ -16,11 +24,24 @@ class MutableMethod(method: Method) :
     private var returnType = method.returnType
 
     // Create own mutable MethodImplementation (due to not being able to change members like register count)
-    private val _implementation by lazy { method.implementation?.let { MutableMethodImplementation(it) } }
+    private val implementationDelegate = lazy { method.implementation?.let { MutableMethodImplementation(it) } }
+    private val _implementation by implementationDelegate
     private val _annotations by lazy { method.annotations.map { annotation -> annotation.toMutable() }.toMutableSet() }
     private val _parameters by lazy { method.parameters.map { parameter -> parameter.toMutable() }.toMutableList() }
     private val _parameterTypes by lazy { method.parameterTypes.toMutableList() }
     private val _hiddenApiRestrictions by lazy { method.hiddenApiRestrictions }
+
+    /**
+     * The method this method was created from.
+     */
+    internal val sourceMethod: Method = method
+
+    /**
+     * If the mutable implementation was created. Until then, the instructions
+     * are the same as the instructions of [sourceMethod].
+     */
+    internal val isImplementationCreated: Boolean
+        get() = implementationDelegate.isInitialized()
 
     fun setDefiningClass(definingClass: String) {
         this.definingClass = definingClass

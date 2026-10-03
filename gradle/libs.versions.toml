@@ -1,7 +1,7 @@
 [versions]
 android = "4.1.1.4"
 android-tools = "9.1.1"
-arsclib = "88d5e0811f"
+arsclib = "9b742c412d"
 bcpkix-jdk18on = "1.77"
 binary-compatibility-validator = "0.18.2"
 guava = "33.5.0-jre"
