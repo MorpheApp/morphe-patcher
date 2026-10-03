@@ -319,7 +319,7 @@ object ApkSigner {
 
         private companion object {
             // Android 7.0, the first release to verify APK Signature Scheme v2
-            const val V2_ONLY_MIN_SDK_VERSION = 24
+            private const val V2_ONLY_MIN_SDK_VERSION = 24
         }
     }
 }
