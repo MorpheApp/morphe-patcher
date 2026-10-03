@@ -1,3 +1,11 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ *
+ * Original forked code:
+ * https://github.com/LisoUseInAIKyrios/revanced-patcher
+ */
+
 package app.morphe.patcher.util.proxy.mutableTypes
 
 import app.morphe.patcher.util.proxy.mutableTypes.MutableAnnotation.Companion.toMutable
@@ -23,7 +31,8 @@ class MutableClass(classDef: ClassDef) :
     }
 
     // Methods
-    private val _methods by lazy { classDef.methods.map { method -> method.toMutable() }.toMutableSet() }
+    private val methodsDelegate = lazy { classDef.methods.map { method -> method.toMutable() }.toMutableSet() }
+    private val _methods by methodsDelegate
     private val _directMethods by lazy { _methods.filter { method -> MethodUtil.isDirect(method) }.toMutableSet() }
     private val _virtualMethods by lazy { _methods.filter { method -> !MethodUtil.isDirect(method) }.toMutableSet() }
 
@@ -31,6 +40,13 @@ class MutableClass(classDef: ClassDef) :
     private val _fields by lazy { classDef.fields.map { field -> field.toMutable() }.toMutableSet() }
     private val _staticFields by lazy { _fields.filter { field -> FieldUtil.isStatic(field) }.toMutableSet() }
     private val _instanceFields by lazy { _fields.filter { field -> !FieldUtil.isStatic(field) }.toMutableSet() }
+
+    /**
+     * If the mutable methods were created. Until then, the methods
+     * are the same as the methods of the class this class was created from.
+     */
+    internal val areMethodsCreated: Boolean
+        get() = methodsDelegate.isInitialized()
 
     fun setType(type: String) {
         this.type = type

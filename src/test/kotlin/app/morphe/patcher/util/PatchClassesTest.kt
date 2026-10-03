@@ -5,20 +5,29 @@
 
 package app.morphe.patcher.util
 
+import app.morphe.patcher.dex.DexReadWrite
+import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
+import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction21c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction31i
+import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.immutable.ImmutableClassDef
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableStringReference
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableTypeReference
+import com.android.tools.smali.dexlib2.writer.io.MemoryDataStore
+import com.android.tools.smali.dexlib2.writer.pool.DexPool
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.io.ByteArrayInputStream
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -506,5 +515,143 @@ internal object PatchClassesTest {
         val mutableClass2 = wrapper.getMutableClass()
 
         assertTrue(mutableClass1 === mutableClass2)
+    }
+
+    // ==================== Dex backed index tests ====================
+
+    private fun createMethodWithSmali(definingClass: String, methodName: String, smali: String) = ImmutableMethod.of(
+        ImmutableMethod(
+            definingClass,
+            methodName,
+            emptyList(),
+            "V",
+            AccessFlags.PUBLIC.value or AccessFlags.STATIC.value,
+            null,
+            null,
+            MutableMethodImplementation(2),
+        ).toMutable().apply { addInstructions(0, smali) }
+    )
+
+    /**
+     * Writes the classes to a dex file and reads the dex backed classes, in the same order.
+     */
+    private fun dexBackedClasses(vararg classDefs: ClassDef): Set<ClassDef> {
+        val dexPool = DexPool(Opcodes.getDefault())
+        classDefs.forEach(dexPool::internClass)
+        val dataStore = MemoryDataStore()
+        dexPool.writeTo(dataStore)
+
+        val classes = DexReadWrite.readDexStream(ByteArrayInputStream(dataStore.data)).classes
+            .associateBy { it.type }
+        return classDefs.mapTo(LinkedHashSet()) { classes.getValue(it.type) }
+    }
+
+    @Test
+    fun `dex backed instruction references are indexed`() {
+        val classes = PatchClasses(
+            dexBackedClasses(
+                createClassDef(
+                    "Lcom/test/Referrer;",
+                    listOf(
+                        createMethodWithSmali(
+                            "Lcom/test/Referrer;",
+                            "references",
+                            """
+                                invoke-static { }, Lcom/test/MethodOwner;->calledMethod()V
+                                sget v0, Lcom/test/FieldOwner;->accessedField:I
+                                new-instance v0, Lcom/test/NewType;
+                                const-string v0, "dexString"
+                                const v0, 0x7f010203
+                                return-void
+                            """
+                        )
+                    )
+                ),
+                createClassDef(
+                    "Lcom/test/Other;",
+                    listOf(createMethodWithSmali("Lcom/test/Other;", "other", "return-void"))
+                ),
+            )
+        )
+
+        fun List<PatchClasses.ClassDefWrapper>.types() = map { it.classDef.type }
+        val referrer = listOf("Lcom/test/Referrer;")
+
+        assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/MethodOwner;").types())
+        assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/FieldOwner;").types())
+        assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/NewType;").types())
+        assertEquals(referrer, classes.getIndexedClassesReferencingMemberName("calledMethod").types())
+        assertEquals(referrer, classes.getIndexedClassesReferencingMemberName("accessedField").types())
+        assertEquals(referrer, classes.getIndexedClassesContainingLiteral(0x7f010203).types())
+        assertEquals(referrer, classes.getClassesFromOpcodeStringLiteral("dexString")?.types())
+        assertEquals(referrer, classes.getAllClassesWithStrings().types())
+
+        assertTrue(classes.getIndexedClassesReferencingType("Lcom/test/Missing;").isEmpty())
+        assertTrue(classes.getIndexedClassesReferencingMemberName("missing").isEmpty())
+    }
+
+    @Test
+    fun `candidates of mutable dex backed classes are only the changed methods`() {
+        val classes = PatchClasses(
+            dexBackedClasses(
+                createClassDef(
+                    "Lcom/test/A;",
+                    listOf(createMethodWithSmali("Lcom/test/A;", "a", "const v0, 0x1234\nreturn-void"))
+                ),
+                createClassDef(
+                    "Lcom/test/B;",
+                    listOf(
+                        createMethodWithSmali("Lcom/test/B;", "b1", "return-void"),
+                        createMethodWithSmali("Lcom/test/B;", "b2", "return-void"),
+                    )
+                ),
+                createClassDef(
+                    "Lcom/test/C;",
+                    listOf(createMethodWithSmali("Lcom/test/C;", "c", "const v0, 0x1234\nreturn-void"))
+                ),
+            )
+        )
+        fun candidates() = classes.candidateClasses(listOf(classes.getIndexedClassesContainingLiteral(0x1234)))
+        classes.getClassesByReferenceMap()
+        val wrapperB = classes.classMap.getValue("Lcom/test/B;")
+
+        // Mutable methods that are not changed cannot have the literal.
+        val mutableB = wrapperB.getMutableClass()
+        assertEquals(listOf("Lcom/test/A;", "Lcom/test/C;"), candidates().classes.map { it.classDef.type })
+        assertEquals(2, mutableB.methods.size)
+        assertEquals(listOf("Lcom/test/A;", "Lcom/test/C;"), candidates().classes.map { it.classDef.type })
+        assertTrue(mutableB.methods.none { it.isImplementationCreated })
+
+        val changedMethod = mutableB.methods.first { it.name == "b2" }
+        changedMethod.addInstructions(0, "const v0, 0x1234")
+
+        val candidates = candidates()
+        assertEquals(listOf("Lcom/test/A;", "Lcom/test/B;", "Lcom/test/C;"), candidates.classes.map { it.classDef.type })
+        assertEquals(listOf<Any>(changedMethod), candidates.methodsOf(wrapperB).toList())
+
+        val wrapperA = classes.classMap.getValue("Lcom/test/A;")
+        assertEquals(wrapperA.methods.toList(), candidates.methodsOf(wrapperA).toList())
+    }
+
+    @Test
+    fun `methods added to mutable dex backed classes are changed methods`() {
+        val classes = PatchClasses(
+            dexBackedClasses(
+                createClassDef(
+                    "Lcom/test/A;",
+                    listOf(createMethodWithSmali("Lcom/test/A;", "a", "return-void"))
+                ),
+            )
+        )
+        classes.getClassesByReferenceMap()
+
+        val wrapper = classes.classMap.getValue("Lcom/test/A;")
+        val addedMethod = ImmutableMethod(
+            "Lcom/test/A;", "added", emptyList(), "V", AccessFlags.PUBLIC.value, null, null, null,
+        ).toMutable()
+        wrapper.getMutableClass().methods.add(addedMethod)
+
+        assertEquals(listOf<Any>(addedMethod), wrapper.changedMethods())
+        assertFalse(addedMethod.isImplementationCreated)
     }
 }

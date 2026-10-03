@@ -1,3 +1,17 @@
+## [1.15.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.1...v1.15.1-dev.2) (2026-10-03)
+
+
+### Performance Improvements
+
+* Optimize class indexing and candidate lookups ([#237](https://github.com/MorpheApp/morphe-patcher/issues/237)) ([e3717a7](https://github.com/MorpheApp/morphe-patcher/commit/e3717a74b809282dee8bcb84d4a97f78ac372dc5))
+
+## [1.15.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0...v1.15.1-dev.1) (2026-10-03)
+
+
+### Performance Improvements
+
+* Faster signing, DEX output and fingerprint matching ([#240](https://github.com/MorpheApp/morphe-patcher/issues/240)) ([257dcf3](https://github.com/MorpheApp/morphe-patcher/commit/257dcf35eff1d33142683964be32093c5789d0bd))
+
 # [1.15.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.1...v1.15.0) (2026-09-30)
 
 

@@ -5,7 +5,6 @@
 
 package app.morphe.patcher.dex
 
-import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
@@ -26,8 +25,7 @@ import java.util.zip.Adler32
  * preventing ART from seeing duplicate definitions across DEX files and satisfying
  * dexdump's cross-reference validation.
  *
- * The real implementations of stripped classes live in separate DEX files that are
- * loaded first (lower-numbered classesN.dex).
+ * The real implementations of stripped classes live in separate DEX files.
  */
 internal object DexStripper {
 
@@ -138,7 +136,7 @@ internal object DexStripper {
         orphanedClassDataOffsets: Set<Int>,
     ) {
         // Find the TYPE_CLASS_DATA_ITEM map entry.
-        val mapEntry = findMapEntry(buf, mapOff, TYPE_CLASS_DATA_ITEM) ?: return
+        val mapEntry = findClassDataMapEntry(buf, mapOff) ?: return
         val blockOff = mapEntry.second
         val itemCount = mapEntry.first
 
@@ -174,7 +172,7 @@ internal object DexStripper {
             buf.put(ByteArray(blockEnd - writePos))
         }
 
-        // Update surviving class_defs' class_data_off pointers.
+        // Update the class_data_off pointers of the surviving class_defs.
         val removeSet = indicesToRemove.toHashSet()
         for (i in 0 until classDefsSize) {
             if (i in removeSet) continue
@@ -196,12 +194,14 @@ internal object DexStripper {
      * a list of (offset, byteSize) pairs.
      *
      * A class_data_item is:
-     *   static_fields_size (uleb128), instance_fields_size (uleb128),
-     *   direct_methods_size (uleb128), virtual_methods_size (uleb128),
-     *   encoded_field[static_fields_size],   // each: field_idx_diff + access_flags
-     *   encoded_field[instance_fields_size],
-     *   encoded_method[direct_methods_size],  // each: method_idx_diff + access_flags + code_off
-     *   encoded_method[virtual_methods_size]
+     * ```
+     * static_fields_size (uleb128), instance_fields_size (uleb128),
+     * direct_methods_size (uleb128), virtual_methods_size (uleb128),
+     * encoded_field[static_fields_size],    // each: field_idx_diff + access_flags
+     * encoded_field[instance_fields_size],
+     * encoded_method[direct_methods_size],  // each: method_idx_diff + access_flags + code_off
+     * encoded_method[virtual_methods_size]
+     * ```
      */
     private fun parseClassDataItemBoundaries(
         buf: ByteBuffer,
@@ -211,7 +211,7 @@ internal object DexStripper {
         val items = ArrayList<Pair<Int, Int>>(count)
         var pos = offset
 
-        for (i in 0 until count) {
+        repeat(count) {
             val itemStart = pos
             val staticFieldsSize = readUleb128(buf, pos).also { pos = it.second }.first
             val instanceFieldsSize = readUleb128(buf, pos).also { pos = it.second }.first
@@ -282,14 +282,14 @@ internal object DexStripper {
     // -------------------------------------------------------------------------
 
     /**
-     * Finds a map entry by type. Returns (count, offset) or null.
+     * Finds the class_data_item map entry. Returns (count, offset) or null.
      */
-    private fun findMapEntry(buf: ByteBuffer, mapOff: Int, targetType: Int): Pair<Int, Int>? {
+    private fun findClassDataMapEntry(buf: ByteBuffer, mapOff: Int): Pair<Int, Int>? {
         val mapSize = buf.getInt(mapOff)
         for (i in 0 until mapSize) {
             val entryOff = mapOff + 4 + i * MAP_ITEM_SIZE
             val type = buf.getShort(entryOff).toInt() and 0xFFFF
-            if (type == targetType) {
+            if (type == TYPE_CLASS_DATA_ITEM) {
                 val count = buf.getInt(entryOff + 4)
                 val offset = buf.getInt(entryOff + 8)
                 return count to offset

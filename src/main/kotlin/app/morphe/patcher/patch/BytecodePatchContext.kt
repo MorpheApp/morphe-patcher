@@ -19,7 +19,6 @@ import app.morphe.patcher.dex.DexStripper
 import app.morphe.patcher.dex.MappedFile
 import app.morphe.patcher.util.ClassMerger.merge
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
-import app.morphe.patcher.util.MethodNavigator
 import app.morphe.patcher.util.PatchClasses
 import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import com.android.tools.smali.dexlib2.Opcodes
@@ -88,11 +87,12 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         val readResult = DexReadWrite.readMultidexFileFromZip(config.apkFile, dexWorkingDir)
         opcodes = readResult.dexFile.opcodes
-        originalClassDescriptors = readResult.dexFile.classes.let { classes ->
-            classes.mapTo(HashSet(2 * classes.size)) { it.type }
+        val classes = readResult.dexFile.classes
+        originalClassDescriptors = classes.let { defs ->
+            defs.mapTo(HashSet(2 * defs.size)) { it.type }
         }
         classDescriptorsByEntry = readResult.classDescriptorsByEntry
-        patchClasses = PatchClasses(readResult.dexFile.classes)
+        patchClasses = PatchClasses(classes)
 
         // Insertion-ordered so iteration follows the original classes*.dex order; a plain
         // HashMap iterates in File-hash order, which varies with the temporary directory
@@ -240,7 +240,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
     /**
      * Mutable class from a full class name.
-     * Returns `null` if class is not available, such as a built in Android or Java library.
+     * Returns `null` if class is not available, such as a built-in Android or Java library.
      *
      * **Important:** Use this method only if you are going to modify the class or any of its methods.
      * Calling this method without making any modifications can cause out of memory errors.
@@ -321,11 +321,12 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      *
      * @param method The method to navigate.
      *
-     * @return A [MethodNavigator] for the method.
+     * @return A [app.morphe.patcher.util.MethodNavigator] for the method.
      */
     @Deprecated("Instead use Fingerprint instruction match `getMethodCalled()`," +
             " or lookup a method from an index using BytecodeUtils MethodReference.getMutableMethod()")
-    fun navigate(method: MethodReference) = MethodNavigator(this, method)
+    @Suppress("DEPRECATION")
+    fun navigate(method: MethodReference) = app.morphe.patcher.util.MethodNavigator(this, method)
 
     /**
      * Compile bytecode from the [BytecodePatchContext].
@@ -372,11 +373,11 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     /**
      * [BytecodeMode.STRIP_FAST]: Remove modified class_def entries from original DEX files
      * in-place (compacting the class_defs array), then write modified + new classes to
-     * separate DEX files.
+     * separate DEX files numbered after the originals.
      *
      * Fastest, but leaves dead data in original DEX files (orphaned class_data, annotations, etc.).
-     * Unlike hollowing, this completely removes the class_def entries so there are no
-     * duplicate class definitions across DEX files.
+     * No class is defined twice, so load order does not matter, and the result holds only the
+     * stripped originals and the new files: the output keeps every other original DEX entry as is.
      */
     private fun compileStripFast(): Set<PatcherResult.PatchedDexFile> {
         val (modifiedOriginalDescriptors, classesForNewDex)
@@ -384,45 +385,34 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         patchClasses.close()
 
-        val results = mutableSetOf<PatcherResult.PatchedDexFile>()
-
-        // 1. Write modified + new classes through DexPool.
-        var newDexCount = 0
+        // 1. Write modified + new classes through DexPool, numbered after the originals. This reads
+        // the original DEX files, so it runs before they are stripped.
         if (classesForNewDex.isNotEmpty()) {
             logger.info("Writing ${classesForNewDex.size} new classes to new DEX files")
-            DexReadWrite.writeMultiDexFile(dexOutputDir, classesForNewDex, opcodes, -1, logger)
-            val newDexFiles = dexOutputDir.listFiles { it.isFile }!!.sorted()
-            newDexCount = newDexFiles.size
+            val firstNewDexIndex = originalDexMappings.keys.maxOfOrNull {
+                it.name.removePrefix("classes").removeSuffix(".dex").toIntOrNull() ?: 1
+            } ?: 0
+            DexReadWrite.writeMultiDexFile(config.patchedFiles.resolve("newDex"), classesForNewDex, opcodes, -1, logger)
+                .forEachIndexed { i, dexFile ->
+                    dexFile.safelyMoveTo(dexOutputDir.resolve(getDexName(firstNewDexIndex + i)))
+                }
         }
 
         // 2. Strip modified class_def entries from original DEX files in-place.
-        if (modifiedOriginalDescriptors.isNotEmpty()) {
-            logger.info("Stripping ${modifiedOriginalDescriptors.size} modified classes from original DEX files")
-            originalDexMappings.forEach { (originalDex, mappedFile) ->
-                val stripped = DexStripper.stripInPlace(mappedFile, modifiedOriginalDescriptors)
-                if (stripped > 0) {
-                    logger.fine { "Stripped $stripped class_def entries from ${originalDex.name}" }
-                }
-            }
-        }
-
-        // The original DEX classes have now been stripped. Ensure that all DEX files are closed before moving.
+        val originalDexNames = originalDexMappings.keys.mapTo(HashSet()) { it.name }
+        val strippedDexNames = originalDexMappings.filter { (_, mappedFile) ->
+            DexStripper.stripInPlace(mappedFile, modifiedOriginalDescriptors) > 0
+        }.keys.mapTo(HashSet()) { it.name }
+        logger.info("Stripped ${modifiedOriginalDescriptors.size} modified classes from ${strippedDexNames.size} original DEX files")
         releaseAllDexMappings()
 
-        // 3. Rename: new DEX files get lowest slots (loaded first), originals shifted up.
-        dexWorkingDir.listFiles { it.isFile }!!.sorted().forEachIndexed { i, tempFile ->
-            val newIndex = newDexCount + i
-            val dexName = if (newIndex == 0) "classes.dex" else "classes${newIndex + 1}.dex"
-            tempFile.safelyMoveTo(dexOutputDir.resolve(dexName))
-        }
-
+        // The verifier checks classes across every DEX file, while the result holds only those that changed.
+        dexWorkingDir.listFiles { it.isFile }!!.forEach { it.safelyMoveTo(dexOutputDir.resolve(it.name)) }
         config.verifier.verifyDexDirectory(dexOutputDir)
 
-        dexOutputDir.listFiles { it.isFile }!!.sorted().forEach { dexFile ->
-            results.add(PatcherResult.PatchedDexFile(dexFile.name, dexFile.inputStream()))
-        }
-
-        return results
+        return dexOutputDir.listFiles { it.isFile && (it.name in strippedDexNames || it.name !in originalDexNames) }!!
+            .sorted()
+            .mapTo(LinkedHashSet()) { dexFile -> PatcherResult.PatchedDexFile(dexFile.name, dexFile.inputStream()) }
     }
 
     /**
