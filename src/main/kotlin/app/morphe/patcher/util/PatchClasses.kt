@@ -19,6 +19,7 @@ import com.android.tools.smali.dexlib2.iface.reference.FieldReference
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.iface.reference.TypeReference
+import java.util.stream.Collectors
 
 /**
  * All classes for the target app and any extension classes.
@@ -101,9 +102,9 @@ internal class PatchClasses internal constructor(
     internal constructor(set: Set<ClassDef>) : this(set.map {
         ClassDefWrapper(it)
     }.associateByTo(
-        // Must use linked hash map, otherwise with a regular map the ordering of classes found
-        // in the apk is not preserved, and old fingerprints that have multiple matches can match
-        // the wrong class due to hashmap random class iteration during matching. The issue is with
+        // Must use linked hash map. A regular map does not preserve the order of classes found
+        // in the apk, so old fingerprints that have multiple matches can match the wrong class
+        // due to hashmap random class iteration during matching. The issue is with
         // some fingerprint declarations not being unique enough and currently there is no way to
         // check for duplicate matches.
         // See https://github.com/ReVanced/revanced-patcher/issues/74
@@ -155,8 +156,11 @@ internal class PatchClasses internal constructor(
         val strings = HashMap<String, MutableList<ClassDefWrapper>>()
         val classesWithStrings = mutableListOf<ClassDefWrapper>()
 
-        classMap.values.forEach { wrapper ->
-            indexWrapper(wrapper, wrapper.classDef.findIndexValues(), strings, classesWithStrings)
+        // Scanning the instructions is the costly part and reads each class on its own, so it runs
+        // in parallel, a chunk at a time to bound memory, while the indexes are filled in class order.
+        classMap.values.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
+            chunk.parallelStream().map { it.classDef.findIndexValues() }.collect(Collectors.toList())
+                .forEachIndexed { i, values -> indexWrapper(chunk[i], values, strings, classesWithStrings) }
         }
 
         stringMap = strings
@@ -258,6 +262,7 @@ internal class PatchClasses internal constructor(
         ?: throw PatchException("Could not find any class match")
 
     private companion object {
+        private const val INDEX_CHUNK_SIZE = 4096
         private val EMPTY_TYPE_HASHES = IntArray(0)
         private val EMPTY_LITERAL_VALUES = LongArray(0)
     }
@@ -274,7 +279,7 @@ internal class PatchClasses internal constructor(
 
     /**
      * Mutable class from a full class name.
-     * Returns `null` if class is not available, such as a built in Android or Java library.
+     * Returns `null` if class is not available, such as a built-in Android or Java library.
      *
      * @param classDefType The full classname.
      * @return A mutable version of the class type.
@@ -306,8 +311,8 @@ internal class PatchClasses internal constructor(
      * @param classDef An immutable class.
      * @return A mutable version of the class definition.
      */
-    fun mutableClassBy(classDef: ClassDef) =
-        if (classDef is MutableClass) classDef else mutableClassBy(classDef.type)
+    fun mutableClassBy(classDef: ClassDef): MutableClass =
+        classDef as? MutableClass ?: mutableClassBy(classDef.type)
 
     /**
      * Find a mutable class with a predicate.
