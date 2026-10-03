@@ -1,3 +1,10 @@
+## [1.15.1-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.3...v1.15.1-dev.4) (2026-10-03)
+
+
+### Performance Improvements
+
+* Skip XML parsing in ResourceIdProcessor for files without ID or theme attribute declarations ([faaac98](https://github.com/MorpheApp/morphe-patcher/commit/faaac9876796340d7acaa6307760d4e891640c09))
+
 ## [1.15.1-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.2...v1.15.1-dev.3) (2026-10-03)
 
 
