@@ -1,3 +1,10 @@
+## [1.15.1-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.4...v1.15.1-dev.5) (2026-10-03)
+
+
+### Performance Improvements
+
+* Hash method signatures and field names in class merger ([#242](https://github.com/MorpheApp/morphe-patcher/issues/242)) ([5c62be4](https://github.com/MorpheApp/morphe-patcher/commit/5c62be4750524e8b50fe90ec5510eeba6d200b93))
+
 ## [1.15.1-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.3...v1.15.1-dev.4) (2026-10-03)
 
 
