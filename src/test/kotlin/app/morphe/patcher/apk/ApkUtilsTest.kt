@@ -98,6 +98,10 @@ internal class ApkUtilsTest {
                     "assets/delete-me.txt" to "delete me".toByteArray(),
                     "classes.dex" to "original dex".toByteArray(),
                     "classes2.dex" to "untouched dex".toByteArray(),
+                    "META-INF/MANIFEST.MF" to "manifest".toByteArray(),
+                    "META-INF/CERT.SF" to "signature file".toByteArray(),
+                    "META-INF/CERT.RSA" to "signature block".toByteArray(),
+                    "META-INF/services/kept" to "service".toByteArray(),
                 ),
             )
         }
@@ -116,6 +120,7 @@ internal class ApkUtilsTest {
                 emptySet(),
                 setOf("assets/delete-me.txt"),
             ),
+            dexFilesComplete = false,
         )
 
         result.applyTo(targetApk)
@@ -126,7 +131,31 @@ internal class ApkUtilsTest {
         assertContentEquals("raw resource".toByteArray(), entries["assets/raw-added.txt"])
         assertContentEquals("patched dex".toByteArray(), entries["classes.dex"])
         assertContentEquals("untouched dex".toByteArray(), entries["classes2.dex"])
+        assertEquals(setOf("META-INF/services/kept"), entries.keys.filterTo(HashSet()) { it.startsWith("META-INF/") })
         assertTrue(primaryDex.closed)
+    }
+
+    @Test
+    fun `a complete dex set replaces every input dex file`() {
+        val targetApk = temporaryDirectory.resolve("target.apk").also { apk ->
+            writeZip(
+                apk,
+                mapOf(
+                    "classes.dex" to "original dex".toByteArray(),
+                    "classes2.dex" to "stale dex".toByteArray(),
+                ),
+            )
+        }
+        val result = PatcherResult(
+            setOf(PatcherResult.PatchedDexFile("classes.dex", "patched dex".byteInputStream())),
+            PatcherResult.PatchedResources(null, null, emptySet(), emptySet()),
+        )
+
+        result.applyTo(targetApk)
+
+        val entries = readZip(targetApk)
+        assertContentEquals("patched dex".toByteArray(), entries["classes.dex"])
+        assertFalse("classes2.dex" in entries)
     }
 
     @Test

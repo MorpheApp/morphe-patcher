@@ -26,8 +26,7 @@ import java.util.zip.Adler32
  * preventing ART from seeing duplicate definitions across DEX files and satisfying
  * dexdump's cross-reference validation.
  *
- * The real implementations of stripped classes live in separate DEX files that are
- * loaded first (lower-numbered classesN.dex).
+ * The real implementations of stripped classes live in separate DEX files.
  */
 internal object DexStripper {
 

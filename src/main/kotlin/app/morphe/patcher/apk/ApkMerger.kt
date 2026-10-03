@@ -17,6 +17,7 @@
 // https://github.com/REAndroid/APKEditor/blob/ea49069ddbaf14bddbd23836082c2794815b18d1/src/main/java/com/reandroid/apkeditor/merge/Merger.java
 package app.morphe.patcher.apk
 
+import app.morphe.patcher.apk.ApkUtils.writeAlignedApk
 import app.morphe.patcher.logging.ArsclibLogger
 import app.morphe.patcher.logging.Logger
 import app.morphe.patcher.logging.NoOpLogger
@@ -85,7 +86,7 @@ class ApkMerger(
         logger.info("Setting extractNativeLibs=$shouldExtractNativeLibs")
         mergedModule.setExtractNativeLibs(shouldExtractNativeLibs)
         logger.info("Writing apk ...")
-        mergedModule.writeApk(outputFile)
+        mergedModule.writeAlignedApk(outputFile)
         mergedModule.close()
         bundle.close()
         if (extracted) {

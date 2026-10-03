@@ -174,6 +174,6 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         val dexFiles = context.bytecodeContext.get()
         context.bytecodeContext.close()
         val resFiles = context.resourceContext.get()
-        return PatcherResult(dexFiles, resFiles)
+        return PatcherResult(dexFiles, resFiles, config.bytecodeMode != BytecodeMode.STRIP_FAST)
     }
 }

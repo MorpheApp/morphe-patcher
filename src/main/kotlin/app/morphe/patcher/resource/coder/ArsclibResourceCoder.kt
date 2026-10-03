@@ -9,6 +9,7 @@ import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.ApkUtils
+import app.morphe.patcher.apk.ApkUtils.writeAlignedApk
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.PathMap
@@ -667,7 +668,7 @@ internal class ArsclibResourceCoder(
             )
 
             val writeDuration = measureTime {
-                module.writeApk(outputApk)
+                module.writeAlignedApk(outputApk)
             }.roundToTenths()
 
             logger.info("Resource APK timings: scan=$scanDuration, write=$writeDuration")
@@ -703,7 +704,7 @@ internal class ArsclibResourceCoder(
                     )
 
                     val writeDuration = measureTime {
-                        loadedModule.writeApk(outputApk)
+                        loadedModule.writeAlignedApk(outputApk)
                     }.roundToTenths()
 
                     logger.info("Resource APK timings: scan=$scanDuration, write=$writeDuration")
