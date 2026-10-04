@@ -86,7 +86,7 @@ open class Fingerprint private constructor(
      *
      * @param classFingerprint Fingerprint that finds the class this fingerprint resolves against.
      * @param name Exact method name.
-     * @param accessFlags The exact access flags using values of [AccessFlags].
+     * @param accessFlags Any valid subset of access flags using values of [AccessFlags].
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
@@ -121,7 +121,7 @@ open class Fingerprint private constructor(
      * See the patcher documentation for more detailed explanations and example fingerprinting.
      *
      * @param name Exact method name.
-     * @param accessFlags The exact access flags using values of [AccessFlags].
+     * @param accessFlags Any valid subset of access flags using values of [AccessFlags].
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
@@ -156,7 +156,7 @@ open class Fingerprint private constructor(
      *
      * @param definingClass Defining class. Type declaration follow the semantics described in [StringComparisonType].
      * @param name Exact method name.
-     * @param accessFlags The exact access flags using values of [AccessFlags].
+     * @param accessFlags Any valid subset of access flags using values of [AccessFlags].
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
