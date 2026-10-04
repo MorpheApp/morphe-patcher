@@ -19,6 +19,7 @@ import app.morphe.patcher.patch.PatchResult
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.util.PatchClasses
+import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
@@ -58,6 +59,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 internal object PatcherTest {
@@ -81,6 +83,12 @@ internal object PatcherTest {
 
             every { context.bytecodeContext.patchClasses } returns mockk(relaxed = true)
             every { context.bytecodeContext.decodeDexFiles() } just runs
+            every { context.bytecodeContext.classDefBy(any<String>()) } answers {
+                context.bytecodeContext.patchClasses.classBy(firstArg<String>())
+            }
+            every { context.bytecodeContext.mutableClassDefBy(any<String>()) } answers {
+                context.bytecodeContext.patchClasses.mutableClassBy(firstArg<String>())
+            }
             every { this@mockk() } answers { callOriginal() }
         }
     }
@@ -1335,6 +1343,50 @@ internal object PatcherTest {
             val legacyFingerprint = Fingerprint(strings = listOf("_other"))
             assertEquals(listOf("Lclass3;"), legacyFingerprint.matchAll().map { it.originalClassDef.type })
             assertEquals("Lclass3;", legacyFingerprint.match().originalClassDef.type)
+        }
+    }
+
+    @Test
+    fun `match originalClassDef and originalMethod reflect updated class in patch context`() {
+        val patchClasses = PatchClasses(
+            setOf(
+                ImmutableClassDef(
+                    "Lclass1;",
+                    0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    listOf(
+                        ImmutableMethod(
+                            "Lclass1;",
+                            "method1",
+                            emptyList(),
+                            "V",
+                            0,
+                            null,
+                            null,
+                            null,
+                        )
+                    )
+                )
+            )
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+
+        with(patcher.context.bytecodeContext) {
+            val fp = Fingerprint(name = "method1")
+            val match = fp.matchOrNull()
+            assertNotNull(match)
+
+            assertFalse(match.originalClassDef is MutableClass)
+
+            val mutableClass = mutableClassDefBy("Lclass1;")
+
+            assertTrue(match.originalClassDef is MutableClass)
+            assertSame(mutableClass, match.originalClassDef)
+            assertSame(mutableClass.methods.first(), match.originalMethod)
         }
     }
 

@@ -26,6 +26,7 @@ import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.reference.FieldReference
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
+import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
 import com.android.tools.smali.dexlib2.util.MethodUtil
 import java.lang.ref.WeakReference
 
@@ -795,14 +796,14 @@ open class Fingerprint private constructor(
                 }
 
                 // If multiple fingerprint strings are declared then duplicates matches can exist.
-                return matches.distinctBy(Match::originalMethod)
+                return matches.distinctBy(Match::methodReference)
             }
 
             instructionFilterCandidates()?.let { candidates ->
                 candidates.classes.forEach { value ->
                     machAllClassMethods(value, candidates.methodsOf(value))
                 }
-                return matches.distinctBy(Match::originalMethod).ifEmpty { null }
+                return matches.distinctBy(Match::methodReference).ifEmpty { null }
             }
         }
 
@@ -1219,42 +1220,65 @@ open class Fingerprint private constructor(
  */
 class Match internal constructor(
     internal val patchContext: BytecodePatchContext,
-    val originalClassDef: ClassDef,
-    val originalMethod: Method,
+    originalClassDef: ClassDef,
+    originalMethod: Method,
     private val _instructionMatches: List<InstructionMatch>?,
     private val _stringMatches: List<StringMatch>?,
 ) {
-    private var _classDef: MutableClass? = null
+    // The matched class and method are intentionally not stored, and are instead looked up
+    // from the patch context each time they are accessed. Patches can replace classes and
+    // methods (making a class mutable, merging extension classes, replacing methods),
+    // and holding onto the matched objects would leave this match with stale references
+    // that no longer correspond to what the app is actually being compiled with.
+    // Not storing them also allows the old replaced objects to be garbage collected.
+
+    /**
+     * The type of the matched class.
+     */
+    internal val classType: String = originalClassDef.type
+
+    /**
+     * Signature of the matched method.
+     */
+    internal val methodReference: MethodReference = ImmutableMethodReference.of(originalMethod)
+
+    /**
+     * The immutable class the matching method is a member of.
+     */
+    val originalClassDef: ClassDef
+        get() = patchContext.classDefBy(classType)
+
+    /**
+     * The matching immutable method.
+     */
+    val originalMethod: Method
+        get() = originalClassDef.methods.findMethod()
 
     /**
      * The mutable version of [originalClassDef].
      *
-     * Accessing this property allocates a new mutable instance.
+     * Accessing this property allocates a new mutable instance if the class is not already mutable.
      * Use [originalClassDef] if mutable access is not required.
+     *
+     * **Calling this unnecessarily when no mutable changes are applied can cause out of memory errors**
      */
     val classDef: MutableClass
-        get() {
-            if (_classDef == null) {
-                _classDef = patchContext.mutableClassDefBy(originalClassDef)
-            }
-            return _classDef!!
-        }
-
-    private var _method: MutableMethod? = null
+        get() = patchContext.mutableClassDefBy(classType)
 
     /**
      * The mutable version of [originalMethod].
      *
-     * Accessing this property allocates a new mutable instance.
+     * Accessing this property allocates a new mutable instance if the class is not already mutable.
      * Use [originalMethod] if mutable access is not required.
+     *
+     * * **Calling this unnecessarily when no mutable changes are applied can cause out of memory errors**
      */
     val method: MutableMethod
-        get() {
-            if (_method == null) {
-                _method = classDef.methods.first { MethodUtil.methodSignaturesMatch(it, originalMethod) }
-            }
-            return _method!!
-        }
+        get() = classDef.methods.findMethod()
+
+    private fun <T : Method> Iterable<T>.findMethod() = firstOrNull { classMethod ->
+        MethodUtil.methodSignaturesMatch(classMethod, methodReference)
+    } ?: throw PatchException("Could not find matched method: $methodReference")
 
     /**
      * Matches corresponding to the [InstructionFilter] declared in the [Fingerprint].
@@ -1354,7 +1378,7 @@ class Match internal constructor(
     class StringMatch internal constructor(val string: String, val index: Int)
 
     override fun toString(): String {
-        return "Match(originalMethod=$originalMethod, " +
+        return "Match(method=$methodReference, " +
                 "instructionMatches=$_instructionMatches, " +
                 "stringMatches=$_stringMatches)"
     }
