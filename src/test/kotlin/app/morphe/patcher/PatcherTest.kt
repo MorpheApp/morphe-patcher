@@ -226,7 +226,7 @@ internal object PatcherTest {
                             "method1",
                             emptyList(),
                             "Ljava/lang/String;",
-                            0,
+                            AccessFlags.PUBLIC.value or AccessFlags.STATIC.value,
                             null,
                             null,
                             null,
@@ -279,6 +279,12 @@ internal object PatcherTest {
         val fingerprint6 = Fingerprint(name = "method1")
         val fingerprint7 = Fingerprint(definingClass = "Lclass2;", name = "method1")
         val fingerprint8 = Fingerprint(definingClass = "Lclass2", name = "method1")
+        // access flags equal
+        val fingerprint9 = Fingerprint(name = "method1", accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.STATIC))
+        // access flags subset
+        val fingerprint10 = Fingerprint(name = "method1", accessFlags = listOf(AccessFlags.PUBLIC))
+        // access flags mismatch
+        val fingerprint11 = Fingerprint(name = "method1", accessFlags = listOf(AccessFlags.PRIVATE))
 
         assertThrows<IllegalArgumentException>("Empty fingerprint") {
             Fingerprint(classFingerprint = fingerprint1)
@@ -295,6 +301,9 @@ internal object PatcherTest {
                     fingerprint6.match()
                     fingerprint7.match()
                     fingerprint8.match()
+                    fingerprint9.match()
+                    fingerprint10.match()
+                    fingerprint11.match()
                 }
             }
         )
@@ -310,6 +319,13 @@ internal object PatcherTest {
                 { assertNotNull(fingerprint1.originalClassDefOrNull) },
                 { assertNotNull(fingerprint2.originalClassDefOrNull) },
                 { assertNotNull(fingerprint3.originalClassDefOrNull) },
+                { assertNotNull(fingerprint9.originalMethodOrNull) },
+                { assertNotNull(fingerprint10.originalMethodOrNull) },
+            )
+
+            assertAll(
+                "Expected fingerprints to not match.",
+                { assertNull(fingerprint11.originalMethodOrNull) },
             )
 
             assertAll(
