@@ -1,3 +1,10 @@
+## [1.15.1-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.6...v1.15.1-dev.7) (2026-10-04)
+
+
+### Bug Fixes
+
+* Do not use stale Match class and method objects if Fingerprint Match result is later reused ([5dcc801](https://github.com/MorpheApp/morphe-patcher/commit/5dcc8012afb423a34febd691b19064db41907c5b))
+
 ## [1.15.1-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.5...v1.15.1-dev.6) (2026-10-03)
 
 
