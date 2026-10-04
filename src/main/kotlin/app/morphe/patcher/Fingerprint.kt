@@ -448,7 +448,7 @@ open class Fingerprint private constructor(
     ): Match? {
         // Store local to avoid duplicate field access and Kotlin intrinsic null check calls.
         val accessFlagsLocal = accessFlags
-        if (accessFlagsLocal != null && accessFlagsLocal != method.accessFlags) {
+        if (accessFlagsLocal != null && (accessFlagsLocal and method.accessFlags != accessFlagsLocal)) {
             return null
         }
 
