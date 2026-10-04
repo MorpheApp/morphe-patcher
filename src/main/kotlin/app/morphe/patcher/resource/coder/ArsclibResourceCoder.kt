@@ -670,7 +670,7 @@ internal class ArsclibResourceCoder(
                 module.writeAlignedApk(outputApk)
             }.roundToTenths()
 
-            logger.info("Resource APK timings: scan=$scanDuration, write=$writeDuration")
+            logger.info("Resource APK scan: $scanDuration write: $writeDuration")
         }
 
         return outputApk
@@ -706,7 +706,7 @@ internal class ArsclibResourceCoder(
                         loadedModule.writeAlignedApk(outputApk)
                     }.roundToTenths()
 
-                    logger.info("Resource APK timings: scan=$scanDuration, write=$writeDuration")
+                    logger.info("Resource APK scan: $scanDuration write: $writeDuration")
                 }
             }
         } finally {
