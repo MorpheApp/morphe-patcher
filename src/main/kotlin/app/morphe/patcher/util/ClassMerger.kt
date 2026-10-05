@@ -1,9 +1,16 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ *
+ * Original forked code:
+ * https://github.com/LisoUseInAIKyrios/revanced-patcher
+ */
+
 package app.morphe.patcher.util
 
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.util.ClassMerger.Utils.asMutableClass
 import app.morphe.patcher.util.ClassMerger.Utils.filterAny
-import app.morphe.patcher.util.ClassMerger.Utils.filterNotAny
 import app.morphe.patcher.util.ClassMerger.Utils.isPublic
 import app.morphe.patcher.util.ClassMerger.Utils.toPublic
 import app.morphe.patcher.util.ClassMerger.Utils.traverseClassHierarchy
@@ -43,19 +50,25 @@ internal object ClassMerger {
         .addMissingMethods(otherClass)
         .publicize(otherClass, context)
 
+    private data class MethodSignatureKey(
+        val name: String,
+        val parameterTypes: List<CharSequence>,
+        val returnType: String,
+    )
+
     /**
      * Add methods which are missing but existing in [fromClass].
      *
      * @param fromClass The class to add missing methods from.
      */
     private fun ClassDef.addMissingMethods(fromClass: ClassDef): ClassDef {
+        val fromSignatures =
+            fromClass.methods.mapTo(HashSet()) {
+                MethodSignatureKey(it.name, it.parameterTypes.toList(), it.returnType)
+            }
         val missingMethods =
-            fromClass.methods.let { fromMethods ->
-                methods.filterNot { method ->
-                    fromMethods.any { fromMethod ->
-                        MethodUtil.methodSignaturesMatch(fromMethod, method)
-                    }
-                }
+            methods.filterNot {
+                MethodSignatureKey(it.name, it.parameterTypes.toList(), it.returnType) in fromSignatures
             }
 
         if (missingMethods.isEmpty()) return this
@@ -73,10 +86,8 @@ internal object ClassMerger {
      * @param fromClass The class to add missing fields from.
      */
     private fun ClassDef.addMissingFields(fromClass: ClassDef): ClassDef {
-        val missingFields =
-            fields.filterNotAny(fromClass.fields) { field, fromField ->
-                fromField.name == field.name
-            }
+        val fromFieldNames = fromClass.fields.mapTo(HashSet()) { it.name }
+        val missingFields = fields.filterNot { it.name in fromFieldNames }
 
         if (missingFields.isEmpty()) return this
 
@@ -213,18 +224,6 @@ internal object ClassMerger {
             needles: Iterable<NeedleType>,
             predicate: (HayType, NeedleType) -> Boolean,
         ) = Iterable<HayType>::filter.any(this, needles, predicate)
-
-        /**
-         * Filter [this] on [needles] not matching the given [predicate].
-         *
-         * @param needles The needles to filter [this] with.
-         * @param predicate The filter.
-         * @return The [this] filtered on [needles] not matching the given [predicate].
-         */
-        fun <HayType, NeedleType> Iterable<HayType>.filterNotAny(
-            needles: Iterable<NeedleType>,
-            predicate: (HayType, NeedleType) -> Boolean,
-        ) = Iterable<HayType>::filterNot.any(this, needles, predicate)
 
         fun <HayType, NeedleType> KFunction2<Iterable<HayType>, (HayType) -> Boolean, List<HayType>>.any(
             haystack: Iterable<HayType>,

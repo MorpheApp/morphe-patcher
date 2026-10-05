@@ -1,3 +1,52 @@
+## [1.15.1-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.6...v1.15.1-dev.7) (2026-10-04)
+
+
+### Bug Fixes
+
+* Do not use stale Match class and method objects if Fingerprint Match result is later reused ([5dcc801](https://github.com/MorpheApp/morphe-patcher/commit/5dcc8012afb423a34febd691b19064db41907c5b))
+
+## [1.15.1-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.5...v1.15.1-dev.6) (2026-10-03)
+
+
+### Performance Improvements
+
+* Do not escape non-ASCII characters in strings.xml and skip copying unchanged strings ([730f3b2](https://github.com/MorpheApp/morphe-patcher/commit/730f3b2cbbdaf5b1ed077b14041b5b7ea406e44e))
+
+## [1.15.1-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.4...v1.15.1-dev.5) (2026-10-03)
+
+
+### Performance Improvements
+
+* Hash method signatures and field names in class merger ([#242](https://github.com/MorpheApp/morphe-patcher/issues/242)) ([5c62be4](https://github.com/MorpheApp/morphe-patcher/commit/5c62be4750524e8b50fe90ec5510eeba6d200b93))
+
+## [1.15.1-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.3...v1.15.1-dev.4) (2026-10-03)
+
+
+### Performance Improvements
+
+* Skip XML parsing in ResourceIdProcessor for files without ID or theme attribute declarations ([faaac98](https://github.com/MorpheApp/morphe-patcher/commit/faaac9876796340d7acaa6307760d4e891640c09))
+
+## [1.15.1-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.2...v1.15.1-dev.3) (2026-10-03)
+
+
+### Bug Fixes
+
+* Validate DEX entry paths, write the keystore atomically, align libraries to 16 KiB ([#239](https://github.com/MorpheApp/morphe-patcher/issues/239)) ([f8d1a84](https://github.com/MorpheApp/morphe-patcher/commit/f8d1a84be720499d9e31ddcbad1131cfb7c6c8ec))
+
+## [1.15.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1-dev.1...v1.15.1-dev.2) (2026-10-03)
+
+
+### Performance Improvements
+
+* Optimize class indexing and candidate lookups ([#237](https://github.com/MorpheApp/morphe-patcher/issues/237)) ([e3717a7](https://github.com/MorpheApp/morphe-patcher/commit/e3717a74b809282dee8bcb84d4a97f78ac372dc5))
+
+## [1.15.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0...v1.15.1-dev.1) (2026-10-03)
+
+
+### Performance Improvements
+
+* Faster signing, DEX output and fingerprint matching ([#240](https://github.com/MorpheApp/morphe-patcher/issues/240)) ([257dcf3](https://github.com/MorpheApp/morphe-patcher/commit/257dcf35eff1d33142683964be32093c5789d0bd))
+
 # [1.15.0](https://github.com/MorpheApp/morphe-patcher/compare/v1.14.1...v1.15.0) (2026-09-30)
 
 

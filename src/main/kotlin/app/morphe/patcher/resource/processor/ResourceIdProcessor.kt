@@ -40,7 +40,9 @@ internal class ResourceIdProcessor(
             modifiedResResources
                 .filter { it.exists() && it.extension == "xml" }
                 .forEach {
-                    processIdAndAttrDeclarations(it, idNode)
+                    if (canHaveIdOrThemeAttrDeclarations(it)) {
+                        processIdAndAttrDeclarations(it, idNode)
+                    }
                     // Update publicIdManager from values XML files (later, including the newly modified ids.xml)
                     createPublicIdsFromValuesXml(it)
                 }
@@ -60,6 +62,19 @@ internal class ResourceIdProcessor(
                 }
             }
         }
+    }
+
+    /**
+     * If [file] can have an id declaration or a shorthand theme attribute reference, which
+     * [processIdAndAttrDeclarations] rewrites. Most changed files are values files without
+     * either, and reading the text is much faster than parsing and writing back the document.
+     */
+    private fun canHaveIdOrThemeAttrDeclarations(file: File): Boolean {
+        val text = file.readText()
+        // A character reference can spell any of these, and a null character is a sign of
+        // a file that is not UTF-8, so such files are always processed.
+        return "+id/" in text || "&#" in text || '\u0000' in text ||
+                attributeValueStartingWithQuestionMark.containsMatchIn(text)
     }
 
     private fun processIdAndAttrDeclarations(file: File, idNode: Node): Set<String> {
@@ -94,6 +109,10 @@ internal class ResourceIdProcessor(
             }
         }
         return createdIds
+    }
+
+    private companion object {
+        private val attributeValueStartingWithQuestionMark = Regex("""=\s*["']\?""")
     }
 
     private fun expandThemeAttrReference(value: String): String {

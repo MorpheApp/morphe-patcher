@@ -13,19 +13,19 @@ import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatch
 import app.morphe.patcher.patch.BytecodePatchContext
-import app.morphe.patcher.patch.Compatibility
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.PatchResult
 import app.morphe.patcher.patch.bytecodePatch
-import app.morphe.patcher.patch.rawResourcePatch
-import app.morphe.patcher.patch.resourcePatch
 import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.util.PatchClasses
+import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
+import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
+import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.DexFile
 import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction
@@ -33,6 +33,8 @@ import com.android.tools.smali.dexlib2.immutable.ImmutableClassDef
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction21c
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableStringReference
+import com.android.tools.smali.dexlib2.writer.io.MemoryDataStore
+import com.android.tools.smali.dexlib2.writer.pool.DexPool
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -43,11 +45,10 @@ import io.mockk.verify
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.assertAll
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
-import org.junit.jupiter.api.assertAll
-import org.junit.jupiter.api.assertDoesNotThrow
-import org.junit.jupiter.api.assertThrows
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.nio.file.Files
@@ -58,6 +59,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 internal object PatcherTest {
@@ -81,6 +83,12 @@ internal object PatcherTest {
 
             every { context.bytecodeContext.patchClasses } returns mockk(relaxed = true)
             every { context.bytecodeContext.decodeDexFiles() } just runs
+            every { context.bytecodeContext.classDefBy(any<String>()) } answers {
+                context.bytecodeContext.patchClasses.classBy(firstArg<String>())
+            }
+            every { context.bytecodeContext.mutableClassDefBy(any<String>()) } answers {
+                context.bytecodeContext.patchClasses.mutableClassBy(firstArg<String>())
+            }
             every { this@mockk() } answers { callOriginal() }
         }
     }
@@ -672,9 +680,9 @@ internal object PatcherTest {
                     .matchAll()
                     .map { it.originalClassDef.type }
             )
-            // Check all methods containing strings since it's contains.
+            // Check only methods with strings that contain the string.
             assertEquals(
-                5, proxyFilter.matchesCallCount,
+                3, proxyFilter.matchesCallCount,
                 "Number of expected filter calls did not match"
             )
 
@@ -1223,6 +1231,162 @@ internal object PatcherTest {
             assertTrue((dynamicStreams + eagerStream).all { it.closed })
         } finally {
             unmockkObject(DexReadWrite)
+        }
+    }
+
+    private fun dexBackedMethod(definingClass: String, name: String, smali: String) = ImmutableMethod.of(
+        ImmutableMethod(
+            definingClass, name, emptyList(), "V", AccessFlags.PUBLIC.value or AccessFlags.STATIC.value,
+            null, null, MutableMethodImplementation(2),
+        ).toMutable().apply { addInstructions(0, smali) }
+    )
+
+    /**
+     * Writes the classes to a dex file and returns the dex backed classes, in the same order.
+     */
+    private fun dexBackedClasses(vararg classes: Pair<String, List<ImmutableMethod>>): Set<ClassDef> {
+        val dexPool = DexPool(Opcodes.getDefault())
+        classes.forEach { (type, methods) ->
+            dexPool.internClass(ImmutableClassDef(type, 0, null, null, null, null, null, methods))
+        }
+        val dataStore = MemoryDataStore()
+        dexPool.writeTo(dataStore)
+
+        val dexClasses = DexReadWrite.readDexStream(ByteArrayInputStream(dataStore.data)).classes
+            .associateBy { it.type }
+        return classes.mapTo(LinkedHashSet()) { (type, _) -> dexClasses.getValue(type) }
+    }
+
+    @Test
+    fun `fingerprints match changed methods of mutable dex backed classes`() {
+        val patchClasses = PatchClasses(
+            dexBackedClasses(
+                "Lclass1;" to listOf(
+                    dexBackedMethod(
+                        "Lclass1;", "method1",
+                        "const v0, 0x5678\ninvoke-static { }, Lclass9;->calledMethod()V\nreturn-void",
+                    ),
+                ),
+                "Lclass2;" to listOf(
+                    dexBackedMethod("Lclass2;", "method2", "return-void"),
+                    dexBackedMethod("Lclass2;", "method3", "return-void"),
+                ),
+                "Lclass3;" to listOf(
+                    dexBackedMethod("Lclass3;", "method4", "invoke-static { }, Lclass9;->calledMethod()V\nreturn-void"),
+                ),
+            )
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+
+        with(patcher.context.bytecodeContext) {
+            fun Fingerprint.matchedMethods() = matchAllOrNull()?.map {
+                it.originalClassDef.type + "->" + it.originalMethod.name
+            }
+
+            assertEquals(listOf("Lclass1;->method1"), Fingerprint(filters = listOf(literal(0x5678))).matchedMethods())
+            assertEquals(
+                listOf("Lclass1;->method1", "Lclass3;->method4"),
+                Fingerprint(filters = listOf(methodCall(name = "calledMethod"))).matchedMethods(),
+                "Method calls are found by the method name",
+            )
+
+            // Matching mutable methods must not create the mutable implementation of methods that cannot match.
+            val mutableClass2 = patchClasses.classMap.getValue("Lclass2;").getMutableClass()
+            assertNull(Fingerprint(filters = listOf(literal(0x9999))).matchAllOrNull())
+            assertNull(Fingerprint(filters = listOf(anyInstruction(literal(0x9999)))).matchAllOrNull())
+            assertTrue(mutableClass2.methods.none { it.isImplementationCreated })
+
+            mutableClass2.methods.first { it.name == "method3" }.addInstructions(0, "const v0, 0x5678")
+
+            assertEquals(
+                listOf("Lclass1;->method1", "Lclass2;->method3"),
+                Fingerprint(filters = listOf(literal(0x5678))).matchedMethods(),
+                "Instructions added to a mutable class must match",
+            )
+            assertEquals(
+                "Lclass2;->method3",
+                Fingerprint(name = "method3", filters = listOf(literal(0x5678))).matchOrNull()?.let {
+                    it.originalClassDef.type + "->" + it.originalMethod.name
+                },
+            )
+            assertTrue(
+                mutableClass2.methods.first { it.name == "method2" }.let { !it.isImplementationCreated },
+                "Unchanged methods are matched with the instructions of the source method",
+            )
+        }
+    }
+
+    @Test
+    fun `fingerprints with partial strings only check classes with matching strings`() {
+        val patchClasses = PatchClasses(
+            dexBackedClasses(
+                "Lclass1;" to listOf(dexBackedMethod("Lclass1;", "method1", "const-string v0, \"prefix_value\"\nreturn-void")),
+                "Lclass2;" to listOf(dexBackedMethod("Lclass2;", "method2", "const-string v0, \"other\"\nreturn-void")),
+                "Lclass3;" to listOf(dexBackedMethod("Lclass3;", "method3", "const-string v0, \"prefix_other\"\nreturn-void")),
+            )
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+
+        with(patcher.context.bytecodeContext) {
+            var visitedMethods = 0
+            val fingerprint = Fingerprint(
+                filters = listOf(string("prefix_", StringComparisonType.STARTS_WITH)),
+                custom = { _, _ -> visitedMethods++; true },
+            )
+            assertEquals(listOf("Lclass1;", "Lclass3;"), fingerprint.matchAll().map { it.originalClassDef.type })
+            assertEquals(2, visitedMethods)
+
+            visitedMethods = 0
+            assertEquals("Lclass1;", fingerprint.match().originalClassDef.type)
+            assertEquals(1, visitedMethods)
+
+            val legacyFingerprint = Fingerprint(strings = listOf("_other"))
+            assertEquals(listOf("Lclass3;"), legacyFingerprint.matchAll().map { it.originalClassDef.type })
+            assertEquals("Lclass3;", legacyFingerprint.match().originalClassDef.type)
+        }
+    }
+
+    @Test
+    fun `match originalClassDef and originalMethod reflect updated class in patch context`() {
+        val patchClasses = PatchClasses(
+            setOf(
+                ImmutableClassDef(
+                    "Lclass1;",
+                    0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    listOf(
+                        ImmutableMethod(
+                            "Lclass1;",
+                            "method1",
+                            emptyList(),
+                            "V",
+                            0,
+                            null,
+                            null,
+                            null,
+                        )
+                    )
+                )
+            )
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+
+        with(patcher.context.bytecodeContext) {
+            val fp = Fingerprint(name = "method1")
+            val match = fp.matchOrNull()
+            assertNotNull(match)
+
+            assertFalse(match.originalClassDef is MutableClass)
+
+            val mutableClass = mutableClassDefBy("Lclass1;")
+
+            assertTrue(match.originalClassDef is MutableClass)
+            assertSame(mutableClass, match.originalClassDef)
+            assertSame(mutableClass.methods.first(), match.originalMethod)
         }
     }
 

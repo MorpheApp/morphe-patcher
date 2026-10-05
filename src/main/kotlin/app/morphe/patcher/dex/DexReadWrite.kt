@@ -5,9 +5,9 @@
 
 package app.morphe.patcher.dex
 
+import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import com.android.tools.smali.dexlib2.Opcodes
-import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
 import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.DexFile
 import com.android.tools.smali.dexlib2.writer.io.FileDataStore
@@ -16,32 +16,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
-import java.io.BufferedInputStream
 import java.io.Closeable
 import java.io.File
 import java.io.InputStream
+import java.nio.ByteBuffer
 import java.util.Enumeration
 import java.util.logging.Logger
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
-import kotlin.collections.ArrayDeque
-import kotlin.collections.Collection
-import kotlin.collections.HashSet
-import kotlin.collections.List
-import kotlin.collections.Map
-import kotlin.collections.MutableCollection
-import kotlin.collections.Set
-import kotlin.collections.associate
-import kotlin.collections.flatMap
-import kotlin.collections.isNotEmpty
-import kotlin.collections.map
-import kotlin.collections.mapIndexed
-import kotlin.collections.mapTo
-import kotlin.collections.maxByOrNull
-import kotlin.collections.mutableListOf
-import kotlin.collections.plusAssign
-import kotlin.collections.toSet
-import kotlin.collections.zip
 import kotlin.math.max
 import kotlin.math.min
 
@@ -93,7 +75,7 @@ internal object DexReadWrite {
 
         val mappedFiles = extractedFiles.map { file -> MappedFile.mapReadWrite(file) }
         val memoryMappedDexFiles = mappedFiles.map { mappedFile ->
-            DexBackedDexFile(null, mappedFile.buffer)
+            CachingDexBackedDexFile(null, mappedFile.buffer)
         }
         val entryNames = extractedFiles.map { file -> file.name }
 
@@ -104,11 +86,14 @@ internal object DexReadWrite {
             }
         }
 
-        val opcodes = memoryMappedDexFiles.maxByOrNull { it.opcodes.api }!!.opcodes
+        val opcodes = memoryMappedDexFiles.maxByOrNull { it.opcodes.api }?.opcodes
+            ?: throw PatchException("APK contains no DEX files to patch")
+
+        val mergedClasses = memoryMappedDexFiles.flatMap { it.classes }.toSet()
 
         val mergedDexFile = object : DexFile {
             override fun getClasses(): Set<ClassDef> {
-                return memoryMappedDexFiles.flatMap { it.classes }.toSet()
+                return mergedClasses
             }
 
             override fun getOpcodes(): Opcodes {
@@ -140,10 +125,14 @@ internal object DexReadWrite {
                     continue
                 }
 
-                val outputFile = outputDir.resolve(entry.name)
+                // An entry such as classes/../../x.dex would otherwise be written outside outputDir
+                val outputFile = outputDir.resolve(name).normalize()
+                if (!outputFile.toPath().startsWith(outputDir.toPath().normalize())) {
+                    throw SecurityException("DEX entry escapes the output directory: $name")
+                }
                 zip.getInputStream(entry).use { input ->
                     outputFile.outputStream().use { output ->
-                        input.copyTo(output)
+                        input.copyTo(output, bufferSize = 256 * 1024)
                     }
                     outputFiles += outputFile
                 }
@@ -164,7 +153,7 @@ internal object DexReadWrite {
         // Normally DexFileFactory would take care of this, but it doesn't support reading from streams, so we have to do it ourselves.
 
         // TODO: Load extensions in memory mapped fashion?
-        return DexBackedDexFile.fromInputStream(null, BufferedInputStream(inputStream))
+        return CachingDexBackedDexFile(null, ByteBuffer.wrap(inputStream.readBytes()))
     }
 
     /**

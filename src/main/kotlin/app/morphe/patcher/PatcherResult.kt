@@ -8,11 +8,14 @@ import java.io.InputStream
  *
  * @param dexFiles The patched dex files.
  * @param resources The patched resources.
+ * @param dexFilesComplete Whether [dexFiles] replaces every dex file of the input,
+ *   rather than only those it names.
  */
 @Suppress("MemberVisibilityCanBePrivate")
 class PatcherResult internal constructor(
     val dexFiles: Set<PatchedDexFile>,
     val resources: PatchedResources,
+    internal val dexFilesComplete: Boolean = true,
 ) {
 
     /**
