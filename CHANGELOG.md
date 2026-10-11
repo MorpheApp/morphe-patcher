@@ -1,3 +1,10 @@
+## [1.15.2-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1...v1.15.2-dev.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* `MatchFirst()` doesn't always match first ([bc165cf](https://github.com/MorpheApp/morphe-patcher/commit/bc165cf6994285d882a10cad7329f0baa26acda6))
+
 ## [1.15.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.0...v1.15.1) (2026-10-05)
 
 
