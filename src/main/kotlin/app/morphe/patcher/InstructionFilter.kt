@@ -54,7 +54,7 @@ fun interface InstructionLocation {
             require(previouslyMatchedIndex < 0) {
                 "MatchFirst can only be used for the first instruction filter"
             }
-            return true
+            return currentIndex == 0
         }
     }
 

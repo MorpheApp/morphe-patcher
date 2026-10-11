@@ -1165,6 +1165,55 @@ internal object PatcherTest {
     }
 
     @Test
+    fun `MatchFirst only matches the first method instruction`() {
+        val method = ImmutableMethod(
+            "Lcandidate;", "value", emptyList(), "V", AccessFlags.PUBLIC.value,
+            null, null, MutableMethodImplementation(3),
+        ).toMutable().apply {
+            addInstructions(
+                0,
+                """
+                    const/4 v0, 0x0
+                    nop
+                    const/4 v1, 0x0
+                    const/4 v2, 0x1
+                    return-void
+                """
+            )
+        }
+        val classDef = ImmutableClassDef(
+            "Lcandidate;", 0, null, null, null, null, null, listOf(method),
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns PatchClasses(setOf(classDef))
+
+        with(patcher.context.bytecodeContext) {
+            val firstInstruction = Fingerprint(
+                filters = listOf(literal(0, location = InstructionLocation.MatchFirst()))
+            ).matchOrNull()
+            assertNotNull(firstInstruction)
+            assertEquals(0, firstInstruction.instructionMatches.first().index)
+
+            // Literal 1 exists, but not at index 0.
+            assertNull(
+                Fingerprint(
+                    filters = listOf(literal(1, location = InstructionLocation.MatchFirst()))
+                ).matchOrNull()
+            )
+
+            // The second filter fails after index 0. Retrying must not
+            // allow the first filter to match the later literal 0 at index 2.
+            assertNull(
+                Fingerprint(
+                    filters = listOf(
+                        literal(0, location = InstructionLocation.MatchFirst()),
+                        literal(1, location = InstructionLocation.MatchAfterImmediately()),
+                    )
+                ).matchOrNull()
+            )
+        }
+    }
+
+    @Test
     fun `extendWith and extendWithAll are coalesced and resolved lazily at patch time`() {
         // Simulates extensions that are unknown when the patch is built and populated later,
         // for example by a resource patch that this patch depends on.

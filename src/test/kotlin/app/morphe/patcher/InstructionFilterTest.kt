@@ -58,9 +58,10 @@ internal object InstructionFilterTest {
     fun `MatchFirst only valid for first filter`() {
         val location = InstructionLocation.MatchFirst()
 
-        // Valid for first filter (previouslyMatchedIndex < 0)
+        // Valid for first filter (previouslyMatchedIndex < 0), and only at the first instruction.
         assertTrue(location.indexIsValidForMatching(-1, 0))
-        assertTrue(location.indexIsValidForMatching(-1, 5))
+        assertFalse(location.indexIsValidForMatching(-1, 1))
+        assertFalse(location.indexIsValidForMatching(-1, 5))
 
         // Throws exception when not first filter
         assertThrows<IllegalArgumentException> {
