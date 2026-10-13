@@ -1,3 +1,10 @@
+# [1.16.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.16.0-dev.1...v1.16.0-dev.2) (2026-10-13)
+
+
+### Features
+
+* Add overloaded `strings` declaration with more precise matching ([21ea8a6](https://github.com/MorpheApp/morphe-patcher/commit/21ea8a68fc14e13078a8757132696d142b36664a))
+
 # [1.16.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.2-dev.1...v1.16.0-dev.1) (2026-10-13)
 
 
