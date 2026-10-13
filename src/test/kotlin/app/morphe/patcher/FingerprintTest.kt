@@ -47,6 +47,29 @@ internal object FingerprintTest {
     }
 
     @Test
+    fun `Fingerprint with only isStatic is valid`() {
+        val staticFingerprint = Fingerprint(isStatic = true)
+        val instanceFingerprint = Fingerprint(isStatic = false)
+
+        assertEquals(true, staticFingerprint.isStatic)
+        assertEquals(false, instanceFingerprint.isStatic)
+        assertNull(staticFingerprint.accessFlags)
+        assertNull(instanceFingerprint.accessFlags)
+    }
+
+    @Test
+    fun `Fingerprint with isStatic and string filters is valid`() {
+        val fingerprint = Fingerprint(
+            definingClass = "Lcom/test/TestClass;",
+            isStatic = false,
+            strings = listOf(string("test")),
+        )
+
+        assertEquals(false, fingerprint.isStatic)
+        assertEquals(listOf("test"), fingerprint.strings)
+    }
+
+    @Test
     fun `Fingerprint with only returnType is valid`() {
         val fingerprint = Fingerprint(returnType = "Ljava/lang/String;")
 
@@ -219,6 +242,13 @@ internal object FingerprintTest {
                 "returnType=V, parameters=[I, Ljava/lang/String;], filters=[StringFilter], strings=[a], custom)",
             fingerprint.toString(),
         )
+    }
+
+    @Test
+    fun `toString describes isStatic`() {
+        val fingerprint = Fingerprint(name = "testMethod", isStatic = false, returnType = "V")
+
+        assertEquals("Fingerprint(name=testMethod, isStatic=false, returnType=V)", fingerprint.toString())
     }
 
     @Test

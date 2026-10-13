@@ -16,7 +16,10 @@ and the fingerprint matches a method only if _all_ the declared information matc
 object AdLoaderFingerprint : Fingerprint(
     // Defining class is matched using StringComparisonType semantics (see class for details).
     definingClass = "Lcom/some/app/ads/AdsLoader;",
-    // Exact access flags
+    // Exact access flags. Visibility, final and synthetic flags can change
+    // between app versions, so if only static matters then instead use
+    // `isStatic = true` or `isStatic = false`. Only one of the two can be declared.
+    // With `isStatic`, constructors are matched using `name = "<init>"` or `name = "<clinit>"`.
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     // Return type is matched using StringComparisonType semantics.
     returnType = "Z",
@@ -58,6 +61,36 @@ object AdLoaderFingerprint : Fingerprint(
         // Filter 6.
         opcode(Opcode.IF_EQ)
     )
+)
+```
+
+### 🧱 Static or instance methods
+
+`accessFlags` must match exactly, but most access flags are not stable between app versions.
+Visibility can be widened or narrowed by R8/ProGuard, `final` can change when a subclass is added or removed,
+and synthetic flags depend on how the code is compiled.
+If the only access flag that matters is whether the method is static, then declare `isStatic` instead:
+
+```kt
+object ChannelTabBuilderFingerprint : Fingerprint(
+    // Matches only non static methods. All other access flags are ignored.
+    isStatic = false,
+    returnType = "Landroid/view/View;",
+    parameters = listOf("Ljava/lang/CharSequence;", "Ljava/lang/CharSequence;", "Z", "L", "Z")
+)
+```
+
+A fingerprint can declare either `accessFlags` or `isStatic`, but not both.
+
+Because `AccessFlags.CONSTRUCTOR` cannot be declared together with `isStatic`, match constructors by name instead.
+Use `name = "<init>"` for a constructor or `name = "<clinit>"` for a static initializer.
+Constructors are never static and static initializers are always static, so these names do not need `isStatic`:
+
+```kt
+object AdLoaderConstructorFingerprint : Fingerprint(
+    definingClass = "Lcom/some/app/ads/AdsLoader;",
+    name = "<init>",
+    parameters = listOf("Ljava/lang/String;")
 )
 ```
 
