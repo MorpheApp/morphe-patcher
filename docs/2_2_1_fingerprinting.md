@@ -356,24 +356,20 @@ and only then will effectively replace the `original` method or class definition
 ## Finding all methods a fingerprint matches
 
 Fingerprints support finding all methods that match. A common usage is to change all 
-const-string instructions to a different string literal. 
+const-string instructions to a different string literal, which `matchAllMethodIndicesForEach()`
+does for every matching instruction in every matching method:
 
 ```kt
+import app.morphe.patcher.util.matchAllMethodIndicesForEach
 
 // Replace a specific bytecode string in all const-string instructions.
-val stringFilter = string("exact string literal")
-Fingerprint(
-    filters = listOf(stringFilter)
-).matchAllOrNull()?.forEach { match ->
-    match.method.apply { 
-        // See Morphe ByteCodeUtils for findInstructionIndicesReversedOrThrow()
-        findInstructionIndicesReversedOrThrow(stringFilter).forEach { index ->
-            val register = getInstruction<OneRegisterInstruction>(index).registerA
-            replaceInstruction(index, "const-string v$register, \"$toString\"")
-        }
-    }
+string("original text").matchAllMethodIndicesForEach { index ->
+    val register = getInstruction<OneRegisterInstruction>(index).registerA
+    replaceInstruction(index, "const-string v$register, \"new text\"")
 }
 ```
+
+See [`matchAllMethodIndicesForEach()`](4_apis.md#-matchallmethodindicesforeach) for more details.
 
 ## 🏹 Manually matching fingerprints
 

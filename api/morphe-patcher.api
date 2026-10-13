@@ -1217,6 +1217,47 @@ public final class app/morphe/patcher/resource/XmlPullParserUtilsKt {
 	public static final fun writeXml (Ljava/io/File;Lkotlin/jvm/functions/Function1;)V
 }
 
+public final class app/morphe/patcher/util/BytecodeUtilsKt {
+	public static final fun addFreeRegisters (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;I)Lkotlin/Pair;
+	public static final fun addInstructionsAtControlFlowLabel (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;ILjava/lang/String;[Lapp/morphe/patcher/util/smali/ExternalLabel;)V
+	public static final fun cloneParameters (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static final fun findInstructionIndicesReversed (Lcom/android/tools/smali/dexlib2/iface/Method;Lapp/morphe/patcher/InstructionFilter;)Ljava/util/List;
+	public static final fun findInstructionIndicesReversedOrThrow (Lcom/android/tools/smali/dexlib2/iface/Method;Lapp/morphe/patcher/InstructionFilter;)Ljava/util/List;
+	public static final fun findMutableMethodOf (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static final fun getMutableMethod (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static final fun getNumberOfParameterRegisters (Lcom/android/tools/smali/dexlib2/iface/Method;)I
+	public static final fun getNumberOfParameterRegistersLogical (Lcom/android/tools/smali/dexlib2/iface/Method;)I
+	public static final fun getP0Register (Lcom/android/tools/smali/dexlib2/iface/Method;)I
+	public static final fun matchAllMethodIndicesForEach (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/Fingerprint;ZLkotlin/jvm/functions/Function2;)V
+	public static final fun matchAllMethodIndicesForEach (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/InstructionFilter;ZLkotlin/jvm/functions/Function2;)V
+	public static synthetic fun matchAllMethodIndicesForEach$default (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/Fingerprint;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)V
+	public static synthetic fun matchAllMethodIndicesForEach$default (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/InstructionFilter;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)V
+	public static final fun matchSingle (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/Fingerprint;)Lapp/morphe/patcher/Match;
+	public static final fun removeFlags (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableField;[Lcom/android/tools/smali/dexlib2/AccessFlags;)V
+	public static final fun returnBoxedBooleanEarly (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;Z)V
+	public static final fun returnEarly (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;)V
+	public static final fun returnEarly (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;B)V
+	public static final fun returnEarly (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;C)V
+	public static final fun returnEarly (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;D)V
+	public static final fun returnEarly (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;F)V
+	public static final fun returnEarly (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;I)V
+	public static final fun returnEarly (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;J)V
+	public static final fun returnEarly (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;Ljava/lang/String;)V
+	public static final fun returnEarly (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;Ljava/lang/Void;)V
+	public static final fun returnEarly (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;S)V
+	public static final fun returnEarly (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;Z)V
+	public static final fun returnLate (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;B)V
+	public static final fun returnLate (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;C)V
+	public static final fun returnLate (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;D)V
+	public static final fun returnLate (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;F)V
+	public static final fun returnLate (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;I)V
+	public static final fun returnLate (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;J)V
+	public static final fun returnLate (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;Ljava/lang/String;)V
+	public static final fun returnLate (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;Ljava/lang/Void;)V
+	public static final fun returnLate (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;S)V
+	public static final fun returnLate (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;Z)V
+}
+
 public final class app/morphe/patcher/util/Document : java/io/Closeable, org/w3c/dom/Document {
 	public fun adoptNode (Lorg/w3c/dom/Node;)Lorg/w3c/dom/Node;
 	public fun appendChild (Lorg/w3c/dom/Node;)Lorg/w3c/dom/Node;
@@ -1287,6 +1328,25 @@ public final class app/morphe/patcher/util/Document : java/io/Closeable, org/w3c
 	public fun setUserData (Ljava/lang/String;Ljava/lang/Object;Lorg/w3c/dom/UserDataHandler;)Ljava/lang/Object;
 	public fun setXmlStandalone (Z)V
 	public fun setXmlVersion (Ljava/lang/String;)V
+}
+
+public final class app/morphe/patcher/util/FreeRegisterProvider {
+	public final fun availableCount ()I
+	public final fun getAllocatedFreeRegisters ()Ljava/util/List;
+	public final fun getFreeRegister ()I
+	public final fun getFreeRegister4Bit ()I
+	public final fun getMethod ()Lcom/android/tools/smali/dexlib2/iface/Method;
+	public final fun getUsedAndUnAvailableRegisters ()Ljava/util/List;
+	public final fun hasFreeRegisters ()Z
+}
+
+public final class app/morphe/patcher/util/FreeRegisterProviderKt {
+	public static final fun findFreeRegister (Lcom/android/tools/smali/dexlib2/iface/Method;ILjava/util/List;)I
+	public static final fun findFreeRegister (Lcom/android/tools/smali/dexlib2/iface/Method;I[I)I
+	public static final fun getFreeRegisterProvider (Lcom/android/tools/smali/dexlib2/iface/Method;IILjava/util/List;)Lapp/morphe/patcher/util/FreeRegisterProvider;
+	public static final fun getFreeRegisterProvider (Lcom/android/tools/smali/dexlib2/iface/Method;II[I)Lapp/morphe/patcher/util/FreeRegisterProvider;
+	public static final fun getRegistersUsed (Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;)Ljava/util/List;
+	public static final fun getWriteRegister (Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;)Ljava/lang/Integer;
 }
 
 public final class app/morphe/patcher/util/MethodNavigator {
