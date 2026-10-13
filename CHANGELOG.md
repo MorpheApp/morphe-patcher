@@ -1,3 +1,10 @@
+# [1.16.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.2-dev.1...v1.16.0-dev.1) (2026-10-13)
+
+
+### Features
+
+* Add FreeRegisterProvider and basic BytecodeUtils ([#246](https://github.com/MorpheApp/morphe-patcher/issues/246)) ([eae7c7d](https://github.com/MorpheApp/morphe-patcher/commit/eae7c7dc81fd6e7383341d47742545fb9001fd8a))
+
 ## [1.15.2-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.15.1...v1.15.2-dev.1) (2026-10-11)
 
 
