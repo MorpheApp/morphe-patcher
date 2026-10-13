@@ -163,6 +163,45 @@ internal object FingerprintTest {
     private object NamedFingerprint : Fingerprint(name = "namedMethod")
 
     @Test
+    fun `Fingerprint raw strings are converted to contains string filters`() {
+        val fingerprint = Fingerprint(name = "testMethod", strings = listOf("test1", "test2"))
+
+        assertEquals(listOf("test1", "test2"), fingerprint.strings)
+        assertEquals(
+            listOf(StringComparisonType.CONTAINS, StringComparisonType.CONTAINS),
+            fingerprint.stringFilters?.map { it.comparison },
+        )
+    }
+
+    @Test
+    fun `Fingerprint with string filters is valid`() {
+        val classFingerprint = Fingerprint(name = "toString")
+        val fingerprints = listOf(
+            Fingerprint(strings = listOf(string("test1"), string("test2", StringComparisonType.STARTS_WITH))),
+            Fingerprint(name = "testMethod", strings = listOf(string("test1"), string("test2", StringComparisonType.STARTS_WITH))),
+            Fingerprint(classFingerprint = classFingerprint, strings = listOf(string("test1"), string("test2", StringComparisonType.STARTS_WITH))),
+            Fingerprint(definingClass = "Lcom/test/TestClass;", strings = listOf(string("test1"), string("test2", StringComparisonType.STARTS_WITH))),
+        )
+
+        fingerprints.forEach { fingerprint ->
+            assertEquals(listOf("test1", "test2"), fingerprint.strings)
+            assertEquals(
+                listOf(StringComparisonType.EQUALS, StringComparisonType.STARTS_WITH),
+                fingerprint.stringFilters?.map { it.comparison },
+            )
+        }
+        assertEquals(classFingerprint, fingerprints[2].classFingerprint)
+        assertEquals("Lcom/test/TestClass;", fingerprints[3].definingClass)
+    }
+
+    @Test
+    fun `Fingerprint string filters cannot declare an instruction location`() {
+        assertThrows<IllegalArgumentException> {
+            Fingerprint(strings = listOf(string("test", InstructionLocation.MatchFirst())))
+        }
+    }
+
+    @Test
     fun `toString describes the declared fields`() {
         val fingerprint = Fingerprint(
             definingClass = "Lcom/test/TestClass;",

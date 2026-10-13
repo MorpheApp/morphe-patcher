@@ -197,6 +197,9 @@ class AdsLoader {
   match in any order of the target method. Generally, the `strings = listOf()` declaration is only useful for 
   matching methods with a large number of strings and they may appear randomly such as enum name types in an Enum
   initialization method. If you are unsure which to use, then use `filter = listOf(string("foo"))`.
+  Raw strings such as `strings = listOf("foo")` are compared using `StringComparisonType.CONTAINS`. To use a different
+  comparison, declare string filters instead such as `strings = listOf(string("foo"), string("bar", StringComparisonType.STARTS_WITH))`.
+  String filters declared in `strings` match in any order and cannot declare an `InstructionLocation`.
   If you need the indices of this second matching type they are not found in `instructionMatches` but instead in
   their own legacy matching result. Please see the Fingerprint javadoc for more details on this second string declaration.
 

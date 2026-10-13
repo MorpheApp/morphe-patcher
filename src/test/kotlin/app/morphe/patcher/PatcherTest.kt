@@ -1396,6 +1396,89 @@ internal object PatcherTest {
     }
 
     @Test
+    fun `fingerprints match unordered string filters`() {
+        val patchClasses = PatchClasses(
+            dexBackedClasses(
+                "Lclass1;" to listOf(
+                    dexBackedMethod(
+                        "Lclass1;",
+                        "method1",
+                        """
+                            const-string v0, "prefix_value"
+                            const-string v0, "exact"
+                            const-string v0, "a_suffix"
+                            return-void
+                        """.trimIndent(),
+                    )
+                ),
+                "Lclass2;" to listOf(
+                    dexBackedMethod(
+                        "Lclass2;",
+                        "method2",
+                        """
+                            const-string v0, "exact_value"
+                            const-string v0, "a_suffix"
+                            return-void
+                        """.trimIndent(),
+                    )
+                ),
+            )
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+
+        with(patcher.context.bytecodeContext) {
+            val fingerprint = Fingerprint(
+                strings = listOf(
+                    string("_suffix", StringComparisonType.ENDS_WITH),
+                    string("exact"),
+                    string("prefix_", StringComparisonType.STARTS_WITH),
+                )
+            )
+            val match = fingerprint.match()
+            assertEquals("Lclass1;", match.originalClassDef.type)
+            assertEquals(listOf("a_suffix", "exact", "prefix_value"), match.stringMatches.map { it.string })
+            assertEquals(listOf(2, 1, 0), match.stringMatches.map { it.index })
+            assertEquals(listOf("Lclass1;"), fingerprint.matchAll().map { it.originalClassDef.type })
+
+            // Raw strings use contains, so "exact" also matches "exact_value".
+            val rawFingerprint = Fingerprint(strings = listOf("_suffix", "exact"))
+            assertEquals(
+                listOf("Lclass1;", "Lclass2;"),
+                rawFingerprint.matchAll().map { it.originalClassDef.type }.sorted(),
+            )
+
+            val noMatchFingerprint = Fingerprint(strings = listOf(string("exact"), string("missing")))
+            assertNull(noMatchFingerprint.matchOrNull())
+            assertNull(noMatchFingerprint.matchAllOrNull())
+        }
+    }
+
+    @Test
+    fun `legacy partial string matches are in declared order`() {
+        val patchClasses = PatchClasses(
+            dexBackedClasses(
+                "Lclass1;" to listOf(
+                    dexBackedMethod(
+                        "Lclass1;",
+                        "method1",
+                        """
+                            const-string v0, "first_value"
+                            const-string v0, "second_value"
+                            return-void
+                        """.trimIndent(),
+                    )
+                ),
+            )
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+
+        with(patcher.context.bytecodeContext) {
+            val fingerprint = Fingerprint(strings = listOf("second", "first"))
+            assertEquals(listOf(1, 0), fingerprint.match().stringMatches.map { it.index })
+        }
+    }
+
+    @Test
     fun `match originalClassDef and originalMethod reflect updated class in patch context`() {
         val patchClasses = PatchClasses(
             setOf(
