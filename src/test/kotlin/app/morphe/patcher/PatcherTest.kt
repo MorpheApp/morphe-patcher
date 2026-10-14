@@ -1232,6 +1232,64 @@ internal object PatcherTest {
     }
 
     @Test
+    fun `fingerprints match the superclass and interfaces of the class`() {
+        fun method(definingClass: String) = ImmutableMethod(
+            definingClass, "run", emptyList(), "V", AccessFlags.PUBLIC.value, null, null, null,
+        )
+        fun classDef(type: String, superclass: String?, interfaces: List<String>?) = ImmutableClassDef(
+            type, AccessFlags.PUBLIC.value, superclass, interfaces, null, null, null, listOf(method(type)),
+        )
+
+        val baseClass = classDef("Lbase;", "Ljava/lang/Object;", null)
+        val subClass = classDef("Lsub;", "Lbase;", listOf("Lcom/test/A;", "Lcom/test/B;"))
+        val otherClass = classDef("Lother;", "Lbase;", listOf("Lcom/test/A;"))
+        every { patcher.context.bytecodeContext.patchClasses } returns
+                PatchClasses(setOf(baseClass, subClass, otherClass))
+
+        with(patcher.context.bytecodeContext) {
+            fun Fingerprint.matchedTypes() = matchAllOrNull()?.map { it.originalClassDef.type }?.toSet()
+
+            assertEquals(setOf("Lsub;", "Lother;"), Fingerprint(name = "run", superclass = "Lbase;").matchedTypes())
+            assertEquals(setOf("Lsub;", "Lother;"), Fingerprint(superclass = "Lbase").matchedTypes())
+            assertEquals(setOf("Lbase;"), Fingerprint(superclass = "Ljava/lang/Object;").matchedTypes())
+            assertNull(Fingerprint(superclass = "Lmissing;").matchedTypes())
+
+            assertEquals(
+                setOf("Lsub;", "Lother;"),
+                Fingerprint(interfaces = listOf("Lcom/test/A;")).matchedTypes()
+            )
+            // Declared in any order, and all must be implemented.
+            assertEquals(
+                setOf("Lsub;"),
+                Fingerprint(interfaces = listOf("Lcom/test/B;", "Lcom/test/A;")).matchedTypes()
+            )
+            assertEquals(setOf("Lsub;"), Fingerprint(interfaces = listOf("test/B;")).matchedTypes())
+            assertNull(Fingerprint(interfaces = listOf("Lcom/test/A;", "Lcom/test/C;")).matchedTypes())
+
+            assertEquals(
+                "Lother;",
+                Fingerprint(
+                    superclass = "Lbase;",
+                    interfaces = listOf("Lcom/test/A;"),
+                    custom = { _, classDef -> classDef.interfaces.size == 1 },
+                ).match().originalClassDef.type
+            )
+
+            // Matching a given class or method also checks the class.
+            val fingerprint = Fingerprint(name = "run", interfaces = listOf("Lcom/test/B;"))
+            assertNull(fingerprint.matchOrNull(otherClass))
+            assertNull(fingerprint.matchOrNull(otherClass.methods.first(), otherClass))
+            assertNull(fingerprint.matchAllOrNull(otherClass))
+            assertNotNull(fingerprint.matchOrNull(subClass))
+
+            val baseFingerprint = Fingerprint(definingClass = "Lbase;", name = "run")
+            assertNotNull(
+                Fingerprint(classFingerprint = baseFingerprint, superclass = "Ljava/lang/Object;").matchOrNull()
+            )
+        }
+    }
+
+    @Test
     fun `extendWith and extendWithAll are coalesced and resolved lazily at patch time`() {
         // Simulates extensions that are unknown when the patch is built and populated later,
         // for example by a resource patch that this patch depends on.

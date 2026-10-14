@@ -73,7 +73,7 @@ If the only access flag that matters is whether the method is static, then decla
 
 ```kt
 object ChannelTabBuilderFingerprint : Fingerprint(
-    // Matches only non static methods. All other access flags are ignored.
+    // Matches only non-static methods. All other access flags are ignored.
     isStatic = false,
     returnType = "Landroid/view/View;",
     parameters = listOf("Ljava/lang/CharSequence;", "Ljava/lang/CharSequence;", "Z", "L", "Z")
@@ -91,6 +91,32 @@ object AdLoaderConstructorFingerprint : Fingerprint(
     definingClass = "Lcom/some/app/ads/AdsLoader;",
     name = "<init>",
     parameters = listOf("Ljava/lang/String;")
+)
+```
+
+### 🧬 Superclass and interfaces
+
+`superclass` and `interfaces` match the class the method is declared in.
+`superclass` is the direct superclass, and `interfaces` are interfaces the class directly implements.
+Both are matched using `StringComparisonType` semantics, the same as `definingClass`.
+All declared interfaces must be implemented, in any order, and the class can implement other interfaces too.
+Superclasses and interfaces of superclasses are not checked.
+
+```kt
+object VideoPlayerImplFingerprint : Fingerprint(
+    // Exact comparison. The class can also implement other interfaces.
+    interfaces = listOf("Lcom/some/app/player/VideoPlayer;"),
+    strings = listOf("VideoPlayerImpl")
+)
+
+object NetworkRequestFingerprint : Fingerprint(
+    // Starts with comparison. Matches any superclass in this package.
+    superclass = "Lcom/some/app/network/",
+    returnType = "Lcom/some/app/network/RequestTask;",
+    parameters = listOf(
+        "Lcom/some/app/network/HttpRequest;",
+        "Lcom/some/app/network/RequestCallbacks;"
+    )
 )
 ```
 

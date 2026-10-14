@@ -252,6 +252,78 @@ internal object FingerprintTest {
     }
 
     @Test
+    fun `toString describes superclass and interfaces`() {
+        val fingerprint = Fingerprint(
+            superclass = "Lcom/test/Base;",
+            interfaces = listOf("Lcom/test/A;", "Lcom/test/B;"),
+            name = "testMethod",
+        )
+
+        assertEquals(
+            "Fingerprint(superclass=Lcom/test/Base;, interfaces=[Lcom/test/A;, Lcom/test/B;], name=testMethod)",
+            fingerprint.toString(),
+        )
+    }
+
+    @Test
+    fun `Fingerprint with only superclass or interfaces is valid`() {
+        assertEquals("Lcom/test/Base;", Fingerprint(superclass = "Lcom/test/Base;").superclass)
+        assertEquals(listOf("Lcom/test/A;"), Fingerprint(interfaces = listOf("Lcom/test/A;")).interfaces)
+    }
+
+    @Test
+    fun `Fingerprint throws on empty interfaces`() {
+        assertThrows<IllegalArgumentException> {
+            Fingerprint(name = "testMethod", interfaces = emptyList())
+        }
+    }
+
+    @Test
+    fun `Fingerprint throws on both accessFlags and isStatic`() {
+        assertThrows<IllegalArgumentException> {
+            Fingerprint(accessFlags = listOf(AccessFlags.PUBLIC), isStatic = true)
+        }
+    }
+
+    @Test
+    fun `Fingerprint 1x constructors are kept for binary compatibility`() {
+        val list = List::class.java
+        val string = String::class.java
+        val function = Function2::class.java
+        val custom: (Any, Any) -> Boolean = { _, _ -> true }
+
+        val classFingerprint = Fingerprint(name = "classMethod")
+        val withClassFingerprint = Fingerprint::class.java
+            .getConstructor(Fingerprint::class.java, string, list, string, list, list, list, function)
+            .newInstance(classFingerprint, "a", null, "V", null, null, listOf("s"), custom)
+        assertEquals(classFingerprint, withClassFingerprint.classFingerprint)
+        assertEquals("a", withClassFingerprint.name)
+        assertEquals(listOf("s"), withClassFingerprint.strings)
+
+        val withDefiningClass = Fingerprint::class.java
+            .getConstructor(string, string, list, string, list, list, list, function)
+            .newInstance("Lcom/test/TestClass;", "a", listOf(AccessFlags.PUBLIC), null, null, null, null, null)
+        assertEquals("Lcom/test/TestClass;", withDefiningClass.definingClass)
+        assertEquals(AccessFlags.PUBLIC.value, withDefiningClass.accessFlags)
+
+        val withName = Fingerprint::class.java
+            .getConstructor(string, list, string, list, list, list, function)
+            .newInstance("a", null, null, listOf("I"), null, null, null)
+        assertEquals(listOf("I"), withName.parameters)
+
+        val withAccessFlags = Fingerprint::class.java
+            .getConstructor(list, string, list, list, list, function)
+            .newInstance(null, "V", null, null, null, null)
+        assertEquals("V", withAccessFlags.returnType)
+
+        listOf(withClassFingerprint, withDefiningClass, withName, withAccessFlags).forEach {
+            assertNull(it.superclass)
+            assertNull(it.interfaces)
+            assertNull(it.isStatic)
+        }
+    }
+
+    @Test
     fun `toString of a named fingerprint uses the class name`() {
         assertTrue(NamedFingerprint.toString().startsWith(NamedFingerprint::class.java.name + "@"))
     }
