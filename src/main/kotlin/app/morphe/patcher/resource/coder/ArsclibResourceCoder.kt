@@ -1322,7 +1322,7 @@ internal class ArsclibResourceCoder(
         }
         rawEntriesOnRequest?.let { entries -> extractRootEntriesOnRequest(entries.filter(matcher::matches)) }
 
-        return workingFiles(pkgName).filter(matcher::matches).sorted().toList()
+        return workingFiles(pkgName, matcher).sorted().toList()
     }
 
     override fun finishDecoding() {
@@ -1432,23 +1432,40 @@ internal class ArsclibResourceCoder(
     }
 
     /**
-     * The paths of the files in the working directory a patch can reach with [getFile].
+     * The paths of the files in the working directory a patch can reach with [getFile] that match [matcher].
      */
-    private fun workingFiles(packageName: String): Sequence<String> {
-        val manifest = workingDir.resolve("AndroidManifest.xml")
-            .takeIf { it.isFile }?.let { sequenceOf(it.name) }.orEmpty()
+    private fun workingFiles(packageName: String, matcher: PathPatterns): Sequence<String> {
+        val manifest = sequenceOf("AndroidManifest.xml").filter { matcher.matches(it) && workingDir.resolve(it).isFile }
 
-        val resources = packageDirectories[packageName]?.let { packageDirectory ->
-            packageDirectory.resolve("res").walkTopDown().filter { it.isFile }
-                .map { it.relativeTo(packageDirectory).invariantSeparatorsPath }
+        val resources = packageDirectories[packageName]?.takeIf { matcher.mayMatchBelow("res") }?.let { packageDirectory ->
+            matchingFiles(packageDirectory.resolve("res"), "res", matcher)
         }.orEmpty()
 
         // Root entries named like resources cannot be reached by their name, which reaches the resources.
-        val rootFiles = otherResourcesRootDirectory.walkTopDown().filter { it.isFile }
-            .map { it.relativeTo(otherResourcesRootDirectory).invariantSeparatorsPath }
-            .filterNot { it.startsWith("res/") }
+        val rootFiles = matchingFiles(otherResourcesRootDirectory, "", matcher).filterNot { it.startsWith("res/") }
 
         return manifest + resources + rootFiles
+    }
+
+    /**
+     * The paths of the files below [directory] that match [matcher], where [path] is the path of [directory].
+     * Only the directories a match can be in are listed, and only the files whose path matches are read, since
+     * the working directory holds every resource of a large app when they were all decoded up front.
+     */
+    private fun matchingFiles(directory: File, path: String, matcher: PathPatterns): Sequence<String> = sequence {
+        directory.list()?.forEach { name ->
+            val childPath = if (path.isEmpty()) name else "$path/$name"
+            val matches = matcher.matches(childPath)
+            if (!matches && !matcher.mayMatchBelow(childPath)) return@forEach
+
+            // Most entries are files, so a matching file is told apart with one read of its attributes.
+            val child = directory.resolve(name)
+            if (matches && child.isFile) {
+                yield(childPath)
+            } else if (child.isDirectory) {
+                yieldAll(matchingFiles(child, childPath, matcher))
+            }
+        }
     }
 
     override fun listApkEntries(prefix: String): List<String> =

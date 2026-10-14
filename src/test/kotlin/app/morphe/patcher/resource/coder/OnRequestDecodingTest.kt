@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.resource.coder
 
+import app.morphe.patcher.resource.PathPatterns
 import app.morphe.patcher.resource.ResourceMode
 import com.reandroid.apk.ApkModule
 import com.reandroid.arsc.chunk.PackageBlock
@@ -155,6 +156,34 @@ internal class OnRequestDecodingTest {
         )
         assertEquals(listOf("res/layout/main.xml"), coder.decode(listOf("res/layout")))
         assertTrue(coder.packageDirectory.resolve("res/drawable").files().isEmpty())
+    }
+
+    @Test
+    fun `decode returns what matching every file in the working directory returns`() {
+        val upFront = decodedCoder("up-front", onRequest = false)
+        val onRequest = decodedCoder("on-request").apply { decode(listOf("**")) }
+
+        listOf(
+            listOf("res/values*/strings.xml"),
+            listOf("res/layout"),
+            listOf("res/drawable*/icon.*", "res/color/selector.xml"),
+            listOf("res/**/main.xml"),
+            listOf("**"),
+            listOf(""),
+            listOf("assets"),
+            listOf("AndroidManifest.xml"),
+            listOf("res/drawable-?dpi/*"),
+            listOf("nothing/here"),
+        ).forEach { patterns ->
+            val matcher = PathPatterns(patterns)
+            listOf(upFront, onRequest).forEach { coder ->
+                val everyFile = sequenceOf("AndroidManifest.xml") +
+                    coder.packageDirectory.resolve("res").files().keys.map { "res/$it" } +
+                    coder.otherResourcesRootDirectory.files().keys.filterNot { it.startsWith("res/") }
+
+                assertEquals(everyFile.filter(matcher::matches).sorted().toList(), coder.decode(patterns), "$patterns")
+            }
+        }
     }
 
     @Test

@@ -64,4 +64,22 @@ internal class PathPatternsTest {
         assertTrue(patterns.matches("res/values/colors.xml"))
         assertFalse(patterns.matches("res/values/strings.xml"))
     }
+
+    @Test
+    fun `a directory a match can be below is told apart`() {
+        fun mayMatchBelow(pattern: String, directory: String) = PathPatterns(listOf(pattern)).mayMatchBelow(directory)
+
+        assertTrue(mayMatchBelow("res/values*/colors.xml", "res"))
+        assertTrue(mayMatchBelow("res/values*/colors.xml", "res/values-de"))
+        assertFalse(mayMatchBelow("res/values*/colors.xml", "res/layout"))
+        assertFalse(mayMatchBelow("res/values*/colors.xml", "assets"))
+        assertTrue(mayMatchBelow("res/xml", "res/xml/sub"), "a pattern naming a directory matches below it")
+        assertFalse(mayMatchBelow("res/xml", "res/xml-v21"))
+        assertTrue(mayMatchBelow("res/**/main.xml", "res/a/b"))
+        assertTrue(mayMatchBelow("**", "assets/a"))
+        assertTrue(mayMatchBelow("", "assets/a"))
+        assertTrue(mayMatchBelow("res/drawable-?dpi/icon.png", "res/drawable-hdpi"))
+        assertFalse(mayMatchBelow("res/drawable-?dpi/icon.png", "res/drawable-xxhdpi"))
+        assertTrue(PathPatterns(listOf("assets/a", "res/layout")).mayMatchBelow("res/layout"))
+    }
 }
