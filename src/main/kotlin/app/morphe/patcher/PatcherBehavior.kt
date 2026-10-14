@@ -33,15 +33,12 @@ internal enum class PatcherBehavior(
      * Resources are decoded when a patch requests them, instead of all before patches execute.
      */
     ON_REQUEST_RESOURCE_DECODING(
-        // Morphe Patcher 2.0.0, including its pre-releases such as 2.0.0-dev.1, so patches can be tested
-        // with it before the release.
-        since = "2.0.0-0",
+        since = "2.0.0-0", // Includes pre-release.
         // A patch built for an older version may list a directory it expects to be decoded.
         adoption = Adoption.EVERY_BUNDLE,
         description = "Resources are decoded when patches request them, instead of all before patches execute",
         affectsPatch = { patch -> patch.anyRecursively { it is ResourcePatch } },
-    ),
-    ;
+    );
 
     val since = PatcherVersion.parse(since) ?: throw IllegalStateException("Invalid version: $since")
 

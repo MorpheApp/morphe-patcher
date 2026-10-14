@@ -9,6 +9,7 @@ import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.ApkSigner.newApkSigner
 import app.morphe.patcher.apk.ApkSigner.newKeyStore
 import app.morphe.patcher.apk.ApkSigner.newPrivateKeyCertificatePair
+import app.morphe.patcher.apk.ApkUtils.applyTo
 import com.android.apksig.ApkVerifier
 import com.android.apksig.apk.ApkFormatException
 import com.android.tools.build.apkzlib.zip.AlignmentRules
@@ -27,7 +28,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.NoSuchAlgorithmException
 import java.security.cert.X509Certificate
-import java.util.*
+import java.util.Date
 import java.util.concurrent.ForkJoinPool
 import java.util.logging.Logger
 import kotlin.time.Duration.Companion.days
@@ -65,6 +66,15 @@ object ApkUtils {
         ).setCompressor(DeflateExecutionCompressor(ForkJoinPool.commonPool(), COMPRESSION_LEVEL))
 
     /**
+     * Copies [source] over [target] with the file copy of the platform, which is several times faster
+     * than copying through a stream for a file the size of an APK.
+     */
+    internal fun copyApk(source: File, target: File) {
+        target.absoluteFile.parentFile?.mkdirs()
+        Files.copy(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+    }
+
+    /**
      * Writes this module to [file] aligned as [applyTo] aligns, so that it has nothing left to move.
      */
     internal fun ApkModule.writeAlignedApk(file: File) = createApkFileWriter(file).apply {
@@ -97,7 +107,7 @@ object ApkUtils {
             logger.info("Using compiled resource APK as output base")
 
             if (resourcesApk.canonicalFile != apkFile.canonicalFile) {
-                resourcesApk.copyTo(apkFile, overwrite = true)
+                copyApk(resourcesApk, apkFile)
             }
         }
 
