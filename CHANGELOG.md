@@ -1,3 +1,15 @@
+# [2.0.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.16.0-dev.2...v2.0.0-dev.1) (2026-10-14)
+
+
+### Features
+
+* Use selective resource decoding ([#247](https://github.com/MorpheApp/morphe-patcher/issues/247)) ([9471442](https://github.com/MorpheApp/morphe-patcher/commit/9471442a11f87587beb6be4bcc9f2e2e8f6a3f05))
+
+
+### BREAKING CHANGES
+
+* Resources are now decoded on request instead of all up front. Patches compiled with previous patcher versions still retain old "decode everything" behavior
+
 # [1.16.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v1.16.0-dev.1...v1.16.0-dev.2) (2026-10-13)
 
 
