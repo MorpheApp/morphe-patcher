@@ -127,9 +127,8 @@ changed or deleted.
 
 #### 🗂️ `decode(String...)` and `listDecodableFiles(String)`
 
-Patches built for Morphe Patcher 2.0.0 or newer get resources decoded when they need them, instead of
-all of them before any patch executes. Decoding a large app takes much of the time patching does, while
-patches read only a few of its files.
+Resources are decoded when patches need them, instead of all of them before any patch executes.
+Decoding a large app takes much of the time patching does, while patches read only a few of its files.
 
 - The manifest is always decoded.
 - A file a patch reads by its path, with `get(String, Boolean)` or `document(String)`, is decoded then.

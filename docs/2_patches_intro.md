@@ -28,8 +28,8 @@ Both, `ResourcePatch` and `RawResourcePatch` can modify arbitrary files in the A
 whereas only `ResourcePatch` can modify decoded resources. The choice of which type to use depends on the use case.
 Decoding and building resources is a time- and resource-consuming,
 so if the patch does not need to modify decoded resources, it is better to use `RawResourcePatch` or `BytecodePatch`.
-Patches built for Morphe Patcher 2.0.0 or newer only get the manifest decoded up front,
-and every other resource when they request it, see [Advanced APIs](4_apis.md).
+Only the manifest is decoded up front, and every other resource when a patch requests it,
+see [Advanced APIs](4_apis.md).
 
 Example of patches:
 
