@@ -61,7 +61,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
                 BytecodeMode.NONE
             }
 
-            config.behaviorVersion = targetPatcherVersion(config.targetPatcherVersion, allPatches, logger)
+            config.behaviors = resolvePatcherBehaviors(config.targetPatcherVersion, allPatches, logger)
         }
     }
 

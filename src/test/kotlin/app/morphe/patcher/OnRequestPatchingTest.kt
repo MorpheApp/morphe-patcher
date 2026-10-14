@@ -45,15 +45,15 @@ internal class OnRequestPatchingTest {
         }
     }
 
-    private fun ResourcePatch.builtFor(patcherVersion: String) = apply {
-        bundle = PatchBundleInfo(File("patches.mpp"), "Patches", "1.0.0", patcherVersion)
+    private fun ResourcePatch.builtFor(patcherVersion: String, bundleName: String = "Patches") = apply {
+        bundle = PatchBundleInfo(File("$bundleName.mpp"), bundleName, "1.0.0", patcherVersion)
     }
 
-    private fun patch(patch: ResourcePatch): PatcherResult {
+    private fun patch(vararg patches: ResourcePatch): PatcherResult {
         val apk = ResourceTestApk.build(tempDir)
 
         return Patcher(PatcherConfig(apk, tempDir.resolve("patcher"))).use { patcher ->
-            patcher += setOf(patch)
+            patcher += patches.toSet()
             runBlocking { patcher().toList() }.forEach { assertNull(it.exception, it.exception?.stackTraceToString()) }
             patcher.get()
         }
@@ -80,6 +80,17 @@ internal class OnRequestPatchingTest {
     @Test
     fun `patches built for an older version get every resource decoded up front`() {
         val result = patch(patch.builtFor("1.15.1"))
+
+        assertTrue(layoutDecoded!!)
+        assertPatched(result)
+    }
+
+    @Test
+    fun `an older bundle gets every resource decoded up front for every bundle`() {
+        val result = patch(
+            patch.builtFor(PatcherBehavior.ON_REQUEST_RESOURCE_DECODING.since.toString(), "New patches"),
+            resourcePatch("Old") { execute { } }.builtFor("1.15.1", "Old patches"),
+        )
 
         assertTrue(layoutDecoded!!)
         assertPatched(result)

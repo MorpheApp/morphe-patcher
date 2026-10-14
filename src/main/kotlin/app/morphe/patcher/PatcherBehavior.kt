@@ -15,16 +15,17 @@ import java.util.logging.Logger
  * Behavior of Morphe Patcher that changed in a way patches built for an older version may not expect.
  *
  * Patches are built for the version their patch bundle declares with the `Patcher-Version` attribute of
- * its manifest. A behavior applies when patching uses the behavior of [since] or a newer version, see
- * [targetPatcherVersion], so patches built for an older version keep working the way they were written
- * when they are applied on their own.
+ * its manifest. Whether a behavior applies depends on the versions of the patch bundles being applied and
+ * on its [adoption], see [resolvePatcherBehaviors].
  *
  * @param since The first version the behavior applies to.
- * @param description What changed, as the warning about patches built for an older version describes it.
+ * @param adoption Which patch bundles must be built for [since] or newer for the behavior to apply.
+ * @param description What changed, as the logs about patches built for an older version describe it.
  * @param affectsPatch Whether the behavior can change what a patch does.
  */
 internal enum class PatcherBehavior(
     since: String,
+    val adoption: Adoption,
     val description: String,
     private val affectsPatch: (Patch<*>) -> Boolean,
 ) {
@@ -35,6 +36,8 @@ internal enum class PatcherBehavior(
         // Morphe Patcher 2.0.0, including its pre-releases such as 2.0.0-dev.1, so patches can be tested
         // with it before the release.
         since = "2.0.0-0",
+        // A patch built for an older version may list a directory it expects to be decoded.
+        adoption = Adoption.EVERY_BUNDLE,
         description = "Resources are decoded when patches request them, instead of all before patches execute",
         affectsPatch = { patch -> patch.anyRecursively { it is ResourcePatch } },
     ),
@@ -43,63 +46,91 @@ internal enum class PatcherBehavior(
     val since = PatcherVersion.parse(since) ?: throw IllegalStateException("Invalid version: $since")
 
     /**
-     * @param version The version whose behavior patching uses, or null if it is unknown, which is the
-     * behavior of the oldest version.
+     * @param version The version a patch bundle was built for, or null if it is unknown, which is the
+     * oldest version.
      */
     fun appliesTo(version: PatcherVersion?) = version != null && version >= since
 
     fun affects(patch: Patch<*>) = affectsPatch(patch)
+
+    /**
+     * Which patch bundles must be built for [since] or newer for a behavior to apply. Only bundles with
+     * patches the behavior [affects] count, and patches that were not loaded from a bundle have no say.
+     */
+    enum class Adoption {
+        /**
+         * The behavior applies to the patches of every bundle once one of them is built for [since] or
+         * newer. Bundles built for an older version are named in a warning.
+         */
+        NEWEST_BUNDLE,
+
+        /**
+         * The behavior applies only if every bundle is built for [since] or newer, so a bundle built for
+         * an older version keeps the old behavior for the patches of every bundle.
+         */
+        EVERY_BUNDLE,
+    }
 }
 
 /**
- * The version of Morphe Patcher whose behavior patching uses: [configured] if a host set one, otherwise
- * the newest version any of the patch bundles of [patches] was built for. Patches that were not loaded
- * from a patch bundle have no say in it.
+ * The behaviors of Morphe Patcher that apply to [patches].
  *
- * Patches of a bundle built for an older version may not work as intended with the behavior of a newer
- * one, so each such bundle whose patches a newer behavior affects is logged as a warning.
+ * If a host [configured] a version, the behaviors of that version apply. Otherwise, each behavior applies
+ * as its [PatcherBehavior.adoption] says, by the versions the patch bundles of [patches] were built for.
  *
- * @return The version, or null to use the behavior of the oldest version.
+ * Patches of a bundle built for an older version may not work as intended with a behavior of a newer one,
+ * so each such bundle whose patches an applied behavior affects is logged as a warning.
+ *
+ * @param adoption The adoption of a behavior, which tests replace.
  */
-internal fun targetPatcherVersion(
+internal fun resolvePatcherBehaviors(
     configured: String?,
     patches: Collection<Patch<*>>,
     logger: Logger,
-): PatcherVersion? {
+    adoption: (PatcherBehavior) -> PatcherBehavior.Adoption = PatcherBehavior::adoption,
+): Set<PatcherBehavior> {
     val patchesByBundle = patches.filter { it.bundle != null }.groupBy { it.bundle!! }
+    val bundleVersions = patchesByBundle.keys.associateWith { PatcherVersion.parse(it.patcherVersion) }
 
-    val target = if (configured != null) {
-        PatcherVersion.parse(configured).also {
+    fun PatcherBehavior.outdatedBundles() = patchesByBundle.filter { (bundle, patches) ->
+        !appliesTo(bundleVersions[bundle]) && patches.any(::affects)
+    }.keys
+
+    val target: PatcherVersion?
+    val behaviors: Set<PatcherBehavior>
+
+    if (configured != null) {
+        target = PatcherVersion.parse(configured).also {
             if (it == null) logger.warning("Ignoring the invalid target Morphe Patcher version \"$configured\"")
         }
+        behaviors = PatcherBehavior.entries.filterTo(mutableSetOf()) { it.appliesTo(target) }
     } else {
-        patchesByBundle.keys.mapNotNull { PatcherVersion.parse(it.patcherVersion) }.maxOrNull()
+        target = bundleVersions.values.filterNotNull().maxOrNull()
+        behaviors = PatcherBehavior.entries.filterTo(mutableSetOf()) { behavior ->
+            if (!behavior.appliesTo(target)) return@filterTo false
+            when (adoption(behavior)) {
+                PatcherBehavior.Adoption.NEWEST_BUNDLE -> true
+                PatcherBehavior.Adoption.EVERY_BUNDLE -> behavior.outdatedBundles().isEmpty()
+            }
+        }
     }
 
-    warnAboutOutdatedBundles(target, patchesByBundle, logger)
+    val outdated = patchesByBundle.keys.associateWith { bundle ->
+        behaviors.filter { bundle in it.outdatedBundles() }
+    }.filterValues { it.isNotEmpty() }
+    if (outdated.isNotEmpty()) {
+        warnAboutOutdatedBundles(target, outdated, bundleVersions.filterValues { it == target }.keys, logger)
+    }
 
-    return target
+    return behaviors
 }
 
 private fun warnAboutOutdatedBundles(
     target: PatcherVersion?,
-    patchesByBundle: Map<PatchBundleInfo, List<Patch<*>>>,
+    outdated: Map<PatchBundleInfo, List<PatcherBehavior>>,
+    newest: Set<PatchBundleInfo>,
     logger: Logger,
 ) {
-    val behaviors = PatcherBehavior.entries.filter { it.appliesTo(target) }
-    if (behaviors.isEmpty()) return
-
-    val outdated = patchesByBundle.mapNotNull { (bundle, patches) ->
-        val version = PatcherVersion.parse(bundle.patcherVersion)
-        val changed = behaviors.filter { behavior ->
-            !behavior.appliesTo(version) && patches.any(behavior::affects)
-        }
-        if (changed.isEmpty()) null else bundle to changed
-    }
-    if (outdated.isEmpty()) return
-
-    val newest = patchesByBundle.keys.filter { PatcherVersion.parse(it.patcherVersion) == target }
-
     logger.warning(
         buildString {
             append("Patches built for an older version of Morphe Patcher are applied with the behavior of ")

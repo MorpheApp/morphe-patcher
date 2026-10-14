@@ -5,6 +5,7 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.PatcherBehavior.Adoption
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.PatchBundleInfo
 import app.morphe.patcher.patch.bytecodePatch
@@ -17,7 +18,6 @@ import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 internal class PatcherBehaviorTest {
@@ -42,54 +42,56 @@ internal class PatcherBehaviorTest {
 
     private fun <P : Patch<*>> P.from(bundle: PatchBundleInfo) = apply { this.bundle = bundle }
 
-    @Test
-    fun `patches use the behavior of the newest bundle they were loaded from`() {
-        val patches = listOf(
-            resourcePatch("Old") {}.from(bundle("Old patches", "1.15.1")),
-            bytecodePatch("New") {}.from(bundle("New patches", newVersion)),
-        )
+    private fun resolve(
+        patches: List<Patch<*>>,
+        configured: String? = null,
+        adoption: Adoption = onRequest.adoption,
+    ) = resolvePatcherBehaviors(configured, patches, logger) { adoption }
 
-        val target = targetPatcherVersion(null, patches, logger)
-
-        assertEquals(newVersion, target.toString())
-        assertTrue(onRequest.appliesTo(target))
-    }
-
-    @Test
-    fun `patches that were not loaded from a bundle use the behavior of the oldest version`() {
-        val target = targetPatcherVersion(null, listOf(resourcePatch("Patch") {}), logger)
-
-        assertNull(target)
-        assertFalse(onRequest.appliesTo(target))
-        assertTrue(warnings.isEmpty())
-    }
-
-    @Test
-    fun `a bundle without a patcher version counts as the oldest`() {
-        val target = targetPatcherVersion(null, listOf(resourcePatch("Patch") {}.from(bundle("Patches", null))), logger)
-
-        assertNull(target)
-    }
-
-    @Test
-    fun `a configured version takes precedence`() {
-        val patches = listOf(resourcePatch("New") {}.from(bundle("New patches", newVersion)))
-
-        assertEquals("1.15.1", targetPatcherVersion("1.15.1", patches, logger).toString())
-        assertNull(targetPatcherVersion("not a version", patches, logger))
-        assertTrue(warnings.single().contains("not a version"))
-    }
-
-    @Test
-    fun `older bundles whose patches a newer behavior affects are named in a warning`() {
-        val patches = listOf(
+    private val oldAndNew
+        get() = listOf(
             resourcePatch("Old resources") {}.from(bundle("Old patches", "1.15.1")),
             bytecodePatch("Old bytecode") {}.from(bundle("Old bytecode patches", "1.15.1")),
             resourcePatch("Unknown") {}.from(bundle("Unknown patches", null)),
             resourcePatch("New") {}.from(bundle("New patches", newVersion)),
         )
 
-        targetPatcherVersion(null, patches, logger)
+    @Test
+    fun `on request decoding needs every bundle to be built for it`() {
+        assertEquals(Adoption.EVERY_BUNDLE, onRequest.adoption)
+    }
+
+    @Test
+    fun `a behavior of every bundle applies if every bundle is built for it`() {
+        val patches = listOf(
+            resourcePatch("A") {}.from(bundle("A patches", newVersion)),
+            resourcePatch("B") {}.from(bundle("B patches", "2.1.0")),
+        )
+
+        assertEquals(setOf(onRequest), resolve(patches, adoption = Adoption.EVERY_BUNDLE))
+        assertTrue(warnings.isEmpty(), warnings.toString())
+    }
+
+    @Test
+    fun `a behavior of every bundle does not apply if a bundle is built for an older version`() {
+        assertEquals(emptySet(), resolve(oldAndNew, adoption = Adoption.EVERY_BUNDLE))
+
+        assertTrue(warnings.isEmpty(), warnings.toString())
+    }
+
+    @Test
+    fun `a behavior of every bundle ignores bundles whose patches it does not affect`() {
+        val patches = listOf(
+            bytecodePatch("Old") {}.from(bundle("Old patches", "1.15.1")),
+            resourcePatch("New") {}.from(bundle("New patches", newVersion)),
+        )
+
+        assertEquals(setOf(onRequest), resolve(patches, adoption = Adoption.EVERY_BUNDLE))
+    }
+
+    @Test
+    fun `a behavior of the newest bundle applies to the patches of every bundle`() {
+        assertEquals(setOf(onRequest), resolve(oldAndNew, adoption = Adoption.NEWEST_BUNDLE))
 
         val warning = warnings.single()
         assertTrue("Old patches 1.0.0, built for Morphe Patcher 1.15.1" in warning, warning)
@@ -100,13 +102,39 @@ internal class PatcherBehaviorTest {
     }
 
     @Test
+    fun `patches that were not loaded from a bundle use the behavior of the oldest version`() {
+        Adoption.entries.forEach { adoption ->
+            assertEquals(emptySet(), resolve(listOf(resourcePatch("Patch") {}), adoption = adoption))
+            assertEquals(
+                emptySet(),
+                resolve(listOf(resourcePatch("Patch") {}.from(bundle("Patches", null))), adoption = adoption),
+                "a bundle without a patcher version counts as the oldest",
+            )
+        }
+        assertTrue(warnings.isEmpty())
+    }
+
+    @Test
+    fun `a configured version takes precedence`() {
+        val patches = listOf(resourcePatch("New") {}.from(bundle("New patches", newVersion)))
+
+        assertEquals(emptySet(), resolve(patches, configured = "1.15.1"))
+        assertEquals(emptySet(), resolve(patches, configured = "not a version"))
+        assertTrue(warnings.single().contains("not a version"))
+        warnings.clear()
+
+        assertEquals(setOf(onRequest), resolve(oldAndNew, configured = newVersion, adoption = Adoption.EVERY_BUNDLE))
+        assertTrue("Old patches 1.0.0" in warnings.single(), "outdated bundles are warned about")
+    }
+
+    @Test
     fun `bundles of the same behavior are not warned about`() {
         val patches = listOf(
             resourcePatch("A") {}.from(bundle("A patches", "1.15.0")),
             resourcePatch("B") {}.from(bundle("B patches", "1.15.1")),
         )
 
-        targetPatcherVersion(null, patches, logger)
+        Adoption.entries.forEach { resolve(patches, adoption = it) }
 
         assertTrue(warnings.isEmpty(), warnings.toString())
     }
