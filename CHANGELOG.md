@@ -1,3 +1,10 @@
+# [2.0.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.1...v2.0.0-dev.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* Allow static versus non-static access flag filtering ([#244](https://github.com/MorpheApp/morphe-patcher/issues/244)) ([a74bcf5](https://github.com/MorpheApp/morphe-patcher/commit/a74bcf53b44401ce67095813e1966df3c271fd85))
+
 # [2.0.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v1.16.0-dev.2...v2.0.0-dev.1) (2026-10-14)
 
 
