@@ -10,6 +10,7 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.Fingerprint.Companion.rawStringComparison
 import app.morphe.patcher.extensions.InstructionExtensions.instructionsOrNull
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
@@ -102,7 +103,7 @@ open class Fingerprint private constructor(
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
-     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.equals].
      * @param custom A custom condition for this fingerprint.
      */
     constructor(
@@ -122,7 +123,7 @@ open class Fingerprint private constructor(
         returnType,
         parameters,
         filters,
-        containsStringFilters(strings),
+        rawStringFilters(strings),
         custom
     )
 
@@ -140,7 +141,7 @@ open class Fingerprint private constructor(
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
-     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.equals].
      * @param custom A custom condition for this fingerprint.
      */
     constructor(
@@ -159,7 +160,7 @@ open class Fingerprint private constructor(
         returnType,
         parameters,
         filters,
-        containsStringFilters(strings),
+        rawStringFilters(strings),
         custom
     )
 
@@ -178,7 +179,7 @@ open class Fingerprint private constructor(
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
-     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.equals].
      * @param custom A custom condition for this fingerprint.
      */
     constructor( // Required to disambiguate if defining class or class fingerprint is not specified.
@@ -198,7 +199,7 @@ open class Fingerprint private constructor(
         returnType,
         parameters,
         filters,
-        containsStringFilters(strings),
+        rawStringFilters(strings),
         custom
     )
 
@@ -357,7 +358,7 @@ open class Fingerprint private constructor(
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
-     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.equals].
      * @param custom A custom condition for this fingerprint.
      */
     constructor(
@@ -377,7 +378,7 @@ open class Fingerprint private constructor(
         returnType,
         parameters,
         filters,
-        containsStringFilters(strings),
+        rawStringFilters(strings),
         custom,
         isStatic
     )
@@ -395,7 +396,7 @@ open class Fingerprint private constructor(
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
-     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.equals].
      * @param custom A custom condition for this fingerprint.
      */
     constructor(
@@ -414,7 +415,7 @@ open class Fingerprint private constructor(
         returnType,
         parameters,
         filters,
-        containsStringFilters(strings),
+        rawStringFilters(strings),
         custom,
         isStatic
     )
@@ -433,7 +434,7 @@ open class Fingerprint private constructor(
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
-     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.equals].
      * @param custom A custom condition for this fingerprint.
      */
     constructor( // Required to disambiguate if defining class or class fingerprint is not specified.
@@ -453,7 +454,7 @@ open class Fingerprint private constructor(
         returnType,
         parameters,
         filters,
-        containsStringFilters(strings),
+        rawStringFilters(strings),
         custom,
         isStatic
     )
@@ -592,7 +593,7 @@ open class Fingerprint private constructor(
         returnType,
         parameters,
         filters,
-        containsStringFilters(strings),
+        rawStringFilters(strings),
         custom
     )
 
@@ -601,10 +602,18 @@ open class Fingerprint private constructor(
         private val fingerprintList = mutableListOf<WeakReference<Fingerprint>>()
 
         /**
-         * Raw strings are matched using [StringComparisonType.CONTAINS].
+         * How raw strings declared with [strings] are compared. Only patches built for a version of
+         * Morphe Patcher older than 2.0.0 use [StringComparisonType.CONTAINS], see
+         * [PatcherBehavior.EXACT_FINGERPRINT_STRINGS].
          */
-        private fun containsStringFilters(strings: List<String>?) =
-            strings?.map { string(it, StringComparisonType.CONTAINS) }
+        @Volatile
+        internal var rawStringComparison = StringComparisonType.EQUALS
+
+        /**
+         * Raw strings are matched using [rawStringComparison].
+         */
+        private fun rawStringFilters(strings: List<String>?) =
+            strings?.map { string -> StringFilter({ string }, null, InstructionLocation.MatchAfterAnywhere()) }
 
         fun clearFingerprints() {
             fingerprintList.forEach { it.get()?.clearMatch() }
@@ -1807,7 +1816,7 @@ fun parametersStartsWith(  // TODO: Delete on next major version release.
  * @property returnType The return type compared using [String.startsWith].
  * @property parameters The parameters of the method. Partial matches allowed and follow the same rules as [returnType].
  * @property instructionFilters Filters to match the method instructions.
- * @property strings A list of the strings compared each using [String.contains].
+ * @property strings A list of the strings compared each using [String.equals].
  * @property customBlock A custom condition for this fingerprint.
  *
  * @constructor Create a new [FingerprintBuilder].
@@ -1931,7 +1940,7 @@ class FingerprintBuilder {
     /**
      * Set the strings.
      *
-     * @param strings A list of strings compared each using [String.contains].
+     * @param strings A list of strings compared each using [String.equals].
      */
     @Deprecated(message = "DSL provides no functional benefits over class declarations " +
             "and can make stack traces impossible to know what fingerprint failed to resolve")

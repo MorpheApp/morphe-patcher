@@ -46,7 +46,7 @@ internal class PatcherBehaviorTest {
         patches: List<Patch<*>>,
         configured: String? = null,
         adoption: Adoption = onRequest.adoption,
-    ) = resolvePatcherBehaviors(configured, patches, logger) { adoption }
+    ) = resolvePatcherBehaviors(configured, patches, logger, listOf(onRequest)) { adoption }
 
     private val oldAndNew
         get() = listOf(
@@ -125,6 +125,50 @@ internal class PatcherBehaviorTest {
 
         assertEquals(setOf(onRequest), resolve(oldAndNew, configured = newVersion, adoption = Adoption.EVERY_BUNDLE))
         assertTrue("Old patches 1.0.0" in warnings.single(), "outdated bundles are warned about")
+    }
+
+    @Test
+    fun `exact fingerprint strings apply to every bundle once one is built for them`() {
+        val exactStrings = PatcherBehavior.EXACT_FINGERPRINT_STRINGS
+        assertEquals(Adoption.NEWEST_BUNDLE, exactStrings.adoption)
+
+        val newVersion = exactStrings.since.toString()
+        val patches = listOf(
+            bytecodePatch("Old") {}.from(bundle("Old patches", "1.15.1")),
+            resourcePatch("Old resources") {}.from(bundle("Old resource patches", "1.15.1")),
+            bytecodePatch("New") {}.from(bundle("New patches", newVersion)),
+        )
+        val resolved = resolvePatcherBehaviors(null, patches, logger, listOf(exactStrings))
+
+        assertEquals(setOf(exactStrings), resolved)
+        val warning = warnings.single()
+        assertTrue("Old patches 1.0.0, built for Morphe Patcher 1.15.1" in warning, warning)
+        assertFalse("Old resource patches" in warning, "fingerprints do not affect resource patches")
+
+        warnings.clear()
+        assertEquals(emptySet(), resolvePatcherBehaviors(null, patches.take(2), logger, listOf(exactStrings)))
+        assertTrue(warnings.isEmpty(), warnings.toString())
+    }
+
+    @Test
+    fun `exact fingerprint strings apply to patches built for an unknown version`() {
+        val exactStrings = PatcherBehavior.EXACT_FINGERPRINT_STRINGS
+        fun resolve(vararg patches: Patch<*>) =
+            resolvePatcherBehaviors(null, patches.toList(), logger, listOf(exactStrings))
+
+        assertEquals(setOf(exactStrings), resolve(bytecodePatch("Patch") {}), "not loaded from a bundle")
+        assertEquals(setOf(exactStrings), resolve(bytecodePatch("Patch") {}.from(bundle("Patches", null))))
+        assertTrue(warnings.isEmpty(), warnings.toString())
+
+        val old = bytecodePatch("Old") {}.from(bundle("Old patches", "1.15.1"))
+        assertEquals(emptySet(), resolve(old))
+        assertEquals(emptySet(), resolve(old, resourcePatch("Unknown") {}), "only affected patches count")
+
+        assertEquals(setOf(exactStrings), resolve(old, bytecodePatch("Unknown") {}.from(bundle("Unknown patches", null))))
+        val warning = warnings.single()
+        assertTrue("Old patches 1.0.0, built for Morphe Patcher 1.15.1" in warning, warning)
+        assertTrue("behavior of Morphe Patcher ${exactStrings.since}" in warning, warning)
+        assertFalse("Unknown patches" in warning, warning)
     }
 
     @Test

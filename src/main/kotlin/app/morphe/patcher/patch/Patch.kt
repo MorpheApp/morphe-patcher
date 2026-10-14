@@ -941,7 +941,8 @@ sealed class PatchLoader(
         /**
          * Loads unnamed patches declared as public static fields
          * or returned by public static and non-parametrized methods.
-         * Each patch remembers the patch bundle it was loaded from, see [Patch.bundle].
+         * Each patch remembers the patch bundle it was loaded from, see [Patch.bundle],
+         * and so do its dependencies that are not loaded themselves, such as unnamed patches.
          *
          * @param binaryClassNamesByPatchesFile The binary class name of the classes to load the patches from
          * associated by the patches file.
@@ -967,8 +968,23 @@ sealed class PatchLoader(
                     it.name != null
                 }.onEach {
                     it.bundle = bundle
+                    it.assignBundleToDependencies(bundle)
                 }.toSet()
             }
+
+        /**
+         * Dependencies are built with the patch that depends on them, unless they are loaded from
+         * a bundle themselves. Otherwise they would count as built for an unknown version.
+         */
+        private fun Patch<*>.assignBundleToDependencies(bundle: PatchBundleInfo) {
+            dependencies.forEach { dependency ->
+                if (dependency.name == null || dependency.bundle == null) {
+                    if (dependency.bundle == bundle) return@forEach
+                    dependency.bundle = bundle
+                    dependency.assignBundleToDependencies(bundle)
+                }
+            }
+        }
 
         private fun Member.canAccess(): Boolean {
             if (this is Method && parameterCount != 0) return false
