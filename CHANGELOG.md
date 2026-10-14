@@ -1,3 +1,10 @@
+# [2.0.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.3...v2.0.0-dev.4) (2026-10-14)
+
+
+### Features
+
+* Add Fingerprint `superclass` and `interfaces` matching ([dd36ef3](https://github.com/MorpheApp/morphe-patcher/commit/dd36ef3340a97bf415f767f8ab247f51031a9161))
+
 # [2.0.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.2...v2.0.0-dev.3) (2026-10-14)
 
 
