@@ -11,3 +11,4 @@ The fundamentals of Morphe Patcher and how to create patches with it.
       1. [🔎 Fingerprinting](2_2_1_fingerprinting.md)
    3. [📜 Project structure and conventions](3_structure_and_conventions.md)
    4. [💪 Advanced APIs](4_apis.md)
+   5. [🔀 Patcher changes by version](5_patcher_changes.md)

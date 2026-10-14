@@ -7,12 +7,11 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.FieldAccessFilter.Companion.parseJvmFieldAccess
+import app.morphe.patcher.MethodCallFilter.Companion.parseJvmMethodCall
 import app.morphe.patcher.resource.ResourceType
 import app.morphe.patcher.resource.hasResourceId
 import app.morphe.patcher.resource.resourceId
-
-import app.morphe.patcher.FieldAccessFilter.Companion.parseJvmFieldAccess
-import app.morphe.patcher.MethodCallFilter.Companion.parseJvmMethodCall
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction
@@ -942,11 +941,18 @@ fun fieldAccess(
 
 
 
+/**
+ * @param declaredComparison How to compare the string, or null for a raw string declared with
+ * [Fingerprint.strings], which is compared using [Fingerprint.rawStringComparison].
+ */
 class StringFilter internal constructor(
     val string: () -> String,
-    val comparison: StringComparisonType,
+    private val declaredComparison: StringComparisonType?,
     location: InstructionLocation
 ) : OpcodesFilter(listOf(Opcode.CONST_STRING, Opcode.CONST_STRING_JUMBO), location) {
+
+    val comparison: StringComparisonType
+        get() = declaredComparison ?: Fingerprint.rawStringComparison
 
     /**
      * Store the lambda value instead of calling it more than once.

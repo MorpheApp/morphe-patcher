@@ -22,8 +22,13 @@ import kotlin.test.assertNull
 val publicUnnamedPatch = bytecodePatch(default = true) {
 }
 
+// Not loaded, because it's private, but remembers the bundle of the patch that depends on it.
+private val privateUnnamedDependency = bytecodePatch {
+}
+
 // Loaded, because it's named.
 val publicPatch = bytecodePatch("Public") {
+    dependsOn(privateUnnamedDependency)
 }
 
 // Not loaded, because it's private.
@@ -110,12 +115,18 @@ internal object PatchLoaderTest {
         patches.forEach { patch ->
             assertEquals(PatchBundleInfo(patchesFile, "Test patches", "2.3.4", "1.16.0"), patch.bundle)
         }
+        assertEquals(
+            publicPatch.bundle,
+            publicPatch.dependencies.single().bundle,
+            "a dependency that is not loaded itself is built with the patch that depends on it",
+        )
 
         // A bundle that has no manifest declares nothing.
         loadPatches(tempDir.resolve("missing.mpp")).forEach { patch ->
             assertNull(patch.bundle!!.patcherVersion)
             assertEquals("missing.mpp", patch.bundle.toString())
         }
+        assertEquals(publicPatch.bundle, publicPatch.dependencies.single().bundle)
     }
 
     private fun getPrivateFieldByType(cls: Class<*>, fieldType: Class<*>) =

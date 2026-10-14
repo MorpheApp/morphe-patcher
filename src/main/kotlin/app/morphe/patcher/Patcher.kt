@@ -9,7 +9,13 @@
 package app.morphe.patcher
 
 import app.morphe.patcher.dex.BytecodeMode
-import app.morphe.patcher.patch.*
+import app.morphe.patcher.patch.BytecodePatch
+import app.morphe.patcher.patch.Patch
+import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.patch.PatchResult
+import app.morphe.patcher.patch.RawResourcePatch
+import app.morphe.patcher.patch.ResourcePatch
+import app.morphe.patcher.patch.anyRecursively
 import app.morphe.patcher.resource.ResourceMode
 import kotlinx.coroutines.flow.flow
 import java.io.Closeable
@@ -62,6 +68,11 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             }
 
             config.behaviors = resolvePatcherBehaviors(config.targetPatcherVersion, allPatches, logger)
+            Fingerprint.rawStringComparison = if (config.uses(PatcherBehavior.EXACT_FINGERPRINT_STRINGS)) {
+                StringComparisonType.EQUALS
+            } else {
+                StringComparisonType.CONTAINS
+            }
         }
     }
 
@@ -161,7 +172,11 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         }
     }
 
-    override fun close() = context.close()
+    override fun close() {
+        // Do not leave the comparison of patches built for an older version to code outside a patcher.
+        Fingerprint.rawStringComparison = StringComparisonType.EQUALS
+        context.close()
+    }
 
     /**
      * Compile and save patched APK files.

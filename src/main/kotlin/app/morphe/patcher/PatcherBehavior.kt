@@ -5,6 +5,7 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.patch.BytecodePatch
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.PatchBundleInfo
 import app.morphe.patcher.patch.ResourcePatch
@@ -22,12 +23,16 @@ import java.util.logging.Logger
  * @param adoption Which patch bundles must be built for [since] or newer for the behavior to apply.
  * @param description What changed, as the logs about patches built for an older version describe it.
  * @param affectsPatch Whether the behavior can change what a patch does.
+ * @param appliesToUnknownVersion Whether patches built for an unknown version, such as patches not loaded
+ * from a bundle or loaded from a bundle that does not declare its version, count as built for [since].
+ * Otherwise they count as built for the oldest version.
  */
 internal enum class PatcherBehavior(
     since: String,
     val adoption: Adoption,
     val description: String,
     private val affectsPatch: (Patch<*>) -> Boolean,
+    private val appliesToUnknownVersion: Boolean = false,
 ) {
     /**
      * Resources are decoded when a patch requests them, instead of all before patches execute.
@@ -38,21 +43,34 @@ internal enum class PatcherBehavior(
         adoption = Adoption.EVERY_BUNDLE,
         description = "Resources are decoded when patches request them, instead of all before patches execute",
         affectsPatch = { patch -> patch.anyRecursively { it is ResourcePatch } },
+    ),
+
+    /**
+     * Strings declared with [Fingerprint.strings] as raw strings are compared using
+     * [StringComparisonType.EQUALS], instead of [StringComparisonType.CONTAINS].
+     */
+    EXACT_FINGERPRINT_STRINGS(
+        since = "2.0.0-0", // Includes pre-release.
+        adoption = Adoption.NEWEST_BUNDLE,
+        description = "Fingerprint strings must equal a string of the method, instead of only being contained in one",
+        affectsPatch = { patch -> patch.anyRecursively { it is BytecodePatch } },
+        appliesToUnknownVersion = true,
     );
 
     val since = PatcherVersion.parse(since) ?: throw IllegalStateException("Invalid version: $since")
 
     /**
-     * @param version The version a patch bundle was built for, or null if it is unknown, which is the
-     * oldest version.
+     * @param version The version a patch bundle was built for, or null if it is unknown, see
+     * [appliesToUnknownVersion].
      */
-    fun appliesTo(version: PatcherVersion?) = version != null && version >= since
+    fun appliesTo(version: PatcherVersion?) = if (version == null) appliesToUnknownVersion else version >= since
 
     fun affects(patch: Patch<*>) = affectsPatch(patch)
 
     /**
      * Which patch bundles must be built for [since] or newer for a behavior to apply. Only bundles with
-     * patches the behavior [affects] count, and patches that were not loaded from a bundle have no say.
+     * patches the behavior [affects] count. Patches that were not loaded from a bundle have no say, unless
+     * the behavior applies to patches built for an unknown version.
      */
     enum class Adoption {
         /**
@@ -78,12 +96,14 @@ internal enum class PatcherBehavior(
  * Patches of a bundle built for an older version may not work as intended with a behavior of a newer one,
  * so each such bundle whose patches an applied behavior affects is logged as a warning.
  *
+ * @param candidates The behaviors that can apply, which tests replace.
  * @param adoption The adoption of a behavior, which tests replace.
  */
 internal fun resolvePatcherBehaviors(
     configured: String?,
     patches: Collection<Patch<*>>,
     logger: Logger,
+    candidates: Collection<PatcherBehavior> = PatcherBehavior.entries,
     adoption: (PatcherBehavior) -> PatcherBehavior.Adoption = PatcherBehavior::adoption,
 ): Set<PatcherBehavior> {
     val patchesByBundle = patches.filter { it.bundle != null }.groupBy { it.bundle!! }
@@ -93,6 +113,12 @@ internal fun resolvePatcherBehaviors(
         !appliesTo(bundleVersions[bundle]) && patches.any(::affects)
     }.keys
 
+    // Patches built for an unknown version, which some behaviors apply to.
+    fun PatcherBehavior.appliesToUnknownVersions() = appliesTo(null) && patches.any { patch ->
+        val bundle = patch.bundle
+        (bundle == null || bundleVersions[bundle] == null) && affects(patch)
+    }
+
     val target: PatcherVersion?
     val behaviors: Set<PatcherBehavior>
 
@@ -100,11 +126,11 @@ internal fun resolvePatcherBehaviors(
         target = PatcherVersion.parse(configured).also {
             if (it == null) logger.warning("Ignoring the invalid target Morphe Patcher version \"$configured\"")
         }
-        behaviors = PatcherBehavior.entries.filterTo(mutableSetOf()) { it.appliesTo(target) }
+        behaviors = candidates.filterTo(mutableSetOf()) { it.appliesTo(target) }
     } else {
         target = bundleVersions.values.filterNotNull().maxOrNull()
-        behaviors = PatcherBehavior.entries.filterTo(mutableSetOf()) { behavior ->
-            if (!behavior.appliesTo(target)) return@filterTo false
+        behaviors = candidates.filterTo(mutableSetOf()) { behavior ->
+            if (!behavior.appliesTo(target) && !behavior.appliesToUnknownVersions()) return@filterTo false
             when (adoption(behavior)) {
                 PatcherBehavior.Adoption.NEWEST_BUNDLE -> true
                 PatcherBehavior.Adoption.EVERY_BUNDLE -> behavior.outdatedBundles().isEmpty()
@@ -116,14 +142,16 @@ internal fun resolvePatcherBehaviors(
         behaviors.filter { bundle in it.outdatedBundles() }
     }.filterValues { it.isNotEmpty() }
     if (outdated.isNotEmpty()) {
-        warnAboutOutdatedBundles(target, outdated, bundleVersions.filterValues { it == target }.keys, logger)
+        // A behavior can apply to patches built for an unknown version even if no bundle is built for it.
+        val effective = (listOfNotNull(target) + behaviors.map { it.since }).max()
+        warnAboutOutdatedBundles(effective, outdated, bundleVersions.filterValues { it == effective }.keys, logger)
     }
 
     return behaviors
 }
 
 private fun warnAboutOutdatedBundles(
-    target: PatcherVersion?,
+    target: PatcherVersion,
     outdated: Map<PatchBundleInfo, List<PatcherBehavior>>,
     newest: Set<PatchBundleInfo>,
     logger: Logger,

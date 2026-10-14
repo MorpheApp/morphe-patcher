@@ -186,12 +186,12 @@ internal object FingerprintTest {
     private object NamedFingerprint : Fingerprint(name = "namedMethod")
 
     @Test
-    fun `Fingerprint raw strings are converted to contains string filters`() {
+    fun `Fingerprint raw strings are converted to equals string filters`() {
         val fingerprint = Fingerprint(name = "testMethod", strings = listOf("test1", "test2"))
 
         assertEquals(listOf("test1", "test2"), fingerprint.strings)
         assertEquals(
-            listOf(StringComparisonType.CONTAINS, StringComparisonType.CONTAINS),
+            listOf(StringComparisonType.EQUALS, StringComparisonType.EQUALS),
             fingerprint.stringFilters?.map { it.comparison },
         )
     }

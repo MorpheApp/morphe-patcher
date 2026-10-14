@@ -1407,9 +1407,39 @@ internal object PatcherTest {
             assertEquals("Lclass1;", fingerprint.match().originalClassDef.type)
             assertEquals(1, visitedMethods)
 
-            val legacyFingerprint = Fingerprint(strings = listOf("_other"))
-            assertEquals(listOf("Lclass3;"), legacyFingerprint.matchAll().map { it.originalClassDef.type })
-            assertEquals("Lclass3;", legacyFingerprint.match().originalClassDef.type)
+            withLegacyRawStrings {
+                val legacyFingerprint = Fingerprint(strings = listOf("_other"))
+                assertEquals(listOf("Lclass3;"), legacyFingerprint.matchAll().map { it.originalClassDef.type })
+                assertEquals("Lclass3;", legacyFingerprint.match().originalClassDef.type)
+            }
+        }
+    }
+
+    @Test
+    fun `raw fingerprint strings use the raw string comparison`() {
+        val patchClasses = PatchClasses(
+            dexBackedClasses(
+                "Lclass1;" to listOf(dexBackedMethod("Lclass1;", "method1", "const-string v0, \"prefix_value\"\nreturn-void")),
+                "Lclass2;" to listOf(dexBackedMethod("Lclass2;", "method2", "const-string v0, \"value\"\nreturn-void")),
+            )
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+
+        with(patcher.context.bytecodeContext) {
+            fun matchedClasses() = Fingerprint(strings = listOf("value")).matchAll().map { it.originalClassDef.type }
+
+            assertEquals(listOf("Lclass2;"), matchedClasses())
+            assertNull(Fingerprint(strings = listOf("prefix_")).matchOrNull())
+
+            withLegacyRawStrings {
+                assertEquals(listOf("Lclass1;", "Lclass2;"), matchedClasses().sorted())
+                assertEquals(
+                    StringComparisonType.STARTS_WITH,
+                    Fingerprint(strings = listOf(string("prefix_", StringComparisonType.STARTS_WITH)))
+                        .stringFilters!!.single().comparison,
+                    "declared string filters keep their comparison",
+                )
+            }
         }
     }
 
@@ -1459,11 +1489,13 @@ internal object PatcherTest {
             assertEquals(listOf("Lclass1;"), fingerprint.matchAll().map { it.originalClassDef.type })
 
             // Raw strings use contains, so "exact" also matches "exact_value".
-            val rawFingerprint = Fingerprint(strings = listOf("_suffix", "exact"))
-            assertEquals(
-                listOf("Lclass1;", "Lclass2;"),
-                rawFingerprint.matchAll().map { it.originalClassDef.type }.sorted(),
-            )
+            withLegacyRawStrings {
+                val rawFingerprint = Fingerprint(strings = listOf("_suffix", "exact"))
+                assertEquals(
+                    listOf("Lclass1;", "Lclass2;"),
+                    rawFingerprint.matchAll().map { it.originalClassDef.type }.sorted(),
+                )
+            }
 
             val noMatchFingerprint = Fingerprint(strings = listOf(string("exact"), string("missing")))
             assertNull(noMatchFingerprint.matchOrNull())
@@ -1491,8 +1523,10 @@ internal object PatcherTest {
         every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
 
         with(patcher.context.bytecodeContext) {
-            val fingerprint = Fingerprint(strings = listOf("second", "first"))
-            assertEquals(listOf(1, 0), fingerprint.match().stringMatches.map { it.index })
+            withLegacyRawStrings {
+                val fingerprint = Fingerprint(strings = listOf("second", "first"))
+                assertEquals(listOf(1, 0), fingerprint.match().stringMatches.map { it.index })
+            }
         }
     }
 
@@ -1548,6 +1582,18 @@ internal object PatcherTest {
     }
 
     private operator fun Patch<*>.invoke() = setOf(this)().first()
+
+    /**
+     * Compares raw fingerprint strings as patches built for a version older than 2.0.0 expect.
+     */
+    private inline fun withLegacyRawStrings(block: () -> Unit) {
+        Fingerprint.rawStringComparison = StringComparisonType.CONTAINS
+        try {
+            block()
+        } finally {
+            Fingerprint.rawStringComparison = StringComparisonType.EQUALS
+        }
+    }
 
     private fun Any.setPrivateField(field: String, value: Any) {
         this::class.java.getDeclaredField(field).apply {
