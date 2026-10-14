@@ -313,6 +313,54 @@ internal object ResourceIdProcessorTest {
         }
     }
 
+    @Test
+    fun `process leaves a values file with only character references unchanged`() {
+        val stringsXml = """<?xml version="1.0" encoding="UTF-8"?>
+            <resources>
+                <string name="alert">&#128680; Alert</string>
+            </resources>
+        """.trimIndent()
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
+            valuesXml = mapOf("strings.xml" to stringsXml),
+        )
+
+        publicXmlManager.use { publicXmlManager ->
+            ResourceIdProcessor(
+                get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
+                publicIdManager = publicXmlManager,
+                modifiedResResources = createdResourceFiles,
+            ).process()
+
+            assertTrue(publicXmlManager.idExists("string", "alert"))
+        }
+
+        assertEquals(stringsXml, resDir.resolve("res/values/strings.xml").readText(Charsets.UTF_8))
+    }
+
+    @Test
+    fun `process finds an id declaration spelled with a character reference`() {
+        val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
+            layoutXml = mapOf(
+                "activity_main.xml" to """<?xml version="1.0" encoding="UTF-8"?>
+                    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android">
+                        <Button android:id="&#64;+id/my_button"/>
+                    </LinearLayout>
+                """.trimIndent(),
+            ),
+        )
+
+        publicXmlManager.use { publicXmlManager ->
+            ResourceIdProcessor(
+                get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
+                publicIdManager = publicXmlManager,
+                modifiedResResources = createdResourceFiles,
+            ).process()
+        }
+
+        assertContains(resDir.resolve("res/layout/activity_main.xml").readText(Charsets.UTF_8), "@id/my_button")
+        assertContains(resDir.resolve("res/values/ids.xml").readText(Charsets.UTF_8), "my_button")
+    }
+
     // ==================== Theme attribute reference expansion tests ====================
 
     @Test

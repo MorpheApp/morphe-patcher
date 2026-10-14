@@ -3,13 +3,18 @@
 package app.morphe.patcher.patch
 
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.util.jar.Attributes
+import java.util.jar.JarOutputStream
+import java.util.jar.Manifest
 import kotlin.reflect.KFunction
 import kotlin.reflect.full.companionObject
 import kotlin.reflect.full.declaredFunctions
 import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.jvm.javaField
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 // region Test patches.
 
@@ -51,8 +56,10 @@ internal object PatchLoaderTest {
     private val TEST_PATCHES_CLASS = ::publicPatch.javaField!!.declaringClass.name
     private val TEST_PATCHES_CLASS_LOADER = ::publicPatch.javaClass.classLoader
 
-    @Test
-    fun `loads patches correctly`() {
+    /**
+     * Calls the private PatchLoader.Companion.loadPatches function with the test patches.
+     */
+    private fun loadPatches(patchesFile: File): Set<Patch<*>> {
         // Get instance of private PatchLoader.Companion class.
         val patchLoaderCompanionObject = getPrivateFieldByType(
             PatchLoader::class.java,
@@ -67,11 +74,16 @@ internal object PatchLoaderTest {
         ) as KFunction<Map<File, Set<Patch<*>>>>
 
         // Call private PatchLoader.Companion.loadPatches function.
-        val patches = loadPatchesFunction.call(
+        return loadPatchesFunction.call(
             patchLoaderCompanionObject,
             TEST_PATCHES_CLASS_LOADER,
-            mapOf(File("patchesFile") to setOf(TEST_PATCHES_CLASS)),
+            mapOf(patchesFile to setOf(TEST_PATCHES_CLASS)),
         ).values.first()
+    }
+
+    @Test
+    fun `loads patches correctly`() {
+        val patches = loadPatches(File("patchesFile"))
 
         assertEquals(
             2,
@@ -80,6 +92,30 @@ internal object PatchLoaderTest {
                 "because there's only two named patches declared as public static fields " +
                 "or returned by public static and non-parametrized methods.",
         )
+    }
+
+    @Test
+    fun `loaded patches remember the bundle they were loaded from`(@TempDir tempDir: File) {
+        val patchesFile = tempDir.resolve("patches.mpp")
+        val manifest = Manifest().apply {
+            mainAttributes[Attributes.Name.MANIFEST_VERSION] = "1.0"
+            mainAttributes.putValue("Name", "Test patches")
+            mainAttributes.putValue("Version", "2.3.4")
+            mainAttributes.putValue("Patcher-Version", "1.16.0")
+        }
+        JarOutputStream(patchesFile.outputStream(), manifest).close()
+
+        val patches = loadPatches(patchesFile)
+
+        patches.forEach { patch ->
+            assertEquals(PatchBundleInfo(patchesFile, "Test patches", "2.3.4", "1.16.0"), patch.bundle)
+        }
+
+        // A bundle that has no manifest declares nothing.
+        loadPatches(tempDir.resolve("missing.mpp")).forEach { patch ->
+            assertNull(patch.bundle!!.patcherVersion)
+            assertEquals("missing.mpp", patch.bundle.toString())
+        }
     }
 
     private fun getPrivateFieldByType(cls: Class<*>, fieldType: Class<*>) =

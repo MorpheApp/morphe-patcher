@@ -105,6 +105,11 @@ sealed class Patch<C : PatchContext<*>>(
     val options = Options(options)
 
     /**
+     * The patch bundle the patch was loaded from by [PatchLoader], or null if it was not loaded from one.
+     */
+    internal var bundle: PatchBundleInfo? = null
+
+    /**
      * Calls the execution block of the patch.
      * This function is called by [Patcher.invoke].
      *
@@ -936,6 +941,7 @@ sealed class PatchLoader(
         /**
          * Loads unnamed patches declared as public static fields
          * or returned by public static and non-parametrized methods.
+         * Each patch remembers the patch bundle it was loaded from, see [Patch.bundle].
          *
          * @param binaryClassNamesByPatchesFile The binary class name of the classes to load the patches from
          * associated by the patches file.
@@ -943,7 +949,9 @@ sealed class PatchLoader(
          * @return The loaded patches associated by the patches file.
          */
         private fun ClassLoader.loadPatches(binaryClassNamesByPatchesFile: Map<File, Set<String>>) =
-            binaryClassNamesByPatchesFile.mapValues { (_, binaryClassNames) ->
+            binaryClassNamesByPatchesFile.mapValues { (patchesFile, binaryClassNames) ->
+                val bundle = PatchBundleInfo.read(patchesFile)
+
                 binaryClassNames.asSequence().mapNotNull {
                     try {
                         loadClass(it)
@@ -957,6 +965,8 @@ sealed class PatchLoader(
                     it.patchFields + it.patchMethods
                 }.filter {
                     it.name != null
+                }.onEach {
+                    it.bundle = bundle
                 }.toSet()
             }
 

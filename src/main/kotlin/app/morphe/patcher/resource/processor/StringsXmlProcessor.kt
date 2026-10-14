@@ -37,9 +37,10 @@ abstract internal class StringsXmlProcessor(
 
     /**
      * @param files The strings files to process. Anything else in the collection is ignored.
+     * @param log Whether to log that strings are processed, which decoding single files on request does not.
      */
-    fun process(files: Collection<File> = stringsFiles()) {
-        logger.info(logString)
+    fun process(files: Collection<File> = stringsFiles(), log: Boolean = true) {
+        if (log) logger.info(logString)
         files.filter { it.name == "strings.xml" && it.isFile }.parallelStream().forEach(::processFile)
     }
 

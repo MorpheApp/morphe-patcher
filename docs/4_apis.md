@@ -9,10 +9,11 @@ A handful of APIs are available to make patch development easier and more effici
 3. 💾 Read and write resource files with `get(String, Boolean)` and `delete(String)`
 4. 📃 Read and write DOM files using `document(String)` and  `document(InputStream)`
 5. 📜 List the entries of the APK being patched with `listApkEntries(String)`
-6. 🧮 Find free registers to use in injected code with `findFreeRegister(Int, Int...)` and `getFreeRegisterProvider(Int, Int, Int...)`
-7. 🔬 Get the registers of an instruction with `registersUsed`
-8. ↩️ Override the return value of a method with `returnEarly()` and `returnLate()`
-9. 🔁 Change every matching instruction in all methods with `matchAllMethodIndicesForEach()`
+6. 🗂️ Decode resources when they are needed with `decode(String...)` and `listDecodableFiles(String)`
+7. 🧮 Find free registers to use in injected code with `findFreeRegister(Int, Int...)` and `getFreeRegisterProvider(Int, Int, Int...)`
+8. 🔬 Get the registers of an instruction with `registersUsed`
+9. ↩️ Override the return value of a method with `returnEarly()` and `returnLate()`
+10. 🔁 Change every matching instruction in all methods with `matchAllMethodIndicesForEach()`
 
 ### 🧰 APIs
 
@@ -58,6 +59,12 @@ execute {
     file.writeText(content)
 }
 ```
+
+When resources are decoded on request, as `decode(String...)` below describes, `get` decodes the file
+first if it is not decoded yet. Pass `false` as the second argument to get the file without decoding it,
+to replace or add a file. A values file written this way, such as
+`res/values-de/strings.xml`, adds its resources to those of the APK and replaces the ones of the same name,
+but removes none.
 
 The `delete` function can mark files for deletion when the APK is rebuilt. It accepts decoded
 resource paths as well as any other entry of the APK as returned by `listApkEntries(String)`,
@@ -117,6 +124,45 @@ execute {
 
 The listing describes the input APK, so it does not reflect files a patch has since added,
 changed or deleted.
+
+#### 🗂️ `decode(String...)` and `listDecodableFiles(String)`
+
+Resources are decoded when patches need them, instead of all of them before any patch executes.
+Decoding a large app takes much of the time patching does, while patches read only a few of its files.
+
+- The manifest is always decoded.
+- A file a patch reads by its path, with `get(String, Boolean)` or `document(String)`, is decoded then.
+- A directory only holds the files decoded or added so far. A patch that lists or walks a directory must
+  first decode what it looks for with `decode`.
+
+`decode` takes glob patterns: `*` matches within one segment of a path, `**` matches across segments and
+`?` matches one character. A pattern that matches a directory matches everything below it, and `**`
+decodes everything. It returns the matching files in the working directory, which include files patches
+added. Files that are already decoded, or that a patch changed, added or deleted, are left as they are.
+
+```kt
+execute {
+    // Every values file holding colors, such as res/values-night/colors.xml.
+    decode("res/values*/colors.xml").forEach { path ->
+        document(path).use { document ->
+            // ...
+        }
+    }
+
+    // Everything below a directory.
+    decode("res/xml")
+}
+```
+
+`listDecodableFiles` lists what can be decoded, by the path it is decoded to, without decoding anything.
+It lists the manifest, the resource files, the values files `resources.arsc` is decoded to, and the other
+entries of the APK, which are extracted as they are. Native libraries and DEX files are not listed.
+
+```kt
+execute {
+    val locales = listDecodableFiles("res/values-*/strings.xml")
+}
+```
 
 #### 🧮 `findFreeRegister(Int, Int...)` and `getFreeRegisterProvider(Int, Int, Int...)`
 
