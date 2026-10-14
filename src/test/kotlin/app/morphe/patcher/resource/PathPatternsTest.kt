@@ -6,6 +6,7 @@
 package app.morphe.patcher.resource
 
 import org.junit.jupiter.api.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -81,5 +82,29 @@ internal class PathPatternsTest {
         assertTrue(mayMatchBelow("res/drawable-?dpi/icon.png", "res/drawable-hdpi"))
         assertFalse(mayMatchBelow("res/drawable-?dpi/icon.png", "res/drawable-xxhdpi"))
         assertTrue(PathPatterns(listOf("assets/a", "res/layout")).mayMatchBelow("res/layout"))
+    }
+
+    @Test
+    fun `testing the paths in a directory gives the same result as matches`() {
+        val patterns = listOf(
+            "**", "", "res", "res/layout", "res/layout*/*", "res/drawable*/icon.*", "**/strings.xml",
+            "res/**.xml", "res/*/main.xml", "res/drawable-?dpi/icon.png", "res/values-de", "assets",
+        )
+        val paths = listOf(
+            "AndroidManifest.xml", "assets/data.bin", "assets/sub/data.bin", "res/layout/main.xml",
+            "res/layout-land/main.xml", "res/drawable/icon.xml", "res/drawable-xxhdpi/icon.png",
+            "res/drawable-hdpi/icon.png", "res/values/strings.xml", "res/values-de/strings.xml", "res/xml/main.xml",
+        )
+
+        (patterns.map { listOf(it) } + listOf(patterns.drop(4).take(3))).forEach { patternList ->
+            val matcher = PathPatterns(patternList)
+            paths.forEach { path ->
+                assertEquals(
+                    matcher.matches(path),
+                    matcher.matcherIn(path.substringBeforeLast('/', ""))(path),
+                    "$patternList and $path",
+                )
+            }
+        }
     }
 }

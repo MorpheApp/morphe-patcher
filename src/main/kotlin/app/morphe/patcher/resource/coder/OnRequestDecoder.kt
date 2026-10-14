@@ -7,6 +7,7 @@ package app.morphe.patcher.resource.coder
 
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.PathMap
+import app.morphe.patcher.resource.PathPatterns
 import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ResFile
 import com.reandroid.apk.UncompressedFiles
@@ -66,6 +67,18 @@ internal class DecodablePackage(val name: String, val id: Int, val directory: Fi
     val paths: Sequence<String>
         get() = resourceFiles.keys.asSequence() + valuesFiles.keys.asSequence() + PUBLIC_XML +
                 (if (hasOverlayables) sequenceOf(OVERLAYABLE_XML) else emptySequence())
+
+    /** [paths] by the directory they are in. The catalog is complete before anything searches it. */
+    private val pathsByDirectory by lazy { paths.groupBy { it.substringBeforeLast('/', "") } }
+
+    /**
+     * The paths that match [matcher]. Each directory is settled once, and only the paths in a directory
+     * a match can be in are tested, since a large app has thousands of paths and patches decode a few at a time.
+     */
+    fun matchingPaths(matcher: PathPatterns): Sequence<String> =
+        pathsByDirectory.asSequence().flatMap { (directory, paths) ->
+            paths.asSequence().filter(matcher.matcherIn(directory))
+        }
 
     operator fun contains(path: String) =
         path in resourceFiles || path in valuesFiles || path == PUBLIC_XML || (hasOverlayables && path == OVERLAYABLE_XML)

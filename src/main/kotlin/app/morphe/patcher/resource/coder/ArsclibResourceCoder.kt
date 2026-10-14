@@ -9,6 +9,7 @@ import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.ApkUtils
+import app.morphe.patcher.apk.ApkUtils.applyTo
 import app.morphe.patcher.apk.ApkUtils.writeAlignedApk
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.CpuArchitecture
@@ -28,10 +29,10 @@ import app.morphe.patcher.util.FileUtils.safelyDelete
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import com.android.tools.build.apkzlib.zip.ZFile
 import com.reandroid.apk.ApkModule
-import com.reandroid.apk.ApkUtil
 import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
+import com.reandroid.apk.ApkUtil
 import com.reandroid.archive.InputSource
 import com.reandroid.archive.block.ApkSignatureBlock
 import com.reandroid.arsc.chunk.PackageBlock
@@ -1304,11 +1305,12 @@ internal class ArsclibResourceCoder(
 
         val paths = onRequestDecoder?.let { decoder ->
             val decodablePackage = decoder.packages[pkgName] ?: throw PatchException("Package $pkgName not found")
-            sequenceOf("AndroidManifest.xml") + decodablePackage.paths + decoder.rootEntries.asSequence()
-        } ?: rawEntriesOnRequest?.asSequence()
-            ?: (decodedUpFront[pkgName].orEmpty() + decodedUpFront[""].orEmpty()).asSequence()
+            (sequenceOf("AndroidManifest.xml") + decoder.rootEntries.asSequence()).filter(matcher::matches) +
+                    decodablePackage.matchingPaths(matcher)
+        } ?: (rawEntriesOnRequest?.asSequence()
+            ?: (decodedUpFront[pkgName].orEmpty() + decodedUpFront[""].orEmpty()).asSequence()).filter(matcher::matches)
 
-        return paths.filter(matcher::matches).sorted().toList()
+        return paths.sorted().toList()
     }
 
     override fun decode(patterns: Collection<String>, packageName: String?): List<String> {
@@ -1317,7 +1319,7 @@ internal class ArsclibResourceCoder(
 
         onRequestDecoder?.let { decoder ->
             val decodablePackage = decoder.packages[pkgName] ?: throw PatchException("Package $pkgName not found")
-            decodeOnRequest(decodablePackage, decodablePackage.paths.filter(matcher::matches).toList())
+            decodeOnRequest(decodablePackage, decodablePackage.matchingPaths(matcher).toList())
             extractRootEntriesOnRequest(decoder.rootEntries.filter(matcher::matches))
         }
         rawEntriesOnRequest?.let { entries -> extractRootEntriesOnRequest(entries.filter(matcher::matches)) }

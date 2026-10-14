@@ -48,23 +48,44 @@ internal class PathPatterns(patterns: Collection<String>) {
      * none can be in.
      */
     fun mayMatchBelow(directory: String): Boolean {
-        val directorySegments = normalize(directory).let { if (it.isEmpty()) emptyList() else it.split('/') }
+        val directorySegments = segmentsOf(directory)
+        return segments.any { mayMatchBelow(it, directorySegments) }
+    }
 
-        return segments.any { patternSegments ->
-            if (patternSegments == null) return@any true
+    /**
+     * A test of the paths directly in [directory], equal to [matches] but faster for many paths, since the
+     * directory and the patterns that can match in it are settled once.
+     */
+    fun matcherIn(directory: String): (String) -> Boolean {
+        // A pattern naming the directory or one above it matches everything in it.
+        if (matches(directory)) return { true }
 
-            directorySegments.forEachIndexed { index, directorySegment ->
-                // The pattern names a directory above, which matches everything below it.
-                if (index == patternSegments.size) return@any true
-                val regex = patternSegments[index] ?: return@any true
-                if (!regex.matches(directorySegment)) return@any false
-            }
-            true
+        val directorySegments = segmentsOf(directory)
+        val candidates = regexes.filterIndexed { index, _ -> mayMatchBelow(segments[index], directorySegments) }
+        if (candidates.isEmpty()) return { false }
+
+        return { path ->
+            val normalized = normalize(path)
+            candidates.any { it.matches(normalized) }
         }
+    }
+
+    private fun mayMatchBelow(patternSegments: List<Regex?>?, directorySegments: List<String>): Boolean {
+        if (patternSegments == null) return true
+
+        directorySegments.forEachIndexed { index, directorySegment ->
+            // The pattern names a directory above, which matches everything below it.
+            if (index == patternSegments.size) return true
+            val regex = patternSegments[index] ?: return true
+            if (!regex.matches(directorySegment)) return false
+        }
+        return true
     }
 
     private companion object {
         fun normalize(path: String) = path.replace('\\', '/').trim().trim('/')
+
+        fun segmentsOf(path: String) = normalize(path).let { if (it.isEmpty()) emptyList() else it.split('/') }
 
         fun toRegex(pattern: String): Regex {
             if (pattern.isEmpty()) return Regex(".*", RegexOption.DOT_MATCHES_ALL)

@@ -39,12 +39,16 @@ internal class ResourceIdProcessor(
 
             modifiedResResources
                 .filter { it.exists() && it.extension == "xml" }
-                .forEach {
-                    if (canHaveIdOrThemeAttrDeclarations(it)) {
-                        processIdAndAttrDeclarations(it, idNode)
+                .forEach { file ->
+                    // The document parser detects the encoding of a file that is not UTF-8, the pull parser does not.
+                    val declarations = if (file.isUtf16()) null else readDeclarations(file)
+                    if (declarations == null || declarations.needsRewrite) {
+                        processIdAndAttrDeclarations(file, idNode)
+                        // The rewrite changes attribute values, so the declarations are read again.
+                        createPublicIdsFromValuesXml(file)
+                    } else {
+                        declarations.createPublicIds()
                     }
-                    // Update publicIdManager from values XML files (later, including the newly modified ids.xml)
-                    createPublicIdsFromValuesXml(it)
                 }
         }
 
@@ -62,19 +66,6 @@ internal class ResourceIdProcessor(
                 }
             }
         }
-    }
-
-    /**
-     * If [file] can have an id declaration or a shorthand theme attribute reference, which
-     * [processIdAndAttrDeclarations] rewrites. Most changed files are values files without
-     * either, and reading the text is much faster than parsing and writing back the document.
-     */
-    private fun canHaveIdOrThemeAttrDeclarations(file: File): Boolean {
-        val text = file.readText()
-        // A character reference can spell any of these, and a null character is a sign of
-        // a file that is not UTF-8, so such files are always processed.
-        return "+id/" in text || "&#" in text || '\u0000' in text ||
-                attributeValueStartingWithQuestionMark.containsMatchIn(text)
     }
 
     private fun processIdAndAttrDeclarations(file: File, idNode: Node): Set<String> {
@@ -111,10 +102,6 @@ internal class ResourceIdProcessor(
         return createdIds
     }
 
-    private companion object {
-        private val attributeValueStartingWithQuestionMark = Regex("""=\s*["']\?""")
-    }
-
     private fun expandThemeAttrReference(value: String): String {
         // value starts with '?' and has no '/'
         val afterQuestion = value.substring(1)
@@ -130,13 +117,36 @@ internal class ResourceIdProcessor(
         }
     }
 
-    private fun createPublicIdsFromValuesXml(file: File) {
+    /**
+     * The resources a file declares, in the order they appear, and whether it has an id declaration
+     * or a shorthand theme attribute reference that [processIdAndAttrDeclarations] rewrites.
+     */
+    private inner class Declarations(
+        val publicIds: List<Pair<String, String?>>,
+        val needsRewrite: Boolean,
+    ) {
+        fun createPublicIds() = publicIds.forEach { (type, name) -> publicIdManager.createPublicId(type, name) }
+    }
+
+    private fun createPublicIdsFromValuesXml(file: File) = readDeclarations(file).createPublicIds()
+
+    /**
+     * Reads [file] in one streaming pass. Most changed files are values files that need no rewrite,
+     * and parsing them as a document and writing them back is much slower. The parser resolves
+     * character references, so a reference that spells an id declaration is found too.
+     */
+    private fun readDeclarations(file: File): Declarations {
+        val publicIds = mutableListOf<Pair<String, String?>>()
+        var needsRewrite = false
+
         file.parseXml { parser ->
             var eventType = parser.eventType
             var depth = 0
             while (eventType != XmlPullParser.END_DOCUMENT) {
                 when (eventType) {
                     XmlPullParser.START_TAG -> {
+                        if (!needsRewrite) needsRewrite = parser.hasIdOrThemeAttrDeclaration()
+
                         val tagName = parser.name
                         if (depth >= 1) {
                             val idName = parser.getAttributeValue(null, "name")
@@ -147,7 +157,7 @@ internal class ResourceIdProcessor(
                                 tagName
                             }
                             val publicTagName = resourceToTagOverrideMapping[resolvedTagName] ?: resolvedTagName
-                            publicIdManager.createPublicId(publicTagName, idName)
+                            publicIds += publicTagName to idName
                         }
                         depth += 1
                     }
@@ -158,5 +168,35 @@ internal class ResourceIdProcessor(
                 eventType = parser.next()
             }
         }
+
+        return Declarations(publicIds, needsRewrite)
+    }
+
+    /**
+     * If [file] starts with a UTF-16 byte order mark, or with a null byte, which UTF-16 text without one has.
+     */
+    private fun File.isUtf16(): Boolean {
+        val head = ByteArray(2)
+        val read = inputStream().use { it.read(head) }
+        if (read < 2) return false
+        val first = head[0].toInt() and 0xFF
+        val second = head[1].toInt() and 0xFF
+        return (first == 0xFE && second == 0xFF) || (first == 0xFF && second == 0xFE) || first == 0 || second == 0
+    }
+
+    /**
+     * If the current tag has what [processIdAndAttrDeclarations] rewrites: an `android:id` that
+     * declares an id, or an attribute value that is a shorthand theme attribute reference.
+     */
+    private fun XmlPullParser.hasIdOrThemeAttrDeclaration(): Boolean {
+        for (i in 0 until attributeCount) {
+            val value = getAttributeValue(i)
+            if (value.startsWith('?') && !value.contains('/')) return true
+
+            val prefix = getAttributePrefix(i)
+            val qualifiedName = if (prefix == null) getAttributeName(i) else "$prefix:${getAttributeName(i)}"
+            if (qualifiedName == "android:id" && value.startsWith("@+id/")) return true
+        }
+        return false
     }
 }
