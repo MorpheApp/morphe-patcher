@@ -46,10 +46,12 @@ open class Fingerprint private constructor(
     val filters: List<InstructionFilter>? = null,
     val stringFilters: List<StringFilter>? = null,
     val custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    isStatic: Boolean? = null,
 ) {
     internal val definingClass: String? = definingClass
     internal val name: String? = name
     internal val parameters: List<String>? = parameters
+    internal val isStatic: Boolean? = isStatic
 
     /**
      * The string values of [stringFilters].
@@ -94,6 +96,9 @@ open class Fingerprint private constructor(
      * @param classFingerprint Fingerprint that finds the class this fingerprint resolves against.
      * @param name Exact method name.
      * @param accessFlags The exact access flags using values of [AccessFlags].
+     *                    Access flags can change between app versions. If only static or
+     *                    non static matters, instead use a constructor that declares `isStatic`
+     *                    and match constructors with `name = "<init>"` or `name = "<clinit>"`.
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
@@ -129,6 +134,9 @@ open class Fingerprint private constructor(
      *
      * @param name Exact method name.
      * @param accessFlags The exact access flags using values of [AccessFlags].
+     *                    Access flags can change between app versions. If only static or
+     *                    non static matters, instead use a constructor that declares `isStatic`
+     *                    and match constructors with `name = "<init>"` or `name = "<clinit>"`.
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
@@ -164,6 +172,9 @@ open class Fingerprint private constructor(
      * @param definingClass Defining class. Type declaration follow the semantics described in [StringComparisonType].
      * @param name Exact method name.
      * @param accessFlags The exact access flags using values of [AccessFlags].
+     *                    Access flags can change between app versions. If only static or
+     *                    non static matters, instead use a constructor that declares `isStatic`
+     *                    and match constructors with `name = "<init>"` or `name = "<clinit>"`.
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
@@ -209,6 +220,9 @@ open class Fingerprint private constructor(
      * @param classFingerprint Fingerprint that finds the class this fingerprint resolves against.
      * @param name Exact method name.
      * @param accessFlags The exact access flags using values of [AccessFlags].
+     *                    Access flags can change between app versions. If only static or
+     *                    non-static matters, instead use a constructor that declares `isStatic`
+     *                    and match constructors with `name = "<init>"` or `name = "<clinit>"`.
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
@@ -245,6 +259,9 @@ open class Fingerprint private constructor(
      *
      * @param name Exact method name.
      * @param accessFlags The exact access flags using values of [AccessFlags].
+     *                    Access flags can change between app versions. If only static or
+     *                    non-static matters, instead use a constructor that declares `isStatic`
+     *                    and match constructors with `name = "<init>"` or `name = "<clinit>"`.
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
@@ -281,6 +298,9 @@ open class Fingerprint private constructor(
      * @param definingClass Defining class. Type declaration follow the semantics described in [StringComparisonType].
      * @param name Exact method name.
      * @param accessFlags The exact access flags using values of [AccessFlags].
+     *                    Access flags can change between app versions. If only static or
+     *                    non-static matters, instead use a constructor that declares `isStatic`
+     *                    and match constructors with `name = "<init>"` or `name = "<clinit>"`.
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
      * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
@@ -307,6 +327,253 @@ open class Fingerprint private constructor(
         filters,
         strings.toList(),
         custom
+    )
+
+    //
+    // Constructors that declare if the method is static instead of declaring exact access flags.
+    //
+    // Static is the only access flag that does not change between app versions,
+    // while visibility, final and synthetic flags can change from R8/ProGuard
+    // optimizations or from unrelated code changes.
+    //
+    // The constructor access flag cannot be declared with isStatic. Instead match
+    // constructors using name = "<init>" or static initializers using name = "<clinit>".
+    //
+    // The isStatic parameter is required and not nullable, so calls that do not declare
+    // isStatic always resolve to the accessFlags constructors above.
+    //
+
+    /**
+     * A fingerprint for a method. A fingerprint is a partial description of a method,
+     * used to uniquely match a method by its characteristics.
+     *
+     * See the patcher documentation for more detailed explanations and example fingerprinting.
+     *
+     * @param classFingerprint Fingerprint that finds the class this fingerprint resolves against.
+     * @param name Exact method name.
+     * @param isStatic If the method is static. All other access flags are ignored.
+     *                 To match a constructor declare `name = "<init>"`,
+     *                 or for a static initializer declare `name = "<clinit>"`.
+     * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
+     * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param custom A custom condition for this fingerprint.
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        name: String? = null,
+        isStatic: Boolean,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint,
+        null,
+        name,
+        null,
+        returnType,
+        parameters,
+        filters,
+        containsStringFilters(strings),
+        custom,
+        isStatic
+    )
+
+    /**
+     * A fingerprint for a method. A fingerprint is a partial description of a method,
+     * used to uniquely match a method by its characteristics.
+     *
+     * See the patcher documentation for more detailed explanations and example fingerprinting.
+     *
+     * @param name Exact method name.
+     * @param isStatic If the method is static. All other access flags are ignored.
+     *                 To match a constructor declare `name = "<init>"`,
+     *                 or for a static initializer declare `name = "<clinit>"`.
+     * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
+     * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param custom A custom condition for this fingerprint.
+     */
+    constructor(
+        name: String? = null,
+        isStatic: Boolean,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        null,
+        null,
+        name,
+        null,
+        returnType,
+        parameters,
+        filters,
+        containsStringFilters(strings),
+        custom,
+        isStatic
+    )
+
+    /**
+     * A fingerprint for a method. A fingerprint is a partial description of a method,
+     * used to uniquely match a method by its characteristics.
+     *
+     * See the patcher documentation for more detailed explanations and example fingerprinting.
+     *
+     * @param definingClass Defining class. Type declaration follow the semantics described in [StringComparisonType].
+     * @param name Exact method name.
+     * @param isStatic If the method is static. All other access flags are ignored.
+     *                 To match a constructor declare `name = "<init>"`,
+     *                 or for a static initializer declare `name = "<clinit>"`.
+     * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
+     * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+     * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.contains].
+     * @param custom A custom condition for this fingerprint.
+     */
+    constructor( // Required to disambiguate if defining class or class fingerprint is not specified.
+        definingClass: String? = null,
+        name: String? = null,
+        isStatic: Boolean,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        null,
+        definingClass,
+        name,
+        null,
+        returnType,
+        parameters,
+        filters,
+        containsStringFilters(strings),
+        custom,
+        isStatic
+    )
+
+    /**
+     * A fingerprint for a method. A fingerprint is a partial description of a method,
+     * used to uniquely match a method by its characteristics.
+     *
+     * See the patcher documentation for more detailed explanations and example fingerprinting.
+     *
+     * @param classFingerprint Fingerprint that finds the class this fingerprint resolves against.
+     * @param name Exact method name.
+     * @param isStatic If the method is static. All other access flags are ignored.
+     *                 To match a constructor declare `name = "<init>"`,
+     *                 or for a static initializer declare `name = "<clinit>"`.
+     * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
+     * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+     * @param strings A list of [string] filters that match anywhere in the method in any order.
+     *                Filters cannot declare an [InstructionLocation].
+     * @param custom A custom condition for this fingerprint.
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        name: String? = null,
+        isStatic: Boolean,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: Collection<StringFilter>,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint,
+        null,
+        name,
+        null,
+        returnType,
+        parameters,
+        filters,
+        strings.toList(),
+        custom,
+        isStatic
+    )
+
+    /**
+     * A fingerprint for a method. A fingerprint is a partial description of a method,
+     * used to uniquely match a method by its characteristics.
+     *
+     * See the patcher documentation for more detailed explanations and example fingerprinting.
+     *
+     * @param name Exact method name.
+     * @param isStatic If the method is static. All other access flags are ignored.
+     *                 To match a constructor declare `name = "<init>"`,
+     *                 or for a static initializer declare `name = "<clinit>"`.
+     * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
+     * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+     * @param strings A list of [string] filters that match anywhere in the method in any order.
+     *                Filters cannot declare an [InstructionLocation].
+     * @param custom A custom condition for this fingerprint.
+     */
+    constructor(
+        name: String? = null,
+        isStatic: Boolean,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: Collection<StringFilter>,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        null,
+        null,
+        name,
+        null,
+        returnType,
+        parameters,
+        filters,
+        strings.toList(),
+        custom,
+        isStatic
+    )
+
+    /**
+     * A fingerprint for a method. A fingerprint is a partial description of a method,
+     * used to uniquely match a method by its characteristics.
+     *
+     * See the patcher documentation for more detailed explanations and example fingerprinting.
+     *
+     * @param definingClass Defining class. Type declaration follow the semantics described in [StringComparisonType].
+     * @param name Exact method name.
+     * @param isStatic If the method is static. All other access flags are ignored.
+     *                 To match a constructor declare `name = "<init>"`,
+     *                 or for a static initializer declare `name = "<clinit>"`.
+     * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
+     * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+     * @param strings A list of [string] filters that match anywhere in the method in any order.
+     *                Filters cannot declare an [InstructionLocation].
+     * @param custom A custom condition for this fingerprint.
+     */
+    constructor( // Required to disambiguate if defining class or class fingerprint is not specified.
+        definingClass: String? = null,
+        name: String? = null,
+        isStatic: Boolean,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: Collection<StringFilter>,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        null,
+        definingClass,
+        name,
+        null,
+        returnType,
+        parameters,
+        filters,
+        strings.toList(),
+        custom,
+        isStatic
     )
 
     // @Deprecated("Here only for backwards compatibility") // TODO: Remove after next major version bump.
@@ -353,6 +620,20 @@ open class Fingerprint private constructor(
 
     internal val accessFlags: Int? = accessFlags?.fold(0) { acc, it -> acc or it.value }
 
+    /**
+     * Bits of the method access flags that must equal [accessFlagsValue].
+     * Exact [accessFlags] compare all bits, [isStatic] compares only the static bit,
+     * and zero compares nothing.
+     */
+    private val accessFlagsMask: Int = when {
+        this.accessFlags != null -> -1
+        isStatic != null -> AccessFlags.STATIC.value
+        else -> 0
+    }
+
+    private val accessFlagsValue: Int = this.accessFlags
+        ?: if (isStatic == true) AccessFlags.STATIC.value else 0
+
     // Constructor always has return type of void.
     internal val returnType: String? = if (this.accessFlags != null && AccessFlags.CONSTRUCTOR.isSet(this.accessFlags)
         && returnType == "V"
@@ -360,10 +641,15 @@ open class Fingerprint private constructor(
 
     init {
         // Verify an empty fingerprint wasn't declared.
-        if (definingClass == null  && name == null && accessFlags == null && returnType == null
-            && parameters == null && filters == null && stringFilters == null && custom == null
+        if (definingClass == null  && name == null && accessFlags == null && isStatic == null
+            && returnType == null && parameters == null && filters == null && stringFilters == null
+            && custom == null
         ) {
             throw IllegalArgumentException("At least one field must be set")
+        }
+
+        require(accessFlags == null || isStatic == null) {
+            "Cannot specify both accessFlags and isStatic"
         }
 
         stringFilters?.forEach { filter ->
@@ -583,12 +869,11 @@ open class Fingerprint private constructor(
         method: Method,
         classDef: ClassDef
     ): Match? {
-        // Store local to avoid duplicate field access and Kotlin intrinsic null check calls.
-        val accessFlagsLocal = accessFlags
-        if (accessFlagsLocal != null && accessFlagsLocal != method.accessFlags) {
+        if ((method.accessFlags and accessFlagsMask) != accessFlagsValue) {
             return null
         }
 
+        // Store local to avoid duplicate field access and Kotlin intrinsic null check calls.
         val parametersLocal = parameters
         val parameterTypes = if (parametersLocal == null) {
             null
@@ -1083,6 +1368,7 @@ open class Fingerprint private constructor(
             definingClass?.let { add("definingClass=$it") }
             name?.let { add("name=$it") }
             accessFlags?.let { add("accessFlags=${AccessFlags.formatAccessFlagsForMethod(it)}") }
+            isStatic?.let { add("isStatic=$it") }
             returnType?.let { add("returnType=$it") }
             parameters?.let { add("parameters=$it") }
             filters?.let { filters -> add("filters=${filters.map { it.javaClass.simpleName }}") }
