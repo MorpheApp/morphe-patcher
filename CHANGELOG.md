@@ -1,3 +1,10 @@
+# [2.0.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.2...v2.0.0-dev.3) (2026-10-14)
+
+
+### Bug Fixes
+
+* Change raw unordered string declarations to equals comparison ([#248](https://github.com/MorpheApp/morphe-patcher/issues/248)) ([d5e668a](https://github.com/MorpheApp/morphe-patcher/commit/d5e668afb184cbdd0d048cbb777295861aeeddcc))
+
 # [2.0.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.1...v2.0.0-dev.2) (2026-10-14)
 
 
