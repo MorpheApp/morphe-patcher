@@ -26,6 +26,11 @@ import java.util.logging.Logger
  * @param useArsclib Whether to use Arsclib for resource decoding and compiling.
  * @param verifier The output verifier to use.
  * @param fileWorkspacePath Temporary file workspace that patches may use.
+ * @param targetPatcherVersion The version of Morphe Patcher whose behavior patching uses, such as `1.16.0`.
+ * Behavior that changed in a way older patches may not expect only applies to patches built for the version
+ * that changed it or a newer one. Null, the default, uses the newest version the patch bundles of the
+ * added patches were built for, as the `Patcher-Version` attribute of their manifests declares it.
+ * Without any, patching uses the behavior of the oldest version.
  */
 class PatcherConfig(
     internal val apkFile: File,
@@ -37,7 +42,32 @@ class PatcherConfig(
     internal val useBytecodeMode: BytecodeMode = BytecodeMode.STRIP_FAST,
     internal val verifier: DexVerifier = NoOpDexVerifier,
     private val fileWorkspacePath: File? = null,
+    internal val targetPatcherVersion: String? = null,
 ) {
+    @Deprecated("Kept for binary compatibility", level = DeprecationLevel.HIDDEN)
+    constructor(
+        apkFile: File,
+        temporaryFilesPath: File,
+        aaptBinaryPath: String?,
+        frameworkFileDirectory: String?,
+        useArsclib: Boolean,
+        keepArchitectures: Set<CpuArchitecture>,
+        useBytecodeMode: BytecodeMode,
+        verifier: DexVerifier,
+        fileWorkspacePath: File?,
+    ) : this(
+        apkFile,
+        temporaryFilesPath,
+        aaptBinaryPath,
+        frameworkFileDirectory,
+        useArsclib,
+        keepArchitectures,
+        useBytecodeMode,
+        verifier,
+        fileWorkspacePath,
+        null,
+    )
+
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
 
     /**
@@ -65,6 +95,17 @@ class PatcherConfig(
      * @see BytecodeMode
      */
     internal var bytecodeMode = BytecodeMode.NONE
+
+    /**
+     * The version of Morphe Patcher whose behavior patching uses, or null for the behavior of the oldest
+     * version. Resolved when patches are added, see [targetPatcherVersion].
+     */
+    internal var behaviorVersion: PatcherVersion? = null
+
+    /**
+     * Whether [behavior] applies to the patches being applied.
+     */
+    internal fun uses(behavior: PatcherBehavior) = behavior.appliesTo(behaviorVersion)
 
     /**
      * The path to the temporary apk files directory.

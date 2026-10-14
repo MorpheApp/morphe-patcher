@@ -1,0 +1,67 @@
+/*
+ * Copyright 2026 Morphe.
+ * https://github.com/MorpheApp/morphe-patcher
+ */
+
+package app.morphe.patcher.resource
+
+import org.junit.jupiter.api.Test
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+internal class PathPatternsTest {
+    private fun matches(pattern: String, path: String) = PathPatterns(listOf(pattern)).matches(path)
+
+    @Test
+    fun `a star matches within one segment`() {
+        assertTrue(matches("res/values*/strings.xml", "res/values/strings.xml"))
+        assertTrue(matches("res/values*/strings.xml", "res/values-de/strings.xml"))
+        assertFalse(matches("res/values*/strings.xml", "res/values-de/colors.xml"))
+        assertFalse(matches("res/*.xml", "res/values/strings.xml"))
+        assertTrue(matches("res/drawable*/icon.*", "res/drawable-xxhdpi/icon.png"))
+    }
+
+    @Test
+    fun `a double star matches across segments`() {
+        assertTrue(matches("**", "AndroidManifest.xml"))
+        assertTrue(matches("**", "res/values/strings.xml"))
+        assertTrue(matches("**/strings.xml", "res/values/strings.xml"))
+        assertTrue(matches("**/strings.xml", "strings.xml"))
+        assertTrue(matches("res/**.xml", "res/layout/main.xml"))
+        assertFalse(matches("res/**.xml", "assets/main.xml"))
+    }
+
+    @Test
+    fun `a question mark matches one character`() {
+        assertTrue(matches("res/drawable-?dpi/icon.png", "res/drawable-hdpi/icon.png"))
+        assertFalse(matches("res/drawable-?dpi/icon.png", "res/drawable-xxhdpi/icon.png"))
+        assertFalse(matches("res?values/strings.xml", "res/values/strings.xml"))
+    }
+
+    @Test
+    fun `a pattern matching a directory matches everything below it`() {
+        assertTrue(matches("res/xml", "res/xml/main.xml"))
+        assertTrue(matches("res/xml/", "res/xml/main.xml"))
+        assertTrue(matches("res/values*", "res/values-de/strings.xml"))
+        assertTrue(matches("assets", "assets/a/b/c.bin"))
+        assertTrue(matches("", "res/values/strings.xml"))
+        assertFalse(matches("res/xml", "res/xml-v21/main.xml"))
+        assertFalse(matches("res/xm", "res/xml/main.xml"))
+    }
+
+    @Test
+    fun `other characters match themselves`() {
+        assertTrue(matches("res/values/strings.xml", "res/values/strings.xml"))
+        assertFalse(matches("res/values/strings.xml", "res/values/stringsXxml"))
+        assertTrue(matches("res/drawable/a+b (1).png", "res/drawable/a+b (1).png"))
+        assertTrue(matches("res/values/strings.xml", "/res/values/strings.xml"))
+    }
+
+    @Test
+    fun `any of several patterns matches`() {
+        val patterns = PathPatterns(listOf("res/values*/colors.xml", "res/values*/styles.xml"))
+        assertTrue(patterns.matches("res/values-night/styles.xml"))
+        assertTrue(patterns.matches("res/values/colors.xml"))
+        assertFalse(patterns.matches("res/values/strings.xml"))
+    }
+}

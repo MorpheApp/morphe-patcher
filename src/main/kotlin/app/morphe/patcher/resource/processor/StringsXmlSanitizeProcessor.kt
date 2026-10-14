@@ -20,20 +20,25 @@ internal class StringsXmlSanitizeProcessor(
 ) {
     private val logger = Logger.getLogger(StringsXmlSanitizeProcessor::class.java.name)
 
-    fun process() {
-        logger.info("Sanitizing unpatched strings")
-
-        val stringFiles = buildList {
-            packageDirectories.forEach { (_, rootDir) ->
-                rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
-                    dir.listFiles { it.name == "strings.xml" }?.forEach { file ->
-                        add(file)
-                    }
+    /** Every strings file of every package. */
+    fun stringsFiles(): List<File> = buildList {
+        packageDirectories.forEach { (_, rootDir) ->
+            rootDir.resolve("res").listFiles { it.isDirectory }?.forEach { dir ->
+                dir.listFiles { it.name == "strings.xml" }?.forEach { file ->
+                    add(file)
                 }
             }
         }
+    }
 
-        stringFiles.parallelStream().forEach { file ->
+    /**
+     * @param files The strings files to process.
+     * @param log Whether to log that strings are processed, which decoding single files on request does not.
+     */
+    fun process(files: Collection<File> = stringsFiles(), log: Boolean = true) {
+        if (log) logger.info("Sanitizing unpatched strings")
+
+        files.parallelStream().forEach { file ->
             val rawXml = file.readText(Charsets.UTF_8)
             val sanitizedXml = sanitizeXmlText(rawXml)
             if (sanitizedXml !== rawXml) {

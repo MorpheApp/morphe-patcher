@@ -60,6 +60,8 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             } else {
                 BytecodeMode.NONE
             }
+
+            config.behaviorVersion = targetPatcherVersion(config.targetPatcherVersion, allPatches, logger)
         }
     }
 
@@ -171,6 +173,9 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         Fingerprint.clearFingerprints()
         context.allPatches.clear()
         context.executablePatches.clear()
+        // Patches are done requesting resources, so the resource table need not be held while the DEX
+        // files are written.
+        context.resourceContext.finishDecoding()
         val dexFiles = context.bytecodeContext.get()
         context.bytecodeContext.close()
         val resFiles = context.resourceContext.get()

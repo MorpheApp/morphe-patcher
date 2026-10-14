@@ -13,7 +13,8 @@ package app.morphe.patcher.resource
  */
 enum class ResourceMode {
     /**
-     * Decode and compile all resources.
+     * Decode resources, all of them before patches execute or each when a patch requests it,
+     * and compile the ones patches changed.
      */
     FULL,
 
