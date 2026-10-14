@@ -214,6 +214,21 @@ internal class OnRequestDecodingTest {
     }
 
     @Test
+    fun `a resource written as an item replaces the decoded one of the same name`() {
+        val coder = decodedCoder()
+        val strings = coder.getFile("res/values-de/strings.xml", null, false).apply {
+            parentFile.mkdirs()
+            writeText("""<resources><item type="string" name="hello">Servus</item></resources>""")
+        }
+
+        coder.getFile("res/values-de/strings.xml", null, true)
+
+        val text = strings.readText()
+        assertTrue("Servus" in text && "Behalten" in text, text)
+        assertFalse("Hallo" in text, "the decoded resource of the same name is replaced: $text")
+    }
+
+    @Test
     fun `deleting files that were never decoded deletes their resources`() {
         val coder = decodedCoder()
 

@@ -165,11 +165,6 @@ execute {
 }
 ```
 
-When a patch bundle built for an older Morphe Patcher is applied on its own, every resource is decoded up
-front as before, and `decode` then only lists the files. The Morphe Patcher version a bundle is built for
-is the `Patcher-Version` attribute of its manifest. When bundles built for different versions are used
-together, patching follows the newest one, and a warning names the bundles built for an older one.
-
 #### 🧮 `findFreeRegister(Int, Int...)` and `getFreeRegisterProvider(Int, Int, Int...)`
 
 Injected code often needs a register to hold a temporary value. Using a hard coded register such as

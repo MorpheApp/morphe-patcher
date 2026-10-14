@@ -389,6 +389,7 @@ internal class ArsclibResourceCoder(
     @Synchronized
     private fun takeInputModule(): ApkModule = inputModule().also {
         inputModule = null
+        validatedModule = null
         onRequestDecoder?.releaseModule()
     }
 
@@ -404,6 +405,8 @@ internal class ArsclibResourceCoder(
         if (Runtime.getRuntime().maxMemory() >= RETAINED_TABLE_MIN_HEAP) return
         inputModule?.close()
         inputModule = null
+        // Closing keeps the parsed table, so no reference to the module may remain for it to be freed.
+        validatedModule = null
         onRequestDecoder?.releaseModule()
     }
 
@@ -1392,7 +1395,8 @@ internal class ArsclibResourceCoder(
      * the decoded resources would have.
      */
     private fun mergeValues(decoded: File, written: File) {
-        fun Element.resourceKey() = "${getAttribute("type")}/${getAttribute("name")}"
+        // <item type="string" name="x"> declares the same resource as <string name="x">.
+        fun Element.resourceKey() = "${getAttribute("type").ifEmpty { tagName }}/${getAttribute("name")}"
         fun org.w3c.dom.Node.childElements() =
             (0 until childNodes.length).mapNotNull { childNodes.item(it) as? Element }
 
