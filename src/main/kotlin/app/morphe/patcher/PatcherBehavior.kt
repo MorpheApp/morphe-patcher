@@ -32,8 +32,9 @@ internal enum class PatcherBehavior(
      * Resources are decoded when a patch requests them, instead of all before patches execute.
      */
     ON_REQUEST_RESOURCE_DECODING(
-        // The current development version for now. Change it to the version this is released in.
-        since = "1.16.0-dev.2",
+        // Morphe Patcher 2.0.0, including its pre-releases such as 2.0.0-dev.1, so patches can be tested
+        // with it before the release.
+        since = "2.0.0-0",
         description = "Resources are decoded when patches request them, instead of all before patches execute",
         affectsPatch = { patch -> patch.anyRecursively { it is ResourcePatch } },
     ),

@@ -26,7 +26,7 @@ import java.util.logging.Logger
  * @param useArsclib Whether to use Arsclib for resource decoding and compiling.
  * @param verifier The output verifier to use.
  * @param fileWorkspacePath Temporary file workspace that patches may use.
- * @param targetPatcherVersion The version of Morphe Patcher whose behavior patching uses, such as `1.16.0`.
+ * @param targetPatcherVersion The version of Morphe Patcher whose behavior patching uses, such as `2.0.0`.
  * Behavior that changed in a way older patches may not expect only applies to patches built for the version
  * that changed it or a newer one. Null, the default, uses the newest version the patch bundles of the
  * added patches were built for, as the `Patcher-Version` attribute of their manifests declares it.

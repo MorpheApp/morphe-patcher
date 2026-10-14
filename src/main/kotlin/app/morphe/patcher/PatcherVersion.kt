@@ -6,7 +6,7 @@
 package app.morphe.patcher
 
 /**
- * A version of Morphe Patcher, such as `1.16.0` or `1.16.0-dev.2`, ordered the way semantic versions
+ * A version of Morphe Patcher, such as `2.0.0` or `2.0.0-dev.2`, ordered the way semantic versions
  * are: a pre-release comes before the release it leads up to.
  */
 internal class PatcherVersion private constructor(

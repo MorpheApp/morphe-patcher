@@ -26,7 +26,7 @@ import java.util.logging.Logger
 /**
  * A context for patches containing the current state of resources.
  *
- * Patches built for Morphe Patcher 1.16.0 or newer get resources decoded when they request them, instead
+ * Patches built for Morphe Patcher 2.0.0 or newer get resources decoded when they request them, instead
  * of all before patches execute. The manifest is always decoded. A file a patch reads by its path with
  * [get] or [document] is decoded then, and [decode] decodes every file matching a pattern, which a
  * patch that lists a directory must call first, since a directory only holds the files decoded so far.

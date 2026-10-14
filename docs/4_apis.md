@@ -127,7 +127,7 @@ changed or deleted.
 
 #### 🗂️ `decode(String...)` and `listDecodableFiles(String)`
 
-Patches built for Morphe Patcher 1.16.0 or newer get resources decoded when they need them, instead of
+Patches built for Morphe Patcher 2.0.0 or newer get resources decoded when they need them, instead of
 all of them before any patch executes. Decoding a large app takes much of the time patching does, while
 patches read only a few of its files.
 
