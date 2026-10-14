@@ -8,6 +8,7 @@ package app.morphe.patcher.resource.coder
 import app.morphe.patcher.resource.ResourceMode
 import com.reandroid.apk.ApkModule
 import com.reandroid.arsc.chunk.PackageBlock
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -30,8 +31,17 @@ internal class OnRequestDecodingTest {
         apk = ResourceTestApk.build(tempDir)
     }
 
+    /** Closed after each test, as an open coder keeps the input APK open, which Windows cannot delete. */
+    private val coders = mutableListOf<ArsclibResourceCoder>()
+
+    @AfterEach
+    fun tearDown() = coders.forEach(ArsclibResourceCoder::close)
+
+    private fun coder(name: String) =
+        ArsclibResourceCoder(tempDir.resolve(name).apply { mkdirs() }, apk).also(coders::add)
+
     private fun decodedCoder(name: String = "working", onRequest: Boolean = true) =
-        ArsclibResourceCoder(tempDir.resolve(name).apply { mkdirs() }, apk).apply {
+        coder(name).apply {
             decodeResources(onRequest)
         }
 
@@ -237,7 +247,7 @@ internal class OnRequestDecodingTest {
 
     @Test
     fun `raw resources are extracted on request`() {
-        val coder = ArsclibResourceCoder(tempDir.resolve("raw").apply { mkdirs() }, apk)
+        val coder = coder("raw")
         coder.decodeRaw(onRequest = true)
 
         assertTrue(coder.otherResourcesRootDirectory.files().isEmpty())
