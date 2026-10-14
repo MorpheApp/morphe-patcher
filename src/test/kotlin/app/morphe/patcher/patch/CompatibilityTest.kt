@@ -3,6 +3,8 @@
  * https://github.com/MorpheApp/morphe-patcher
  */
 
+@file:Suppress("DEPRECATION_ERROR")
+
 package app.morphe.patcher.patch
 
 import org.junit.jupiter.api.assertDoesNotThrow
@@ -84,22 +86,10 @@ internal object CompatibilityTest {
     }
 
     @Test
-    fun `legacy usage`() {
-        val patch = bytecodePatch(name = "Test") {
-            compatibleWith(
-                "compatible.package"("1.0.0"),
-            )
-        }
-
-        assertEquals(1, patch.compatiblePackages!!.size)
-        assertEquals("compatible.package", patch.compatiblePackages!!.first().first)
-    }
-
-    @Test
     fun `legacy to Compatibility`() {
         var patch = bytecodePatch(name = "Test") {
             compatibleWith(
-                "compatible.package"("1.0.0"),
+                Compatibility.fromLegacy("compatible.package" to setOf("1.0.0")),
             )
         }
         assertEquals(
@@ -109,7 +99,7 @@ internal object CompatibilityTest {
 
         patch = bytecodePatch(name = "Test") {
             compatibleWith(
-                "compatible.package",
+                Compatibility.fromLegacy("compatible.package" to null),
             )
         }
         assertEquals(

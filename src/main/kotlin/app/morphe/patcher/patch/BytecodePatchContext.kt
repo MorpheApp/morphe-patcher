@@ -6,6 +6,8 @@
  * https://github.com/LisoUseInAIKyrios/revanced-patcher
  */
 
+@file:Suppress("DEPRECATION_ERROR")
+
 package app.morphe.patcher.patch
 
 import app.morphe.patcher.InternalApi
@@ -310,7 +312,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      */
     @Deprecated(
         "Use classDefByStrings instead, which handles all string comparisons",
-        ReplaceWith("classDefByStrings(stringLiteral)")
+        ReplaceWith("classDefByStrings(stringLiteral)"),
+        level = DeprecationLevel.ERROR
     )
     fun getAllClassesWithString(stringLiteral: String): List<ClassDef> {
         return classDefByStrings(stringLiteral)
@@ -324,7 +327,9 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @return A [app.morphe.patcher.util.MethodNavigator] for the method.
      */
     @Deprecated("Instead use Fingerprint instruction match `getMethodCalled()`," +
-            " or lookup a method from an index using BytecodeUtils MethodReference.getMutableMethod()")
+            " or lookup a method from an index using BytecodeUtils MethodReference.getMutableMethod()",
+        level = DeprecationLevel.HIDDEN
+    )
     @Suppress("DEPRECATION")
     fun navigate(method: MethodReference) = app.morphe.patcher.util.MethodNavigator(this, method)
 

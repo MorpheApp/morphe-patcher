@@ -1163,22 +1163,6 @@ internal object PatcherTest {
             assertThrows<IllegalArgumentException> {
                 InstructionLocation.MatchAfterWithin(-1)
             }
-
-            assertThrows<IllegalArgumentException> {
-                InstructionLocation.MatchAfterAtLeast(-1)
-                    .indexIsValidForMatching(-1, 0)
-            }
-
-            assertThrows<IllegalArgumentException> {
-                InstructionLocation.MatchAfterRange(-1, 0)
-            }
-
-            assertThrows<IllegalArgumentException> {
-                InstructionLocation.MatchAfterRange(0, -1)
-            }
-
-            InstructionLocation.MatchAfterRange(0, 0)
-            InstructionLocation.MatchAfterRange(0, 1)
         }
     }
 

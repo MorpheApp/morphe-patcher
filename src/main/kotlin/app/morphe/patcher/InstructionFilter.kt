@@ -3,7 +3,7 @@
  * https://github.com/MorpheApp/morphe-patcher
  */
 
-@file:Suppress("unused")
+@file:Suppress("unused", "DEPRECATION_ERROR")
 
 package app.morphe.patcher
 
@@ -111,9 +111,11 @@ fun interface InstructionLocation {
      * must exist between this instruction and the last matched instruction. A value of 0 is
      * functionally identical to [MatchAfterImmediately].
      */
-    @Deprecated("This instruction location type will be removed in a future release. " +
-            "Instead use series of filters that are unique enough where no 'mandatory distance from the last' " +
-            "is required")
+    @Deprecated(
+        "Instead use series of filters that are unique enough where no " +
+                "'mandatory distance from the last' is required",
+        level = DeprecationLevel.HIDDEN
+    )
     class MatchAfterAtLeast(var minimumDistanceFromLastInstruction: Int) : InstructionLocation {
         init {
             require(minimumDistanceFromLastInstruction >= 0) {
@@ -140,9 +142,11 @@ fun interface InstructionLocation {
      *                                           that can exist between this instruction and the
      *                                           last matched instruction.
      */
-    @Deprecated("This instruction location type will be removed in a future release. " +
-            "Instead use series of filters that are unique enough where no 'mandatory distance from the last' " +
-            "is required")
+    @Deprecated(
+        "Instead use series of filters that are unique enough where no " +
+                "'mandatory distance from the last' is required",
+        level = DeprecationLevel.HIDDEN
+    )
     class MatchAfterRange(
         val minimumDistanceFromLastInstruction: Int,
         val maximumDistanceFromLastInstruction: Int
@@ -1089,7 +1093,10 @@ fun newInstance(
  *                   consider using [anyInstruction] with multiple exact type declarations.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration")
+@Deprecated(
+    "Instead use non comparison constructor where comparison is based on the type declaration",
+    level = DeprecationLevel.HIDDEN
+)
 fun newInstance(
     type: String,
     comparison: StringComparisonType,
@@ -1104,7 +1111,7 @@ fun newInstance(
  *                   consider using [anyInstruction] with multiple exact type declarations.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration")
+@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration", level = DeprecationLevel.HIDDEN)
 fun newInstance(
     type: () -> String,
     comparison: StringComparisonType,
@@ -1171,7 +1178,7 @@ fun instanceOf(
  * @param type Class type semantics as described in [StringComparisonType].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration")
+@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration", level = DeprecationLevel.HIDDEN)
 fun instanceOf(
     type: String,
     comparison: StringComparisonType,
@@ -1184,7 +1191,7 @@ fun instanceOf(
  * @param type Class type semantics as described in [StringComparisonType].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration")
+@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration", level = DeprecationLevel.HIDDEN)
 fun instanceOf(
     type: () -> String,
     comparison: StringComparisonType,
@@ -1253,7 +1260,7 @@ fun checkCast(
  *                   consider using [anyInstruction] with multiple exact type declarations.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration")
+@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration", level = DeprecationLevel.HIDDEN)
 fun checkCast(
     type: String,
     comparison: StringComparisonType,
@@ -1268,7 +1275,7 @@ fun checkCast(
  *                   consider using [anyInstruction] with multiple exact type declarations.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration")
+@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration", level = DeprecationLevel.HIDDEN)
 fun checkCast(
     type: () -> String,
     comparison: StringComparisonType,

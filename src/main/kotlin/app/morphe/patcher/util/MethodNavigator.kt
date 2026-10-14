@@ -1,4 +1,4 @@
-@file:Suppress("unused")
+@file:Suppress("unused", "DEPRECATION_ERROR")
 
 package app.morphe.patcher.util
 
@@ -24,7 +24,9 @@ import kotlin.reflect.KProperty
  * @throws NavigateException If the instruction at the specified index is not a method reference.
  */
 @Deprecated("Instead use Fingerprint instruction match `getMethodCalled()`," +
-        " or lookup a method from an index using BytecodeUtils MethodReference.getMutableMethod()")
+        " or lookup a method from an index using BytecodeUtils MethodReference.getMutableMethod()",
+    level = DeprecationLevel.HIDDEN
+)
 class MethodNavigator internal constructor(
     internal val patchContext: BytecodePatchContext,
     private var startMethod: MethodReference,

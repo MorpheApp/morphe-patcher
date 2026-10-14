@@ -63,7 +63,7 @@ sealed class Patch<C : PatchContext<*>>(
     val category: String? = null,
 ) {
 
-    @Deprecated("Use constructor with Compatibility object")
+    @Deprecated("Use constructor with Compatibility object", level = DeprecationLevel.HIDDEN)
     constructor(
         name: String?,
         description: String?,
@@ -87,7 +87,7 @@ sealed class Patch<C : PatchContext<*>>(
     /**
      * Legacy format. Experimental app targets are not present in this format.
      */
-    @Deprecated("Instead use compatibility")
+    @Deprecated("Instead use compatibility", level = DeprecationLevel.HIDDEN)
     val compatiblePackages: Set<Package>? by lazy {
         compatibility?.mapNotNull { it.legacy }?.toSet()
     }
@@ -95,7 +95,7 @@ sealed class Patch<C : PatchContext<*>>(
     @Deprecated(
         message = "Use 'default' instead of 'use'",
         replaceWith = ReplaceWith("default"),
-        level = DeprecationLevel.WARNING
+        level = DeprecationLevel.HIDDEN
     )
     val use: Boolean get() = default
 
@@ -214,7 +214,7 @@ class BytecodePatch internal constructor(
     category,
 ) {
 
-    @Deprecated("Use constructor with extensionInputStreams parameter")
+    @Deprecated("Use constructor with extensionInputStreams parameter", level = DeprecationLevel.HIDDEN)
     constructor(
         name: String?,
         description: String?,
@@ -237,7 +237,7 @@ class BytecodePatch internal constructor(
         finalizeBlock = finalizeBlock
     )
 
-    @Deprecated("Use constructor with Compatibility object")
+    @Deprecated("Use constructor with Compatibility object", level = DeprecationLevel.HIDDEN)
     constructor(
         name: String?,
         description: String?,
@@ -255,12 +255,12 @@ class BytecodePatch internal constructor(
         compatibility = Compatibility.fromLegacy(compatiblePackages),
         dependencies = dependencies,
         options = options,
-        extensionInputStream = extensionInputStream,
+        extensionStreamProviders = extensionInputStream?.let { listOf(Supplier { listOf(it) }) } ?: emptyList(),
         executeBlock = executeBlock,
         finalizeBlock = finalizeBlock
     )
 
-    @Deprecated("extensionInputStream will be made private in a future release.")
+    @Deprecated("extensionInputStream will be made private in a future release.", level = DeprecationLevel.HIDDEN)
     fun getExtensionInputStream(): Supplier<InputStream>? =
         extensionStreamProviders.firstOrNull()?.let { provider -> Supplier { provider.get().first().get() } }
 
@@ -446,7 +446,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
     @Deprecated(
         message = "Use 'default' instead of 'use'",
         replaceWith = ReplaceWith("default"),
-        level = DeprecationLevel.WARNING
+        level = DeprecationLevel.HIDDEN
     )
     protected val use: Boolean get() = default
 
@@ -473,22 +473,22 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      */
     private operator fun String.invoke(versions: Set<String>? = null) = this to versions
 
-    @Deprecated("Instead use Compatibility object")
+    @Deprecated("Instead use Compatibility object", level = DeprecationLevel.HIDDEN)
     protected fun getCompatiblePackages(): Set<Package>? {
         return compatibility?.mapNotNull { it.legacy }?.toSet()
     }
 
-    @Deprecated("Instead use Compatibility object")
+    @Deprecated("Instead use Compatibility object", level = DeprecationLevel.HIDDEN)
     protected fun setCompatiblePackages(packages: Set<Package>?) {
         compatibility = packages?.map { Compatibility.fromLegacy(it) }?.toMutableList()
     }
 
-    @Deprecated("Instead use getExecuteBlock()")
+    @Deprecated("Instead use getExecuteBlock()", level = DeprecationLevel.HIDDEN)
     protected fun getExecutionBlock(): (C) -> Unit {
         return executeBlock
     }
 
-    @Deprecated("Instead use setExecuteBlock()")
+    @Deprecated("Instead use setExecuteBlock()", level = DeprecationLevel.HIDDEN)
     protected fun setExecutionBlock(block: (C) -> Unit) {
         executeBlock = block
     }
@@ -511,7 +511,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      *
      * @param packages The packages the patch is compatible with.
      */
-    @Deprecated("Instead use Compatibility object")
+    @Deprecated("Instead use Compatibility object", level = DeprecationLevel.HIDDEN)
     fun compatibleWith(vararg packages: Package) {
         if (compatibility == null) {
             compatibility = mutableListOf()
@@ -525,9 +525,14 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      *
      * @param packages The packages the patch is compatible with.
      */
-    @Deprecated("Instead use Compatibility object")
-    fun compatibleWith(vararg packages: String) =
-        compatibleWith(*packages.map { it() }.toTypedArray())
+    @Deprecated("Instead use Compatibility object", level = DeprecationLevel.HIDDEN)
+    fun compatibleWith(vararg packages: String) {
+        if (compatibility == null) {
+            compatibility = mutableListOf()
+        }
+
+        compatibility!!.addAll(packages.map { Compatibility.fromLegacy(it to null) })
+    }
 
     /**
      * Add dependencies to the patch.
@@ -654,9 +659,7 @@ class BytecodePatchBuilder internal constructor(
     inline fun extendWith(extension: String) = apply {
         val classLoader = object {}.javaClass.classLoader
 
-        // TODO: This is using the deprecated setter for compatibility with older CLI versions.
-        //  Change it to use extendWith(Supplier<InputStream>) when the deprecated setter is removed.
-        setExtensionInputStream {
+        extendWith {
             classLoader.getResourceAsStream(extension)
                 ?: throw PatchException("Extension \"$extension\" not found")
         }
@@ -680,12 +683,12 @@ class BytecodePatchBuilder internal constructor(
         extensionStreamProviders.add(provider)
     }
 
-    @Deprecated("Kept only for backwards compatibility with older patch bundles, use extendWith(Supplier<InputStream>).")
+    @Deprecated("Kept only for backwards compatibility with older patch bundles, use extendWith(Supplier<InputStream>).", level = DeprecationLevel.HIDDEN)
     fun setExtensionInputStream(supplier: Supplier<InputStream>) {
         extendWith(supplier)
     }
 
-    @Deprecated("Kept only for backwards compatibility with older patch bundles. This getter will be removed in a future release.")
+    @Deprecated("Kept only for backwards compatibility with older patch bundles. This getter will be removed in a future release.", level = DeprecationLevel.HIDDEN)
     fun getExtensionInputStream(): Supplier<InputStream>? = extensionInputStreams.firstOrNull()
 
     override fun build() = BytecodePatch(

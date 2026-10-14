@@ -21,9 +21,6 @@ import java.util.logging.Logger
  *
  * @param apkFile The apk file to patch.
  * @param temporaryFilesPath A path to a folder to store temporary files in.
- * @param aaptBinaryPath A path to a custom aapt binary.
- * @param frameworkFileDirectory A path to the directory to cache the framework file in.
- * @param useArsclib Whether to use Arsclib for resource decoding and compiling.
  * @param verifier The output verifier to use.
  * @param fileWorkspacePath Temporary file workspace that patches may use.
  * @param targetPatcherVersion The version of Morphe Patcher whose behavior patching uses, such as `2.0.0`.
@@ -36,9 +33,6 @@ import java.util.logging.Logger
 class PatcherConfig(
     internal val apkFile: File,
     private val temporaryFilesPath: File = File("morphe-temporary-files"),
-    @Deprecated("apktool support is deprecated") private val aaptBinaryPath: String? = null,
-    @Deprecated("apktool support is deprecated") private val frameworkFileDirectory: String? = null,
-    @Deprecated("apktool support is deprecated") internal val useArsclib: Boolean = true,
     internal val keepArchitectures: Set<CpuArchitecture> = emptySet(),
     internal val useBytecodeMode: BytecodeMode = BytecodeMode.STRIP_FAST,
     internal val verifier: DexVerifier = NoOpDexVerifier,
@@ -57,16 +51,13 @@ class PatcherConfig(
         verifier: DexVerifier,
         fileWorkspacePath: File?,
     ) : this(
-        apkFile,
-        temporaryFilesPath,
-        aaptBinaryPath,
-        frameworkFileDirectory,
-        useArsclib,
-        keepArchitectures,
-        useBytecodeMode,
-        verifier,
-        fileWorkspacePath,
-        null,
+        apkFile = apkFile,
+        temporaryFilesPath = temporaryFilesPath,
+        keepArchitectures = keepArchitectures,
+        useBytecodeMode = useBytecodeMode,
+        verifier = verifier,
+        fileWorkspacePath = fileWorkspacePath,
+        targetPatcherVersion = null,
     )
 
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
@@ -76,12 +67,6 @@ class PatcherConfig(
      * This directory has write access and can be used for temporary files.
      */
     val fileWorkspace: File = fileWorkspacePath ?: temporaryFilesPath.resolve("workspace")
-
-    init {
-        if (!useArsclib) {
-            logger.warning { "apktool support is deprecated. arsclib will be used." }
-        }
-    }
 
     /**
      * The mode to use for resource decoding and compiling.

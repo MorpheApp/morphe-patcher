@@ -123,66 +123,6 @@ internal object InstructionFilterTest {
         assertFalse(location.indexIsValidForMatching(0, 2))
     }
 
-    @Test
-    fun `MatchAfterAtLeast requires non-negative minimum distance`() {
-        assertThrows<IllegalArgumentException> {
-            InstructionLocation.MatchAfterAtLeast(-1)
-        }
-
-        InstructionLocation.MatchAfterAtLeast(0)
-        InstructionLocation.MatchAfterAtLeast(10)
-    }
-
-    @Test
-    fun `MatchAfterAtLeast validates minimum distance`() {
-        val location = InstructionLocation.MatchAfterAtLeast(3)
-
-        // Distance < 3 should be invalid
-        assertFalse(location.indexIsValidForMatching(0, 1))  // distance 0
-        assertFalse(location.indexIsValidForMatching(0, 2))  // distance 1
-        assertFalse(location.indexIsValidForMatching(0, 3))  // distance 2
-
-        // Distance >= 3 should be valid
-        assertTrue(location.indexIsValidForMatching(0, 4))   // distance 3
-        assertTrue(location.indexIsValidForMatching(0, 100)) // distance 99
-    }
-
-    @Test
-    fun `MatchAfterRange requires valid range parameters`() {
-        assertThrows<IllegalArgumentException> {
-            InstructionLocation.MatchAfterRange(-1, 0)
-        }
-        assertThrows<IllegalArgumentException> {
-            InstructionLocation.MatchAfterRange(0, -1)
-        }
-        assertThrows<IllegalArgumentException> {
-            InstructionLocation.MatchAfterRange(5, 3)  // min > max
-        }
-
-        // Valid ranges
-        InstructionLocation.MatchAfterRange(0, 0)
-        InstructionLocation.MatchAfterRange(0, 5)
-        InstructionLocation.MatchAfterRange(3, 3)
-    }
-
-    @Test
-    fun `MatchAfterRange validates bounded range`() {
-        val location = InstructionLocation.MatchAfterRange(2, 5)
-
-        // Distance < 2 should be invalid
-        assertFalse(location.indexIsValidForMatching(0, 1))  // distance 0
-        assertFalse(location.indexIsValidForMatching(0, 2))  // distance 1
-
-        // Distance 2-5 should be valid
-        assertTrue(location.indexIsValidForMatching(0, 3))   // distance 2
-        assertTrue(location.indexIsValidForMatching(0, 5))   // distance 4
-        assertTrue(location.indexIsValidForMatching(0, 6))   // distance 5
-
-        // Distance > 5 should be invalid
-        assertFalse(location.indexIsValidForMatching(0, 7))  // distance 6
-        assertFalse(location.indexIsValidForMatching(0, 100))
-    }
-
     // ==================== OpcodeFilter tests ====================
 
     @Test

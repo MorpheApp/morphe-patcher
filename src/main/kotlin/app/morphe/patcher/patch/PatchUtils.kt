@@ -3,12 +3,16 @@
  * https://github.com/revanced/revanced-library/tree/06733072045c8016a75f232dec76505c0ba2e1cd
  */
 
+@file:Suppress("DEPRECATION_ERROR")
+
 package app.morphe.patcher.patch
 
 import java.util.logging.Logger
 
 typealias Count = Int
+@Deprecated("Instead use Compatibility objects", level = DeprecationLevel.ERROR)
 typealias VersionMap = LinkedHashMap<VersionName, Count>
+@Deprecated("Instead use Compatibility objects", level = DeprecationLevel.ERROR)
 typealias PackageNameMap = Map<PackageName, VersionMap>
 typealias PatchName = String
 typealias OptionKey = String
@@ -34,7 +38,7 @@ fun Set<Patch<*>>.mostCommonCompatibleVersions(
     }
 
     this@mostCommonCompatibleVersions.filter { it.default || countUnusedPatches }
-        .flatMap { it.compatiblePackages ?: emptyList() }
+        .flatMap { it.compatibility?.mapNotNull { compat -> compat.legacy } ?: emptyList() }
         .let(::filterWantedPackages)
         .forEach { (name, versions) ->
             if (versions?.isEmpty() == true) {
