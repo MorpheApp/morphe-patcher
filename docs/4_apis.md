@@ -402,6 +402,9 @@ execute {
 }
 ```
 
+- Prefer `returnLate()` if the method has side effects that other code depends on, and `returnEarly()`
+  if the original code should not run at all, such as code that loads ads or sends analytics.
+
 #### 🔁 `matchAllMethodIndicesForEach()`
 
 `matchAllMethodIndicesForEach()` finds every method a fingerprint matches, and calls the block once

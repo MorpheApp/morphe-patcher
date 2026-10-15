@@ -62,6 +62,17 @@ val disableAdsPatch = bytecodePatch(
 ```
 
 > [!TIP]
+> If a method only needs to always return a constant value, `returnEarly()` and `returnLate()`
+> do it without writing smali:
+>
+> ```kt
+> // Skip the method and always return false.
+> showAdsFingerprint.method.returnEarly(false)
+> ```
+>
+> See the `returnEarly()` and `returnLate()` section of [Advanced APIs](4_apis.md) for details.
+
+> [!TIP]
 > To see real-world examples of patches,
 > check out the repository for [Morphe Patches](https://github.com/MorpheApp/morphe-patches).
 

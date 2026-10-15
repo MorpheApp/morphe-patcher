@@ -494,6 +494,19 @@ val mainActivityPatch2 = bytecodePatch {
 > using instruction filters and other non-custom declarations.
 
 
+If the patch only needs the method to always return a constant value, no match indexes are needed.
+Use `returnEarly()` to return the value before any of the original code runs, or `returnLate()` to run
+the original code and then return the value from every return instruction:
+
+```kt
+execute {
+    // The ad loader never runs, and the method always returns false.
+    AdLoaderFingerprint.method.returnEarly(false)
+}
+```
+
+See the `returnEarly()` and `returnLate()` section of [Advanced APIs](4_apis.md) for all supported return types.
+
 Using methods found with one fingerprint in a different fingerprint:
 
 Fingerprints can be declared as local variables (and not classes as above),
