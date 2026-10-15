@@ -5,7 +5,7 @@ To create patches for Android apps, it is recommended to know the basic concept 
 ## 📙 How it works
 
 Morphe Patcher is a library that allows modifying Android apps by applying patches.
-It is built on top of [Smali](https://github.com/google/smali) for bytecode manipulation and [Androlib (Apktool)](https://github.com/iBotPeaches/Apktool)
+It is built on top of [Smali](https://github.com/google/smali) for bytecode manipulation and [ARSCLib](https://github.com/MorpheApp/ARSCLib)
 for resource decoding and encoding.
 
 Morphe Patcher receives a list of patches and applies them to a given APK file.
@@ -29,7 +29,7 @@ val patcherResult = Patcher(PatcherConfig(apkFile = File("some.apk"))).use { pat
     runBlocking {
         patcher().collect { patchResult ->
             if (patchResult.exception != null)
-                logger.info { "\"${patchResult.patch}\" failed:\n${patchResult.exception}" }
+                logger.severe { "\"${patchResult.patch}\" failed:\n${patchResult.exception}" }
             else
                 logger.info { "\"${patchResult.patch}\" succeeded" }
         }

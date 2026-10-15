@@ -4,7 +4,7 @@ This document describes how to contribute to Morphe Patcher.
 
 ## 📖 Resources to help you get started
 
-- The [documentation](https://github.com/MorpheApp/morphe-patcher/tree/docs/docs) contains the fundamentals
+- The [documentation](https://github.com/MorpheApp/morphe-patcher/tree/main/docs) contains the fundamentals
   of Morphe Patcher and how to create patches.
 - [Issues](https://github.com/MorpheApp/morphe-patcher/issues) are where we keep track of bugs and feature requests.
 
@@ -16,7 +16,7 @@ Features can be requested by opening an issue using the
 ## 🐞 Submitting a bug report
 
 If you encounter a bug while using Morphe Patcher, open an issue using the
-[Bug report issue template](https://github.com/Morphe/morphe-patcher/issues/new?assignees=&labels=Bug+report&projects=&template=bug_report.yml&title=bug%3A+).
+[Bug report issue template](https://github.com/MorpheApp/morphe-patcher/issues/new?assignees=&labels=Bug+report&projects=&template=bug_report.yml&title=bug%3A+).
 
 ## 📝 How to contribute
 
@@ -29,5 +29,17 @@ If you encounter a bug while using Morphe Patcher, open an issue using the
    that your pull request closes in the description of your pull request
 5. Our team will review your pull request and provide feedback. Once your pull request is approved,
    it will be merged into the `dev` branch and will be included in the next release of Morphe Patcher
+
+## 🛠️ Building and testing
+
+Dependencies are downloaded from GitHub Packages, which requires authentication even for public packages.
+Set `gpr.user` and `gpr.key` in `~/.gradle/gradle.properties`, or the `GITHUB_ACTOR` and `GITHUB_TOKEN`
+environment variables, to a GitHub account name and a token with the `read:packages` scope.
+See [Setting up a development environment](docs/2_1_setup.md) for details.
+
+- Build: `./gradlew build`
+- Run the tests: `./gradlew test`
+- If you change the public API, update the API dump with `./gradlew apiDump` and commit the changed
+  [api/morphe-patcher.api](api/morphe-patcher.api). The build fails with `apiCheck` if the dump is out of date.
 
 ❤️ Thank you for considering contributing to Morphe Patcher.

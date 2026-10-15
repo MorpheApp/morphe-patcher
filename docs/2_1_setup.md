@@ -30,25 +30,29 @@ Throughout the documentation, [Morphe Patches](https://github.com/MorpheApp/morp
    ```
 
 > [!NOTE]
-> If the build fails due to authentication, you need to add github authentication authenticate to your command line environment.
+> If the build fails due to authentication, you need to authenticate with GitHub Packages, which is required even for public packages.
 > Create a PAT with the scope `read:packages` [here](https://github.com/settings/tokens/new?scopes=read:packages&description=Morphe) and add your token to ~/.gradle/gradle.properties
 >
 > Example `gradle.properties` file in your user folder (usually found in `~/.gradle/gradle.properties`)
 > ```properties
 > gpr.user = github_account_name
-> gpr.key = gph_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+> gpr.key = ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 > ```
 >
-> Alternatively, instead of modifying your gradle file, your you can install [GitHub CLI](https://cli.github.com) and login using:
+> Alternatively, instead of modifying your Gradle properties, you can set the `GITHUB_ACTOR` and `GITHUB_TOKEN`
+> environment variables. With the [GitHub CLI](https://cli.github.com), log in with the `read:packages` scope
+> and export the token:
 > ```bash
-> gh auth
+> gh auth login --scopes read:packages
+> export GITHUB_ACTOR=github_account_name
+> export GITHUB_TOKEN=$(gh auth token)
 > ```
 
 3. Open the project in your IDE
 
 > [!TIP]
 > It is a good idea to set up a complete development environment for Morphe, so that you can also test your patches
-> by following the [Morphe documentation](https://github.com/MorpheApp/Morphe-documentation).
+> by following the [Morphe documentation](https://github.com/MorpheApp/morphe-documentation).
 
 ## ⏭️ What's next
 

@@ -34,3 +34,13 @@ strings = listOf(
 ```
 
 String filters such as `string("foo")` are not affected.
+
+### ✨ New fingerprint features
+
+- `isStatic` matches only static or only non-static methods, ignoring all other access flags.
+- `superclass` and `interfaces` match the class the method is declared in.
+- Instruction locations can match before the previous filter, or the last match after it:
+  `MatchAfterLast()`, `MatchBeforeAnywhere()`, `MatchBeforeImmediately()`, `MatchBeforeWithin(int)`
+  and `MatchBeforeFirst()`.
+
+See [Fingerprinting](2_2_1_fingerprinting.md) for details.
