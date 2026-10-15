@@ -67,7 +67,10 @@ fun interface InstructionLocation {
 
     /**
      * Matching can occur anywhere after the previous instruction filter match index.
+     * Searching is forward from the previous match, so the closest matching instruction is matched.
      * Is the default behavior for all filters.
+     *
+     * [MatchAfterLast] instead matches the farthest instruction after the previous match.
      */
     class MatchAfterAnywhere : InstructionLocation {
         override fun indexIsValidForMatching(previouslyMatchedIndex: Int, currentIndex: Int) = true
@@ -142,6 +145,9 @@ fun interface InstructionLocation {
      *
      * Only the last matching instruction is used. If a later filter does not match,
      * then earlier matching instructions are not tried.
+     *
+     * Unlike [MatchAfterAnywhere], which matches the closest instruction after the previous match,
+     * this matches the farthest.
      */
     class MatchAfterLast : InstructionLocation {
         override val searchesBackwards: Boolean
@@ -159,6 +165,8 @@ fun interface InstructionLocation {
     /**
      * Matching can occur anywhere before the previous instruction filter match index.
      * Searching is backwards from the previous match, so the closest matching instruction is matched.
+     *
+     * [MatchBeforeFirst] instead matches the farthest instruction before the previous match.
      *
      * This cannot be used for the first filter and will throw an exception.
      */
@@ -188,6 +196,9 @@ fun interface InstructionLocation {
      *
      * Only the first matching instruction is used. If a later filter does not match,
      * then later matching instructions are not tried.
+     *
+     * Unlike [MatchBeforeAnywhere], which matches the closest instruction before the previous match,
+     * this matches the farthest.
      *
      * This cannot be used for the first filter and will throw an exception.
      */

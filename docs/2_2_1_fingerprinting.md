@@ -322,17 +322,27 @@ sets where to match, either after or before the previous filter:
 
 | Location                   | Matches                                                                          | As the first filter                     |
 |----------------------------|----------------------------------------------------------------------------------|-----------------------------------------|
-| `MatchAfterAnywhere()`     | Anywhere after the previous filter. This is the default.                         | Anywhere in the method                  |
+| `MatchAfterAnywhere()`     | The closest match after the previous filter. This is the default.                | Anywhere in the method                  |
 | `MatchAfterImmediately()`  | Immediately after the previous filter.                                           | Not allowed                             |
 | `MatchAfterWithin(int)`    | Within a number of instructions after the previous filter.                       | Within the first `int + 1` instructions |
 | `MatchFirst()`             | The first instruction of the method.                                             | Required                                |
-| `MatchAfterLast()`         | The last matching instruction of the method that is after the previous filter.   | The last match in the method            |
-| `MatchBeforeAnywhere()`    | The closest match anywhere before the previous filter.                           | Not allowed                             |
+| `MatchAfterLast()`         | The farthest match after the previous filter, which is the last in the method.   | The last match in the method            |
+| `MatchBeforeAnywhere()`    | The closest match before the previous filter.                                    | Not allowed                             |
 | `MatchBeforeImmediately()` | Immediately before the previous filter.                                          | Not allowed                             |
 | `MatchBeforeWithin(int)`   | The closest match within a number of instructions before the previous filter.    | Not allowed                             |
-| `MatchBeforeFirst()`       | The first matching instruction of the method that is before the previous filter. | Not allowed                             |
+| `MatchBeforeFirst()`       | The farthest match before the previous filter, which is the first in the method. | Not allowed                             |
 
 A location that is not allowed throws an exception when the fingerprint is matched.
+
+`Anywhere` locations match the closest instruction to the previous filter, while `MatchAfterLast()` and
+`MatchBeforeFirst()` match the farthest. They only differ when more than one instruction matches.
+For example, if the previous filter matched index 6, and the instructions at indexes 1 and 4 both match:
+
+- `MatchBeforeAnywhere()` matches index 4, the closest.
+- `MatchBeforeFirst()` matches index 1, the farthest.
+
+The same applies after the previous filter: if indexes 8 and 12 both match,
+`MatchAfterAnywhere()` matches index 8 and `MatchAfterLast()` matches index 12.
 
 Matching before is useful when the most unique instruction appears after the instructions to find.
 For example, to find the method call whose result is returned at the end of a method:
@@ -352,10 +362,10 @@ filters = listOf(
 ```
 
 When matching before keep in mind:
-- `MatchAfterLast()` only uses the last matching instruction. If a later filter does not match, then
-  earlier matching instructions are not tried. If it's the first filter, then the fingerprint does not match.
-- `MatchBeforeFirst()` only uses the first matching instruction. If a later filter does not match, then
-  later matching instructions are not tried.
+- `MatchAfterLast()` only uses the last matching instruction of the method. If a later filter does not match, then
+  matching instructions closer to the previous filter are not tried. If it's the first filter, then the fingerprint does not match.
+- `MatchBeforeFirst()` only uses the first matching instruction of the method. If a later filter does not match, then
+  matching instructions closer to the previous filter are not tried.
 - Because each filter can change the matching direction, a filter can match the same instruction as an earlier filter.
   For example, `MatchAfterImmediately()` declared after `MatchBeforeImmediately()` matches the same
   instruction as the filter declared before both of them.
