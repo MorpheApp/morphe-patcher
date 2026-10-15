@@ -25,15 +25,45 @@ import java.util.EnumSet
 import kotlin.reflect.KClass
 
 /**
- * Simple interface to control how much space is allowed between a previous
- * [InstructionFilter] match and the current [InstructionFilter].
+ * Simple interface to control where an [InstructionFilter] can match,
+ * relative to the index matched by the previous [InstructionFilter].
+ *
+ * Most locations match after the previous match, but some locations such as
+ * [MatchBeforeAnywhere] and [MatchBeforeImmediately] match before the previous match. Each filter is
+ * always located relative to the filter declared immediately before it, so the matching direction
+ * can change between each filter.
+ *
+ * Because the matching direction can change, a filter can match the same instruction as an earlier
+ * filter. For example, a [MatchAfterImmediately] filter declared after a [MatchBeforeImmediately]
+ * filter matches the same instruction index as the filter declared before both of them.
  */
 fun interface InstructionLocation {
     /**
+     * Searching starts at [searchStartIndex] and stops at the first index that is not valid.
+     *
      * @param previouslyMatchedIndex The previously matched index, or -1 if this is the first filter.
      * @param currentIndex The current method index that is about to be checked.
      */
     fun indexIsValidForMatching(previouslyMatchedIndex: Int, currentIndex: Int) : Boolean
+
+    /**
+     * If searching is backwards towards the start of the method, instead of forward.
+     *
+     * If the first filter of a fingerprint searches backwards, and a later filter does not match,
+     * then the first filter is not retried with a different index and the fingerprint does not match.
+     */
+    val searchesBackwards: Boolean
+        get() = false
+
+    /**
+     * The first method index to check.
+     *
+     * @param previouslyMatchedIndex The previously matched index, or -1 if this is the first filter.
+     * @param lastMethodIndex The index of the last instruction of the method.
+     */
+    fun searchStartIndex(previouslyMatchedIndex: Int, lastMethodIndex: Int) : Int {
+        return if (searchesBackwards) previouslyMatchedIndex - 1 else previouslyMatchedIndex + 1
+    }
 
     /**
      * Matching can occur anywhere after the previous instruction filter match index.
@@ -78,9 +108,10 @@ fun interface InstructionLocation {
 
     /**
      * Instruction index can occur within a range of the previous instruction filter match index.
-     * used to constrain instruction matching to a region after the previous instruction filter.
+     * Used to constrain instruction matching to a region after the previous instruction filter.
      *
-     * This cannot be used for the first filter and will throw an exception.
+     * If used for the first filter, then the instruction must be within the first
+     * [matchDistance] + 1 instructions of the method.
      *
      * @param matchDistance The number of unmatched instructions that can exist between the
      *                      current instruction filter and the previously matched instruction filter.
@@ -99,6 +130,145 @@ fun interface InstructionLocation {
 
         override fun indexIsValidForMatching(previouslyMatchedIndex: Int, currentIndex: Int) : Boolean {
             return currentIndex - previouslyMatchedIndex - 1 <= matchDistance
+        }
+    }
+
+    /**
+     * Matches the last instruction of the method that matches the filter, and is
+     * after the previous instruction filter match. Searching is backwards from the end
+     * of the method up to (and excluding) the previously matched index.
+     *
+     * If used for the first filter, then the last matching instruction of the entire method is matched.
+     *
+     * Only the last matching instruction is used. If a later filter does not match,
+     * then earlier matching instructions are not tried.
+     */
+    class MatchAfterLast : InstructionLocation {
+        override val searchesBackwards: Boolean
+            get() = true
+
+        override fun searchStartIndex(previouslyMatchedIndex: Int, lastMethodIndex: Int) : Int {
+            return lastMethodIndex
+        }
+
+        override fun indexIsValidForMatching(previouslyMatchedIndex: Int, currentIndex: Int) : Boolean {
+            return currentIndex > previouslyMatchedIndex
+        }
+    }
+
+    /**
+     * Matching can occur anywhere before the previous instruction filter match index.
+     * Searching is backwards from the previous match, so the closest matching instruction is matched.
+     *
+     * This cannot be used for the first filter and will throw an exception.
+     */
+    class MatchBeforeAnywhere : InstructionLocation {
+        override val searchesBackwards: Boolean
+            get() = true
+
+        override fun searchStartIndex(previouslyMatchedIndex: Int, lastMethodIndex: Int) : Int {
+            require(previouslyMatchedIndex >= 0) {
+                "MatchBeforeAnywhere cannot be used for the first instruction filter"
+            }
+            return previouslyMatchedIndex - 1
+        }
+
+        override fun indexIsValidForMatching(previouslyMatchedIndex: Int, currentIndex: Int) : Boolean {
+            require(previouslyMatchedIndex >= 0) {
+                "MatchBeforeAnywhere cannot be used for the first instruction filter"
+            }
+            return currentIndex < previouslyMatchedIndex
+        }
+    }
+
+    /**
+     * Matches the first instruction of the method that matches the filter, and is
+     * before the previous instruction filter match. Searching is forward from the start
+     * of the method up to (and excluding) the previously matched index.
+     *
+     * Only the first matching instruction is used. If a later filter does not match,
+     * then later matching instructions are not tried.
+     *
+     * This cannot be used for the first filter and will throw an exception.
+     */
+    class MatchBeforeFirst : InstructionLocation {
+        override fun searchStartIndex(previouslyMatchedIndex: Int, lastMethodIndex: Int) : Int {
+            require(previouslyMatchedIndex >= 0) {
+                "MatchBeforeFirst cannot be used for the first instruction filter"
+            }
+            return 0
+        }
+
+        override fun indexIsValidForMatching(previouslyMatchedIndex: Int, currentIndex: Int) : Boolean {
+            require(previouslyMatchedIndex >= 0) {
+                "MatchBeforeFirst cannot be used for the first instruction filter"
+            }
+            return currentIndex < previouslyMatchedIndex
+        }
+    }
+
+    /**
+     * Instruction index immediately before the previous filter.
+     *
+     * This cannot be used for the first filter and will throw an exception.
+     */
+    class MatchBeforeImmediately : InstructionLocation {
+        override val searchesBackwards: Boolean
+            get() = true
+
+        override fun searchStartIndex(previouslyMatchedIndex: Int, lastMethodIndex: Int) : Int {
+            require(previouslyMatchedIndex >= 0) {
+                "MatchBeforeImmediately cannot be used for the first instruction filter"
+            }
+            return previouslyMatchedIndex - 1
+        }
+
+        override fun indexIsValidForMatching(previouslyMatchedIndex: Int, currentIndex: Int) : Boolean {
+            require(previouslyMatchedIndex >= 0) {
+                "MatchBeforeImmediately cannot be used for the first instruction filter"
+            }
+            return currentIndex + 1 == previouslyMatchedIndex
+        }
+    }
+
+    /**
+     * Instruction index can occur within a range before the previous instruction filter match index.
+     * Used to constrain instruction matching to a region before the previous instruction filter.
+     * Searching is backwards from the previous match, so the closest matching instruction is matched.
+     *
+     * This cannot be used for the first filter and will throw an exception.
+     *
+     * @param matchDistance The number of unmatched instructions that can exist between the
+     *                      current instruction filter and the previously matched instruction filter.
+     *                      A value of 0 means the current filter can only match immediately before
+     *                      the previously matched instruction (making this functionally identical to
+     *                      [MatchBeforeImmediately]). A value of 10 means between 0 and 10 unmatched
+     *                      instructions can exist between the current instruction filter and the
+     *                      previously matched instruction.
+     */
+    class MatchBeforeWithin(val matchDistance: Int) : InstructionLocation {
+        init {
+            require(matchDistance >= 0) {
+                "matchDistance must be non-negative"
+            }
+        }
+
+        override val searchesBackwards: Boolean
+            get() = true
+
+        override fun searchStartIndex(previouslyMatchedIndex: Int, lastMethodIndex: Int) : Int {
+            require(previouslyMatchedIndex >= 0) {
+                "MatchBeforeWithin cannot be used for the first instruction filter"
+            }
+            return previouslyMatchedIndex - 1
+        }
+
+        override fun indexIsValidForMatching(previouslyMatchedIndex: Int, currentIndex: Int) : Boolean {
+            require(previouslyMatchedIndex >= 0) {
+                "MatchBeforeWithin cannot be used for the first instruction filter"
+            }
+            return currentIndex < previouslyMatchedIndex &&
+                    previouslyMatchedIndex - currentIndex - 1 <= matchDistance
         }
     }
 
@@ -1170,7 +1340,7 @@ fun instanceOf(
 fun instanceOf(
     type: () -> String,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
-) = CheckCastFilter(type, location)
+) = InstanceOfFilter(type, location)
 
 /**
  * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.

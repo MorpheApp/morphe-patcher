@@ -1215,6 +1215,272 @@ internal object PatcherTest {
         }
     }
 
+    /**
+     * Uses a method with the instructions:
+     * ```
+     * 0: const/4 v0, 0x0
+     * 1: const/4 v1, 0x1
+     * 2: nop
+     * 3: const/4 v0, 0x0
+     * 4: const/4 v1, 0x1
+     * 5: const/4 v2, 0x2
+     * 6: const/4 v0, 0x0
+     * 7: return-void
+     * ```
+     */
+    private fun mockInstructionLocationMethod() {
+        val method = ImmutableMethod(
+            "Lcandidate;", "value", emptyList(), "V", AccessFlags.PUBLIC.value,
+            null, null, MutableMethodImplementation(3),
+        ).toMutable().apply {
+            addInstructions(
+                0,
+                """
+                    const/4 v0, 0x0
+                    const/4 v1, 0x1
+                    nop
+                    const/4 v0, 0x0
+                    const/4 v1, 0x1
+                    const/4 v2, 0x2
+                    const/4 v0, 0x0
+                    return-void
+                """
+            )
+        }
+        val classDef = ImmutableClassDef(
+            "Lcandidate;", 0, null, null, null, null, null, listOf(method),
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns PatchClasses(setOf(classDef))
+    }
+
+    context(_: BytecodePatchContext)
+    private fun matchIndexes(vararg filters: InstructionFilter) =
+        Fingerprint(filters = filters.toList()).matchOrNull()?.instructionMatches?.map { it.index }
+
+    @Test
+    fun `MatchAfterLast matches the last instruction after the previous match`() {
+        mockInstructionLocationMethod()
+
+        with(patcher.context.bytecodeContext) {
+            assertEquals(
+                listOf(6),
+                matchIndexes(literal(0, location = InstructionLocation.MatchAfterLast()))
+            )
+            assertEquals(
+                listOf(1, 6),
+                matchIndexes(literal(1), literal(0, location = InstructionLocation.MatchAfterLast()))
+            )
+
+            // Literal 1 does not exist after literal 2.
+            assertNull(
+                matchIndexes(literal(2), literal(1, location = InstructionLocation.MatchAfterLast()))
+            )
+
+            // The previous match index is excluded.
+            assertNull(
+                matchIndexes(
+                    literal(0, location = InstructionLocation.MatchAfterLast()),
+                    literal(0, location = InstructionLocation.MatchAfterLast()),
+                )
+            )
+
+            // Literal 0 at index 3 is followed by literal 1, but as the first filter
+            // only the last literal 0 at index 6 is used.
+            assertNull(
+                matchIndexes(
+                    literal(0, location = InstructionLocation.MatchAfterLast()),
+                    literal(1, location = InstructionLocation.MatchAfterImmediately()),
+                )
+            )
+            assertNull(
+                matchIndexes(
+                    literal(0, location = InstructionLocation.MatchAfterLast()),
+                    literal(1),
+                )
+            )
+
+            // Same as above, but when not the first filter.
+            assertNull(
+                matchIndexes(
+                    opcode(Opcode.NOP),
+                    literal(0, location = InstructionLocation.MatchAfterLast()),
+                    literal(1, location = InstructionLocation.MatchAfterImmediately()),
+                )
+            )
+        }
+    }
+
+    @Test
+    fun `MatchBeforeImmediately and MatchBeforeWithin match before the previous match`() {
+        mockInstructionLocationMethod()
+
+        with(patcher.context.bytecodeContext) {
+            // Nothing is before the first two constants, and the first filter is retried.
+            assertEquals(
+                listOf(3, 2),
+                matchIndexes(
+                    opcode(Opcode.CONST_4),
+                    opcode(Opcode.NOP, location = InstructionLocation.MatchBeforeImmediately()),
+                )
+            )
+
+            // Nothing is before the first instruction.
+            assertNull(
+                matchIndexes(
+                    literal(0, location = InstructionLocation.MatchFirst()),
+                    literal(0, location = InstructionLocation.MatchBeforeImmediately()),
+                )
+            )
+
+            // The closest match before is used.
+            assertEquals(
+                listOf(5, 3),
+                matchIndexes(literal(2), literal(0, location = InstructionLocation.MatchBeforeWithin(5)))
+            )
+            assertEquals(
+                listOf(5, 3),
+                matchIndexes(literal(2), literal(0, location = InstructionLocation.MatchBeforeWithin(1)))
+            )
+            assertNull(
+                matchIndexes(literal(2), literal(0, location = InstructionLocation.MatchBeforeWithin(0)))
+            )
+
+            assertThrows<IllegalArgumentException> {
+                matchIndexes(literal(0, location = InstructionLocation.MatchBeforeImmediately()))
+            }
+            assertThrows<IllegalArgumentException> {
+                matchIndexes(literal(0, location = InstructionLocation.MatchBeforeWithin(1)))
+            }
+        }
+    }
+
+    @Test
+    fun `MatchBeforeAnywhere matches the closest instruction before the previous match`() {
+        mockInstructionLocationMethod()
+
+        with(patcher.context.bytecodeContext) {
+            // The closest match is used, and not the first match.
+            assertEquals(
+                listOf(5, 3),
+                matchIndexes(literal(2), literal(0, location = InstructionLocation.MatchBeforeAnywhere()))
+            )
+            assertEquals(
+                listOf(6, 4),
+                matchIndexes(
+                    literal(0, location = InstructionLocation.MatchAfterLast()),
+                    literal(1, location = InstructionLocation.MatchBeforeAnywhere()),
+                )
+            )
+
+            // The previous match index is excluded.
+            assertNull(
+                matchIndexes(opcode(Opcode.NOP), opcode(Opcode.NOP, location = InstructionLocation.MatchBeforeAnywhere()))
+            )
+
+            // Nothing is before the first constant, and the first filter is retried.
+            assertEquals(
+                listOf(3, 2),
+                matchIndexes(
+                    opcode(Opcode.CONST_4),
+                    opcode(Opcode.NOP, location = InstructionLocation.MatchBeforeAnywhere()),
+                )
+            )
+
+            assertThrows<IllegalArgumentException> {
+                matchIndexes(literal(0, location = InstructionLocation.MatchBeforeAnywhere()))
+            }
+        }
+    }
+
+    @Test
+    fun `MatchBeforeFirst matches the first instruction before the previous match`() {
+        mockInstructionLocationMethod()
+
+        with(patcher.context.bytecodeContext) {
+            // The first match is used, and not the closest match.
+            assertEquals(
+                listOf(5, 0),
+                matchIndexes(literal(2), literal(0, location = InstructionLocation.MatchBeforeFirst()))
+            )
+            assertEquals(
+                listOf(5, 0, 1),
+                matchIndexes(
+                    literal(2),
+                    literal(0, location = InstructionLocation.MatchBeforeFirst()),
+                    literal(1, location = InstructionLocation.MatchAfterImmediately()),
+                )
+            )
+
+            // Literal 0 at index 3 is after a nop, but only the first literal 0 at index 0 is used.
+            assertNull(
+                matchIndexes(
+                    literal(2),
+                    literal(0, location = InstructionLocation.MatchBeforeFirst()),
+                    opcode(Opcode.NOP, location = InstructionLocation.MatchBeforeImmediately()),
+                )
+            )
+
+            // The previous match index is excluded.
+            assertNull(
+                matchIndexes(opcode(Opcode.NOP), opcode(Opcode.NOP, location = InstructionLocation.MatchBeforeFirst()))
+            )
+
+            // Nothing is before the first two constants, and the first filter is retried.
+            assertEquals(
+                listOf(3, 2),
+                matchIndexes(
+                    opcode(Opcode.CONST_4),
+                    opcode(Opcode.NOP, location = InstructionLocation.MatchBeforeFirst()),
+                )
+            )
+
+            assertEquals(
+                listOf(6, 1),
+                matchIndexes(
+                    literal(0, location = InstructionLocation.MatchAfterLast()),
+                    literal(1, location = InstructionLocation.MatchBeforeFirst()),
+                )
+            )
+
+            assertThrows<IllegalArgumentException> {
+                matchIndexes(literal(0, location = InstructionLocation.MatchBeforeFirst()))
+            }
+        }
+    }
+
+    @Test
+    fun `filters can change search direction between each filter`() {
+        mockInstructionLocationMethod()
+
+        with(patcher.context.bytecodeContext) {
+            assertEquals(
+                listOf(6, 4),
+                matchIndexes(
+                    literal(0, location = InstructionLocation.MatchAfterLast()),
+                    literal(1, location = InstructionLocation.MatchBeforeWithin(5)),
+                )
+            )
+            assertEquals(
+                listOf(2, 1, 6),
+                matchIndexes(
+                    opcode(Opcode.NOP),
+                    literal(1, location = InstructionLocation.MatchBeforeImmediately()),
+                    literal(0, location = InstructionLocation.MatchAfterLast()),
+                )
+            )
+
+            // The last filter matches the same instruction as the first filter.
+            assertEquals(
+                listOf(5, 4, 5),
+                matchIndexes(
+                    literal(2),
+                    literal(1, location = InstructionLocation.MatchBeforeImmediately()),
+                    literal(2, location = InstructionLocation.MatchAfterImmediately()),
+                )
+            )
+        }
+    }
+
     @Test
     fun `fingerprints match the superclass and interfaces of the class`() {
         fun method(definingClass: String) = ImmutableMethod(

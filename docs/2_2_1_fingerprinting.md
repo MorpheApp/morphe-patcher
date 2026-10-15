@@ -220,13 +220,58 @@ class AdsLoader {
 ```
 
   Notice the fingerprint filters do not declare every instruction in the target method, and between
-  each filter, zero or more other instructions can exist.  Instruction filters must be declared in
-  the same order as the instructions appear in the target method.
+  each filter, zero or more other instructions can exist.  Unless a filter matches before the previous filter (see below),
+  instruction filters must be declared in the same order as the instructions appear in the target method.
 
   If the distance between each instruction declaration can be approximated, then the `instructionLocation`
   parameter can be used with `MatchAfterWithin(int)` to restrict the instruction match to a maximum
   distance from the last instruction. To restrict matching to the first instruction of a method use
   `MatchFirst()`.
+
+  #### Instruction locations and matching before
+
+  Each filter matches relative to the filter declared before it, and the location of each filter
+  sets where to match, either after or before the previous filter:
+
+  | Location                   | Matches                                                                          |
+  |----------------------------|----------------------------------------------------------------------------------|
+  | `MatchAfterAnywhere()`     | Anywhere after the previous filter. This is the default.                         |
+  | `MatchAfterImmediately()`  | Immediately after the previous filter.                                           |
+  | `MatchAfterWithin(int)`    | Within a number of instructions after the previous filter.                       |
+  | `MatchFirst()`             | The first instruction of the method. Can only be used for the first filter.      |
+  | `MatchAfterLast()`         | The last matching instruction of the method that is after the previous filter.   |
+  | `MatchBeforeAnywhere()`    | The closest match anywhere before the previous filter.                           |
+  | `MatchBeforeImmediately()` | Immediately before the previous filter.                                          |
+  | `MatchBeforeWithin(int)`   | The closest match within a number of instructions before the previous filter.    |
+  | `MatchBeforeFirst()`       | The first matching instruction of the method that is before the previous filter. |
+
+  Matching before is useful when the most unique instruction appears after the instructions to find.
+  For example, to find the method call whose result is returned at the end of a method:
+  ```kt
+  filters = listOf(
+      // The last RETURN_OBJECT of the method.
+      opcode(Opcode.RETURN_OBJECT, InstructionLocation.MatchAfterLast()),
+      // Within 5 instructions before RETURN_OBJECT.
+      methodCall(
+        definingClass = "Landroid/net/Uri;",
+        name = "parse",
+        location = InstructionLocation.MatchBeforeWithin(10)
+      ),
+      // Immediately after parse method call.
+      opcode(Opcode.MOVE_RESULT_OBJECT, InstructionLocation.MatchAfterImmediately())
+  )
+  ```
+
+  When matching before keep in mind:
+  - `MatchAfterLast()` only uses the last matching instruction. If a later filter does not match, then
+    earlier matching instructions are not tried. If it's the first filter, then the fingerprint does not match.
+  - `MatchBeforeFirst()` only uses the first matching instruction. If a later filter does not match, then
+    later matching instructions are not tried.
+  - Because each filter can change the matching direction, a filter can match the same instruction as an earlier filter.
+    For example, `MatchAfterImmediately()` declared after `MatchBeforeImmediately()` matches the same
+    instruction as the filter declared before both of them.
+  - `instructionMatches` are in the same order the filters are declared, and the match indexes are not in
+    ascending order if any filter matches before the previous filter.
 
   If a single instruction varies slightly between different app targets but otherwise the fingerprint
   is still the same, the `anyInstruction()` filter can be used to specify the different expected
@@ -264,7 +309,7 @@ class AdsLoader {
 
   #### Pure opcode matching
 
-  If a method cannot be uniquely identified using the built in filters, but a fixed pattern of
+  If a method cannot be uniquely identified using the built-in filters, but a fixed pattern of
   opcodes can identify the method, then the opcode pattern can be defined using the fingerprint
   `filters = OpcodesFilter.opcodesToFilters(Opcode...)` declaration.  Opcode patterns do not allow 
   variable spacing between each opcode, and all opcodes all must appear exactly as declared. Opcode 

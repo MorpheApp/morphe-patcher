@@ -30,10 +30,15 @@ import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
 import com.android.tools.smali.dexlib2.util.MethodUtil
 import java.lang.ref.WeakReference
+import kotlin.DeprecationLevel
 
 /**
  * @param classFingerprint Fingerprint that finds the class this fingerprint resolves against.
- * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+ * @param filters A list of filters to match, declared in the order they are matched.
+ *                Each filter matches relative to the previous filter match, using the
+ *                [InstructionFilter.location] of the filter. Some locations, such as
+ *                [InstructionLocation.MatchBeforeImmediately], match an instruction that appears
+ *                before the previous filter match.
  * @param stringFilters A list of string filters that match anywhere in the method in any order.
  * @param custom A custom condition for this fingerprint.
  */
@@ -116,7 +121,11 @@ open class Fingerprint private constructor(
      *                 `name = "<init>"`, or for a static initializer declare `name = "<clinit>"`.
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
-     * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+     * @param filters A list of filters to match, declared in the order they are matched.
+     *                Each filter matches relative to the previous filter match, using the
+     *                [InstructionFilter.location] of the filter. Some locations, such as
+     *                [InstructionLocation.MatchBeforeImmediately], match an instruction that appears
+     *                before the previous filter match.
      * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.equals].
      * @param custom A custom condition for this fingerprint.
      */
@@ -176,7 +185,11 @@ open class Fingerprint private constructor(
      *                 `name = "<init>"`, or for a static initializer declare `name = "<clinit>"`.
      * @param returnType The return type. Type declaration follow the semantics described in [StringComparisonType].
      * @param parameters The parameters. Type declaration follow the semantics described in [StringComparisonType].
-     * @param filters A list of filters to match, declared in the same order the instructions appear in the method.
+     * @param filters A list of filters to match, declared in the order they are matched.
+     *                Each filter matches relative to the previous filter match, using the
+     *                [InstructionFilter.location] of the filter. Some locations, such as
+     *                [InstructionLocation.MatchBeforeImmediately], match an instruction that appears
+     *                before the previous filter match.
      * @param strings A list of [string] filters that match anywhere in the method in any order.
      *                Filters cannot declare an [InstructionLocation].
      * @param custom A custom condition for this fingerprint.
@@ -712,20 +725,26 @@ open class Fingerprint private constructor(
                 val lastMethodIndex = instructions.lastIndex
                 var instructionMatches : MutableList<Match.InstructionMatch>? = null
 
-                var firstInstructionIndex = 0
+                val firstLocation = filtersLocal.first().location
+                var firstInstructionIndex = firstLocation.searchStartIndex(-1, lastMethodIndex)
                 var lastMatchIndex = -1
 
                 firstFilterLoop@ while (true) {
                     // Matched index of the first filter.
                     var firstFilterIndex = -1
-                    var subIndex = firstInstructionIndex
 
                     for (filterIndex in filtersLocal.indices) {
                         val filter = filtersLocal[filterIndex]
                         val location = filter.location
+                        val searchStep = if (location.searchesBackwards) -1 else 1
+                        var subIndex = if (filterIndex == 0) {
+                            firstInstructionIndex
+                        } else {
+                            location.searchStartIndex(lastMatchIndex, lastMethodIndex)
+                        }
                         var instructionsMatched = false
 
-                        while (subIndex <= lastMethodIndex &&
+                        while (subIndex in 0..lastMethodIndex &&
                             location.indexIsValidForMatching(
                                 lastMatchIndex, subIndex
                             )
@@ -742,10 +761,9 @@ open class Fingerprint private constructor(
                                 }
                                 instructionMatches += Match.InstructionMatch(filter, subIndex, instruction)
                                 instructionsMatched = true
-                                subIndex++
                                 break
                             }
-                            subIndex++
+                            subIndex += searchStep
                         }
 
                         if (!instructionsMatched) {
@@ -753,7 +771,16 @@ open class Fingerprint private constructor(
                                 return null // First filter has no more matches to start from.
                             }
 
-                            if (location is InstructionLocation.MatchAfterAnywhere) {
+                            if (firstLocation.searchesBackwards) {
+                                return null // First filter is not retried with a different index.
+                            }
+
+                            // Retrying moves the first filter match forward, which can only move the
+                            // previous match of this filter forward. A filter that searches everything
+                            // after the previous match cannot match after retrying.
+                            if (location is InstructionLocation.MatchAfterAnywhere ||
+                                location is InstructionLocation.MatchAfterLast
+                            ) {
                                 return null // Filter does not match anywhere, no need to continue.
                             }
 
@@ -1438,7 +1465,12 @@ class Match internal constructor(
     } ?: throw PatchException("Could not find matched method: $methodReference")
 
     /**
-     * Matches corresponding to the [InstructionFilter] declared in the [Fingerprint].
+     * Matches corresponding to the [InstructionFilter] declared in the [Fingerprint],
+     * in the same order the filters are declared.
+     *
+     * If a filter uses an [InstructionLocation] that matches before the previous filter match,
+     * such as [InstructionLocation.MatchBeforeImmediately], then the match indexes are not in
+     * ascending order, and more than one filter can match the same instruction index.
      */
     val instructionMatches
         get() = _instructionMatches ?: throw PatchException("Fingerprint declared no instruction filters")
@@ -1515,7 +1547,6 @@ class Match internal constructor(
      * This property may be deprecated in the future.
      * Consider changing to [InstructionFilter] and [string] declarations.
      */
-    // TODO: Possibly deprecate this in the future.
     val stringMatches
         get() = _stringMatches ?: throw PatchException("Fingerprint declared no strings")
     val stringMatchesOrNull = _stringMatches
@@ -1531,7 +1562,6 @@ class Match internal constructor(
      * @param string The string that matched.
      * @param index The index of the instruction in the method.
      */
-    // TODO: Possibly deprecate this in the future.
     class StringMatch internal constructor(val string: String, val index: Int)
 
     override fun toString(): String {
@@ -1549,9 +1579,10 @@ class Match internal constructor(
  */
 @Deprecated(
     "Method was renamed and moved to StringComparisonType",
-    replaceWith = ReplaceWith("parametersMatch(targetMethodParameters, fingerprintParameters)")
+    replaceWith = ReplaceWith("parametersMatch(targetMethodParameters, fingerprintParameters)"),
+    level = DeprecationLevel.ERROR
 )
-fun parametersStartsWith(  // TODO: Delete on next major version release.
+fun parametersStartsWith(
     targetMethodParameters: Iterable<CharSequence>,
     fingerprintParameters: Iterable<CharSequence>,
 ) = parametersMatch(targetMethodParameters, fingerprintParameters)
@@ -1570,7 +1601,9 @@ fun parametersStartsWith(  // TODO: Delete on next major version release.
  */
 @Deprecated(message = "DSL provides no functional benefits over class declarations " +
         "and can make stack traces impossible to know what fingerprint failed to resolve",
-    replaceWith = ReplaceWith("app.morphe.patcher.Fingerprint()"))
+    replaceWith = ReplaceWith("app.morphe.patcher.Fingerprint()"),
+    level = DeprecationLevel.WARNING
+)
 class FingerprintBuilder {
     private var accessFlags: List<AccessFlags>? = null
     private var returnType: String? = null
@@ -1584,8 +1617,11 @@ class FingerprintBuilder {
      *
      * @param accessFlags The exact access flags using values of [AccessFlags].
      */
-    @Deprecated(message = "DSL provides no functional benefits over class declarations " +
-            "and can make stack traces impossible to know what fingerprint failed to resolve")
+    @Deprecated(
+        message = "DSL provides no functional benefits over class declarations " +
+                "and can make stack traces impossible to know what fingerprint failed to resolve",
+        level = DeprecationLevel.WARNING
+    )
     fun accessFlags(vararg accessFlags: AccessFlags) {
         require(this.accessFlags == null) {
             "AccessFlags already set"
@@ -1601,8 +1637,11 @@ class FingerprintBuilder {
      *
      * @param returnType The return type compared using [String.startsWith].
      */
-    @Deprecated(message = "DSL provides no functional benefits over class declarations " +
-            "and can make stack traces impossible to know what fingerprint failed to resolve")
+    @Deprecated(
+        message = "DSL provides no functional benefits over class declarations " +
+                "and can make stack traces impossible to know what fingerprint failed to resolve",
+        level = DeprecationLevel.WARNING
+    )
     fun returns(returnType: String) {
         require(this.returnType == null) {
             "Returns already set"
@@ -1616,8 +1655,11 @@ class FingerprintBuilder {
      * @param parameters The parameters of the method.
      *                   Partial matches allowed and follow the same rules as [returnType].
      */
-    @Deprecated(message = "DSL provides no functional benefits over class declarations " +
-            "and can make stack traces impossible to know what fingerprint failed to resolve")
+    @Deprecated(
+        message = "DSL provides no functional benefits over class declarations " +
+                "and can make stack traces impossible to know what fingerprint failed to resolve",
+        level = DeprecationLevel.WARNING
+    )
     fun parameters(vararg parameters: String) {
         require(this.parameters == null) {
             "Parameters already set"
@@ -1663,8 +1705,11 @@ class FingerprintBuilder {
      * @param opcodes An opcode pattern of instructions.
      *                Wildcard or unknown opcodes can be specified by `null`.
      */
-    @Deprecated(message = "DSL provides no functional benefits over class declarations " +
-            "and can make stack traces impossible to know what fingerprint failed to resolve")
+    @Deprecated(
+        message = "DSL provides no functional benefits over class declarations " +
+                "and can make stack traces impossible to know what fingerprint failed to resolve",
+        level = DeprecationLevel.WARNING
+    )
     fun opcodes(vararg opcodes: Opcode?) {
         verifyNoFiltersSet()
         if (opcodes.isEmpty()) throw IllegalArgumentException("One or more opcodes is required")
@@ -1689,8 +1734,11 @@ class FingerprintBuilder {
      *
      * @param strings A list of strings compared each using [String.equals].
      */
-    @Deprecated(message = "DSL provides no functional benefits over class declarations " +
-            "and can make stack traces impossible to know what fingerprint failed to resolve")
+    @Deprecated(
+        message = "DSL provides no functional benefits over class declarations " +
+                "and can make stack traces impossible to know what fingerprint failed to resolve",
+        level = DeprecationLevel.WARNING
+    )
     fun strings(vararg strings: String) {
         require(this.strings == null) {
             "String block is already set"
@@ -1703,8 +1751,11 @@ class FingerprintBuilder {
      *
      * @param customBlock A custom condition for this fingerprint.
      */
-    @Deprecated(message = "DSL provides no functional benefits over class declarations " +
-            "and can make stack traces impossible to know what fingerprint failed to resolve")
+    @Deprecated(
+        message = "DSL provides no functional benefits over class declarations " +
+                "and can make stack traces impossible to know what fingerprint failed to resolve",
+        level = DeprecationLevel.WARNING
+    )
     fun custom(customBlock: (method: Method, classDef: ClassDef) -> Boolean) {
         require(this.customBlock == null) {
             "Custom block is already set. Fingerprints only support one custom block."
@@ -1731,7 +1782,9 @@ class FingerprintBuilder {
  */
 @Deprecated(message = "DSL provides no functional benefits over class declarations " +
         "and can make stack traces impossible to know what fingerprint failed to resolve",
-    replaceWith = ReplaceWith("app.morphe.patcher.Fingerprint()"))
+    replaceWith = ReplaceWith("app.morphe.patcher.Fingerprint()"),
+    level = DeprecationLevel.WARNING
+)
 @Suppress("DEPRECATION")
 fun fingerprint(
     block: FingerprintBuilder.() -> Unit,

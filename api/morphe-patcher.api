@@ -125,11 +125,11 @@ public final class app/morphe/patcher/InstructionFilterKt {
 	public static synthetic fun fieldAccess$default (Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
 	public static final fun instanceOf (Ljava/lang/String;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/InstanceOfFilter;
 	public static final synthetic fun instanceOf (Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/CheckCastFilter;
-	public static final fun instanceOf (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/CheckCastFilter;
+	public static final fun instanceOf (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/InstanceOfFilter;
 	public static final synthetic fun instanceOf (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/CheckCastFilter;
 	public static synthetic fun instanceOf$default (Ljava/lang/String;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/InstanceOfFilter;
 	public static synthetic fun instanceOf$default (Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/CheckCastFilter;
-	public static synthetic fun instanceOf$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/CheckCastFilter;
+	public static synthetic fun instanceOf$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/InstanceOfFilter;
 	public static synthetic fun instanceOf$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/CheckCastFilter;
 	public static final fun literal (DLjava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/LiteralFilter;
 	public static final fun literal (FLjava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/LiteralFilter;
@@ -174,42 +174,97 @@ public final class app/morphe/patcher/InstructionFilterKt {
 }
 
 public abstract interface class app/morphe/patcher/InstructionLocation {
+	public fun getSearchesBackwards ()Z
 	public abstract fun indexIsValidForMatching (II)Z
+	public fun searchStartIndex (II)I
+}
+
+public final class app/morphe/patcher/InstructionLocation$DefaultImpls {
+	public static fun getSearchesBackwards (Lapp/morphe/patcher/InstructionLocation;)Z
+	public static fun searchStartIndex (Lapp/morphe/patcher/InstructionLocation;II)I
 }
 
 public final class app/morphe/patcher/InstructionLocation$MatchAfterAnywhere : app/morphe/patcher/InstructionLocation {
 	public fun <init> ()V
+	public fun getSearchesBackwards ()Z
 	public fun indexIsValidForMatching (II)Z
+	public fun searchStartIndex (II)I
 }
 
 public final class app/morphe/patcher/InstructionLocation$MatchAfterAtLeast : app/morphe/patcher/InstructionLocation {
 	public fun <init> (I)V
 	public final fun getMinimumDistanceFromLastInstruction ()I
+	public fun getSearchesBackwards ()Z
 	public fun indexIsValidForMatching (II)Z
+	public fun searchStartIndex (II)I
 	public final fun setMinimumDistanceFromLastInstruction (I)V
 }
 
 public final class app/morphe/patcher/InstructionLocation$MatchAfterImmediately : app/morphe/patcher/InstructionLocation {
 	public fun <init> ()V
+	public fun getSearchesBackwards ()Z
 	public fun indexIsValidForMatching (II)Z
+	public fun searchStartIndex (II)I
+}
+
+public final class app/morphe/patcher/InstructionLocation$MatchAfterLast : app/morphe/patcher/InstructionLocation {
+	public fun <init> ()V
+	public fun getSearchesBackwards ()Z
+	public fun indexIsValidForMatching (II)Z
+	public fun searchStartIndex (II)I
 }
 
 public final class app/morphe/patcher/InstructionLocation$MatchAfterRange : app/morphe/patcher/InstructionLocation {
 	public fun <init> (II)V
 	public final fun getMaximumDistanceFromLastInstruction ()I
 	public final fun getMinimumDistanceFromLastInstruction ()I
+	public fun getSearchesBackwards ()Z
 	public fun indexIsValidForMatching (II)Z
+	public fun searchStartIndex (II)I
 }
 
 public final class app/morphe/patcher/InstructionLocation$MatchAfterWithin : app/morphe/patcher/InstructionLocation {
 	public fun <init> (I)V
 	public final fun getMatchDistance ()I
+	public fun getSearchesBackwards ()Z
 	public fun indexIsValidForMatching (II)Z
+	public fun searchStartIndex (II)I
+}
+
+public final class app/morphe/patcher/InstructionLocation$MatchBeforeAnywhere : app/morphe/patcher/InstructionLocation {
+	public fun <init> ()V
+	public fun getSearchesBackwards ()Z
+	public fun indexIsValidForMatching (II)Z
+	public fun searchStartIndex (II)I
+}
+
+public final class app/morphe/patcher/InstructionLocation$MatchBeforeFirst : app/morphe/patcher/InstructionLocation {
+	public fun <init> ()V
+	public fun getSearchesBackwards ()Z
+	public fun indexIsValidForMatching (II)Z
+	public fun searchStartIndex (II)I
+}
+
+public final class app/morphe/patcher/InstructionLocation$MatchBeforeImmediately : app/morphe/patcher/InstructionLocation {
+	public fun <init> ()V
+	public fun getSearchesBackwards ()Z
+	public fun indexIsValidForMatching (II)Z
+	public fun searchStartIndex (II)I
+}
+
+public final class app/morphe/patcher/InstructionLocation$MatchBeforeWithin : app/morphe/patcher/InstructionLocation {
+	public fun <init> (I)V
+	public final fun getMatchDistance ()I
+	public fun getSearchesBackwards ()Z
+	public fun indexIsValidForMatching (II)Z
+	public fun searchStartIndex (II)I
 }
 
 public final class app/morphe/patcher/InstructionLocation$MatchFirst : app/morphe/patcher/InstructionLocation {
 	public fun <init> ()V
+	public fun getSearchesBackwards ()Z
 	public fun indexIsValidForMatching (II)Z
+	public fun searchStartIndex (II)I
 }
 
 public abstract interface annotation class app/morphe/patcher/InternalApi : java/lang/annotation/Annotation {
