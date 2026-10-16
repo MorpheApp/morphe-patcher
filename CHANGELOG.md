@@ -1,3 +1,10 @@
+# [2.0.0-dev.10](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.9...v2.0.0-dev.10) (2026-10-16)
+
+
+### Performance Improvements
+
+* Speed up XML saving, path matching and JSON writing on Android, and assign new resource IDs in a stable order ([f13a39d](https://github.com/MorpheApp/morphe-patcher/commit/f13a39d5855f8382d5733d47de3a5505fe142f99))
+
 # [2.0.0-dev.9](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.8...v2.0.0-dev.9) (2026-10-16)
 
 
