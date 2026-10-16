@@ -369,7 +369,7 @@ internal class OnRequestDecoder(
      */
     private inner class ArchiveNameAliasingSerializer(serializer: XmlSerializer) : XmlSerializerWrapper(serializer) {
         override fun text(text: String): XmlSerializer {
-            val alias = text?.takeIf { it in resourceArchiveNames }?.let(pathMap::getAlias)
+            val alias = text.takeIf { it in resourceArchiveNames }?.let(pathMap::getAlias)
             return super.text(alias ?: text)
         }
     }

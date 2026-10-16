@@ -1102,8 +1102,8 @@ open class Fingerprint private constructor(
     context(patchContext: BytecodePatchContext)
     private fun indexedCandidates(): PatchClasses.Candidates? {
         val patchClasses = patchContext.patchClasses
-        val indexedClasses = ArrayList<List<PatchClasses.ClassDefWrapper>>()
-        indexedClasses += requiredStringIndexedClasses()
+        val conditions = ArrayList<PatchClasses.IndexCondition>()
+        conditions += requiredStringConditions()
 
         val filtersLocal = filters
         if (filtersLocal != null && filtersLocal.all(::isBundledFilter)) {
@@ -1115,45 +1115,56 @@ open class Fingerprint private constructor(
 
                 // Strings that all matching methods have are already added.
                 if (filter !is StringFilter) {
-                    filter.addIndexedClasses(patchClasses, indexedClasses)
+                    filter.addIndexConditions(patchClasses, conditions)
                 }
             }
         }
-        if (indexedClasses.isEmpty()) return null
+        if (conditions.isEmpty()) return null
 
-        return patchClasses.candidateClasses(indexedClasses)
+        return patchClasses.candidateConditionClasses(conditions)
     }
 
     /**
-     * Adds the indexed classes of each value this filter requires an instruction to have.
+     * Adds a condition for each value this filter requires an instruction to have.
      *
      * @return False if this filter can match instructions without indexed values.
      */
     context(patchContext: BytecodePatchContext)
-    private fun InstructionFilter.addIndexedClasses(
+    private fun InstructionFilter.addIndexConditions(
         patchClasses: PatchClasses,
-        indexedClasses: MutableList<List<PatchClasses.ClassDefWrapper>>,
+        conditions: MutableList<PatchClasses.IndexCondition>,
     ): Boolean {
-        val indexedClassesSize = indexedClasses.size
+        val conditionsSize = conditions.size
 
         fun addType(type: String?) {
             if (type != null && isIndexedType(type)) {
-                indexedClasses += patchClasses.getIndexedClassesReferencingType(type)
+                conditions += PatchClasses.IndexCondition(patchClasses.getIndexedClassesReferencingType(type)) {
+                    it.hasType(type)
+                }
             }
         }
 
         fun addMemberName(name: String?) {
             if (name != null) {
-                indexedClasses += patchClasses.getIndexedClassesReferencingMemberName(name)
+                conditions += PatchClasses.IndexCondition(patchClasses.getIndexedClassesReferencingMemberName(name)) {
+                    it.hasMemberName(name)
+                }
             }
         }
 
         when (this) {
             is LiteralFilter -> {
-                // A literal that does not exist in this app matches no instruction.
-                indexedClasses += literalValue?.let(patchClasses::getIndexedClassesContainingLiteral).orEmpty()
+                val literal = literalValue
+                conditions += if (literal == null) {
+                    // A literal that does not exist in this app matches no instruction.
+                    PatchClasses.IndexCondition(emptyList()) { false }
+                } else {
+                    PatchClasses.IndexCondition(patchClasses.getIndexedClassesContainingLiteral(literal)) {
+                        it.hasLiteral(literal)
+                    }
+                }
             }
-            is StringFilter -> indexedClasses += stringIndexedClasses(listOf(this)).single()
+            is StringFilter -> conditions += stringConditions(listOf(this)).single()
             is MethodCallFilter -> {
                 addType(definingClass)
                 addMemberName(name)
@@ -1171,29 +1182,48 @@ open class Fingerprint private constructor(
             is AnyInstruction -> {
                 // A class can match if it can match any of the filters.
                 val alternatives = filters.map { filter ->
-                    val alternative = ArrayList<List<PatchClasses.ClassDefWrapper>>()
-                    if (!filter.addIndexedClasses(patchClasses, alternative)) return false
+                    val alternative = ArrayList<PatchClasses.IndexCondition>()
+                    if (!filter.addIndexConditions(patchClasses, alternative)) return false
                     alternative
                 }
-                indexedClasses += patchClasses.indexedClassesOfAny(alternatives)
+                val indexedClasses = patchClasses.indexedClassesOfAny(
+                    alternatives.map { alternative -> alternative.map { it.indexedClasses } }
+                )
+                conditions += PatchClasses.IndexCondition(indexedClasses) { values ->
+                    alternatives.any { alternative -> alternative.all { it.isSatisfiedBy(values) } }
+                }
             }
         }
 
-        return indexedClasses.size > indexedClassesSize
+        return conditions.size > conditionsSize
     }
 
     /**
-     * Indexed classes of each string that all matching methods have,
+     * A condition for each string that all matching methods have,
      * from the unordered strings and the string filters that are not part of another filter.
      */
     context(patchContext: BytecodePatchContext)
-    private fun requiredStringIndexedClasses(): List<List<PatchClasses.ClassDefWrapper>> {
+    private fun requiredStringConditions(): List<PatchClasses.IndexCondition> {
         val requiredStrings = ArrayList<StringFilter>()
         stringFilters?.let(requiredStrings::addAll)
         filters?.filterIsInstanceTo(requiredStrings)
 
-        return stringIndexedClasses(requiredStrings)
+        return stringConditions(requiredStrings)
     }
+
+    /**
+     * A condition for the string of each filter, in the order of the filters.
+     */
+    context(patchContext: BytecodePatchContext)
+    private fun stringConditions(stringFilters: List<StringFilter>): List<PatchClasses.IndexCondition> =
+        stringIndexedClasses(stringFilters).mapIndexed { index, indexedClasses ->
+            val string = stringFilters[index].stringValue
+            val comparison = stringFilters[index].comparison
+            PatchClasses.IndexCondition(indexedClasses) { values ->
+                if (comparison == StringComparisonType.EQUALS) string in values.strings
+                else values.strings.any { comparison.compare(it, string) }
+            }
+        }
 
     /**
      * Indexed classes with a string that each filter can match, in the order of the filters.

@@ -31,8 +31,8 @@ class MutableClass(classDef: ClassDef) :
     }
 
     // Methods
-    private val methodsDelegate = lazy { classDef.methods.map { method -> method.toMutable() }.toMutableSet() }
-    private val _methods by methodsDelegate
+    private val methodsDelegate = lazy { MethodSet(this, classDef.methods.map { method -> method.toMutable() }) }
+    private val _methods: MutableSet<MutableMethod> by methodsDelegate
     private val _directMethods by lazy { _methods.filter { method -> MethodUtil.isDirect(method) }.toMutableSet() }
     private val _virtualMethods by lazy { _methods.filter { method -> !MethodUtil.isDirect(method) }.toMutableSet() }
 
@@ -47,6 +47,42 @@ class MutableClass(classDef: ClassDef) :
      */
     internal val areMethodsCreated: Boolean
         get() = methodsDelegate.isInitialized()
+
+    /**
+     * The [ChangeStamps] stamp of the last method added to [getMethods] or of the last change of the
+     * instructions of a method of it, or 0 if none. Removing methods changes only the number of methods.
+     */
+    internal var methodsChangeStamp = 0L
+        private set
+
+    internal fun methodsChanged(stamp: Long) {
+        methodsChangeStamp = stamp
+    }
+
+    /**
+     * The methods of a mutable class, which tells the class when a method is added,
+     * and tells each added method about the class.
+     */
+    private class MethodSet(
+        private val owner: MutableClass,
+        methods: List<MutableMethod>,
+    ) : LinkedHashSet<MutableMethod>(methods.size * 2) {
+        init {
+            methods.forEach { method -> addWithoutChange(method) }
+        }
+
+        private fun addWithoutChange(method: MutableMethod): Boolean {
+            if (!super.add(method)) return false
+            method.addOwner(owner)
+            return true
+        }
+
+        override fun add(element: MutableMethod): Boolean {
+            if (!addWithoutChange(element)) return false
+            owner.methodsChanged(ChangeStamps.next())
+            return true
+        }
+    }
 
     fun setType(type: String) {
         this.type = type

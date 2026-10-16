@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.dex
 
+import com.android.tools.smali.dexlib2.dexbacked.raw.HeaderItem
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
@@ -58,10 +59,24 @@ internal object DexStripper {
      * @return The number of class definitions stripped.
      */
     fun stripInPlace(mappedFile: MappedFile, classDescriptorsToStrip: Set<String>): Int {
+        val strippedCount = strip(mappedFile.buffer, classDescriptorsToStrip)
+        if (strippedCount > 0) mappedFile.force()
+
+        return strippedCount
+    }
+
+    /**
+     * Strips class definitions from the contents of a DEX file, as [stripInPlace] does.
+     *
+     * @param buffer The whole DEX file to edit.
+     * @param classDescriptorsToStrip Set of class descriptors to strip (e.g., "Lcom/example/Foo;").
+     * @return The number of class definitions stripped.
+     */
+    fun strip(buffer: ByteBuffer, classDescriptorsToStrip: Set<String>): Int {
         if (classDescriptorsToStrip.isEmpty()) return 0
 
-        val fileSize = mappedFile.buffer.capacity()
-        val buf = mappedFile.buffer.order(ByteOrder.LITTLE_ENDIAN)
+        val fileSize = buffer.capacity()
+        val buf = buffer.order(ByteOrder.LITTLE_ENDIAN)
 
         val stringIdsOff = buf.getInt(STRING_IDS_OFF_OFF)
         val typeIdsOff = buf.getInt(TYPE_IDS_OFF_OFF)
@@ -110,9 +125,19 @@ internal object DexStripper {
         recomputeSignature(buf, fileSize)
         recomputeChecksum(buf, fileSize)
 
-        mappedFile.force()
-
         return indicesToRemove.size
+    }
+
+    /**
+     * Sets the DEX version in the header of the contents of a DEX file.
+     * The contents must not use features that the version does not support.
+     * The magic is before the data of the checksum and signature, so they stay valid.
+     *
+     * @param buffer The whole DEX file to edit.
+     * @param dexVersion The DEX version, such as 35.
+     */
+    fun setDexVersion(buffer: ByteBuffer, dexVersion: Int) {
+        HeaderItem.getMagicForDexVersion(dexVersion).forEachIndexed { index, byte -> buffer.put(index, byte) }
     }
 
     // -------------------------------------------------------------------------

@@ -1939,6 +1939,37 @@ internal object PatcherTest {
     }
 
     @Test
+    fun `fingerprints do not match classes that were replaced`() {
+        fun classWithString(methodName: String, string: String) = ImmutableClassDef(
+            "Lclass1;", 0, null, null, null, null, null,
+            listOf(dexBackedMethod("Lclass1;", methodName, "const-string v0, \"$string\"\nreturn-void")),
+        )
+        val patchClasses = PatchClasses(setOf(classWithString("old", "replaced")))
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+        patchClasses.getClassesByReferenceMap()
+        patchClasses.addClass(classWithString("new", "replacement"))
+
+        with(patcher.context.bytecodeContext) {
+            assertNull(Fingerprint(strings = listOf("replaced")).matchOrNull())
+            assertNull(Fingerprint(filters = listOf(string("replaced"))).matchOrNull())
+            assertNull(Fingerprint(filters = listOf(anyInstruction(string("replaced"), opcode(Opcode.NOP)))).matchOrNull())
+            assertNull(Fingerprint(strings = listOf("replaced")).matchAllOrNull())
+            assertEquals("new", Fingerprint(strings = listOf("replacement")).match().originalMethod.name)
+        }
+
+        val config = mockk<PatcherConfig>(relaxed = true) {
+            every { patchedFiles } returns Files.createTempDirectory("morphe-test").toFile()
+        }
+        BytecodePatchContext(config, mockk(relaxed = true)).apply { this.patchClasses = patchClasses }.use { context ->
+            fun List<ClassDef>.methodNames() = flatMap { classDef -> classDef.methods.map { it.name } }
+
+            assertEquals(emptyList(), context.classDefByStrings("replaced"))
+            assertEquals(listOf("new"), context.classDefByStrings("repl", StringComparisonType.STARTS_WITH).methodNames())
+            assertEquals(listOf("new"), context.getAllClassesWithStrings().methodNames())
+        }
+    }
+
+    @Test
     fun `anyInstruction filters check the classes of any of their filters`() {
         val patchClasses = PatchClasses(
             dexBackedClasses(

@@ -11,12 +11,14 @@ import app.morphe.patcher.dex.BytecodeMode
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
+import com.android.tools.smali.dexlib2.dexbacked.raw.HeaderItem
 import com.android.tools.smali.dexlib2.immutable.ImmutableClassDef
 import com.android.tools.smali.dexlib2.writer.io.FileDataStore
 import com.android.tools.smali.dexlib2.writer.pool.DexPool
 import io.mockk.mockk
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.util.function.Supplier
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.test.Test
@@ -53,10 +55,46 @@ internal class StripFastTest {
         assertEquals(setOf("La;"), typesIn(dexFiles.getValue("classes3.dex")))
     }
 
-    private fun dexOf(type: String): ByteArray {
-        val file = temporaryDirectory.resolve("${type.trim('L', ';')}.dex")
-        DexPool(Opcodes.getDefault()).apply {
-            internClass(ImmutableClassDef(type, AccessFlags.PUBLIC.value, "Ljava/lang/Object;", null, null, null, null, null))
+    @OptIn(InternalApi::class)
+    @Test
+    fun `unchanged extension classes are output in a copy of their extension dex file`() {
+        val apk = temporaryDirectory.resolve("input.apk")
+        ZipOutputStream(apk.outputStream()).use { zip ->
+            zip.putNextEntry(ZipEntry("classes.dex"))
+            zip.write(dexOf("La;"))
+            zip.closeEntry()
+        }
+        val config = PatcherConfig(apk, temporaryDirectory.resolve("tmp")).apply {
+            bytecodeMode = BytecodeMode.STRIP_FAST
+            initializeTemporaryFilesDirectories()
+        }
+        // A newer dex version than the app, as extensions often are.
+        val extension = dexOf("Lext/A;", "Lext/B;", "Lext/C;", opcodes = Opcodes.forApi(27))
+        val patch = bytecodePatch { extendWith(Supplier { extension.inputStream() }) }
+
+        val dexFiles = BytecodePatchContext(config, mockk(relaxed = true)).use { context ->
+            context.decodeDexFiles()
+            context.mergeExtension(patch)
+            context.mutableClassDefBy("Lext/B;")
+            context.get().associate { it.name to it.stream.use { stream -> stream.readBytes() } }
+        }
+
+        assertEquals(setOf("classes2.dex", "classes3.dex"), dexFiles.keys)
+        assertEquals(setOf("Lext/B;"), typesIn(dexFiles.getValue("classes2.dex")))
+        assertEquals(setOf("Lext/A;", "Lext/C;"), typesIn(dexFiles.getValue("classes3.dex")))
+        assertEquals(
+            HeaderItem.getVersion(dexFiles.getValue("classes2.dex"), 0),
+            HeaderItem.getVersion(dexFiles.getValue("classes3.dex"), 0),
+            "The copy has the dex version of the written classes",
+        )
+    }
+
+    private fun dexOf(vararg types: String, opcodes: Opcodes = Opcodes.getDefault()): ByteArray {
+        val file = temporaryDirectory.resolve("${types.first().trim('L', ';').replace('/', '_')}.dex")
+        DexPool(opcodes).apply {
+            types.forEach { type ->
+                internClass(ImmutableClassDef(type, AccessFlags.PUBLIC.value, "Ljava/lang/Object;", null, null, null, null, null))
+            }
             writeTo(FileDataStore(file))
         }
         return file.readBytes()
