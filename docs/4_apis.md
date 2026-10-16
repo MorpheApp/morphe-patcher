@@ -5,7 +5,7 @@ A handful of APIs are available to make patch development easier and more effici
 ## 📙 Overview
 
 1. 🔍 Find immutable classes with `classDefBy(String)`
-2. 🔄️️ Change immutable classes to mutable with `mutableClassDefBy(ClassDef)`
+2. 🔄️️ Change immutable classes to mutable with `mutableClassDefBy(String)` and `mutableClassDefBy(ClassDef)`
 3. 💾 Read and write resource files with `get(String, Boolean)` and `delete(String)`
 4. 📃 Read and write DOM files using `document(String)` and  `document(InputStream)`
 5. 📜 List the entries of the APK being patched with `listApkEntries(String)`
@@ -19,34 +19,48 @@ A handful of APIs are available to make patch development easier and more effici
 
 #### 🔍 `classDefBy(String)`
 
-The `classDefBy(String)` function is an alternative to finding immutable classes
-from a constant string or from a String field of a fingerprint match. 
+The `classDefBy(String)` function finds an immutable class by its type, such as a type from a constant
+string or from a fingerprint match. `classDefByOrNull(String)` returns null if the class does not exist.
+Both also accept a predicate to find a class by other characteristics.
 
 ```kt
 execute {
-    // Find the superclass of a fingerprint return type
-    val superClassOfReturnType = classDefBy(match().originalMethod.returnType).superclass
+    // Find the superclass of the return type of a fingerprint match.
+    val superclassOfReturnType = classDefBy(ShowAdsFingerprint.originalMethod.returnType).superclass
 }
 ```
 
-#### 🔄️ `mutableDefClassBy(ClassDef)`
+#### 🔄️ `mutableClassDefBy(String)` and `mutableClassDefBy(ClassDef)`
 
 By default, the classes are immutable and they cannot be modified.
-To make a class mutable use the `mutableClassDefBy(ClassDef)` function.
-Accessing the property will replace the original class definition with the mutable copy,
-thus allowing you to make changes to the class. Subsequent accesses will return the same mutable copy.
+To make a class mutable use the `mutableClassDefBy` function, with the type of the class or the class itself.
+The first call replaces the original class definition with a mutable copy,
+thus allowing you to make changes to the class. Subsequent calls return the same mutable copy.
 
 ```kt
 execute {
-    // Find a class by the return type of a fingerprint
-    val superClassOfReturnType = classDefBy(match().originalMethod.returnType).superclass
+    // Find the superclass of the return type of a fingerprint match.
+    val superclassOfReturnType = classDefBy(ShowAdsFingerprint.originalMethod.returnType).superclass!!
 
-    val mutableClass = mutableClassDefBy(superClassOfReturnType)
-    mutableClass.methods.add(Method())
+    // Make the superclass mutable, and make all of its methods public.
+    mutableClassDefBy(superclassOfReturnType).methods.forEach { method ->
+        method.setAccessFlags(
+            (method.accessFlags and (AccessFlags.PRIVATE.value or AccessFlags.PROTECTED.value).inv())
+                    or AccessFlags.PUBLIC.value
+        )
+    }
 }
 ```
 
-<!-- TODO show getting a method/field using `getMethodCalled()` -->
+To modify a method called by an instruction of a fingerprint match, use `getMethodCalled()` of the instruction
+match. It returns the mutable method, making its class mutable if needed:
+
+```kt
+execute {
+    // The first filter of ShowAdsFingerprint is a methodCall filter.
+    ShowAdsFingerprint.instructionMatches.first().getMethodCalled().returnEarly()
+}
+```
 
 #### 💾 `get(String, Boolean)` and `delete(String)`
 
@@ -89,7 +103,7 @@ The `document` function is used to read and write DOM files.
 ```kt
 execute {
     document("res/values/strings.xml").use { document ->
-        val element = doc.createElement("string").apply {
+        val element = document.createElement("string").apply {
             textContent = "Hello, World!"
         }
         document.documentElement.appendChild(element)
@@ -387,6 +401,9 @@ execute {
     GetUserAgentFingerprint.method.returnLate("Morphe")
 }
 ```
+
+- Prefer `returnLate()` if the method has side effects that other code depends on, and `returnEarly()`
+  if the original code should not run at all, such as code that loads ads or sends analytics.
 
 #### 🔁 `matchAllMethodIndicesForEach()`
 
