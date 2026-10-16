@@ -364,10 +364,11 @@ internal object PatcherTest {
 
     @ParameterizedTest
     @CsvSource(
-        "custom,false", "custom,true", "any,false", "any,true",
-        "nested-any,false", "nested-any,true", "bundled,false", "bundled,true",
+        "custom,false", "custom,true", "any-custom,false", "any-custom,true",
+        "any,false", "any,true", "nested-any,false", "nested-any,true",
+        "any-not-indexed,false", "any-not-indexed,true", "bundled,false", "bundled,true",
     )
-    fun `instruction indexes only filter bundled non-union fingerprints`(kind: String, matchAll: Boolean) {
+    fun `instruction indexes only filter fingerprints with bundled filters`(kind: String, matchAll: Boolean) {
         val method = ImmutableMethod(
             "Lcandidate;", "value", emptyList(), "V", AccessFlags.PUBLIC.value,
             null, null, MutableMethodImplementation(1),
@@ -379,10 +380,14 @@ internal object PatcherTest {
         )
         every { patcher.context.bytecodeContext.patchClasses } returns PatchClasses(setOf(classDef))
 
+        val customFilter = InstructionFilter { _, _ -> true }
         val firstFilter = when (kind) {
-            "custom" -> InstructionFilter { _, _ -> true }
+            "custom" -> customFilter
+            "any-custom" -> anyInstruction(literal(0), customFilter)
             "any" -> anyInstruction(literal(0))
             "nested-any" -> anyInstruction(anyInstruction(literal(0)))
+            // Matches instructions without indexed values, so only the other filter is indexed.
+            "any-not-indexed" -> anyInstruction(literal(0), opcode(Opcode.CONST_4))
             else -> literal(0)
         }
         var visitedMethods = 0
@@ -395,7 +400,7 @@ internal object PatcherTest {
             if (matchAll) assertNull(fingerprint.matchAllOrNull())
             else assertNull(fingerprint.matchOrNull())
         }
-        assertEquals(if (kind == "bundled") 0 else 1, visitedMethods)
+        assertEquals(if (kind == "custom" || kind == "any-custom") 1 else 0, visitedMethods)
     }
 
     @Test
@@ -581,7 +586,7 @@ internal object PatcherTest {
                 Fingerprint(
                     filters = listOf(anyInstruction(literal(1), literal(0))),
                 ).matchAll().map { it.originalClassDef.type },
-                "AnyInstruction must match through the full scan",
+                "AnyInstruction must match the classes of any of its filters",
             )
 
             class ProxyFilterCounter(val filter: InstructionFilter) : InstructionFilter {
@@ -1890,6 +1895,177 @@ internal object PatcherTest {
                 assertEquals(listOf("Lclass3;"), legacyFingerprint.matchAll().map { it.originalClassDef.type })
                 assertEquals("Lclass3;", legacyFingerprint.match().originalClassDef.type)
             }
+        }
+    }
+
+    @Test
+    fun `fingerprints with strings only check classes that can have the strings`() {
+        val patchClasses = PatchClasses(
+            dexBackedClasses(
+                "Lclass1;" to listOf(dexBackedMethod("Lclass1;", "method1", "const-string v0, \"first\"\nreturn-void")),
+                "Lclass2;" to listOf(dexBackedMethod("Lclass2;", "method2", "return-void")),
+                "Lclass3;" to listOf(dexBackedMethod("Lclass3;", "method3", "return-void")),
+            )
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+
+        with(patcher.context.bytecodeContext) {
+            var visitedMethods = 0
+            fun fingerprint(vararg strings: String) = Fingerprint(
+                strings = strings.toList(),
+                custom = { _, _ -> visitedMethods++; true },
+            )
+
+            assertNull(fingerprint("first", "second").matchOrNull())
+            assertNull(fingerprint("first", "second").matchAllOrNull())
+            assertEquals(1, visitedMethods, "Only the class with the first string is checked")
+
+            // Strings added to a mutable class are not in the indexes.
+            patchClasses.classMap.getValue("Lclass3;").getMutableClass().methods.single()
+                .addInstructions(0, "const-string v0, \"first\"\nconst-string v0, \"second\"")
+
+            visitedMethods = 0
+            assertEquals("Lclass3;", fingerprint("first", "second").match().originalClassDef.type)
+            assertEquals(2, visitedMethods)
+            assertEquals(
+                listOf("Lclass3;"),
+                fingerprint("first", "second").matchAll().map { it.originalClassDef.type },
+            )
+            assertEquals(
+                listOf("Lclass1;", "Lclass3;"),
+                fingerprint("first").matchAll().map { it.originalClassDef.type },
+            )
+        }
+    }
+
+    @Test
+    fun `fingerprints do not match classes that were replaced`() {
+        fun classWithString(methodName: String, string: String) = ImmutableClassDef(
+            "Lclass1;", 0, null, null, null, null, null,
+            listOf(dexBackedMethod("Lclass1;", methodName, "const-string v0, \"$string\"\nreturn-void")),
+        )
+        val patchClasses = PatchClasses(setOf(classWithString("old", "replaced")))
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+        patchClasses.getClassesByReferenceMap()
+        patchClasses.addClass(classWithString("new", "replacement"))
+
+        with(patcher.context.bytecodeContext) {
+            assertNull(Fingerprint(strings = listOf("replaced")).matchOrNull())
+            assertNull(Fingerprint(filters = listOf(string("replaced"))).matchOrNull())
+            assertNull(Fingerprint(filters = listOf(anyInstruction(string("replaced"), opcode(Opcode.NOP)))).matchOrNull())
+            assertNull(Fingerprint(strings = listOf("replaced")).matchAllOrNull())
+            assertEquals("new", Fingerprint(strings = listOf("replacement")).match().originalMethod.name)
+        }
+
+        val config = mockk<PatcherConfig>(relaxed = true) {
+            every { patchedFiles } returns Files.createTempDirectory("morphe-test").toFile()
+        }
+        BytecodePatchContext(config, mockk(relaxed = true)).apply { this.patchClasses = patchClasses }.use { context ->
+            fun List<ClassDef>.methodNames() = flatMap { classDef -> classDef.methods.map { it.name } }
+
+            assertEquals(emptyList(), context.classDefByStrings("replaced"))
+            assertEquals(listOf("new"), context.classDefByStrings("repl", StringComparisonType.STARTS_WITH).methodNames())
+            assertEquals(listOf("new"), context.getAllClassesWithStrings().methodNames())
+        }
+    }
+
+    @Test
+    fun `anyInstruction filters check the classes of any of their filters`() {
+        val patchClasses = PatchClasses(
+            dexBackedClasses(
+                "Lclass1;" to listOf(dexBackedMethod("Lclass1;", "method1", "const-string v0, \"first\"\nreturn-void")),
+                "Lclass2;" to listOf(
+                    dexBackedMethod("Lclass2;", "method2", "invoke-static { }, Lclass9;->calledMethod()V\nreturn-void")
+                ),
+                "Lclass3;" to listOf(dexBackedMethod("Lclass3;", "method3", "const v0, 0x5678\nreturn-void")),
+                "Lclass4;" to listOf(dexBackedMethod("Lclass4;", "method4", "return-void")),
+            )
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+
+        with(patcher.context.bytecodeContext) {
+            var visitedMethods = 0
+            fun fingerprint(vararg filters: InstructionFilter): Fingerprint {
+                visitedMethods = 0
+                return Fingerprint(filters = filters.toList(), custom = { _, _ -> visitedMethods++; true })
+            }
+            fun Fingerprint.matchedClasses() = matchAllOrNull()?.map { it.originalClassDef.type }
+
+            assertEquals(
+                listOf("Lclass1;", "Lclass2;", "Lclass3;"),
+                fingerprint(
+                    anyInstruction(string("first"), methodCall(name = "calledMethod"), literal(0x5678))
+                ).matchedClasses(),
+            )
+            assertEquals(3, visitedMethods)
+
+            assertEquals(
+                listOf("Lclass1;", "Lclass2;"),
+                fingerprint(
+                    anyInstruction(string("first"), methodCall(name = "calledMethod")),
+                    opcode(Opcode.RETURN_VOID),
+                ).matchedClasses(),
+            )
+            assertEquals(2, visitedMethods)
+
+            assertEquals(
+                listOf("Lclass1;", "Lclass3;"),
+                fingerprint(
+                    anyInstruction(string("fir", StringComparisonType.STARTS_WITH), literal(0x5678))
+                ).matchedClasses(),
+            )
+            assertEquals(2, visitedMethods)
+
+            assertNull(fingerprint(anyInstruction(string("missing"), literal(0x9999))).matchedClasses())
+            assertEquals(0, visitedMethods)
+            assertNull(fingerprint(anyInstruction(string("missing"), literal(0x9999))).matchOrNull())
+            assertEquals(0, visitedMethods)
+        }
+    }
+
+    @Test
+    fun `fingerprints find field and method references by the types of their signatures`() {
+        val patchClasses = PatchClasses(
+            dexBackedClasses(
+                "Lclass1;" to listOf(
+                    dexBackedMethod("Lclass1;", "method1", "sget-object v0, Lclass9;->field:Lcom/test/FieldType;\nreturn-void")
+                ),
+                "Lclass2;" to listOf(
+                    dexBackedMethod(
+                        "Lclass2;",
+                        "method2",
+                        "invoke-static { v0, v1 }, Lclass9;->call(Lcom/test/ParameterType;I)Lcom/test/ReturnType;\n" +
+                            "return-void",
+                    )
+                ),
+                "Lclass3;" to listOf(dexBackedMethod("Lclass3;", "method3", "return-void")),
+            )
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+
+        with(patcher.context.bytecodeContext) {
+            var visitedMethods = 0
+            fun matchedClasses(filter: InstructionFilter): List<String>? {
+                visitedMethods = 0
+                return Fingerprint(filters = listOf(filter), custom = { _, _ -> visitedMethods++; true })
+                    .matchAllOrNull()?.map { it.originalClassDef.type }
+            }
+
+            assertEquals(listOf("Lclass1;"), matchedClasses(fieldAccess(type = "Lcom/test/FieldType;")))
+            assertEquals(1, visitedMethods)
+            assertEquals(listOf("Lclass2;"), matchedClasses(methodCall(returnType = "Lcom/test/ReturnType;")))
+            assertEquals(1, visitedMethods)
+            assertEquals(
+                listOf("Lclass2;"),
+                matchedClasses(methodCall(parameters = listOf("Lcom/test/ParameterType;", "I"))),
+            )
+            assertEquals(1, visitedMethods)
+            assertNull(matchedClasses(fieldAccess(type = "Lcom/test/Missing;")))
+            assertEquals(0, visitedMethods)
+
+            // Partial and primitive types are not indexed.
+            assertEquals(listOf("Lclass2;"), matchedClasses(methodCall(parameters = listOf("Lcom/test/", "I"))))
+            assertEquals(3, visitedMethods)
         }
     }
 

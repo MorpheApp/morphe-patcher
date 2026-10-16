@@ -359,10 +359,11 @@ fun interface InstructionLocation {
 
 
 /**
- * All filters here except for [AnyInstruction].
- * Used to speed up [Fingerprint.matchAll] fingerprints that contain strings.
+ * All filters here except for [AnyInstruction], which is a bundled filter if all of its filters are.
+ * Fingerprints use the instruction indexes to check only the classes that can match
+ * if all of their filters are bundled filters.
  * Custom instruction filters could do logical filtering and will interfere with
- * faster string matchAll operations.
+ * the faster indexed matching.
  */
 internal var BUNDLED_INSTRUCTION_FILTERS = setOf<KClass<*>>(
     OpcodeFilter::class,

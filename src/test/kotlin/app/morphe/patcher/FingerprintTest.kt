@@ -279,6 +279,16 @@ internal object FingerprintTest {
     }
 
     @Test
+    fun `Fingerprint throws on empty filters`() {
+        assertThrows<IllegalArgumentException> {
+            Fingerprint(filters = emptyList())
+        }
+        assertThrows<IllegalArgumentException> {
+            Fingerprint(name = "testMethod", filters = emptyList())
+        }
+    }
+
+    @Test
     fun `Fingerprint throws on both accessFlags and isStatic`() {
         assertThrows<IllegalArgumentException> {
             Fingerprint(accessFlags = listOf(AccessFlags.PUBLIC), isStatic = true)
