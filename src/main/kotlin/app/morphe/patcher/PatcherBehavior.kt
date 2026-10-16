@@ -58,6 +58,23 @@ internal enum class PatcherBehavior(
     ),
 
     /**
+     * If an instruction filter of a fingerprint does not match, the filters declared before it are
+     * retried with their next matching instruction, instead of only the first filter.
+     * See [Fingerprint.retryAllFilters].
+     */
+    RETRY_ALL_INSTRUCTION_FILTERS(
+        since = "2.0.0-0", // Includes pre-release.
+        adoption = Adoption.NEWEST_BUNDLE,
+        description = "Fingerprint instruction filters before a filter that does not match are retried with " +
+            "their next matching instruction, instead of only the first filter",
+        // Only bundles whose bytecode uses instruction locations that can match differently.
+        affectsPatch = { patch ->
+            patch.bundle?.retryingFiltersCanChangeMatches != false && patch.anyRecursively { it is BytecodePatch }
+        },
+        appliesToUnknownVersion = true,
+    ),
+
+    /**
      * Loading a universal patch declared with default true fails, instead of only warning and loading
      * it with default false. See [Patch.declaredUniversalWithDefault].
      */
