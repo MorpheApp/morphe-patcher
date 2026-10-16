@@ -1,3 +1,10 @@
+# [2.0.0-dev.8](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.7...v2.0.0-dev.8) (2026-10-16)
+
+
+### Performance Improvements
+
+* Copy unchanged extension DEX files, index instructions without decoding them, and skip unchanged mutable methods when matching fingerprints ([#251](https://github.com/MorpheApp/morphe-patcher/issues/251)) ([aa883a2](https://github.com/MorpheApp/morphe-patcher/commit/aa883a2e50f1439c9f07d62d00d63da89a19240c))
+
 # [2.0.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.6...v2.0.0-dev.7) (2026-10-16)
 
 
