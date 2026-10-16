@@ -1,3 +1,10 @@
+# [2.0.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.5...v2.0.0-dev.6) (2026-10-16)
+
+
+### Bug Fixes
+
+* Universal patches declared default true do not give enough feedback what patch is at fault. Change 2.0.0 behavior from logger warning to an exception ([5c2f42f](https://github.com/MorpheApp/morphe-patcher/commit/5c2f42fd126d2b8a5e2e9f85f148556dabdc0b55))
+
 # [2.0.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.4...v2.0.0-dev.5) (2026-10-16)
 
 
