@@ -120,7 +120,10 @@ internal object PatchLoaderTest {
         val patches = loadPatches(patchesFile)
 
         patches.forEach { patch ->
-            assertEquals(PatchBundleInfo(patchesFile, "Test patches", "2.3.4", "1.16.0"), patch.bundle)
+            assertEquals(
+                PatchBundleInfo(patchesFile, "Test patches", "2.3.4", "1.16.0", retryingFiltersCanChangeMatches = false),
+                patch.bundle,
+            )
         }
         assertEquals(
             publicPatch.bundle,

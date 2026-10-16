@@ -172,6 +172,42 @@ internal class PatcherBehaviorTest {
     }
 
     @Test
+    fun `retrying all instruction filters applies to every bundle once one is built for it`() {
+        val retryAll = PatcherBehavior.RETRY_ALL_INSTRUCTION_FILTERS
+        assertEquals(Adoption.NEWEST_BUNDLE, retryAll.adoption)
+
+        val newVersion = retryAll.since.toString()
+        val patches = listOf(
+            bytecodePatch("Old") {}.from(bundle("Old patches", "1.15.1")),
+            resourcePatch("Old resources") {}.from(bundle("Old resource patches", "1.15.1")),
+            bytecodePatch("New") {}.from(bundle("New patches", newVersion)),
+        )
+        val resolved = resolvePatcherBehaviors(null, patches, logger, listOf(retryAll))
+
+        assertEquals(setOf(retryAll), resolved)
+        val warning = warnings.single()
+        assertTrue("Old patches 1.0.0, built for Morphe Patcher 1.15.1" in warning, warning)
+        assertTrue(retryAll.description in warning, warning)
+        assertFalse("Old resource patches" in warning, "fingerprints do not affect resource patches")
+
+        warnings.clear()
+        assertEquals(emptySet(), resolvePatcherBehaviors(null, patches.take(2), logger, listOf(retryAll)))
+        assertTrue(warnings.isEmpty(), warnings.toString())
+
+        assertEquals(
+            setOf(retryAll),
+            resolvePatcherBehaviors(null, listOf(bytecodePatch("Patch") {}), logger, listOf(retryAll)),
+            "patches built for an unknown version retry all filters",
+        )
+
+        val unchanged = bytecodePatch("Unchanged") {}.from(
+            PatchBundleInfo(File("Unchanged.mpp"), "Unchanged patches", "1.0.0", "1.15.1", retryingFiltersCanChangeMatches = false)
+        )
+        assertEquals(setOf(retryAll), resolvePatcherBehaviors(null, listOf(unchanged, patches.last()), logger, listOf(retryAll)))
+        assertTrue(warnings.isEmpty(), "bundles whose fingerprints cannot match differently are not named: $warnings")
+    }
+
+    @Test
     fun `strict universal patch defaults apply once every bundle with such patches is built for them`() {
         val strict = PatcherBehavior.STRICT_UNIVERSAL_PATCH_DEFAULT
         assertEquals(Adoption.EVERY_BUNDLE, strict.adoption)

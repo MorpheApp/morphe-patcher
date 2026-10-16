@@ -30,6 +30,7 @@ import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
 import com.android.tools.smali.dexlib2.util.MethodUtil
 import java.lang.ref.WeakReference
+import java.util.BitSet
 import kotlin.DeprecationLevel
 
 /**
@@ -38,7 +39,8 @@ import kotlin.DeprecationLevel
  *                Each filter matches relative to the previous filter match, using the
  *                [InstructionFilter.location] of the filter. Some locations, such as
  *                [InstructionLocation.MatchBeforeImmediately], match an instruction that appears
- *                before the previous filter match.
+ *                before the previous filter match. If a filter cannot match, then the filters
+ *                declared before it are retried with their next matching instruction.
  * @param stringFilters A list of string filters that match anywhere in the method in any order.
  * @param custom A custom condition for this fingerprint.
  */
@@ -125,7 +127,8 @@ open class Fingerprint private constructor(
      *                Each filter matches relative to the previous filter match, using the
      *                [InstructionFilter.location] of the filter. Some locations, such as
      *                [InstructionLocation.MatchBeforeImmediately], match an instruction that appears
-     *                before the previous filter match.
+     *                before the previous filter match. If a filter cannot match, then the filters
+     *                declared before it are retried with their next matching instruction.
      * @param strings A list of strings that appear anywhere in the method in any order. Compared using [String.equals].
      * @param custom A custom condition for this fingerprint.
      */
@@ -189,7 +192,8 @@ open class Fingerprint private constructor(
      *                Each filter matches relative to the previous filter match, using the
      *                [InstructionFilter.location] of the filter. Some locations, such as
      *                [InstructionLocation.MatchBeforeImmediately], match an instruction that appears
-     *                before the previous filter match.
+     *                before the previous filter match. If a filter cannot match, then the filters
+     *                declared before it are retried with their next matching instruction.
      * @param strings A list of [string] filters that match anywhere in the method in any order.
      *                Filters cannot declare an [InstructionLocation].
      * @param custom A custom condition for this fingerprint.
@@ -323,6 +327,14 @@ open class Fingerprint private constructor(
          */
         @Volatile
         internal var rawStringComparison = StringComparisonType.EQUALS
+
+        /**
+         * If the filters before an instruction filter that does not match are retried with their next
+         * matching instruction. Only patches built for a version of Morphe Patcher older than 2.0.0
+         * retry only the first filter, see [PatcherBehavior.RETRY_ALL_INSTRUCTION_FILTERS].
+         */
+        @Volatile
+        internal var retryAllFilters = true
 
         /**
          * Raw strings are matched using [rawStringComparison].
@@ -721,84 +733,11 @@ open class Fingerprint private constructor(
         } else {
             val instructions = method.instructionsOrNull?.let { it as? List<Instruction> ?: it.toList() } ?: return null
 
-            fun matchFilters(): List<Match.InstructionMatch>? {
-                val lastMethodIndex = instructions.lastIndex
-                var instructionMatches : MutableList<Match.InstructionMatch>? = null
-
-                val firstLocation = filtersLocal.first().location
-                var firstInstructionIndex = firstLocation.searchStartIndex(-1, lastMethodIndex)
-                var lastMatchIndex = -1
-
-                firstFilterLoop@ while (true) {
-                    // Matched index of the first filter.
-                    var firstFilterIndex = -1
-
-                    for (filterIndex in filtersLocal.indices) {
-                        val filter = filtersLocal[filterIndex]
-                        val location = filter.location
-                        val searchStep = if (location.searchesBackwards) -1 else 1
-                        var subIndex = if (filterIndex == 0) {
-                            firstInstructionIndex
-                        } else {
-                            location.searchStartIndex(lastMatchIndex, lastMethodIndex)
-                        }
-                        var instructionsMatched = false
-
-                        while (subIndex in 0..lastMethodIndex &&
-                            location.indexIsValidForMatching(
-                                lastMatchIndex, subIndex
-                            )
-                        ) {
-                            val instruction = instructions[subIndex]
-                            if (filter.matches(method, instruction)) {
-                                lastMatchIndex = subIndex
-
-                                if (filterIndex == 0) {
-                                    firstFilterIndex = subIndex
-                                }
-                                if (instructionMatches == null) {
-                                    instructionMatches = ArrayList(filtersLocal.size)
-                                }
-                                instructionMatches += Match.InstructionMatch(filter, subIndex, instruction)
-                                instructionsMatched = true
-                                break
-                            }
-                            subIndex += searchStep
-                        }
-
-                        if (!instructionsMatched) {
-                            if (filterIndex == 0) {
-                                return null // First filter has no more matches to start from.
-                            }
-
-                            if (firstLocation.searchesBackwards) {
-                                return null // First filter is not retried with a different index.
-                            }
-
-                            // Retrying moves the first filter match forward, which can only move the
-                            // previous match of this filter forward. A filter that searches everything
-                            // after the previous match cannot match after retrying.
-                            if (location is InstructionLocation.MatchAfterAnywhere ||
-                                location is InstructionLocation.MatchAfterLast
-                            ) {
-                                return null // Filter does not match anywhere, no need to continue.
-                            }
-
-                            // Try again with the first filter, starting from
-                            // the next possible first filter index.
-                            firstInstructionIndex = firstFilterIndex + 1
-                            lastMatchIndex = -1
-                            instructionMatches?.clear()
-                            continue@firstFilterLoop
-                        }
-                    }
-
-                    // All instruction filters matches.
-                    return instructionMatches
-                }
-            }
-
-            matchFilters() ?: return null
+            if (retryAllFilters) {
+                matchFilters(method, instructions, filtersLocal)
+            } else {
+                matchFiltersRetryingFirstFilter(method, instructions, filtersLocal)
+            } ?: return null
         }
 
         _matchOrNull = Match(
@@ -810,6 +749,171 @@ open class Fingerprint private constructor(
         )
 
         return _matchOrNull
+    }
+
+    /**
+     * Matches each filter relative to the match of the filter declared before it. If a filter
+     * cannot match, then the filter before it is retried with its next matching instruction, and so on
+     * back to the first filter. Each filter tries instructions in the order its location searches,
+     * and the first combination of instructions that matches every filter is used.
+     *
+     * @return The matches in the order the filters are declared, or null if the filters do not match.
+     */
+    private fun matchFilters(
+        method: Method,
+        instructions: List<Instruction>,
+        filters: List<InstructionFilter>,
+    ): List<Match.InstructionMatch>? {
+        val lastMethodIndex = instructions.lastIndex
+        val lastFilterIndex = filters.lastIndex
+        // The instruction index each filter matched.
+        val matchIndexes = IntArray(filters.size)
+        // The instruction index each filter continues searching from.
+        val searchIndexes = IntArray(filters.size)
+        // Created once a filter after the first filter does not match.
+        var failures: FilterFailures? = null
+
+        var filterIndex = 0
+        searchIndexes[0] = filters.first().location.searchStartIndex(-1, lastMethodIndex)
+
+        while (true) {
+            val filter = filters[filterIndex]
+            val location = filter.location
+            val previousIndex = if (filterIndex == 0) -1 else matchIndexes[filterIndex - 1]
+            val searchStep = if (location.searchesBackwards) -1 else 1
+            var subIndex = searchIndexes[filterIndex]
+            var matchedIndex = -1
+
+            while (subIndex in 0..lastMethodIndex &&
+                location.indexIsValidForMatching(previousIndex, subIndex)
+            ) {
+                if (filter.matches(method, instructions[subIndex])) {
+                    matchedIndex = subIndex
+                    break
+                }
+                subIndex += searchStep
+            }
+
+            if (matchedIndex < 0) {
+                if (filterIndex == 0) {
+                    return null // First filter has no more matches to start from.
+                }
+
+                if (failures == null) failures = FilterFailures(filters.size, instructions.size)
+                failures.add(filterIndex, location, previousIndex)
+
+                // Retry the previous filter.
+                filterIndex--
+                continue
+            }
+
+            matchIndexes[filterIndex] = matchedIndex
+            // If this filter is retried, then searching continues after this match.
+            searchIndexes[filterIndex] = matchedIndex + searchStep
+
+            if (filterIndex == lastFilterIndex) {
+                return List(filters.size) { index ->
+                    val instructionIndex = matchIndexes[index]
+                    Match.InstructionMatch(filters[index], instructionIndex, instructions[instructionIndex])
+                }
+            }
+
+            val nextLocation = filters[filterIndex + 1].location
+            if (failures != null && failures.contains(filterIndex + 1, nextLocation, matchedIndex)) {
+                continue // The next filter already failed after this index, so retry this filter.
+            }
+
+            filterIndex++
+            searchIndexes[filterIndex] = nextLocation.searchStartIndex(matchedIndex, lastMethodIndex)
+        }
+    }
+
+    /**
+     * Matches as patches built for a version of Morphe Patcher older than 2.0.0 expect.
+     * If a filter cannot match, then only the first filter is retried with its next matching
+     * instruction, and the first filter is not retried if it searches backwards.
+     *
+     * @return The matches in the order the filters are declared, or null if the filters do not match.
+     */
+    private fun matchFiltersRetryingFirstFilter(
+        method: Method,
+        instructions: List<Instruction>,
+        filters: List<InstructionFilter>,
+    ): List<Match.InstructionMatch>? {
+        val lastMethodIndex = instructions.lastIndex
+        var instructionMatches : MutableList<Match.InstructionMatch>? = null
+
+        val firstLocation = filters.first().location
+        var firstInstructionIndex = firstLocation.searchStartIndex(-1, lastMethodIndex)
+        var lastMatchIndex = -1
+
+        firstFilterLoop@ while (true) {
+            // Matched index of the first filter.
+            var firstFilterIndex = -1
+
+            for (filterIndex in filters.indices) {
+                val filter = filters[filterIndex]
+                val location = filter.location
+                val searchStep = if (location.searchesBackwards) -1 else 1
+                var subIndex = if (filterIndex == 0) {
+                    firstInstructionIndex
+                } else {
+                    location.searchStartIndex(lastMatchIndex, lastMethodIndex)
+                }
+                var instructionsMatched = false
+
+                while (subIndex in 0..lastMethodIndex &&
+                    location.indexIsValidForMatching(
+                        lastMatchIndex, subIndex
+                    )
+                ) {
+                    val instruction = instructions[subIndex]
+                    if (filter.matches(method, instruction)) {
+                        lastMatchIndex = subIndex
+
+                        if (filterIndex == 0) {
+                            firstFilterIndex = subIndex
+                        }
+                        if (instructionMatches == null) {
+                            instructionMatches = ArrayList(filters.size)
+                        }
+                        instructionMatches += Match.InstructionMatch(filter, subIndex, instruction)
+                        instructionsMatched = true
+                        break
+                    }
+                    subIndex += searchStep
+                }
+
+                if (!instructionsMatched) {
+                    if (filterIndex == 0) {
+                        return null // First filter has no more matches to start from.
+                    }
+
+                    if (firstLocation.searchesBackwards) {
+                        return null // First filter is not retried with a different index.
+                    }
+
+                    // Retrying moves the first filter match forward, which can only move the
+                    // previous match of this filter forward. A filter that searches everything
+                    // after the previous match cannot match after retrying.
+                    if (location is InstructionLocation.MatchAfterAnywhere ||
+                        location is InstructionLocation.MatchAfterLast
+                    ) {
+                        return null // Filter does not match anywhere, no need to continue.
+                    }
+
+                    // Try again with the first filter, starting from
+                    // the next possible first filter index.
+                    firstInstructionIndex = firstFilterIndex + 1
+                    lastMatchIndex = -1
+                    instructionMatches?.clear()
+                    continue@firstFilterLoop
+                }
+            }
+
+            // All instruction filters matches.
+            return instructionMatches
+        }
     }
 
     /**
@@ -1397,6 +1501,54 @@ open class Fingerprint private constructor(
     context(patchContext: BytecodePatchContext)
     val stringMatchesOrNull
         get() = matchOrNull()?.stringMatchesOrNull
+}
+
+/**
+ * Filters of a fingerprint that did not match after the filter declared before them matched an
+ * instruction index. Whether the remaining filters match depends only on the index the previous
+ * filter matched, so a failure applies no matter how the filters before it matched.
+ */
+private class FilterFailures(filterCount: Int, private val instructionCount: Int) {
+    /**
+     * For a filter that searches every instruction after or before the previous match, the failed
+     * previous match index that searched the most instructions, or -1 if none failed. Searching from
+     * an index farther in the search direction tries only instructions that were already tried.
+     */
+    private val unboundedFailures = IntArray(filterCount) { -1 }
+
+    /**
+     * Failures of filters that search a limited number of instructions, by filter and previous match index.
+     */
+    private var boundedFailures: BitSet? = null
+
+    fun add(filterIndex: Int, location: InstructionLocation, previousIndex: Int) {
+        val failedIndex = unboundedFailures[filterIndex]
+        when {
+            location.searchesAllAfter() -> if (failedIndex < 0 || previousIndex < failedIndex) {
+                unboundedFailures[filterIndex] = previousIndex
+            }
+            location.searchesAllBefore() -> if (previousIndex > failedIndex) {
+                unboundedFailures[filterIndex] = previousIndex
+            }
+            else -> (boundedFailures ?: BitSet().also { boundedFailures = it })
+                .set(filterIndex * instructionCount + previousIndex)
+        }
+    }
+
+    fun contains(filterIndex: Int, location: InstructionLocation, previousIndex: Int): Boolean {
+        val failedIndex = unboundedFailures[filterIndex]
+        return when {
+            location.searchesAllAfter() -> failedIndex >= 0 && previousIndex >= failedIndex
+            location.searchesAllBefore() -> failedIndex >= 0 && previousIndex <= failedIndex
+            else -> boundedFailures?.get(filterIndex * instructionCount + previousIndex) == true
+        }
+    }
+
+    private fun InstructionLocation.searchesAllAfter() =
+        this is InstructionLocation.MatchAfterAnywhere || this is InstructionLocation.MatchAfterLast
+
+    private fun InstructionLocation.searchesAllBefore() =
+        this is InstructionLocation.MatchBeforeAnywhere || this is InstructionLocation.MatchBeforeFirst
 }
 
 /**

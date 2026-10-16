@@ -326,7 +326,7 @@ sets where to match, either after or before the previous filter:
 | `MatchAfterImmediately()`  | Immediately after the previous filter.                                           | Not allowed                             |
 | `MatchAfterWithin(int)`    | Within a number of instructions after the previous filter.                       | Within the first `int + 1` instructions |
 | `MatchFirst()`             | The first instruction of the method.                                             | Required                                |
-| `MatchAfterLast()`         | The farthest match after the previous filter, which is the last in the method.   | The last match in the method            |
+| `MatchAfterLast()`         | The farthest match after the previous filter, which is the last in the method.   | Anywhere, trying the last match first   |
 | `MatchBeforeAnywhere()`    | The closest match before the previous filter.                                    | Not allowed                             |
 | `MatchBeforeImmediately()` | Immediately before the previous filter.                                          | Not allowed                             |
 | `MatchBeforeWithin(int)`   | The closest match within a number of instructions before the previous filter.    | Not allowed                             |
@@ -334,8 +334,8 @@ sets where to match, either after or before the previous filter:
 
 A location that is not allowed throws an exception when the fingerprint is matched.
 
-`Anywhere` locations match the closest instruction to the previous filter, while `MatchAfterLast()` and
-`MatchBeforeFirst()` match the farthest. They only differ when more than one instruction matches.
+`Anywhere` locations try the closest instruction to the previous filter first, while `MatchAfterLast()` and
+`MatchBeforeFirst()` try the farthest first. They only differ when more than one instruction matches.
 For example, if the previous filter matched index 6, and the instructions at indexes 1 and 4 both match:
 
 - `MatchBeforeAnywhere()` matches index 4, the closest.
@@ -345,10 +345,10 @@ The same applies after the previous filter: if indexes 8 and 12 both match,
 `MatchAfterAnywhere()` matches index 8 and `MatchAfterLast()` matches index 12.
 
 Matching before is useful when the most unique instruction appears after the instructions to find.
-For example, to find the method call whose result is returned at the end of a method:
+For example, to find the last method call whose result is returned:
 ```kt
 filters = listOf(
-    // The last RETURN_OBJECT of the method.
+    // Tries the last RETURN_OBJECT of the method first.
     opcode(Opcode.RETURN_OBJECT, InstructionLocation.MatchAfterLast()),
     // Within 10 instructions before RETURN_OBJECT.
     methodCall(
@@ -362,15 +362,78 @@ filters = listOf(
 ```
 
 When matching before keep in mind:
-- `MatchAfterLast()` only uses the last matching instruction of the method. If a later filter does not match, then
-  matching instructions closer to the previous filter are not tried. If it's the first filter, then the fingerprint does not match.
-- `MatchBeforeFirst()` only uses the first matching instruction of the method. If a later filter does not match, then
-  matching instructions closer to the previous filter are not tried.
 - Because each filter can change the matching direction, a filter can match the same instruction as an earlier filter.
   For example, `MatchAfterImmediately()` declared after `MatchBeforeImmediately()` matches the same
   instruction as the filter declared before both of them.
 - `instructionMatches` are in the same order the filters are declared, and the match indexes are not in
   ascending order if any filter matches before the previous filter.
+
+### 🔁 Retrying filters
+
+Each filter matches the first instruction its location allows, in the order its location searches.
+If a filter cannot match, then the filter before it is retried with its next matching instruction.
+If that filter has no more matching instructions, then the filter before that one is retried, and so on
+back to the first filter. A fingerprint does not match a method only if no combination of instructions
+matches every filter, and the first combination found is used.
+
+Retrying only changes what a fingerprint matches if it uses `MatchAfterImmediately()`, `MatchAfterWithin(int)`,
+`MatchAfterLast()` or a `MatchBefore` location. If every filter uses `MatchAfterAnywhere()` or `MatchFirst()`,
+then the closest instructions always match if any instructions do, so retrying never changes the match.
+
+Retrying is what allows filters that must match close to each other, such as `MatchAfterImmediately()`
+and `MatchAfterWithin(int)`, to find a group of instructions anywhere after the previous filter:
+
+```kt
+internal object StartVideoInformerFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "V",
+    filters = listOf(
+        // Filter 1.
+        literal(2.0),
+        // Filter 2.
+        opcode(Opcode.INVOKE_STATIC),
+        // Filter 3.
+        opcode(Opcode.MOVE_RESULT_OBJECT, InstructionLocation.MatchAfterImmediately()),
+    )
+)
+```
+
+```asm
+# Filter 1 target instruction.
+const-wide/high16 v0, 0x4000000000000000L    # 2.0
+
+# Filter 2 matches this first, but filter 3 cannot match the next instruction.
+invoke-static {}, Lcom/some/app/Logger;->log()V
+
+iget-object v2, p0, Lcom/some/app/VideoInformer;->a:Ljava/lang/String;
+
+# Filter 2 is retried and matches this call instead.
+invoke-static {v2}, Lcom/some/app/VideoInformer;->start(Ljava/lang/String;)Ljava/lang/Object;
+
+# Filter 3 target instruction.
+move-result-object v2
+```
+
+Filters 2 and 3 together match the first `invoke-static` after the literal that is immediately
+followed by `move-result-object`, so `instructionMatches[1]` is the second call.
+If no `invoke-static` after the literal is followed by `move-result-object`, then filter 1 is
+retried with the next `2.0` literal of the method, if there is one.
+
+Locations that try the farthest instruction first are retried the same way. To find the last
+`return-object` of a method that returns the result of a method call:
+
+```kt
+filters = listOf(
+    // Tries the last RETURN_OBJECT first, then the RETURN_OBJECT before it, and so on.
+    opcode(Opcode.RETURN_OBJECT, InstructionLocation.MatchAfterLast()),
+    opcode(Opcode.MOVE_RESULT_OBJECT, InstructionLocation.MatchBeforeImmediately()),
+)
+```
+
+If the last `return-object` returns a field value or a parameter, then the `return-object` before it is tried.
+
+`MatchFirst()`, `MatchAfterImmediately()` and `MatchBeforeImmediately()` can only match one instruction,
+so they have no other instruction to retry with, and the filter before them is retried instead.
 
 ### 💬 String declarations
 

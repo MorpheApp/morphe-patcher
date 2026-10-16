@@ -36,6 +36,11 @@ import kotlin.reflect.KClass
  * Because the matching direction can change, a filter can match the same instruction as an earlier
  * filter. For example, a [MatchAfterImmediately] filter declared after a [MatchBeforeImmediately]
  * filter matches the same instruction index as the filter declared before both of them.
+ *
+ * Each filter tries the instructions its location allows in the order the location searches.
+ * If a filter cannot match, then the filter declared before it is retried with its next matching
+ * instruction, and so on back to the first filter. The fingerprint does not match only if no
+ * combination of matching instructions matches every filter.
  */
 fun interface InstructionLocation {
     /**
@@ -48,9 +53,7 @@ fun interface InstructionLocation {
 
     /**
      * If searching is backwards towards the start of the method, instead of forward.
-     *
-     * If the first filter of a fingerprint searches backwards, and a later filter does not match,
-     * then the first filter is not retried with a different index and the fingerprint does not match.
+     * A filter that is retried continues searching in the same direction.
      */
     val searchesBackwards: Boolean
         get() = false
@@ -68,9 +71,10 @@ fun interface InstructionLocation {
     /**
      * Matching can occur anywhere after the previous instruction filter match index.
      * Searching is forward from the previous match, so the closest matching instruction is matched.
+     * If a later filter does not match, then the next closest matching instruction is tried.
      * Is the default behavior for all filters.
      *
-     * [MatchAfterLast] instead matches the farthest instruction after the previous match.
+     * [MatchAfterLast] instead tries the farthest instruction after the previous match first.
      */
     class MatchAfterAnywhere : InstructionLocation {
         override fun indexIsValidForMatching(previouslyMatchedIndex: Int, currentIndex: Int) = true
@@ -112,6 +116,8 @@ fun interface InstructionLocation {
     /**
      * Instruction index can occur within a range of the previous instruction filter match index.
      * Used to constrain instruction matching to a region after the previous instruction filter.
+     * Searching is forward from the previous match, so the closest matching instruction is matched.
+     * If a later filter does not match, then the next closest matching instruction within the range is tried.
      *
      * If used for the first filter, then the instruction must be within the first
      * [matchDistance] + 1 instructions of the method.
@@ -143,11 +149,10 @@ fun interface InstructionLocation {
      *
      * If used for the first filter, then the last matching instruction of the entire method is matched.
      *
-     * Only the last matching instruction is used. If a later filter does not match,
-     * then earlier matching instructions are not tried.
+     * If a later filter does not match, then the next earlier matching instruction is tried.
      *
-     * Unlike [MatchAfterAnywhere], which matches the closest instruction after the previous match,
-     * this matches the farthest.
+     * Unlike [MatchAfterAnywhere], which tries the closest instruction after the previous match first,
+     * this tries the farthest first.
      */
     class MatchAfterLast : InstructionLocation {
         override val searchesBackwards: Boolean
@@ -165,8 +170,9 @@ fun interface InstructionLocation {
     /**
      * Matching can occur anywhere before the previous instruction filter match index.
      * Searching is backwards from the previous match, so the closest matching instruction is matched.
+     * If a later filter does not match, then the next closest matching instruction is tried.
      *
-     * [MatchBeforeFirst] instead matches the farthest instruction before the previous match.
+     * [MatchBeforeFirst] instead tries the farthest instruction before the previous match first.
      *
      * This cannot be used for the first filter and will throw an exception.
      */
@@ -194,11 +200,10 @@ fun interface InstructionLocation {
      * before the previous instruction filter match. Searching is forward from the start
      * of the method up to (and excluding) the previously matched index.
      *
-     * Only the first matching instruction is used. If a later filter does not match,
-     * then later matching instructions are not tried.
+     * If a later filter does not match, then the next later matching instruction is tried.
      *
-     * Unlike [MatchBeforeAnywhere], which matches the closest instruction before the previous match,
-     * this matches the farthest.
+     * Unlike [MatchBeforeAnywhere], which tries the closest instruction before the previous match first,
+     * this tries the farthest first.
      *
      * This cannot be used for the first filter and will throw an exception.
      */
@@ -246,6 +251,7 @@ fun interface InstructionLocation {
      * Instruction index can occur within a range before the previous instruction filter match index.
      * Used to constrain instruction matching to a region before the previous instruction filter.
      * Searching is backwards from the previous match, so the closest matching instruction is matched.
+     * If a later filter does not match, then the next closest matching instruction within the range is tried.
      *
      * This cannot be used for the first filter and will throw an exception.
      *

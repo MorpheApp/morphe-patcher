@@ -1228,24 +1228,28 @@ internal object PatcherTest {
      * 7: return-void
      * ```
      */
-    private fun mockInstructionLocationMethod() {
+    private fun mockInstructionLocationMethod() = mockCandidateMethod(
+        """
+            const/4 v0, 0x0
+            const/4 v1, 0x1
+            nop
+            const/4 v0, 0x0
+            const/4 v1, 0x1
+            const/4 v2, 0x2
+            const/4 v0, 0x0
+            return-void
+        """
+    )
+
+    /**
+     * Uses a method with the instructions of [smali], which can use the registers v0 to v2.
+     */
+    private fun mockCandidateMethod(smali: String) {
         val method = ImmutableMethod(
             "Lcandidate;", "value", emptyList(), "V", AccessFlags.PUBLIC.value,
             null, null, MutableMethodImplementation(3),
         ).toMutable().apply {
-            addInstructions(
-                0,
-                """
-                    const/4 v0, 0x0
-                    const/4 v1, 0x1
-                    nop
-                    const/4 v0, 0x0
-                    const/4 v1, 0x1
-                    const/4 v2, 0x2
-                    const/4 v0, 0x0
-                    return-void
-                """
-            )
+            addInstructions(0, smali)
         }
         val classDef = ImmutableClassDef(
             "Lcandidate;", 0, null, null, null, null, null, listOf(method),
@@ -1276,23 +1280,26 @@ internal object PatcherTest {
                 matchIndexes(literal(2), literal(1, location = InstructionLocation.MatchAfterLast()))
             )
 
-            // The previous match index is excluded.
-            assertNull(
+            // The previous match index is excluded, so the first filter is retried with the earlier literal 0.
+            assertEquals(
+                listOf(3, 6),
                 matchIndexes(
                     literal(0, location = InstructionLocation.MatchAfterLast()),
                     literal(0, location = InstructionLocation.MatchAfterLast()),
                 )
             )
 
-            // Literal 0 at index 3 is followed by literal 1, but as the first filter
-            // only the last literal 0 at index 6 is used.
-            assertNull(
+            // Literal 1 is not after the last literal 0 at index 6,
+            // so the first filter is retried with the literal 0 at index 3.
+            assertEquals(
+                listOf(3, 4),
                 matchIndexes(
                     literal(0, location = InstructionLocation.MatchAfterLast()),
                     literal(1, location = InstructionLocation.MatchAfterImmediately()),
                 )
             )
-            assertNull(
+            assertEquals(
+                listOf(3, 4),
                 matchIndexes(
                     literal(0, location = InstructionLocation.MatchAfterLast()),
                     literal(1),
@@ -1300,13 +1307,43 @@ internal object PatcherTest {
             )
 
             // Same as above, but when not the first filter.
-            assertNull(
+            assertEquals(
+                listOf(2, 3, 4),
                 matchIndexes(
                     opcode(Opcode.NOP),
                     literal(0, location = InstructionLocation.MatchAfterLast()),
                     literal(1, location = InstructionLocation.MatchAfterImmediately()),
                 )
             )
+
+            withFirstFilterRetriedOnly {
+                // Only the last literal 0 at index 6 is used.
+                assertNull(
+                    matchIndexes(
+                        literal(0, location = InstructionLocation.MatchAfterLast()),
+                        literal(0, location = InstructionLocation.MatchAfterLast()),
+                    )
+                )
+                assertNull(
+                    matchIndexes(
+                        literal(0, location = InstructionLocation.MatchAfterLast()),
+                        literal(1, location = InstructionLocation.MatchAfterImmediately()),
+                    )
+                )
+                assertNull(
+                    matchIndexes(
+                        literal(0, location = InstructionLocation.MatchAfterLast()),
+                        literal(1),
+                    )
+                )
+                assertNull(
+                    matchIndexes(
+                        opcode(Opcode.NOP),
+                        literal(0, location = InstructionLocation.MatchAfterLast()),
+                        literal(1, location = InstructionLocation.MatchAfterImmediately()),
+                    )
+                )
+            }
         }
     }
 
@@ -1411,14 +1448,26 @@ internal object PatcherTest {
                 )
             )
 
-            // Literal 0 at index 3 is after a nop, but only the first literal 0 at index 0 is used.
-            assertNull(
+            // Nothing is before the first literal 0 at index 0,
+            // so the second filter is retried with the literal 0 at index 3 that is after a nop.
+            assertEquals(
+                listOf(5, 3, 2),
                 matchIndexes(
                     literal(2),
                     literal(0, location = InstructionLocation.MatchBeforeFirst()),
                     opcode(Opcode.NOP, location = InstructionLocation.MatchBeforeImmediately()),
                 )
             )
+            withFirstFilterRetriedOnly {
+                // Only the first literal 0 at index 0 is used.
+                assertNull(
+                    matchIndexes(
+                        literal(2),
+                        literal(0, location = InstructionLocation.MatchBeforeFirst()),
+                        opcode(Opcode.NOP, location = InstructionLocation.MatchBeforeImmediately()),
+                    )
+                )
+            }
 
             // The previous match index is excluded.
             assertNull(
@@ -1478,6 +1527,127 @@ internal object PatcherTest {
                     literal(2, location = InstructionLocation.MatchAfterImmediately()),
                 )
             )
+        }
+    }
+
+    @Test
+    fun `every filter is retried if a later filter does not match`() {
+        mockCandidateMethod(
+            """
+                const-wide/high16 v0, 0x4000000000000000L
+                invoke-static { }, Lcandidate;->log()V
+                nop
+                invoke-static { }, Lcandidate;->value()Ljava/lang/Object;
+                move-result-object v2
+                const-wide/high16 v0, 0x4000000000000000L
+                invoke-static { }, Lcandidate;->value()Ljava/lang/Object;
+                move-result-object v2
+                return-void
+            """
+        )
+        val filters = arrayOf(
+            literal(2.0),
+            opcode(Opcode.INVOKE_STATIC),
+            opcode(Opcode.MOVE_RESULT_OBJECT, InstructionLocation.MatchAfterImmediately()),
+        )
+
+        with(patcher.context.bytecodeContext) {
+            // The first invoke-static is not followed by move-result-object, so the second filter is retried.
+            assertEquals(listOf(0, 3, 4), matchIndexes(*filters))
+
+            withFirstFilterRetriedOnly {
+                assertEquals(listOf(5, 6, 7), matchIndexes(*filters))
+            }
+        }
+    }
+
+    @Test
+    fun `filters are retried back to the first filter`() {
+        mockCandidateMethod(
+            """
+                const/4 v0, 0x1
+                const/4 v1, 0x2
+                nop
+                const/4 v1, 0x2
+                nop
+                const/4 v0, 0x1
+                nop
+                const/4 v1, 0x2
+                nop
+                const/4 v1, 0x2
+                const/4 v2, 0x3
+                return-void
+            """
+        )
+        val filters = arrayOf(
+            literal(1),
+            literal(2, location = InstructionLocation.MatchAfterWithin(3)),
+            literal(3, location = InstructionLocation.MatchAfterImmediately()),
+        )
+
+        with(patcher.context.bytecodeContext) {
+            // No literal 2 within 3 instructions after the literal 1 at index 0 is followed by literal 3,
+            // so the first filter is retried, and then the second filter is retried again.
+            assertEquals(listOf(5, 9, 10), matchIndexes(*filters))
+
+            withFirstFilterRetriedOnly {
+                assertNull(matchIndexes(*filters))
+            }
+        }
+    }
+
+    @Test
+    fun `filters that match before the previous match are retried`() {
+        mockCandidateMethod(
+            """
+                const/4 v1, 0x2
+                const/4 v2, 0x3
+                const/4 v1, 0x2
+                const/4 v0, 0x1
+                return-void
+            """
+        )
+        val filters = arrayOf(
+            literal(1),
+            literal(2, location = InstructionLocation.MatchBeforeAnywhere()),
+            literal(3),
+        )
+
+        with(patcher.context.bytecodeContext) {
+            // Literal 3 is not after the closest literal 2 at index 2, but it is after the literal 2 at index 0.
+            assertEquals(listOf(3, 0, 1), matchIndexes(*filters))
+
+            withFirstFilterRetriedOnly {
+                assertNull(matchIndexes(*filters))
+            }
+        }
+    }
+
+    @Test
+    fun `retried filters search after each previous match index only once`() {
+        val instructionCount = 100
+        mockCandidateMethod("const/4 v0, 0x1\n".repeat(instructionCount - 1) + "return-void")
+
+        var calls = 0
+        fun neverMatches(searchLocation: InstructionLocation) = object : InstructionFilter {
+            override val location = searchLocation
+
+            override fun matches(enclosingMethod: Method, instruction: Instruction): Boolean {
+                calls++
+                return false
+            }
+        }
+
+        with(patcher.context.bytecodeContext) {
+            assertNull(matchIndexes(literal(1), literal(1), neverMatches(InstructionLocation.MatchAfterAnywhere())))
+            assertTrue(calls < instructionCount, "a filter searching all later instructions is called $calls times")
+
+            calls = 0
+            val within = Array(4) { literal(1, location = InstructionLocation.MatchAfterWithin(3)) }
+            assertNull(
+                matchIndexes(literal(1), *within, neverMatches(InstructionLocation.MatchAfterImmediately()))
+            )
+            assertTrue(calls < instructionCount, "a filter searching one instruction is called $calls times")
         }
     }
 
@@ -1900,6 +2070,18 @@ internal object PatcherTest {
             block()
         } finally {
             Fingerprint.rawStringComparison = StringComparisonType.EQUALS
+        }
+    }
+
+    /**
+     * Matches instruction filters as patches built for a version older than 2.0.0 expect.
+     */
+    private inline fun withFirstFilterRetriedOnly(block: () -> Unit) {
+        Fingerprint.retryAllFilters = false
+        try {
+            block()
+        } finally {
+            Fingerprint.retryAllFilters = true
         }
     }
 

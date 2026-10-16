@@ -73,6 +73,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             } else {
                 StringComparisonType.CONTAINS
             }
+            Fingerprint.retryAllFilters = config.uses(PatcherBehavior.RETRY_ALL_INSTRUCTION_FILTERS)
         }
     }
 
@@ -173,8 +174,9 @@ class Patcher(private val config: PatcherConfig) : Closeable {
     }
 
     override fun close() {
-        // Do not leave the comparison of patches built for an older version to code outside a patcher.
+        // Do not leave the matching of patches built for an older version to code outside a patcher.
         Fingerprint.rawStringComparison = StringComparisonType.EQUALS
+        Fingerprint.retryAllFilters = true
         context.close()
     }
 
