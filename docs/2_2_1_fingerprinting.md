@@ -148,6 +148,10 @@ Both are matched using `StringComparisonType` semantics, the same as `definingCl
 All declared interfaces must be implemented, in any order, and the class can implement other interfaces too.
 Superclasses and interfaces of superclasses are not checked.
 
+They are checked once for each class, and the methods of a class that does not match are skipped.
+Declare them instead of a `custom` condition that checks `classDef.superclass` or `classDef.interfaces`,
+which is checked for every method.
+
 ```kt
 object VideoPlayerImplFingerprint : Fingerprint(
     // Exact comparison. The class can also implement other interfaces.

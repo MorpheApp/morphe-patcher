@@ -20,6 +20,8 @@ import com.android.tools.smali.dexlib2.dexbacked.DexBackedMethod
 import com.android.tools.smali.dexlib2.dexbacked.instruction.DexBackedInstruction
 import com.android.tools.smali.dexlib2.dexbacked.raw.FieldIdItem
 import com.android.tools.smali.dexlib2.dexbacked.raw.MethodIdItem
+import com.android.tools.smali.dexlib2.dexbacked.raw.ProtoIdItem
+import com.android.tools.smali.dexlib2.dexbacked.raw.TypeListItem
 import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction
@@ -149,6 +151,7 @@ internal class PatchClasses internal constructor(
         private val typeSection = dexFile.typeSection
         private val fieldSection = dexFile.fieldSection
         private val methodSection = dexFile.methodSection
+        private val protoSection = dexFile.protoSection
 
         fun string(stringIndex: Int): String = stringSection[stringIndex]
 
@@ -160,11 +163,31 @@ internal class PatchClasses internal constructor(
         fun fieldName(fieldIndex: Int) =
             string(buffer.readSmallUint(fieldSection.getOffset(fieldIndex) + FieldIdItem.NAME_OFFSET))
 
+        fun fieldType(fieldIndex: Int) =
+            type(buffer.readUshort(fieldSection.getOffset(fieldIndex) + FieldIdItem.TYPE_OFFSET))
+
         fun methodDefiningClass(methodIndex: Int) =
             type(buffer.readUshort(methodSection.getOffset(methodIndex) + MethodIdItem.CLASS_OFFSET))
 
         fun methodName(methodIndex: Int) =
             string(buffer.readSmallUint(methodSection.getOffset(methodIndex) + MethodIdItem.NAME_OFFSET))
+
+        /**
+         * Calls [action] with the return type and each parameter type of the method.
+         */
+        inline fun forEachMethodSignatureType(methodIndex: Int, action: (String) -> Unit) {
+            val protoIndex = buffer.readUshort(methodSection.getOffset(methodIndex) + MethodIdItem.PROTO_OFFSET)
+            val protoOffset = protoSection.getOffset(protoIndex)
+            action(type(buffer.readSmallUint(protoOffset + ProtoIdItem.RETURN_TYPE_OFFSET)))
+
+            val parametersOffset = buffer.readSmallUint(protoOffset + ProtoIdItem.PARAMETERS_OFFSET)
+            if (parametersOffset == 0) return
+            val parameterCount = dataBuffer.readSmallUint(parametersOffset + TypeListItem.SIZE_OFFSET)
+            val parametersStart = parametersOffset + TypeListItem.LIST_OFFSET
+            for (i in 0 until parameterCount) {
+                action(type(dataBuffer.readUshort(parametersStart + 2 * i)))
+            }
+        }
     }
 
     /**
@@ -254,7 +277,7 @@ internal class PatchClasses internal constructor(
      *
      * @param classDef The class the values were collected from.
      * @param strings String constants, can have duplicates.
-     * @param typeHashes Sorted hashes of referenced types, can have duplicates.
+     * @param typeHashes Sorted hashes of referenced types, can have duplicates. See [getIndexedClassesReferencingType].
      * @param memberNameHashes Sorted hashes of referenced field and method names, can have duplicates.
      * @param literalHashes Sorted hashes of literals, can have duplicates.
      */
@@ -274,6 +297,14 @@ internal class PatchClasses internal constructor(
         val typeHashes = IntList()
         val memberNameHashes = IntList()
         val literalHashes = IntList()
+
+        /**
+         * Collects a type of a field or method signature. Primitive types are in most classes
+         * and are not indexed.
+         */
+        fun addSignatureType(type: String) {
+            if (type.length > 1) typeHashes.add(type.hashCode())
+        }
 
         /**
          * Collects the reference of a dex backed instruction without creating the reference.
@@ -302,10 +333,12 @@ internal class PatchClasses internal constructor(
                 ReferenceType.FIELD -> {
                     typeHashes.add(decoder.fieldDefiningClass(referenceIndex).hashCode())
                     memberNameHashes.add(decoder.fieldName(referenceIndex).hashCode())
+                    addSignatureType(decoder.fieldType(referenceIndex))
                 }
                 ReferenceType.METHOD -> {
                     typeHashes.add(decoder.methodDefiningClass(referenceIndex).hashCode())
                     memberNameHashes.add(decoder.methodName(referenceIndex).hashCode())
+                    decoder.forEachMethodSignatureType(referenceIndex, ::addSignatureType)
                 }
             }
             return true
@@ -325,10 +358,13 @@ internal class PatchClasses internal constructor(
                 is MethodReference -> {
                     typeHashes.add(reference.definingClass.hashCode())
                     memberNameHashes.add(reference.name.hashCode())
+                    addSignatureType(reference.returnType)
+                    reference.parameterTypes.forEach { addSignatureType(it.toString()) }
                 }
                 is FieldReference -> {
                     typeHashes.add(reference.definingClass.hashCode())
                     memberNameHashes.add(reference.name.hashCode())
+                    addSignatureType(reference.type)
                 }
                 is TypeReference -> typeHashes.add(reference.type.hashCode())
             }
@@ -516,8 +552,10 @@ internal class PatchClasses internal constructor(
     }
 
     /**
-     * Indexed classes with instructions that reference the type. Can contain false positives.
-     * Does not include changes of mutable classes, see [candidateClasses].
+     * Indexed classes with instructions that reference the type: as the class of a field or method,
+     * as the type of a field, as a return or parameter type of a method, or as a type reference
+     * such as `new-instance` and `check-cast`. Primitive types of fields and methods are not indexed.
+     * Can contain false positives. Does not include changes of mutable classes, see [candidateClasses].
      */
     internal fun getIndexedClassesReferencingType(type: String): List<ClassDefWrapper> =
         getIndexBuilder().types[type.hashCode()].orEmpty()
@@ -567,21 +605,8 @@ internal class PatchClasses internal constructor(
      *         changed methods because their contents can differ from the indexes.
      */
     internal fun candidateClasses(indexedClasses: List<List<ClassDefWrapper>>): Candidates {
-        val smallest = indexedClasses.minBy { it.size }
-        val result = ArrayList<ClassDefWrapper>(smallest.size + mutableWrappers.size)
-
-        if (smallest.isNotEmpty()) {
-            // Classes of a much larger list are left for the matching to reject,
-            // as finding them in a large list costs more than the matching.
-            val maximumSize = CANDIDATE_INTERSECTION_SIZE_FACTOR * smallest.size
-            val others = indexedClasses.mapNotNull { classes ->
-                if (classes === smallest || classes.size > maximumSize) null else HashSet(classes)
-            }
-
-            smallest.filterTo(result) { wrapper ->
-                !wrapper.replaced && others.all { it.contains(wrapper) }
-            }
-        }
+        val result = ArrayList<ClassDefWrapper>(indexedClasses.minOf { it.size } + mutableWrappers.size)
+        addIndexedClassesInAll(indexedClasses, result)
 
         var changedMethods = emptyMap<ClassDefWrapper, List<Method>>()
         if (mutableWrappers.isNotEmpty()) {
@@ -607,6 +632,43 @@ internal class PatchClasses internal constructor(
         }
 
         return Candidates(result, changedMethods)
+    }
+
+    /**
+     * Indexed classes that can satisfy the conditions of at least one alternative.
+     *
+     * @param alternatives Indexed classes of each condition of each alternative.
+     *                     A class must be in all lists of an alternative to satisfy the alternative.
+     * @return The indexed classes in all lists of any alternative, without duplicates
+     *         and not in class map order.
+     */
+    internal fun indexedClassesOfAny(alternatives: List<List<List<ClassDefWrapper>>>): List<ClassDefWrapper> {
+        val result = LinkedHashSet<ClassDefWrapper>()
+        alternatives.forEach { indexedClasses -> addIndexedClassesInAll(indexedClasses, result) }
+        return ArrayList(result)
+    }
+
+    /**
+     * Adds the indexed classes that are in all lists to [result], in the order of the smallest list.
+     *
+     * Classes of a much larger list are left for the matching to reject, as finding them in a
+     * large list costs more than the matching. So [result] can get classes not in every list.
+     */
+    private fun addIndexedClassesInAll(
+        indexedClasses: List<List<ClassDefWrapper>>,
+        result: MutableCollection<ClassDefWrapper>,
+    ) {
+        val smallest = indexedClasses.minBy { it.size }
+        if (smallest.isEmpty()) return
+
+        val maximumSize = CANDIDATE_INTERSECTION_SIZE_FACTOR * smallest.size
+        val others = indexedClasses.mapNotNull { classes ->
+            if (classes === smallest || classes.size > maximumSize) null else HashSet(classes)
+        }
+
+        smallest.filterTo(result) { wrapper ->
+            !wrapper.replaced && others.all { it.contains(wrapper) }
+        }
     }
 
     internal fun getClassesReferencingType(type: String): List<ClassDefWrapper>? =

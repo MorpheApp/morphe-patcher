@@ -25,6 +25,8 @@ import com.android.tools.smali.dexlib2.writer.pool.DexPool
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import java.io.ByteArrayInputStream
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -546,33 +548,35 @@ internal object PatchClassesTest {
         return classDefs.mapTo(LinkedHashSet()) { classes.getValue(it.type) }
     }
 
-    @Test
-    fun `dex backed instruction references are indexed`() {
-        val classes = PatchClasses(
-            dexBackedClasses(
-                createClassDef(
-                    "Lcom/test/Referrer;",
-                    listOf(
-                        createMethodWithSmali(
-                            "Lcom/test/Referrer;",
-                            "references",
-                            """
-                                invoke-static { }, Lcom/test/MethodOwner;->calledMethod()V
-                                sget v0, Lcom/test/FieldOwner;->accessedField:I
-                                new-instance v0, Lcom/test/NewType;
-                                const-string v0, "dexString"
-                                const v0, 0x7f010203
-                                return-void
-                            """
-                        )
+    @ParameterizedTest
+    @ValueSource(booleans = [true, false])
+    fun `instruction references are indexed`(dexBacked: Boolean) {
+        val classDefs = arrayOf(
+            createClassDef(
+                "Lcom/test/Referrer;",
+                listOf(
+                    createMethodWithSmali(
+                        "Lcom/test/Referrer;",
+                        "references",
+                        """
+                            invoke-static { }, Lcom/test/MethodOwner;->calledMethod()V
+                            invoke-static { v0, v1 }, Lcom/test/MethodOwner;->signature(Lcom/test/ParameterType;I)Lcom/test/ReturnType;
+                            sget v0, Lcom/test/FieldOwner;->accessedField:I
+                            sget-object v0, Lcom/test/FieldOwner;->objectField:Lcom/test/FieldType;
+                            new-instance v0, Lcom/test/NewType;
+                            const-string v0, "dexString"
+                            const v0, 0x7f010203
+                            return-void
+                        """
                     )
-                ),
-                createClassDef(
-                    "Lcom/test/Other;",
-                    listOf(createMethodWithSmali("Lcom/test/Other;", "other", "return-void"))
-                ),
-            )
+                )
+            ),
+            createClassDef(
+                "Lcom/test/Other;",
+                listOf(createMethodWithSmali("Lcom/test/Other;", "other", "return-void"))
+            ),
         )
+        val classes = PatchClasses(if (dexBacked) dexBackedClasses(*classDefs) else classDefs.toSet())
 
         fun List<PatchClasses.ClassDefWrapper>.types() = map { it.classDef.type }
         val referrer = listOf("Lcom/test/Referrer;")
@@ -580,6 +584,12 @@ internal object PatchClassesTest {
         assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/MethodOwner;").types())
         assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/FieldOwner;").types())
         assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/NewType;").types())
+        assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/ParameterType;").types())
+        assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/ReturnType;").types())
+        assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/FieldType;").types())
+        // Primitive types are in most classes and are not indexed.
+        assertTrue(classes.getIndexedClassesReferencingType("I").isEmpty())
+        assertTrue(classes.getIndexedClassesReferencingType("V").isEmpty())
         assertEquals(referrer, classes.getIndexedClassesReferencingMemberName("calledMethod").types())
         assertEquals(referrer, classes.getIndexedClassesReferencingMemberName("accessedField").types())
         assertEquals(referrer, classes.getIndexedClassesContainingLiteral(0x7f010203).types())

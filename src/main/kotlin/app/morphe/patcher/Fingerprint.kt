@@ -392,6 +392,10 @@ open class Fingerprint private constructor(
             "Interfaces cannot be empty"
         }
 
+        require(filters == null || filters.isNotEmpty()) {
+            "Filters cannot be empty"
+        }
+
         require(accessFlags == null || isStatic == null) {
             "Cannot specify both accessFlags and isStatic"
         }
@@ -470,43 +474,34 @@ open class Fingerprint private constructor(
             return null
         }
 
-        if (filterStrings.isNotEmpty()) {
-            filterStrings.forEach { string ->
-                patchContext.patchClasses.getClassesFromOpcodeStringLiteral(string)?.forEach { stringClass ->
-                    val value = machAllClassMethods(stringClass)
-                    if (value != null) {
-                        return value
-                    }
-                }
-            }
-
-            // Fingerprint has partial string matches. Check all classes with strings,
-            // except classes that cannot have the strings all matching methods have.
-            val requiredStringClasses = requiredStringIndexedClasses()
-            val candidates = if (requiredStringClasses.isEmpty()) {
-                null
-            } else {
-                patchContext.patchClasses.candidateClasses(requiredStringClasses)
-            }
-            patchContext.patchClasses.getAllClassesWithStrings().forEach { stringClass ->
-                if (candidates != null && stringClass !in candidates) return@forEach
-
-                val methods = candidates?.methodsOf(stringClass) ?: stringClass.methods
-                val value = machAllClassMethods(stringClass, methods)
+        filterStrings.forEach { string ->
+            patchContext.patchClasses.getClassesFromOpcodeStringLiteral(string)?.forEach { stringClass ->
+                val value = machAllClassMethods(stringClass)
                 if (value != null) {
                     return value
                 }
             }
         }
 
-        instructionFilterCandidates()?.let { candidates ->
+        indexedCandidates()?.let { candidates ->
             candidates.classes.forEach { value ->
                 val match = machAllClassMethods(value, candidates.methodsOf(value))
                 if (match != null) return match
             }
 
-            // Exact indexed filters make this candidate set exhaustive.
+            // Every matching method has the indexed values, so no other class can match.
             return null
+        }
+
+        if (filterStrings.isNotEmpty()) {
+            // The strings are declared only in anyInstruction filters, which can also match
+            // instructions without strings. Check the classes with strings first.
+            patchContext.patchClasses.getAllClassesWithStrings().forEach { stringClass ->
+                val value = machAllClassMethods(stringClass)
+                if (value != null) {
+                    return value
+                }
+            }
         }
 
         // Check all classes.
@@ -962,16 +957,10 @@ open class Fingerprint private constructor(
         if (filter is AnyInstruction) filter.filters.all(::isBundledFilter)
         else filter::class in BUNDLED_INSTRUCTION_FILTERS
 
-    private fun findFilterStrings(stringEqualMatch: MutableList<String>): Boolean {
-        var hasPartialMatchStrings = false
-
+    private fun findFilterStrings(stringEqualMatch: MutableList<String>) {
         fun addStringFilterLiterals(list: List<StringFilter>) {
             list.forEach { filter ->
                 stringEqualMatch.add(filter.stringValue)
-
-                if (filter.comparison != StringComparisonType.EQUALS) {
-                    hasPartialMatchStrings = true
-                }
             }
         }
 
@@ -989,8 +978,6 @@ open class Fingerprint private constructor(
                 addStringFilterLiterals(filterStringFilterInstances(anyFilter.filters))
             }
         }
-
-        return hasPartialMatchStrings
     }
 
     /**
@@ -1049,49 +1036,14 @@ open class Fingerprint private constructor(
             return matches.ifEmpty { null }
         }
 
-        // If using built-in filters and not using anyFilter, and contain String literals,
-        // then can speed up matching by only checking classes with matching strings.
-        if (filters?.all { BUNDLED_INSTRUCTION_FILTERS.contains(it::class) } ?: (stringFilters != null)) {
-            val filterStrings = mutableListOf<String>()
-            val hasPartialMatchStrings = findFilterStrings(filterStrings)
-
-            if (filterStrings.isNotEmpty()) {
-                if (hasPartialMatchStrings) {
-                    // Only classes with strings that can match all the strings need to be checked.
-                    val candidates = patchContext.patchClasses.candidateClasses(requiredStringIndexedClasses())
-                    if (filters == null) {
-                        candidates.classes.forEach { value ->
-                            machAllClassMethods(value, candidates.methodsOf(value))
-                        }
-                    } else {
-                        patchContext.patchClasses.getAllClassesWithStrings().forEach { stringClass ->
-                            if (stringClass in candidates) {
-                                machAllClassMethods(stringClass, candidates.methodsOf(stringClass))
-                            }
-                        }
-                    }
-                } else {
-                    filterStrings.forEach { string ->
-                        patchContext.patchClasses.getClassesFromOpcodeStringLiteral(string)
-                            ?.forEach { stringClass ->
-                                machAllClassMethods(stringClass)
-                            }
-                    }
-                }
-
-                if (matches.isEmpty()) {
-                    return null
-                }
-
-                // If multiple fingerprint strings are declared then duplicates matches can exist.
-                return matches.distinctBy(Match::methodReference)
-            }
-
-            instructionFilterCandidates()?.let { candidates ->
+        // Custom instruction filters could do logical filtering,
+        // so only fingerprints with bundled filters use the instruction indexes.
+        if (filters?.all(::isBundledFilter) ?: (stringFilters != null)) {
+            indexedCandidates()?.let { candidates ->
                 candidates.classes.forEach { value ->
                     machAllClassMethods(value, candidates.methodsOf(value))
                 }
-                return matches.distinctBy(Match::methodReference).ifEmpty { null }
+                return matches.ifEmpty { null }
             }
         }
 
@@ -1139,19 +1091,33 @@ open class Fingerprint private constructor(
         return if (wrapper != null && wrapper.classDef === classDef) wrapper.methods else classDef.methods
     }
 
+    /**
+     * Classes that can have a matching method, or null if the instruction indexes cannot limit the classes.
+     *
+     * Each matching method has an instruction for each string and each filter that is not part of
+     * another filter, so a class without the indexed values of one of them cannot match.
+     * Custom instruction filters could do logical filtering, so filters are used only if all
+     * filters are bundled filters.
+     */
     context(patchContext: BytecodePatchContext)
-    private fun instructionFilterCandidates(): PatchClasses.Candidates? {
-        val filters = filters ?: return null
-        if (filters.any { it::class !in BUNDLED_INSTRUCTION_FILTERS }) return null
+    private fun indexedCandidates(): PatchClasses.Candidates? {
         val patchClasses = patchContext.patchClasses
         val indexedClasses = ArrayList<List<PatchClasses.ClassDefWrapper>>()
-        filters.forEach { filter ->
-            // A literal that does not exist in this app cannot match anywhere.
-            if (filter is LiteralFilter && filter.literalValue == null) {
-                return PatchClasses.Candidates(emptyList(), emptyMap())
-            }
+        indexedClasses += requiredStringIndexedClasses()
 
-            filter.addIndexedClasses(patchClasses, indexedClasses)
+        val filtersLocal = filters
+        if (filtersLocal != null && filtersLocal.all(::isBundledFilter)) {
+            filtersLocal.forEach { filter ->
+                // A literal that does not exist in this app cannot match anywhere.
+                if (filter is LiteralFilter && filter.literalValue == null) {
+                    return PatchClasses.Candidates(emptyList(), emptyMap())
+                }
+
+                // Strings that all matching methods have are already added.
+                if (filter !is StringFilter) {
+                    filter.addIndexedClasses(patchClasses, indexedClasses)
+                }
+            }
         }
         if (indexedClasses.isEmpty()) return null
 
@@ -1160,13 +1126,18 @@ open class Fingerprint private constructor(
 
     /**
      * Adds the indexed classes of each value this filter requires an instruction to have.
+     *
+     * @return False if this filter can match instructions without indexed values.
      */
+    context(patchContext: BytecodePatchContext)
     private fun InstructionFilter.addIndexedClasses(
         patchClasses: PatchClasses,
         indexedClasses: MutableList<List<PatchClasses.ClassDefWrapper>>,
-    ) {
+    ): Boolean {
+        val indexedClassesSize = indexedClasses.size
+
         fun addType(type: String?) {
-            if (type != null && isExactType(type)) {
+            if (type != null && isIndexedType(type)) {
                 indexedClasses += patchClasses.getIndexedClassesReferencingType(type)
             }
         }
@@ -1178,21 +1149,37 @@ open class Fingerprint private constructor(
         }
 
         when (this) {
-            is LiteralFilter -> literalValue?.let {
-                indexedClasses += patchClasses.getIndexedClassesContainingLiteral(it)
+            is LiteralFilter -> {
+                // A literal that does not exist in this app matches no instruction.
+                indexedClasses += literalValue?.let(patchClasses::getIndexedClassesContainingLiteral).orEmpty()
             }
+            is StringFilter -> indexedClasses += stringIndexedClasses(listOf(this)).single()
             is MethodCallFilter -> {
                 addType(definingClass)
                 addMemberName(name)
+                addType(returnType)
+                parameters?.forEach(::addType)
             }
             is FieldAccessFilter -> {
                 addType(definingClass)
                 addMemberName(name)
+                addType(type)
             }
             is NewInstanceFilter -> addType(typeValue)
             is InstanceOfFilter -> addType(typeValue)
             is CheckCastFilter -> addType(typeValue)
+            is AnyInstruction -> {
+                // A class can match if it can match any of the filters.
+                val alternatives = filters.map { filter ->
+                    val alternative = ArrayList<List<PatchClasses.ClassDefWrapper>>()
+                    if (!filter.addIndexedClasses(patchClasses, alternative)) return false
+                    alternative
+                }
+                indexedClasses += patchClasses.indexedClassesOfAny(alternatives)
+            }
         }
+
+        return indexedClasses.size > indexedClassesSize
     }
 
     /**
@@ -1201,41 +1188,54 @@ open class Fingerprint private constructor(
      */
     context(patchContext: BytecodePatchContext)
     private fun requiredStringIndexedClasses(): List<List<PatchClasses.ClassDefWrapper>> {
+        val requiredStrings = ArrayList<StringFilter>()
+        stringFilters?.let(requiredStrings::addAll)
+        filters?.filterIsInstanceTo(requiredStrings)
+
+        return stringIndexedClasses(requiredStrings)
+    }
+
+    /**
+     * Indexed classes with a string that each filter can match, in the order of the filters.
+     */
+    context(patchContext: BytecodePatchContext)
+    private fun stringIndexedClasses(
+        stringFilters: List<StringFilter>,
+    ): List<List<PatchClasses.ClassDefWrapper>> {
+        if (stringFilters.isEmpty()) return emptyList()
+
         val stringMap = patchContext.patchClasses.getClassesByReferenceMap()
 
-        val requiredStrings = ArrayList<Pair<String, StringComparisonType>>()
-        stringFilters?.forEach { filter -> requiredStrings += filter.stringValue to filter.comparison }
-        filters?.forEach { filter ->
-            if (filter is StringFilter) requiredStrings += filter.stringValue to filter.comparison
+        val indexedClasses = stringFilters.map { filter ->
+            if (filter.comparison == StringComparisonType.EQUALS) stringMap[filter.stringValue].orEmpty() else ArrayList()
         }
 
-        val indexedClasses = requiredStrings.map { (string, comparison) ->
-            if (comparison == StringComparisonType.EQUALS) stringMap[string].orEmpty() else ArrayList()
-        }
-
-        val partialMatches = requiredStrings.indices.filter { index ->
-            requiredStrings[index].second != StringComparisonType.EQUALS
+        val partialMatches = stringFilters.indices.filter { index ->
+            stringFilters[index].comparison != StringComparisonType.EQUALS
         }
         if (partialMatches.isNotEmpty()) {
             val partialClasses = partialMatches.map { HashSet<PatchClasses.ClassDefWrapper>() }
             stringMap.forEach { (instructionString, classes) ->
-                partialMatches.forEachIndexed { index, requiredIndex ->
-                    val (string, comparison) = requiredStrings[requiredIndex]
-                    if (comparison.compare(instructionString, string)) {
+                partialMatches.forEachIndexed { index, filterIndex ->
+                    val filter = stringFilters[filterIndex]
+                    if (filter.comparison.compare(instructionString, filter.stringValue)) {
                         partialClasses[index].addAll(classes)
                     }
                 }
             }
-            partialMatches.forEachIndexed { index, requiredIndex ->
-                (indexedClasses[requiredIndex] as MutableList).addAll(partialClasses[index])
+            partialMatches.forEachIndexed { index, filterIndex ->
+                (indexedClasses[filterIndex] as MutableList).addAll(partialClasses[index])
             }
         }
 
         return indexedClasses
     }
 
-    private fun isExactType(type: String): Boolean =
-        type != "this" && StringComparisonType.typeDeclarationToComparison(type) == StringComparisonType.EQUALS
+    /**
+     * If the indexes have the classes that reference this type declaration. Primitive types are not indexed.
+     */
+    private fun isIndexedType(type: String): Boolean = type.length > 1 && type != "this" &&
+            StringComparisonType.typeDeclarationToComparison(type) == StringComparisonType.EQUALS
 
     fun patchException() = PatchException("Failed to match the fingerprint: $this")
 
