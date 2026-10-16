@@ -1,3 +1,10 @@
+# [2.0.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.4...v2.0.0-dev.5) (2026-10-16)
+
+
+### Features
+
+* Add additional instruction location searching ([#249](https://github.com/MorpheApp/morphe-patcher/issues/249)) ([09bd529](https://github.com/MorpheApp/morphe-patcher/commit/09bd529ea521e5764dcf6934409fdb7782909161))
+
 # [2.0.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.3...v2.0.0-dev.4) (2026-10-14)
 
 
