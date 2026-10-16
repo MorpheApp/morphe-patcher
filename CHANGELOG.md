@@ -1,3 +1,10 @@
+# [2.0.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.6...v2.0.0-dev.7) (2026-10-16)
+
+
+### Features
+
+* Retry matching certain instruction sequences if a partial match is encountered ([#250](https://github.com/MorpheApp/morphe-patcher/issues/250)) ([b413e80](https://github.com/MorpheApp/morphe-patcher/commit/b413e8068020a5ed2a19b7f438e849076c9eece4))
+
 # [2.0.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.5...v2.0.0-dev.6) (2026-10-16)
 
 
