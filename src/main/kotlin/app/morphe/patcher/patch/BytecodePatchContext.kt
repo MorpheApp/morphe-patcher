@@ -313,7 +313,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     @Deprecated(
         "Use classDefByStrings instead, which handles all string comparisons",
         ReplaceWith("classDefByStrings(stringLiteral)"),
-        level = DeprecationLevel.ERROR
+        level = DeprecationLevel.HIDDEN
     )
     fun getAllClassesWithString(stringLiteral: String): List<ClassDef> {
         return classDefByStrings(stringLiteral)

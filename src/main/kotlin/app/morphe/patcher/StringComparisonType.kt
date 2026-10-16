@@ -36,7 +36,10 @@ enum class StringComparisonType {
         }
     }
 
-    // @Deprecated("Here only for backwards compatibility") // TODO: Delete this on next major version.
+    @Deprecated(
+        "Here only for backwards compatibility",
+        level = DeprecationLevel.HIDDEN
+    )
     fun compare(targetString: String, searchString: String) =
         compare(targetString as CharSequence, searchString as CharSequence)
 

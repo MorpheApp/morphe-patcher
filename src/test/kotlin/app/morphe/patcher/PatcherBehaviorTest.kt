@@ -172,6 +172,32 @@ internal class PatcherBehaviorTest {
     }
 
     @Test
+    fun `strict universal patch defaults apply once every bundle with such patches is built for them`() {
+        val strict = PatcherBehavior.STRICT_UNIVERSAL_PATCH_DEFAULT
+        assertEquals(Adoption.EVERY_BUNDLE, strict.adoption)
+
+        fun resolve(vararg patches: Patch<*>) = resolvePatcherBehaviors(null, patches.toList(), logger, listOf(strict))
+        val newVersion = strict.since.toString()
+        val universal = bytecodePatch("Universal") {}
+        val compatible = bytecodePatch("Compatible", default = false) {}
+        assertTrue(universal.declaredUniversalWithDefault)
+        assertFalse(compatible.declaredUniversalWithDefault)
+
+        assertEquals(setOf(strict), resolve(universal.from(bundle("New patches", newVersion))))
+        assertEquals(emptySet(), resolve(bytecodePatch("Universal") {}), "not loaded from a bundle")
+        assertEquals(
+            setOf(strict),
+            resolve(universal, compatible.from(bundle("Old patches", "1.15.1"))),
+            "bundles without such patches do not count",
+        )
+        assertEquals(
+            emptySet(),
+            resolve(universal, bytecodePatch("Old universal") {}.from(bundle("Old patches", "1.15.1"))),
+        )
+        assertTrue(warnings.isEmpty(), warnings.toString())
+    }
+
+    @Test
     fun `bundles of the same behavior are not warned about`() {
         val patches = listOf(
             resourcePatch("A") {}.from(bundle("A patches", "1.15.0")),

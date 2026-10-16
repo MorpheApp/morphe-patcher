@@ -39,27 +39,6 @@ class PatcherConfig(
     private val fileWorkspacePath: File? = null,
     internal val targetPatcherVersion: String? = null,
 ) {
-    @Deprecated("Kept for binary compatibility", level = DeprecationLevel.HIDDEN)
-    constructor(
-        apkFile: File,
-        temporaryFilesPath: File,
-        aaptBinaryPath: String?,
-        frameworkFileDirectory: String?,
-        useArsclib: Boolean,
-        keepArchitectures: Set<CpuArchitecture>,
-        useBytecodeMode: BytecodeMode,
-        verifier: DexVerifier,
-        fileWorkspacePath: File?,
-    ) : this(
-        apkFile = apkFile,
-        temporaryFilesPath = temporaryFilesPath,
-        keepArchitectures = keepArchitectures,
-        useBytecodeMode = useBytecodeMode,
-        verifier = verifier,
-        fileWorkspacePath = fileWorkspacePath,
-        targetPatcherVersion = null,
-    )
-
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
 
     /**

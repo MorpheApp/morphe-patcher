@@ -55,6 +55,19 @@ internal enum class PatcherBehavior(
         description = "Fingerprint strings must equal a string of the method, instead of only being contained in one",
         affectsPatch = { patch -> patch.anyRecursively { it is BytecodePatch } },
         appliesToUnknownVersion = true,
+    ),
+
+    /**
+     * Loading a universal patch declared with default true fails, instead of only warning and loading
+     * it with default false. See [Patch.declaredUniversalWithDefault].
+     */
+    STRICT_UNIVERSAL_PATCH_DEFAULT(
+        since = "2.0.0-0", // Includes pre-release.
+        // Only fail once the bundles with such patches were built for it, and not because of a bundle
+        // built for an older version that cannot be fixed by its user.
+        adoption = Adoption.EVERY_BUNDLE,
+        description = "Universal patches declared with default true fail to load, instead of loading with default false",
+        affectsPatch = { patch -> patch.declaredUniversalWithDefault },
     );
 
     val since = PatcherVersion.parse(since) ?: throw IllegalStateException("Invalid version: $since")

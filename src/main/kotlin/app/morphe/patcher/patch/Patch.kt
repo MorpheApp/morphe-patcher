@@ -1,10 +1,12 @@
-@file:Suppress("MemberVisibilityCanBePrivate", "unused")
+@file:Suppress("MemberVisibilityCanBePrivate", "unused", "DEPRECATION_ERROR")
 
 package app.morphe.patcher.patch
 
 import app.morphe.patcher.Patcher
+import app.morphe.patcher.PatcherBehavior
 import app.morphe.patcher.PatcherContext
 import app.morphe.patcher.dex.DexReadWrite
+import app.morphe.patcher.resolvePatcherBehaviors
 import dalvik.system.DexClassLoader
 import java.io.File
 import java.io.InputStream
@@ -15,12 +17,13 @@ import java.net.URLClassLoader
 import java.nio.file.Files
 import java.util.function.Supplier
 import java.util.jar.JarFile
+import java.util.logging.Logger
 
-@Deprecated("Use Compatibility instead")
+@Deprecated("Use Compatibility instead", level = DeprecationLevel.HIDDEN)
 typealias PackageName = String
-@Deprecated("Use Compatibility instead")
+@Deprecated("Use Compatibility instead", level = DeprecationLevel.HIDDEN)
 typealias VersionName = String
-@Deprecated("Use Compatibility instead")
+@Deprecated("Use Compatibility instead", level = DeprecationLevel.HIDDEN)
 typealias Package = Pair<PackageName, Set<VersionName>?>
 
 /**
@@ -69,7 +72,7 @@ sealed class Patch<C : PatchContext<*>>(
         description: String?,
         use: Boolean,
         dependencies: Set<Patch<*>>,
-        compatiblePackages: Set<Package>,
+        compatiblePackages: Set<Pair<String, Set<String>?>>,
         options: Set<Option<*>>,
         executeBlock: (C) -> Unit,
         finalizeBlock: ((C) -> Unit)?,
@@ -88,7 +91,7 @@ sealed class Patch<C : PatchContext<*>>(
      * Legacy format. Experimental app targets are not present in this format.
      */
     @Deprecated("Instead use compatibility", level = DeprecationLevel.HIDDEN)
-    val compatiblePackages: Set<Package>? by lazy {
+    val compatiblePackages: Set<Pair<String, Set<String>?>>? by lazy {
         compatibility?.mapNotNull { it.legacy }?.toSet()
     }
 
@@ -108,6 +111,19 @@ sealed class Patch<C : PatchContext<*>>(
      * The patch bundle the patch was loaded from by [PatchLoader], or null if it was not loaded from one.
      */
     internal var bundle: PatchBundleInfo? = null
+
+    /**
+     * Whether the patch is universal but was declared with default true, which [default] ignores.
+     * Loading such a patch fails if [PatcherBehavior.STRICT_UNIVERSAL_PATCH_DEFAULT] applies to it.
+     */
+    internal var declaredUniversalWithDefault = false
+
+    /**
+     * Where the patch was declared, such as `app.morphe.patches.ExamplePatchKt.<clinit>(ExamplePatch.kt:12)`,
+     * or null if it is not known. Only known for patches with [declaredUniversalWithDefault],
+     * to name them in the warning about it.
+     */
+    internal var declaredAt: StackTraceElement? = null
 
     /**
      * Calls the execution block of the patch.
@@ -242,7 +258,7 @@ class BytecodePatch internal constructor(
         name: String?,
         description: String?,
         use: Boolean = true,
-        compatiblePackages: Set<Package>?,
+        compatiblePackages: Set<Pair<String, Set<String>?>>?,
         dependencies: Set<Patch<*>>,
         options: Set<Option<*>>,
         extensionInputStream: Supplier<InputStream>?,
@@ -315,12 +331,12 @@ class RawResourcePatch internal constructor(
     category,
 ) {
 
-    @Deprecated("Use constructor with Compatibility object")
+    @Deprecated("Use constructor with Compatibility object", level = DeprecationLevel.HIDDEN)
     constructor(
         name: String?,
         description: String?,
         use: Boolean,
-        compatiblePackages: Set<Package>?,
+        compatiblePackages: Set<Pair<String, Set<String>?>>?,
         dependencies: Set<Patch<*>>,
         options: Set<Option<*>>,
         executeBlock: (ResourcePatchContext) -> Unit,
@@ -384,12 +400,12 @@ class ResourcePatch internal constructor(
     category,
 ) {
 
-    @Deprecated("Use constructor with Compatibility object")
+    @Deprecated("Use constructor with Compatibility object", level = DeprecationLevel.HIDDEN)
     constructor(
         name: String?,
         description: String?,
         use: Boolean,
-        compatiblePackages: Set<Package>?,
+        compatiblePackages: Set<Pair<String, Set<String>?>>?,
         dependencies: Set<Patch<*>>,
         options: Set<Option<*>>,
         executeBlock: (ResourcePatchContext) -> Unit,
@@ -474,12 +490,12 @@ sealed class PatchBuilder<C : PatchContext<*>>(
     private operator fun String.invoke(versions: Set<String>? = null) = this to versions
 
     @Deprecated("Instead use Compatibility object", level = DeprecationLevel.HIDDEN)
-    protected fun getCompatiblePackages(): Set<Package>? {
+    protected fun getCompatiblePackages(): Set<Pair<String, Set<String>?>>? {
         return compatibility?.mapNotNull { it.legacy }?.toSet()
     }
 
     @Deprecated("Instead use Compatibility object", level = DeprecationLevel.HIDDEN)
-    protected fun setCompatiblePackages(packages: Set<Package>?) {
+    protected fun setCompatiblePackages(packages: Set<Pair<String, Set<String>?>>?) {
         compatibility = packages?.map { Compatibility.fromLegacy(it) }?.toMutableList()
     }
 
@@ -512,7 +528,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      * @param packages The packages the patch is compatible with.
      */
     @Deprecated("Instead use Compatibility object", level = DeprecationLevel.HIDDEN)
-    fun compatibleWith(vararg packages: Package) {
+    fun compatibleWith(vararg packages: Pair<String, Set<String>?>) {
         if (compatibility == null) {
             compatibility = mutableListOf()
         }
@@ -588,14 +604,18 @@ sealed class PatchBuilder<C : PatchContext<*>>(
         category = name
     }
 
-    internal fun resolveDefaultValue(): Boolean {
-        return if (name != null && default
-            && (compatibility == null || compatibility!!.any { it.packageName == null })
-        ) {
-            println("Warning: Universal patches must be declared with default false: $name")
-            false
-        } else default
-    }
+    /**
+     * Whether the patch is universal but declared with default true.
+     */
+    internal val isUniversalWithDefault
+        get() = name != null && default &&
+            (compatibility == null || compatibility!!.any { it.packageName == null })
+
+    /**
+     * The bundle is not known yet, so universal patches declared with default true are only warned
+     * about, or fail, once they are loaded, see [PatchLoader].
+     */
+    internal fun resolveDefaultValue() = default && !isUniversalWithDefault
 
     /**
      * Build the patch.
@@ -613,7 +633,16 @@ sealed class PatchBuilder<C : PatchContext<*>>(
  *
  * @return The built [Patch].
  */
-private fun <B : PatchBuilder<*>> B.buildPatch(block: B.() -> Unit = {}) = apply(block).build()
+private fun <B : PatchBuilder<*>> B.buildPatch(block: B.() -> Unit = {}) = apply(block).build().also {
+    if (!isUniversalWithDefault) return@also
+
+    it.declaredUniversalWithDefault = true
+    // The patch is declared by whoever called the patch functions of this file. Patches are declared
+    // with the DSL, so this is the only hint of the class or file that declares them.
+    val stackTrace = Throwable().stackTrace
+    val builderClass = stackTrace.firstOrNull()?.className
+    it.declaredAt = stackTrace.dropWhile { frame -> frame.className == builderClass }.firstOrNull()
+}
 
 /**
  * A [BytecodePatch] builder.
@@ -683,12 +712,18 @@ class BytecodePatchBuilder internal constructor(
         extensionStreamProviders.add(provider)
     }
 
-    @Deprecated("Kept only for backwards compatibility with older patch bundles, use extendWith(Supplier<InputStream>).", level = DeprecationLevel.HIDDEN)
+    @Deprecated(
+        "Kept only for backwards compatibility with older patch bundles, use extendWith(Supplier<InputStream>).",
+        level = DeprecationLevel.HIDDEN
+    )
     fun setExtensionInputStream(supplier: Supplier<InputStream>) {
         extendWith(supplier)
     }
 
-    @Deprecated("Kept only for backwards compatibility with older patch bundles. This getter will be removed in a future release.", level = DeprecationLevel.HIDDEN)
+    @Deprecated(
+        "Kept only for backwards compatibility with older patch bundles.",
+        level = DeprecationLevel.HIDDEN
+    )
     fun getExtensionInputStream(): Supplier<InputStream>? = extensionInputStreams.firstOrNull()
 
     override fun build() = BytecodePatch(
@@ -919,6 +954,8 @@ sealed class PatchLoader(
 
     // Companion object required for unit tests.
     private companion object {
+        private val logger = Logger.getLogger(PatchLoader::class.java.name)
+
         val Class<*>.isPatch get() = Patch::class.java.isAssignableFrom(this)
 
         /**
@@ -973,7 +1010,36 @@ sealed class PatchLoader(
                     it.bundle = bundle
                     it.assignBundleToDependencies(bundle)
                 }.toSet()
-            }
+            }.also { checkUniversalPatchDefaults(it.values.flatten()) }
+
+        /**
+         * Fails if universal patches are declared with default true and
+         * [PatcherBehavior.STRICT_UNIVERSAL_PATCH_DEFAULT] applies to them.
+         * Otherwise they are warned about and load with default false.
+         */
+        private fun checkUniversalPatchDefaults(patches: Collection<Patch<*>>) {
+            val misdeclared = mutableSetOf<Patch<*>>()
+            patches.forEachRecursively { if (it.declaredUniversalWithDefault) misdeclared += it }
+            if (misdeclared.isEmpty()) return
+
+            val behavior = PatcherBehavior.STRICT_UNIVERSAL_PATCH_DEFAULT
+            val fails = behavior in resolvePatcherBehaviors(null, misdeclared, logger, listOf(behavior))
+
+            val message = buildString {
+                append("Universal patches must be declared with default false")
+                if (!fails) append(", so they are loaded with default false")
+                appendLine(":")
+                misdeclared.groupBy { it.bundle }.forEach { (bundle, patches) ->
+                    appendLine("  ${bundle ?: "Unknown patch bundle"}${bundle?.let { " (${it.file})" } ?: ""}")
+                    patches.forEach { patch ->
+                        appendLine("    - \"$patch\"${patch.declaredAt?.let { " declared at $it" } ?: ""}")
+                    }
+                }
+            }.trimEnd()
+
+            if (fails) throw PatchException(message)
+            logger.warning(message)
+        }
 
         /**
          * Dependencies are built with the patch that depends on them, unless they are loaded from

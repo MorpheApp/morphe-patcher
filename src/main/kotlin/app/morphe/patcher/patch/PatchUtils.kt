@@ -10,10 +10,10 @@ package app.morphe.patcher.patch
 import java.util.logging.Logger
 
 typealias Count = Int
-@Deprecated("Instead use Compatibility objects", level = DeprecationLevel.ERROR)
-typealias VersionMap = LinkedHashMap<VersionName, Count>
-@Deprecated("Instead use Compatibility objects", level = DeprecationLevel.ERROR)
-typealias PackageNameMap = Map<PackageName, VersionMap>
+@Deprecated("Instead use Compatibility objects", level = DeprecationLevel.HIDDEN)
+typealias VersionMap = LinkedHashMap<String, Count>
+@Deprecated("Instead use Compatibility objects", level = DeprecationLevel.HIDDEN)
+typealias PackageNameMap = Map<String, VersionMap>
 typealias PatchName = String
 typealias OptionKey = String
 typealias OptionValue = Any?
@@ -31,8 +31,8 @@ private val logger = Logger.getLogger("PatchUtils")
 fun Set<Patch<*>>.mostCommonCompatibleVersions(
     packageNames: Set<String>? = null,
     countUnusedPatches: Boolean = false,
-): PackageNameMap = buildMap {
-    fun filterWantedPackages(compatiblePackages: List<Package>): List<Package> {
+): Map<String, LinkedHashMap<String, Count>> = buildMap {
+    fun filterWantedPackages(compatiblePackages: List<Pair<String, Set<String>?>>): List<Pair<String, Set<String>?>> {
         val wantedPackages = packageNames?.toHashSet() ?: return compatiblePackages
         return compatiblePackages.filter { (name, _) -> name in wantedPackages }
     }
@@ -58,7 +58,7 @@ fun Set<Patch<*>>.mostCommonCompatibleVersions(
             versionMap
                 .asIterable()
                 .sortedWith(compareByDescending { it.value })
-                .associate { it.key to it.value } as VersionMap
+                .associate { it.key to it.value } as LinkedHashMap<String, Count>
     }
 }
 

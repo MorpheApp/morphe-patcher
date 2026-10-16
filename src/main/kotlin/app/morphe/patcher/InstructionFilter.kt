@@ -1292,7 +1292,10 @@ fun newInstance(
  *                   consider using [anyInstruction] with multiple exact type declarations.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration", level = DeprecationLevel.HIDDEN)
+@Deprecated(
+    "Instead use non comparison constructor where comparison is based on the type declaration",
+    level = DeprecationLevel.HIDDEN
+)
 fun newInstance(
     type: () -> String,
     comparison: StringComparisonType,
@@ -1359,7 +1362,10 @@ fun instanceOf(
  * @param type Class type semantics as described in [StringComparisonType].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration", level = DeprecationLevel.HIDDEN)
+@Deprecated(
+    "Instead use non comparison constructor where comparison is based on the type declaration",
+    level = DeprecationLevel.HIDDEN
+)
 fun instanceOf(
     type: String,
     comparison: StringComparisonType,
@@ -1372,7 +1378,10 @@ fun instanceOf(
  * @param type Class type semantics as described in [StringComparisonType].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration", level = DeprecationLevel.HIDDEN)
+@Deprecated(
+    "Instead use non comparison constructor where comparison is based on the type declaration",
+    level = DeprecationLevel.HIDDEN
+)
 fun instanceOf(
     type: () -> String,
     comparison: StringComparisonType,
@@ -1441,7 +1450,10 @@ fun checkCast(
  *                   consider using [anyInstruction] with multiple exact type declarations.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration", level = DeprecationLevel.HIDDEN)
+@Deprecated(
+    "Instead use non comparison constructor where comparison is based on the type declaration",
+    level = DeprecationLevel.HIDDEN
+)
 fun checkCast(
     type: String,
     comparison: StringComparisonType,
@@ -1456,7 +1468,10 @@ fun checkCast(
  *                   consider using [anyInstruction] with multiple exact type declarations.
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
-@Deprecated("Instead use non comparison constructor where comparison is based on the type declaration", level = DeprecationLevel.HIDDEN)
+@Deprecated(
+    "Instead use non comparison constructor where comparison is based on the type declaration",
+    level = DeprecationLevel.HIDDEN
+)
 fun checkCast(
     type: () -> String,
     comparison: StringComparisonType,
