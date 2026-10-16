@@ -76,8 +76,13 @@ internal class IncrementalResourceEncoderTest {
     }
 
     /** Encodes, and on the incremental path checks it did not fall back to the full rebuild. */
-    private fun encode(coder: ArsclibResourceCoder, mode: Mode, tempDir: File): File {
-        val output = coder.encodeResources(tempDir.resolve("out").apply { mkdirs() })
+    private fun encode(
+        coder: ArsclibResourceCoder,
+        mode: Mode,
+        tempDir: File,
+        omitEntry: (String) -> Boolean = { false },
+    ): File {
+        val output = coder.encodeResources(tempDir.resolve("out").apply { mkdirs() }, omitEntry)
         if (mode != Mode.FULL_REBUILD) assertTrue(
             warnings.none { it.message.orEmpty().contains("rebuilding the table") },
             "The incremental encoder fell back: ${warnings.map { it.message }}",
@@ -198,6 +203,18 @@ internal class IncrementalResourceEncoderTest {
         val expected = ApkModule.loadApkFile(apk).use { it.tableBlock.pickOne().dump() }
         val actual = ApkModule.loadApkFile(output).use { it.tableBlock.pickOne().dump() }
         assertContentEquals(expected, actual)
+        assertEquals(crcOf(apk, "res/layout/main.xml"), crcOf(output, "res/layout/main.xml"))
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Mode::class)
+    fun `entries the patched APK replaces are left out`(mode: Mode, @TempDir tempDir: File) {
+        val (apk, coder) = decode(mode, tempDir)
+
+        val output = encode(coder, mode, tempDir) { name -> name == "assets/data.bin" }
+
+        assertNotNull(crcOf(apk, "assets/data.bin"))
+        assertNull(crcOf(output, "assets/data.bin"))
         assertEquals(crcOf(apk, "res/layout/main.xml"), crcOf(output, "res/layout/main.xml"))
     }
 

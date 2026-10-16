@@ -89,9 +89,10 @@ internal interface ResourceCoder : Closeable {
      * Encode resources from the working directory into a new APK file.
      *
      * @param outputDir a File object representing the output directory for patched files.
+     * @param omitEntry Whether to leave out an archive entry, as the patched APK replaces or deletes it.
      * @return a File object representing the output file of the compiled APK.
      */
-    fun encodeResources(outputDir: File): File
+    fun encodeResources(outputDir: File, omitEntry: (String) -> Boolean = { false }): File
 
     /**
      * Get other resource files.

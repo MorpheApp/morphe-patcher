@@ -8,6 +8,7 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.apk.ApkUtils
 import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.patch.BytecodePatch
 import app.morphe.patcher.patch.Patch
@@ -195,7 +196,10 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         context.resourceContext.finishDecoding()
         val dexFiles = context.bytecodeContext.get()
         context.bytecodeContext.close()
+        val dexFilesComplete = config.bytecodeMode != BytecodeMode.STRIP_FAST
+        val dexFileNames = dexFiles.mapTo(HashSet()) { it.name }
+        context.resourceContext.omitEntry = { name -> ApkUtils.isReplacedOnApply(name, dexFileNames, dexFilesComplete) }
         val resFiles = context.resourceContext.get()
-        return PatcherResult(dexFiles, resFiles, config.bytecodeMode != BytecodeMode.STRIP_FAST)
+        return PatcherResult(dexFiles, resFiles, dexFilesComplete)
     }
 }

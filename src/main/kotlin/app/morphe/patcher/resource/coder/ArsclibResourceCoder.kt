@@ -9,9 +9,7 @@ import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.ApkUtils
-import app.morphe.patcher.apk.ApkUtils.applyTo
 import app.morphe.patcher.apk.ApkUtils.writeAlignedApk
-import app.morphe.patcher.apk.ApkUtils.writeOntoCopyOf
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.PathMap
@@ -677,7 +675,7 @@ internal class ArsclibResourceCoder(
         }
     }
 
-    override fun encodeResources(outputDir: File): File {
+    override fun encodeResources(outputDir: File, omitEntry: (String) -> Boolean): File {
         val outputApk = outputDir.resolve("resources.apk")
 
         stripNativeLibraries()
@@ -755,7 +753,7 @@ internal class ArsclibResourceCoder(
 
         if (incremental) {
             try {
-                return encodeResourcesIncrementally(outputApk, publicIds, originalPackageName, newPackageName)
+                return encodeResourcesIncrementally(outputApk, publicIds, originalPackageName, newPackageName, omitEntry)
             } catch (exception: Exception) {
                 fallBack(exception)
             } catch (error: LinkageError) {
@@ -764,7 +762,7 @@ internal class ArsclibResourceCoder(
             }
         }
 
-        return encodeResourcesFully(outputApk, packageRenamed)
+        return encodeResourcesFully(outputApk, packageRenamed, omitEntry)
     }
 
     /**
@@ -794,6 +792,7 @@ internal class ArsclibResourceCoder(
         publicIds: Map<Pair<String, String>, Int>,
         originalPackageName: String,
         newPackageName: String,
+        omitEntry: (String) -> Boolean,
     ): File {
         takeInputModule().use { module ->
             val encoder = IncrementalResourceEncoder(
@@ -826,16 +825,17 @@ internal class ArsclibResourceCoder(
             val droppedEntries = changedArchiveEntries(packageRenamed = false)
                 .filter { it !in encoder.encodedEntries }
                 .count { module.zipEntryMap.remove(it) != null }
+            val omittedEntries = module.omitEntries(omitEntry)
             module.zipEntryMap.autoSortApkFiles()
 
             logger.info(
                 "Resource APK inputs: reusing ${module.zipEntryMap.listInputSources().size - encoder.encodedEntries.size} " +
                         "unchanged archive entries, rebuilding ${encoder.encodedEntries.size} entries, " +
-                        "dropping $droppedEntries entries",
+                        "dropping $droppedEntries entries, leaving out $omittedEntries entries the patched APK replaces",
             )
 
             val writeDuration = measureTime {
-                module.writeOntoCopyOf(apkFile, outputApk)
+                module.writeAlignedApk(outputApk)
             }.roundToTenths()
 
             logger.info("Resource APK scan: $scanDuration write: $writeDuration")
@@ -847,7 +847,7 @@ internal class ArsclibResourceCoder(
     /**
      * Rebuilds the resource table from every decoded values file.
      */
-    private fun encodeResourcesFully(outputApk: File, packageRenamed: Boolean): File {
+    private fun encodeResourcesFully(outputApk: File, packageRenamed: Boolean, omitEntry: (String) -> Boolean): File {
         val patchedConfigurations = stashPatchedConfigurations()
 
         try {
@@ -863,11 +863,12 @@ internal class ArsclibResourceCoder(
                 ApkModule.loadApkFile(apkFile).use { originalModule ->
                     val changedEntries = changedArchiveEntries(packageRenamed)
                     val reusedEntries = reuseUnchangedArchiveEntries(originalModule, loadedModule, changedEntries)
-                    val rebuiltEntries = loadedModule.zipEntryMap.listInputSources().size - reusedEntries
+                    val omittedEntries = loadedModule.omitEntries(omitEntry)
+                    val rebuiltEntries = loadedModule.zipEntryMap.listInputSources().size - reusedEntries + omittedEntries
 
                     logger.info(
-                        "Resource APK inputs: reusing $reusedEntries unchanged archive entries, " +
-                                "rebuilding $rebuiltEntries entries",
+                        "Resource APK inputs: reusing ${reusedEntries - omittedEntries} unchanged archive entries, " +
+                                "rebuilding $rebuiltEntries entries, leaving out $omittedEntries entries the patched APK replaces",
                     )
 
                     val writeDuration = measureTime {
@@ -883,6 +884,17 @@ internal class ArsclibResourceCoder(
         }
 
         return outputApk
+    }
+
+    /**
+     * Leaves out the entries of this module that [omitEntry] matches.
+     *
+     * @return How many entries were left out.
+     */
+    private fun ApkModule.omitEntries(omitEntry: (String) -> Boolean): Int {
+        val omitted = zipEntryMap.listInputSources().filter { source -> omitEntry(source.alias) }
+        omitted.forEach { source -> zipEntryMap.remove(source) }
+        return omitted.size
     }
 
     private fun Duration.roundToTenths(): Duration {

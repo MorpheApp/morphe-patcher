@@ -89,6 +89,12 @@ class ResourcePatchContext internal constructor(
     internal fun finishDecoding() = resourceCoder.finishDecoding()
 
     /**
+     * Whether the resource APK [get] writes leaves out an archive entry, as the patched APK replaces or
+     * deletes it. Set once the DEX files are written.
+     */
+    internal var omitEntry: (String) -> Boolean = { false }
+
+    /**
      * Compile resources in [PatcherConfig.apkFiles].
      *
      * @return The [PatcherResult.PatchedResources].
@@ -97,7 +103,7 @@ class ResourcePatchContext internal constructor(
     override fun get(): PatcherResult.PatchedResources {
         val resourcesApkFile = if (config.resourceMode == ResourceMode.FULL) {
             logger.info("Compiling modified resources")
-            resourceCoder.encodeResources(config.patchedFiles)
+            resourceCoder.encodeResources(config.patchedFiles, omitEntry)
         } else {
             null
         }
