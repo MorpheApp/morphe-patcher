@@ -1,3 +1,10 @@
+# [2.0.0-dev.11](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.10...v2.0.0-dev.11) (2026-10-16)
+
+
+### Performance Improvements
+
+* Leave replaced entries out of the resource APK ([446cd3b](https://github.com/MorpheApp/morphe-patcher/commit/446cd3b30db66de5255ce190a3045782004719a7))
+
 # [2.0.0-dev.10](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.9...v2.0.0-dev.10) (2026-10-16)
 
 
