@@ -5,14 +5,8 @@
 
 package app.morphe.patcher.resource.processor
 
-import app.morphe.patcher.util.Document
 import java.io.File
-import java.io.StringWriter
 import java.util.logging.Logger
-import javax.xml.transform.OutputKeys
-import javax.xml.transform.TransformerFactory
-import javax.xml.transform.dom.DOMSource
-import javax.xml.transform.stream.StreamResult
 
 internal class StringsXmlSanitizeProcessor(
     internal val get: (String, String) -> File,
@@ -105,13 +99,4 @@ internal fun sanitizeXmlText(input: String): String {
     }
 
     return output?.toString() ?: input
-}
-
-internal fun Document.toXmlString(): String {
-    val transformer = TransformerFactory.newInstance().newTransformer()
-    transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8")
-
-    val writer = StringWriter()
-    transformer.transform(DOMSource(this), StreamResult(writer))
-    return writer.toString()
 }

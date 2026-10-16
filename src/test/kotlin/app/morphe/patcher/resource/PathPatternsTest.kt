@@ -30,6 +30,17 @@ internal class PathPatternsTest {
         assertTrue(matches("**/strings.xml", "strings.xml"))
         assertTrue(matches("res/**.xml", "res/layout/main.xml"))
         assertFalse(matches("res/**.xml", "assets/main.xml"))
+        assertTrue(matches("res/**/main.xml", "res/main.xml"))
+        assertTrue(matches("res/**/main.xml", "res/a/b/main.xml"))
+        assertFalse(matches("res/**/main.xml", "res/a/bmain.xml"))
+    }
+
+    @Test
+    fun `wildcards backtrack`() {
+        assertTrue(matches("res/*a*b.xml", "res/xaab.xml"))
+        assertTrue(matches("res/*.9.png", "res/icon.9.9.png"))
+        assertFalse(matches("res/*.9.png", "res/icon.png"))
+        assertTrue(matches("**a/b", "x/a/a/b"))
     }
 
     @Test

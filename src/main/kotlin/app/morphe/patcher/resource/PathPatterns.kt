@@ -5,8 +5,6 @@
 
 package app.morphe.patcher.resource
 
-import java.util.regex.Pattern
-
 /**
  * Glob patterns that match paths separated by `/`.
  *
@@ -17,27 +15,27 @@ import java.util.regex.Pattern
  * matches every path as well.
  */
 internal class PathPatterns(patterns: Collection<String>) {
-    private val regexes = patterns.map { toRegex(normalize(it)) }
+    private val globs = patterns.map { Glob(normalize(it)) }
 
     /**
-     * The segments of each pattern, each as the regex that matches it, or null if it holds `**`, which can
+     * The segments of each pattern, each as the glob that matches it, or null if it holds `**`, which can
      * match any number of segments. A pattern that matches every path has no segments, which is null.
      */
     private val segments = patterns.map { pattern ->
         normalize(pattern).takeIf { it.isNotEmpty() }?.split('/')?.map { segment ->
-            if ("**" in segment) null else toRegex(segment)
+            if ("**" in segment) null else Glob(segment)
         }
     }
 
     fun matches(path: String): Boolean {
         val normalized = normalize(path)
-        if (regexes.any { it.matches(normalized) }) return true
+        if (globs.any { it.matches(normalized) }) return true
 
         // A pattern naming a directory matches everything below it.
         var separator = normalized.lastIndexOf('/')
         while (separator > 0) {
             val directory = normalized.substring(0, separator)
-            if (regexes.any { it.matches(directory) }) return true
+            if (globs.any { it.matches(directory) }) return true
             separator = normalized.lastIndexOf('/', separator - 1)
         }
         return false
@@ -61,7 +59,7 @@ internal class PathPatterns(patterns: Collection<String>) {
         if (matches(directory)) return { true }
 
         val directorySegments = segmentsOf(directory)
-        val candidates = regexes.filterIndexed { index, _ -> mayMatchBelow(segments[index], directorySegments) }
+        val candidates = globs.filterIndexed { index, _ -> mayMatchBelow(segments[index], directorySegments) }
         if (candidates.isEmpty()) return { false }
 
         return { path ->
@@ -70,14 +68,14 @@ internal class PathPatterns(patterns: Collection<String>) {
         }
     }
 
-    private fun mayMatchBelow(patternSegments: List<Regex?>?, directorySegments: List<String>): Boolean {
+    private fun mayMatchBelow(patternSegments: List<Glob?>?, directorySegments: List<String>): Boolean {
         if (patternSegments == null) return true
 
         directorySegments.forEachIndexed { index, directorySegment ->
             // The pattern names a directory above, which matches everything below it.
             if (index == patternSegments.size) return true
-            val regex = patternSegments[index] ?: return true
-            if (!regex.matches(directorySegment)) return false
+            val glob = patternSegments[index] ?: return true
+            if (!glob.matches(directorySegment)) return false
         }
         return true
     }
@@ -86,43 +84,67 @@ internal class PathPatterns(patterns: Collection<String>) {
         fun normalize(path: String) = path.replace('\\', '/').trim().trim('/')
 
         fun segmentsOf(path: String) = normalize(path).let { if (it.isEmpty()) emptyList() else it.split('/') }
+    }
+}
 
-        fun toRegex(pattern: String): Regex {
-            if (pattern.isEmpty()) return Regex(".*", RegexOption.DOT_MATCHES_ALL)
+/**
+ * One glob pattern of [PathPatterns], matched without a regex, as a regex is slow on Android where it
+ * calls into native code for every match.
+ */
+private class Glob(private val pattern: String) {
+    // A pattern without wildcards matches only itself.
+    private val isLiteral = pattern.none { it == '*' || it == '?' }
 
-            val regex = StringBuilder()
-            var index = 0
-            while (index < pattern.length) {
-                when {
-                    // Also matches no directory at all, so **/strings.xml matches strings.xml.
-                    pattern.startsWith("**/", index) -> {
-                        regex.append("(?:.*/)?")
-                        index += 3
+    fun matches(path: String) = when {
+        pattern.isEmpty() -> true
+        isLiteral -> pattern == path
+        else -> matches(0, path, 0)
+    }
+
+    private fun matches(patternStart: Int, path: String, pathStart: Int): Boolean {
+        var patternIndex = patternStart
+        var pathIndex = pathStart
+        while (patternIndex < pattern.length) {
+            when {
+                // Any directories, or none at all, so **/strings.xml matches strings.xml.
+                pattern.startsWith("**/", patternIndex) -> {
+                    if (matches(patternIndex + 3, path, pathIndex)) return true
+                    for (index in pathIndex until path.length) {
+                        if (path[index] == '/' && matches(patternIndex + 3, path, index + 1)) return true
                     }
+                    return false
+                }
 
-                    pattern.startsWith("**", index) -> {
-                        regex.append(".*")
-                        index += 2
+                pattern.startsWith("**", patternIndex) -> {
+                    for (index in pathIndex..path.length) {
+                        if (matches(patternIndex + 2, path, index)) return true
                     }
+                    return false
+                }
 
-                    pattern[index] == '*' -> {
-                        regex.append("[^/]*")
-                        index++
-                    }
-
-                    pattern[index] == '?' -> {
-                        regex.append("[^/]")
-                        index++
-                    }
-
-                    else -> {
-                        regex.append(Pattern.quote(pattern[index].toString()))
+                // Any characters within one segment.
+                pattern[patternIndex] == '*' -> {
+                    var index = pathIndex
+                    while (true) {
+                        if (matches(patternIndex + 1, path, index)) return true
+                        if (index == path.length || path[index] == '/') return false
                         index++
                     }
                 }
-            }
 
-            return Regex(regex.toString(), RegexOption.DOT_MATCHES_ALL)
+                pattern[patternIndex] == '?' -> {
+                    if (pathIndex == path.length || path[pathIndex] == '/') return false
+                    patternIndex++
+                    pathIndex++
+                }
+
+                else -> {
+                    if (pathIndex == path.length || path[pathIndex] != pattern[patternIndex]) return false
+                    patternIndex++
+                    pathIndex++
+                }
+            }
         }
+        return pathIndex == path.length
     }
 }

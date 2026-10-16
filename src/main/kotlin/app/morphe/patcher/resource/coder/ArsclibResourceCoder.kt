@@ -11,6 +11,7 @@ import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.ApkUtils
 import app.morphe.patcher.apk.ApkUtils.applyTo
 import app.morphe.patcher.apk.ApkUtils.writeAlignedApk
+import app.morphe.patcher.apk.ApkUtils.writeOntoCopyOf
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.PathMap
@@ -274,16 +275,13 @@ internal class ArsclibResourceCoder(
         deletedResourceFiles.clear()
         deletedValuesFiles.clear()
 
+        // Sorted, because walk order follows the file system, which is not stable on every one,
+        // and new resource ids are numbered in the order of this set.
         packageDirectories.forEach { (_, packageDir) ->
-            packageDir.resolve("res").walkTopDown().filter { it.isFile }.forEach { file ->
+            packageDir.resolve("res").walkTopDown().filter { it.isFile }.filter { file ->
                 val relativePath = file.relativeTo(packageDir).invariantSeparatorsPath
-                if (excludedPaths.contains(relativePath)) return@forEach
-
-                val cached = fileSnapshotCache[pathKey(file)]
-                if (file.differsFrom(cached)) {
-                    modifiedResResources.add(file)
-                }
-            }
+                !excludedPaths.contains(relativePath) && file.differsFrom(fileSnapshotCache[pathKey(file)])
+            }.sortedBy { it.invariantSeparatorsPath }.forEach { modifiedResResources.add(it) }
         }
 
         otherResourcesRootDirectory.walkTopDown().filter { it.isFile }.forEach { file ->
@@ -837,7 +835,7 @@ internal class ArsclibResourceCoder(
             )
 
             val writeDuration = measureTime {
-                module.writeAlignedApk(outputApk)
+                module.writeOntoCopyOf(apkFile, outputApk)
             }.roundToTenths()
 
             logger.info("Resource APK scan: $scanDuration write: $writeDuration")
@@ -1033,7 +1031,7 @@ internal class ArsclibResourceCoder(
         }.orEmpty().filter { valuesDirectory ->
             val config = ResConfig.parse(qualifiersOf(valuesDirectory))
             config.mcc in PATCH_MOBILE_CODES || config.mnc in PATCH_MOBILE_CODES
-        }
+        }.sortedBy { it.name }
 
     /**
      * Encodes the configurations [stashPatchedConfigurations] held back, into a table that is

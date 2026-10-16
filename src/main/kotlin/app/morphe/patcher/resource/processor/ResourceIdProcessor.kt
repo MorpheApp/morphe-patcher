@@ -22,14 +22,19 @@ internal class ResourceIdProcessor(
     internal val get: (path: String) -> File,
     internal val publicIdManager: PublicXmlManager,
     internal val modifiedResResources: Set<File>,
+    private val listFiles: (directory: File) -> Array<File>? = File::listFiles,
 ) {
     private val logger = Logger.getLogger(ResourceIdProcessor::class.java.name)
 
     fun process() {
         logger.info("Generating new resource IDs")
 
-        val resDirectories =
-            get("res").listFiles { file -> file.isDirectory } ?: throw PatchException("Resource directory not found")
+        // New ids are numbered in the order resources are seen here, so every listing is sorted.
+        // Directory listing order is not stable on every file system (Android's f2fs for one),
+        // and an unsorted walk gives the same resource a different id from run to run.
+        val resDirectories = (listFiles(get("res")) ?: throw PatchException("Resource directory not found"))
+            .filter { it.isDirectory }
+            .sortedBy { it.name }
 
         // Find all new ID declarations in XML files so we can create a corresponding entry in ids.xml
         // They will get added to public.xml later
@@ -39,6 +44,7 @@ internal class ResourceIdProcessor(
 
             modifiedResResources
                 .filter { it.exists() && it.extension == "xml" }
+                .sortedBy { it.invariantSeparatorsPath }
                 .forEach { file ->
                     // The document parser detects the encoding of a file that is not UTF-8, the pull parser does not.
                     val declarations = if (file.isUtf16()) null else readDeclarations(file)
@@ -55,13 +61,13 @@ internal class ResourceIdProcessor(
         createPublicIdsFromValuesXml(get("res/values/ids.xml"))
 
         // Ensure every file-based resource has a public ID. ARSCLib can decode synthetic inline-AAPT
-        // resources which are not initially present in public.xml, so this must retain filesystem order:
-        // newly added patch resource IDs are assigned after those synthetic entries.
+        // resources which are not initially present in public.xml, so every file is enumerated, not only
+        // the ones patches changed. Their names start with '$', which sorts before any name a patch adds.
         for (type in fileResourceTypes) {
             val directories = resDirectories.filter { it.name.startsWith(type) }
             for (dir in directories) {
-                val files = dir.listFiles { file -> file.isFile } ?: continue
-                for (file in files) {
+                val files = listFiles(dir) ?: continue
+                for (file in files.filter { it.isFile }.sortedBy { it.name }) {
                     publicIdManager.createPublicId(type, file.nameWithoutExtension)
                 }
             }

@@ -20,6 +20,9 @@ import com.android.tools.build.apkzlib.zip.ZFile
 import com.android.tools.build.apkzlib.zip.ZFileOptions
 import com.android.tools.build.apkzlib.zip.compress.DeflateExecutionCompressor
 import com.reandroid.apk.ApkModule
+import com.reandroid.archive.Archive
+import com.reandroid.archive.InputSource
+import com.reandroid.archive.io.ArchiveFileEntrySource
 import com.reandroid.archive.writer.ZipAligner
 import java.io.File
 import java.io.IOException
@@ -49,8 +52,9 @@ object ApkUtils {
     // Alignment for all other files.
     private const val DEFAULT_ALIGNMENT = 4
 
-    // Within a few percent of the default level's size in markedly less time.
-    private const val COMPRESSION_LEVEL = 3
+    // The fastest level. The dex files it compresses are about 3% larger than at level 3, which takes
+    // about 40% longer, and well within 10% of the default level, which takes about three times as long.
+    private const val COMPRESSION_LEVEL = 1
 
     private val dexEntryName = Regex("""classes(?:\d+)?\.dex""")
 
@@ -83,6 +87,47 @@ object ApkUtils {
             setFileAlignment({ it.endsWith(LIBRARY_EXTENSION) }, LIBRARY_ALIGNMENT)
         }
     }.write()
+
+    /**
+     * Writes this module to [file] by copying [inputApk], which the module was loaded from, and
+     * changing only the entries that differ from it.
+     *
+     * [writeAlignedApk] writes every entry twice, to a buffer and then to the archive, while a patch
+     * usually changes a few percent of them, so for a large APK this is several times faster. The
+     * unchanged entries keep their place and alignment in the copy, and [applyTo] aligns what moved.
+     */
+    internal fun ApkModule.writeOntoCopyOf(inputApk: File, file: File) {
+        // Decides which entries are stored, as writing the module would.
+        updateUncompressedFiles()
+
+        val canonicalInputApk = inputApk.canonicalFile
+        val sources = zipEntryMap.listInputSources()
+        val unchangedEntries = sources.filter { it.isUnchangedEntryOf(canonicalInputApk) }.mapTo(HashSet()) { it.alias }
+
+        copyApk(inputApk, file)
+
+        ZFile.openReadWrite(file, zFileOptions).use { zFile ->
+            zFile.entries()
+                .filter { it.centralDirectoryHeader.name !in unchangedEntries }
+                .forEach(StoredEntry::delete)
+
+            sources.filter { it.alias !in unchangedEntries }.forEach { source ->
+                source.openStream().use { stream ->
+                    zFile.add(source.alias, stream, source.method != Archive.STORED)
+                }
+            }
+        }
+    }
+
+    /**
+     * Whether this is the entry of [inputApk] it was read from, under the same name and stored the same way.
+     */
+    private fun InputSource.isUnchangedEntryOf(inputApk: File): Boolean {
+        if (this !is ArchiveFileEntrySource) return false
+
+        val entry = archiveEntry
+        return alias == entry.name && method == entry.method && zipSource.file.canonicalFile == inputApk
+    }
 
     /**
      * Applies the [PatcherResult] to the given [apkFile].

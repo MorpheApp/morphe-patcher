@@ -8,6 +8,7 @@ package app.morphe.patcher.resource.coder
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.PathMap
 import app.morphe.patcher.resource.PathPatterns
+import app.morphe.patcher.resource.writeJson
 import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ResFile
 import com.reandroid.apk.UncompressedFiles
@@ -39,10 +40,11 @@ private val DEX_FILE_NAME = Regex("classes\\d*\\.dex")
  * Writes which entries of the archive are stored uncompressed, as the decoder of every resource does.
  */
 internal fun ApkModule.writeUncompressedFiles(workingDir: File) {
-    UncompressedFiles().apply {
+    val uncompressedFiles = UncompressedFiles().apply {
         addCommonExtensions()
         addPath(zipEntryMap)
-    }.toJson().write(workingDir.resolve(UncompressedFiles.JSON_FILE))
+    }
+    workingDir.resolve(UncompressedFiles.JSON_FILE).writeJson(uncompressedFiles.toJson())
 }
 
 /**
@@ -244,8 +246,7 @@ internal class OnRequestDecoder(
         packages.values.forEach { decodablePackage ->
             val packageBlock = tableBlock.listPackages().first { it.matches(decodablePackage) }
             val file = decodablePackage.directory.resolve(PackageBlock.JSON_FILE_NAME)
-            file.parentFile.mkdirs()
-            packageBlock.toJson(false).write(file)
+            file.writeJson(packageBlock.toJson(false))
         }
     }
 

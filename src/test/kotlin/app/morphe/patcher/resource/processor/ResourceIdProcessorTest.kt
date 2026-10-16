@@ -533,6 +533,77 @@ internal object ResourceIdProcessorTest {
         }
     }
 
+    @Test
+    fun `process assigns the same ids whatever order directories are listed in`() {
+        fun assignIds(reverseListings: Boolean): Map<Pair<String, String>, Int> {
+            val (publicXmlManager, resDir, createdResourceFiles) = setupEnvironment(
+                publicXmlEntries = listOf(
+                    Triple("drawable", "existing", "0x7f080000"),
+                    Triple("string", "existing", "0x7f130000"),
+                ),
+                valuesXml = mapOf(
+                    "strings.xml" to """<?xml version="1.0" encoding="UTF-8"?>
+                        <resources><string name="b_string">B</string></resources>
+                    """.trimIndent(),
+                ),
+                layoutXml = mapOf(
+                    "b_layout.xml" to """<?xml version="1.0" encoding="UTF-8"?>
+                        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android">
+                            <View android:id="@+id/b_view"/>
+                        </LinearLayout>
+                    """.trimIndent(),
+                    "a_layout.xml" to """<?xml version="1.0" encoding="UTF-8"?>
+                        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android">
+                            <View android:id="@+id/a_view"/>
+                        </LinearLayout>
+                    """.trimIndent(),
+                ),
+            )
+            val modified = createdResourceFiles.toMutableList()
+            resDir.resolve("res/values-v21/strings.xml").apply {
+                parentFile.mkdirs()
+                writeText(
+                    """<?xml version="1.0" encoding="UTF-8"?>
+                        <resources><string name="a_string">A</string></resources>
+                    """.trimIndent(),
+                    Charsets.UTF_8,
+                )
+                modified += this
+            }
+            for (directory in listOf("drawable", "drawable-v24", "drawable-night")) {
+                for (name in listOf("morphe_c", "\$morphe_a__0", "morphe_b")) {
+                    resDir.resolve("res/$directory/$name.xml").apply {
+                        parentFile.mkdirs()
+                        writeText("""<?xml version="1.0" encoding="UTF-8"?><vector/>""", Charsets.UTF_8)
+                    }
+                }
+            }
+
+            return publicXmlManager.use { manager ->
+                ResourceIdProcessor(
+                    get = { path -> resDir.resolve(path).also { it.parentFile?.mkdirs() } },
+                    publicIdManager = manager,
+                    modifiedResResources = (if (reverseListings) modified.sortedDescending() else modified.sorted())
+                        .toCollection(LinkedHashSet()),
+                    listFiles = { directory ->
+                        directory.listFiles()?.sortedArray()?.apply { if (reverseListings) reverse() }
+                    },
+                ).process()
+                manager.getDefinedIds()
+            }
+        }
+
+        val inOrder = assignIds(reverseListings = false)
+        val reversed = assignIds(reverseListings = true)
+
+        assertEquals(inOrder, reversed)
+        assertEquals(0x7f080001, inOrder["drawable" to "\$morphe_a__0"])
+        assertEquals(0x7f080002, inOrder["drawable" to "morphe_b"])
+        // "values-v21/" sorts before "values/".
+        assertEquals(0x7f130001, inOrder["string" to "a_string"])
+        assertEquals(0x7f130002, inOrder["string" to "b_string"])
+    }
+
     // ==================== Helpers ====================
 
     private data class TestEnvironment(

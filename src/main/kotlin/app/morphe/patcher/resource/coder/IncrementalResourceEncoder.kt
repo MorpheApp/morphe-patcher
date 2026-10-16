@@ -118,7 +118,9 @@ internal class IncrementalResourceEncoder(
                 packageBlock.name = newPackageName
             }
 
+            // Sorted so the table comes out the same however the file system listed the files.
             val modified = modifiedResources.filter { it.isFile && it.startsWith(resDirectory) }
+                .sortedBy { it.invariantSeparatorsPath }
             val (valuesFiles, resFiles) = modified.partition {
                 ApkUtil.isValuesDirectoryName(it.parentFile.name, true)
             }
@@ -169,7 +171,7 @@ internal class IncrementalResourceEncoder(
 
                 configurations.forEach { valuesDirectory ->
                     valuesDirectory.listFiles { file: File -> file.isFile && file.extension == "xml" }
-                        .orEmpty().forEach { valuesFile ->
+                        .orEmpty().sortedBy { it.name }.forEach { valuesFile ->
                             val typeBlock = packageBlock.patchedTypeBlock(valuesFile, useSparseEntries)
                             valuesCoder.encode(XMLFactory.newPullParser(valuesFile), typeBlock)
                         }
