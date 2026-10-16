@@ -103,7 +103,7 @@ internal class DexReadWriteTest {
         // A newer dex pool version is not needed.
         assertTrue(DexReadWrite.writeDexCopy(dexBytes, classes.keys, classes.values, Opcodes.forApi(28), copy))
         assertEquals(38, HeaderItem.getVersion(copy.readBytes(), 0))
-        assertEquals(setOf("La;", "Lb;"), DexReadWrite.readDexStream(copy.inputStream()).classes.mapTo(HashSet()) { it.type })
+        assertEquals(setOf("La;", "Lb;"), DexReadWrite.readDexStream(copy.readBytes().inputStream()).classes.mapTo(HashSet()) { it.type })
     }
 
     @Test
