@@ -1,3 +1,10 @@
+# [2.0.0-dev.9](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.8...v2.0.0-dev.9) (2026-10-16)
+
+
+### Bug Fixes
+
+* Change to forked Google smali ([c3e34ef](https://github.com/MorpheApp/morphe-patcher/commit/c3e34ef970db11f5570e996d67f969cf93cbbb1f))
+
 # [2.0.0-dev.8](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.7...v2.0.0-dev.8) (2026-10-16)
 
 
