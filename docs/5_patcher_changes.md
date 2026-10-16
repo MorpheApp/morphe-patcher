@@ -70,3 +70,28 @@ An older bundle is only named in the warning if its bytecode uses one of them.
   and `MatchBeforeFirst()`.
 
 See [Fingerprinting](2_2_1_fingerprinting.md) for details.
+
+## 1.16.0
+
+### ↩️ `returnEarly()` and `returnLate()`
+
+`MutableMethod.returnEarly(value)` makes a method return a constant before any of its code runs.
+`returnLate(value)` runs the original code, but makes every return instruction return the value instead.
+Both accept primitives, strings and `null`, and `returnEarly()` without a value skips a method that returns void.
+
+```kt
+IsPremiumFingerprint.method.returnEarly(true)
+ShouldShowAdsFingerprint.method.returnLate(false)
+```
+
+### 🧮 Free registers
+
+`Method.findFreeRegister(index, excludedRegisters...)` finds a register that is safe to overwrite at an index,
+following every branch from it, and `getFreeRegisterProvider(index, count, excludedRegisters...)` finds several.
+If no register is free, `cloneParameters()` and `addFreeRegisters(Int)` add registers to the method instead.
+
+```kt
+val freeRegister = method.findFreeRegister(insertIndex, viewRegister)
+```
+
+See [Advanced APIs](4_apis.md) for details.
