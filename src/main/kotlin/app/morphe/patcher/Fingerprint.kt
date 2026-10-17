@@ -10,7 +10,7 @@
 
 package app.morphe.patcher
 
-import app.morphe.patcher.Fingerprint.Companion.rawStringComparison
+import app.morphe.patcher.Fingerprint.Companion.SLOW_MATCH_NANOS
 import app.morphe.patcher.extensions.InstructionExtensions.instructionsOrNull
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
@@ -31,7 +31,8 @@ import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodRefere
 import com.android.tools.smali.dexlib2.util.MethodUtil
 import java.lang.ref.WeakReference
 import java.util.BitSet
-import kotlin.DeprecationLevel
+import java.util.concurrent.TimeUnit
+import java.util.logging.Logger
 
 /**
  * @param classFingerprint Fingerprint that finds the class this fingerprint resolves against.
@@ -320,6 +321,14 @@ open class Fingerprint private constructor(
     internal companion object {
         private val fingerprintList = mutableListOf<WeakReference<Fingerprint>>()
 
+        private val logger = Logger.getLogger(Fingerprint::class.java.name)
+
+        /**
+         * Resolving a fingerprint that takes longer than this is logged if
+         * [PatcherConfig.validate] is set.
+         */
+        private val SLOW_MATCH_NANOS = TimeUnit.MILLISECONDS.toNanos(50)
+
         /**
          * How raw strings declared with [strings] are compared. Only patches built for a version of
          * Morphe Patcher older than 2.0.0 use [StringComparisonType.CONTAINS], see
@@ -435,10 +444,24 @@ open class Fingerprint private constructor(
     fun matchOrNull(): Match? {
         if (_matchOrNull != null) return _matchOrNull
 
+        if (patchContext.validate) {
+            return logIfSlow {
+                val classFingerprintLocal = classFingerprint
+                val matches = if (classFingerprintLocal != null) {
+                    classFingerprintLocal.classFingerprintClasses().flatMap { classDef ->
+                        matchAllInClassOrNull(classDef) ?: emptyList()
+                    }.ifEmpty { null }
+                } else {
+                    matchAllOrNullUntimed()
+                }
+                singleMatchOrNull(matches)
+            }
+        }
+
         // Must check first.
         val classFingerprintLocal = classFingerprint
         if (classFingerprint != null) {
-            val match = match(classFingerprintLocal.originalClassDef)
+            val match = match(classFingerprintLocal.match().originalClassDef)
             _matchOrNull = match
             return match
         }
@@ -519,7 +542,12 @@ open class Fingerprint private constructor(
     private fun checkClassFingerprintMatchesDefiningClass(classDef: String) {
         val classFingerprintLocal = classFingerprint
         if (classFingerprintLocal != null) {
-            val originalClassDef = classFingerprintLocal.originalClassDef.type
+            val originalClassDef = if (patchContext.validate) {
+                val classTypes = classFingerprintLocal.classFingerprintClasses().map { it.type }
+                if (classDef in classTypes) classDef else classTypes.joinToString()
+            } else {
+                classFingerprintLocal.match().classType
+            }
             if (originalClassDef != classDef) {
                 throw IllegalArgumentException("Fingerprint class fingerprint: $classFingerprintLocal " +
                         "resolves to a different class: $originalClassDef than the " +
@@ -551,6 +579,10 @@ open class Fingerprint private constructor(
         checkClassFingerprintMatchesDefiningClass(classDef.type)
 
         if (_matchOrNull != null) return _matchOrNull
+
+        if (patchContext.validate) {
+            return singleMatchOrNull(matchAllInClassOrNull(classDef))
+        }
 
         if (!classMatches(classDef)) return null
 
@@ -601,6 +633,87 @@ open class Fingerprint private constructor(
         if (!classMatches(classDef)) return null
 
         return matchMethodOrNull(method, classDef)
+    }
+
+    /**
+     * All methods of [classDef] that match, or null if none match.
+     * Unlike [matchAllOrNull], this does not clear the match of [classFingerprint].
+     */
+    context(patchContext: BytecodePatchContext)
+    private fun matchAllInClassOrNull(classDef: ClassDef): List<Match>? {
+        if (!classMatches(classDef)) return null
+
+        val matches = methodsOf(classDef).mapNotNull { method ->
+            matchMethodOrNull(method, classDef)
+        }
+        _matchOrNull = null
+
+        return matches.ifEmpty { null }
+    }
+
+    /**
+     * The classes this fingerprint matches when it is the [classFingerprint] of another fingerprint.
+     * Used only if [PatcherConfig.validate] is set, so the other fingerprint can be checked
+     * against every class instead of only the first match.
+     *
+     * @throws PatchException If this fingerprint does not match.
+     */
+    context(patchContext: BytecodePatchContext)
+    private fun classFingerprintClasses(): List<ClassDef> {
+        val matches = matchAllOrNull() ?: throw patchException()
+        _matchOrNull = null
+
+        return matches.distinctBy { it.classType }.map { it.originalClassDef }
+    }
+
+    /**
+     * Runs [block] and logs if resolving this fingerprint took longer than [SLOW_MATCH_NANOS].
+     *
+     * The time does not include building the instruction indexes, as that is done only once
+     * by whichever fingerprint resolves first. The time of other fingerprints resolved by [block],
+     * such as [classFingerprint], is also not included as those are timed on their own.
+     */
+    context(patchContext: BytecodePatchContext)
+    private inline fun <T> logIfSlow(block: () -> T): T {
+        val patchClasses = patchContext.patchClasses
+        val indexStartNanos = patchClasses.indexBuildNanos
+        val nestedStartNanos = patchContext.fingerprintMatchNanos
+        val startNanos = System.nanoTime()
+
+        val result = block()
+
+        val excludedNanos = (patchClasses.indexBuildNanos - indexStartNanos) +
+                (patchContext.fingerprintMatchNanos - nestedStartNanos)
+        val matchNanos = System.nanoTime() - startNanos - excludedNanos
+        // Lets an outer fingerprint exclude the time of this fingerprint.
+        patchContext.fingerprintMatchNanos += matchNanos
+
+        if (matchNanos > SLOW_MATCH_NANOS) {
+            logger.info(
+                "Fingerprint took ${TimeUnit.NANOSECONDS.toMillis(matchNanos)} ms to resolve: $this"
+            )
+        }
+
+        return result
+    }
+
+    /**
+     * Sets the match to the only entry of [matches], used if [PatcherConfig.validate] is set.
+     *
+     * @throws PatchException If more than one method matches.
+     */
+    private fun singleMatchOrNull(matches: List<Match>?): Match? {
+        if (matches == null) return null
+
+        if (matches.size > 1) {
+            throw PatchException(
+                "Fingerprint validation failed. Expected a single match but found ${matches.size} matches: $this " +
+                    "Matched methods: ${matches.joinToString { it.methodReference.toString() }}"
+            )
+        }
+
+        _matchOrNull = matches.first()
+        return _matchOrNull
     }
 
     /**
@@ -1006,11 +1119,35 @@ open class Fingerprint private constructor(
      */
     context(patchContext: BytecodePatchContext)
     fun matchAllOrNull(): List<Match>? {
+        if (patchContext.validate) {
+            return logIfSlow { matchAllOrNullUntimed() }
+        }
+
+        return matchAllOrNullUntimed()
+    }
+
+    context(patchContext: BytecodePatchContext)
+    private fun matchAllOrNullUntimed(): List<Match>? {
         // matchAll is an independent search, not an extension of a cached match.
         clearMatch()
 
         if (classFingerprint != null) {
-            return matchAll(classFingerprint.classDef)
+            if (!patchContext.validate) {
+                return matchAll(classFingerprint.match().classDef)
+            }
+
+            // Only one of the classes the class fingerprint matches can contain matches.
+            val matchesByClass = classFingerprint.classFingerprintClasses().mapNotNull { classDef ->
+                matchAllInClassOrNull(classDef)
+            }
+            if (matchesByClass.size > 1) {
+                throw PatchException(
+                    "Fingerprint validation failed. Expected matches in a single class but found " +
+                        "${matchesByClass.size} classes: $this Matched classes: " +
+                        matchesByClass.joinToString { it.first().classType }
+                )
+            }
+            return matchesByClass.firstOrNull()
         }
 
         val matches = mutableListOf<Match>()

@@ -29,6 +29,8 @@ import java.util.logging.Logger
  * versions the patch bundles of the added patches were built for, as the `Patcher-Version` attribute of
  * their manifests declares it. Some apply once any bundle is built for the version that changed it, others
  * only if every bundle is. Without any bundle, patching uses the behavior of the oldest version.
+ * @param validate If extra validation checks are done. Currently, every [Fingerprint.match] and
+ * [Fingerprint.matchOrNull] must match at most one method, the same as using `matchSingle()`.
  */
 class PatcherConfig(
     internal val apkFile: File,
@@ -38,6 +40,7 @@ class PatcherConfig(
     internal val verifier: DexVerifier = NoOpDexVerifier,
     private val fileWorkspacePath: File? = null,
     internal val targetPatcherVersion: String? = null,
+    internal val validate: Boolean = false,
 ) {
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
 

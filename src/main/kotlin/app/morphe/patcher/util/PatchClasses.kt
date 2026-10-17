@@ -577,6 +577,12 @@ internal class PatchClasses internal constructor(
      */
     private var allClassesWithStrings: MutableList<ClassDefWrapper>? = null
 
+    /**
+     * Total time spent building the instruction indexes.
+     */
+    internal var indexBuildNanos = 0L
+        private set
+
     internal constructor(set: Set<ClassDef>) : this(
         // Must use linked hash map. A regular map does not preserve the order of classes found
         // in the apk, so old fingerprints that have multiple matches can match the wrong class
@@ -647,6 +653,7 @@ internal class PatchClasses internal constructor(
     }
 
     private fun buildInstructionIndexes(): Map<String, List<ClassDefWrapper>> {
+        val startNanos = System.nanoTime()
         val builder = IndexBuilder()
 
         // Scanning the instructions is the costly part and reads each class on its own, so it runs
@@ -659,6 +666,7 @@ internal class PatchClasses internal constructor(
         stringMap = builder.strings
         indexBuilder = builder
         allClassesWithStrings = builder.classesWithStrings
+        indexBuildNanos += System.nanoTime() - startNanos
         return builder.strings
     }
 

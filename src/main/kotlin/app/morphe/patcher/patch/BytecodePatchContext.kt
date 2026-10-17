@@ -48,6 +48,19 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     override val fileWorkspace = config.fileWorkspace
 
     /**
+     * If extra validation checks are done.
+     *
+     * @see PatcherConfig.validate
+     */
+    internal val validate = config.validate
+
+    /**
+     * Total time spent resolving fingerprints, used if [validate] is set.
+     * Each fingerprint excludes the time of other fingerprints it resolves.
+     */
+    internal var fingerprintMatchNanos = 0L
+
+    /**
      * [Opcodes] of the supplied [PatcherConfig.apkFile].
      */
     internal lateinit var opcodes: Opcodes
