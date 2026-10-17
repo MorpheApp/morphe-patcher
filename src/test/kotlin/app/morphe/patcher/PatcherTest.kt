@@ -1830,8 +1830,96 @@ internal object PatcherTest {
                 Fingerprint(returnType = "V").match(classDefBy("Lclass1;"))
             }
 
+            // A class fingerprint can match more than one method of the same class.
+            val sameClassFingerprint = Fingerprint(definingClass = "Lclass1;", returnType = "V")
+            assertThrows<PatchException> { sameClassFingerprint.match() }
+            assertEquals(
+                "method2",
+                Fingerprint(classFingerprint = sameClassFingerprint, strings = listOf("unique"))
+                    .match().originalMethod.name
+            )
+            assertEquals(
+                2,
+                Fingerprint(classFingerprint = sameClassFingerprint, returnType = "V").matchAll(2 .. 2).size
+            )
+            assertThrows<PatchException> {
+                Fingerprint(classFingerprint = Fingerprint(strings = listOf("shared")), returnType = "V").match()
+            }
+
             // matchAll is unaffected.
             assertEquals(2, Fingerprint(strings = listOf("shared")).matchAll().size)
+            assertEquals(2, Fingerprint(strings = listOf("shared")).matchAll(2 .. 3).size)
+            assertEquals(2, Fingerprint(strings = listOf("shared")).matchAll(0 .. 3).size)
+            assertEquals(2, Fingerprint(filters = listOf(string("shared"))).matchAll(2 .. 3).size)
+            assertEquals(2, Fingerprint(returnType = "V").matchAll(classDefBy("Lclass1;"), 2 .. 3).size)
+
+            val classFingerprint = Fingerprint(strings = listOf("unique"))
+            assertEquals(
+                2,
+                Fingerprint(classFingerprint = classFingerprint, returnType = "V").matchAll(2 .. 3).size
+            )
+        }
+    }
+
+    @Test
+    fun `validate logs slow fingerprints`() {
+        val patchClasses = PatchClasses(
+            dexBackedClasses(
+                "Lclass1;" to listOf(
+                    dexBackedMethod("Lclass1;", "method1", "const-string v0, \"slow\"\nreturn-void"),
+                ),
+                "Lclass2;" to listOf(
+                    dexBackedMethod("Lclass2;", "method2", "const-string v0, \"fast\"\nreturn-void"),
+                ),
+            )
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+
+        val messages = mutableListOf<String>()
+        val handler = object : java.util.logging.Handler() {
+            override fun publish(record: java.util.logging.LogRecord) {
+                messages += record.message
+            }
+            override fun flush() {}
+            override fun close() {}
+        }
+        val logger = Logger.getLogger(Fingerprint::class.java.name)
+        logger.addHandler(handler)
+
+        try {
+            with(patcher.context.bytecodeContext) {
+                val slowClass = Fingerprint(
+                    strings = listOf("slow"),
+                    custom = { _, _ ->
+                        Thread.sleep(60)
+                        true
+                    },
+                )
+
+                // Not logged without validation.
+                slowClass.match()
+                assertTrue(messages.isEmpty())
+
+                every { validate } returns true
+
+                val fast = Fingerprint(strings = listOf("fast"))
+                fast.match()
+                assertTrue(messages.isEmpty())
+
+                slowClass.clearMatch()
+                slowClass.match()
+                assertEquals(1, messages.size)
+                assertTrue(messages.single().contains("ms to resolve"))
+
+                // The time of the slow class fingerprint is not included in the outer fingerprint.
+                messages.clear()
+                slowClass.clearMatch()
+                Fingerprint(classFingerprint = slowClass, name = "method1").match()
+                assertEquals(1, messages.size)
+                assertTrue(messages.single().contains("slow"))
+            }
+        } finally {
+            logger.removeHandler(handler)
         }
     }
 

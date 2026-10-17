@@ -646,6 +646,63 @@ open class Fingerprint private constructor(
     }
 
     /**
+     * The match of this fingerprint when it is the [classFingerprint] of another fingerprint.
+     *
+     * Only the class of the match is used, so if [PatcherConfig.validate] is set all matches
+     * must be in a single class instead of requiring a single matching method.
+     *
+     * @throws PatchException If this fingerprint does not match, or matches methods of more than one class.
+     */
+    context(patchContext: BytecodePatchContext)
+    private fun classFingerprintMatch(): Match {
+        if (!patchContext.validate) return match()
+
+        _matchOrNull?.let { return it }
+
+        val matches = matchAllOrNull() ?: throw patchException()
+        val classTypes = matches.mapTo(LinkedHashSet()) { it.classType }
+        if (classTypes.size > 1) {
+            throw PatchException(
+                "Fingerprint validation failed. Expected the class fingerprint to match a single class " +
+                    "but found ${classTypes.size} classes: $this Matched classes: ${classTypes.joinToString()}"
+            )
+        }
+
+        return matches.first()
+    }
+
+    /**
+     * Runs [block] and logs if resolving this fingerprint took longer than [SLOW_MATCH_NANOS].
+     *
+     * The time does not include building the instruction indexes, as that is done only once
+     * by whichever fingerprint resolves first. The time of other fingerprints resolved by [block],
+     * such as [classFingerprint], is also not included as those are timed on their own.
+     */
+    context(patchContext: BytecodePatchContext)
+    private inline fun <T> logIfSlow(block: () -> T): T {
+        val patchClasses = patchContext.patchClasses
+        val indexStartNanos = patchClasses.indexBuildNanos
+        val nestedStartNanos = patchContext.fingerprintMatchNanos
+        val startNanos = System.nanoTime()
+
+        val result = block()
+
+        val excludedNanos = (patchClasses.indexBuildNanos - indexStartNanos) +
+                (patchContext.fingerprintMatchNanos - nestedStartNanos)
+        val matchNanos = System.nanoTime() - startNanos - excludedNanos
+        // Lets an outer fingerprint exclude the time of this fingerprint.
+        patchContext.fingerprintMatchNanos += matchNanos
+
+        if (matchNanos > SLOW_MATCH_NANOS) {
+            logger.info(
+                "Fingerprint took ${TimeUnit.NANOSECONDS.toMillis(matchNanos)} ms to resolve: $this"
+            )
+        }
+
+        return result
+    }
+
+    /**
      * Sets the match to the only entry of [matches], used if [PatcherConfig.validate] is set.
      *
      * @throws PatchException If more than one method matches.
@@ -1067,11 +1124,20 @@ open class Fingerprint private constructor(
      */
     context(patchContext: BytecodePatchContext)
     fun matchAllOrNull(): List<Match>? {
+        if (patchContext.validate) {
+            return logIfSlow { matchAllOrNullUntimed() }
+        }
+
+        return matchAllOrNullUntimed()
+    }
+
+    context(patchContext: BytecodePatchContext)
+    private fun matchAllOrNullUntimed(): List<Match>? {
         // matchAll is an independent search, not an extension of a cached match.
         clearMatch()
 
         if (classFingerprint != null) {
-            return matchAll(classFingerprint.classDef)
+            return matchAll(classFingerprint.classFingerprintMatch().classDef)
         }
 
         val matches = mutableListOf<Match>()

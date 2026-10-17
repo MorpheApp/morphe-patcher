@@ -80,6 +80,11 @@ fun InstructionFilter.matchAllMethodIndicesForEach(
  * unrelated methods. This is an exhaustive search and will always be slower than the first match
  * that [match] provides.
  *
+ * **Note**: If the patches targert a specific app and specific releases, it is highly recommended
+ *           to not use this method and instead use `--validate` CLI argument that changes all calls
+ *           of `match()` to `matchSingle()`. Then the overhead of an exhaustive search is done only
+ *           during development/validating and not everytime during patching for the end user.
+ *
  * An exception is thrown if no matches exist or more than 1 match exists.
  */
 context(patchContext: BytecodePatchContext)
