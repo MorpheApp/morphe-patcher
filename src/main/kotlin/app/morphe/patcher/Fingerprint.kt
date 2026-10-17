@@ -10,7 +10,7 @@
 
 package app.morphe.patcher
 
-import app.morphe.patcher.Fingerprint.Companion.rawStringComparison
+import app.morphe.patcher.Fingerprint.Companion.SLOW_MATCH_NANOS
 import app.morphe.patcher.extensions.InstructionExtensions.instructionsOrNull
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
@@ -33,7 +33,6 @@ import java.lang.ref.WeakReference
 import java.util.BitSet
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
-import kotlin.DeprecationLevel
 
 /**
  * @param classFingerprint Fingerprint that finds the class this fingerprint resolves against.
@@ -449,7 +448,9 @@ open class Fingerprint private constructor(
             return logIfSlow {
                 val classFingerprintLocal = classFingerprint
                 val matches = if (classFingerprintLocal != null) {
-                    matchAllInClassOrNull(classFingerprintLocal.classFingerprintMatch().originalClassDef)
+                    classFingerprintLocal.classFingerprintClasses().flatMap { classDef ->
+                        matchAllInClassOrNull(classDef) ?: emptyList()
+                    }.ifEmpty { null }
                 } else {
                     matchAllOrNullUntimed()
                 }
@@ -460,7 +461,7 @@ open class Fingerprint private constructor(
         // Must check first.
         val classFingerprintLocal = classFingerprint
         if (classFingerprint != null) {
-            val match = match(classFingerprintLocal.classFingerprintMatch().originalClassDef)
+            val match = match(classFingerprintLocal.match().originalClassDef)
             _matchOrNull = match
             return match
         }
@@ -541,7 +542,12 @@ open class Fingerprint private constructor(
     private fun checkClassFingerprintMatchesDefiningClass(classDef: String) {
         val classFingerprintLocal = classFingerprint
         if (classFingerprintLocal != null) {
-            val originalClassDef = classFingerprintLocal.classFingerprintMatch().classType
+            val originalClassDef = if (patchContext.validate) {
+                val classTypes = classFingerprintLocal.classFingerprintClasses().map { it.type }
+                if (classDef in classTypes) classDef else classTypes.joinToString()
+            } else {
+                classFingerprintLocal.match().classType
+            }
             if (originalClassDef != classDef) {
                 throw IllegalArgumentException("Fingerprint class fingerprint: $classFingerprintLocal " +
                         "resolves to a different class: $originalClassDef than the " +
@@ -646,29 +652,18 @@ open class Fingerprint private constructor(
     }
 
     /**
-     * The match of this fingerprint when it is the [classFingerprint] of another fingerprint.
+     * The classes this fingerprint matches when it is the [classFingerprint] of another fingerprint.
+     * Used only if [PatcherConfig.validate] is set, so the other fingerprint can be checked
+     * against every class instead of only the first match.
      *
-     * Only the class of the match is used, so if [PatcherConfig.validate] is set all matches
-     * must be in a single class instead of requiring a single matching method.
-     *
-     * @throws PatchException If this fingerprint does not match, or matches methods of more than one class.
+     * @throws PatchException If this fingerprint does not match.
      */
     context(patchContext: BytecodePatchContext)
-    private fun classFingerprintMatch(): Match {
-        if (!patchContext.validate) return match()
-
-        _matchOrNull?.let { return it }
-
+    private fun classFingerprintClasses(): List<ClassDef> {
         val matches = matchAllOrNull() ?: throw patchException()
-        val classTypes = matches.mapTo(LinkedHashSet()) { it.classType }
-        if (classTypes.size > 1) {
-            throw PatchException(
-                "Fingerprint validation failed. Expected the class fingerprint to match a single class " +
-                    "but found ${classTypes.size} classes: $this Matched classes: ${classTypes.joinToString()}"
-            )
-        }
+        _matchOrNull = null
 
-        return matches.first()
+        return matches.distinctBy { it.classType }.map { it.originalClassDef }
     }
 
     /**
@@ -1137,7 +1132,22 @@ open class Fingerprint private constructor(
         clearMatch()
 
         if (classFingerprint != null) {
-            return matchAll(classFingerprint.classFingerprintMatch().classDef)
+            if (!patchContext.validate) {
+                return matchAll(classFingerprint.match().classDef)
+            }
+
+            // Only one of the classes the class fingerprint matches can contain matches.
+            val matchesByClass = classFingerprint.classFingerprintClasses().mapNotNull { classDef ->
+                matchAllInClassOrNull(classDef)
+            }
+            if (matchesByClass.size > 1) {
+                throw PatchException(
+                    "Fingerprint validation failed. Expected matches in a single class but found " +
+                        "${matchesByClass.size} classes: $this Matched classes: " +
+                        matchesByClass.joinToString { it.first().classType }
+                )
+            }
+            return matchesByClass.firstOrNull()
         }
 
         val matches = mutableListOf<Match>()

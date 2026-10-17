@@ -1842,8 +1842,22 @@ internal object PatcherTest {
                 2,
                 Fingerprint(classFingerprint = sameClassFingerprint, returnType = "V").matchAll(2 .. 2).size
             )
+            // A class fingerprint can match more than one class if only one class has a match.
+            val sharedFingerprint = Fingerprint(strings = listOf("shared"))
+            assertEquals(
+                "method2",
+                Fingerprint(classFingerprint = sharedFingerprint, strings = listOf("unique"))
+                    .match().originalMethod.name
+            )
+            assertEquals(
+                1,
+                Fingerprint(classFingerprint = sharedFingerprint, strings = listOf("unique")).matchAll().size
+            )
             assertThrows<PatchException> {
-                Fingerprint(classFingerprint = Fingerprint(strings = listOf("shared")), returnType = "V").match()
+                Fingerprint(classFingerprint = sharedFingerprint, returnType = "V").match()
+            }
+            assertThrows<PatchException> {
+                Fingerprint(classFingerprint = sharedFingerprint, returnType = "V").matchAll()
             }
 
             // matchAll is unaffected.
