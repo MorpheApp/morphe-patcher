@@ -829,9 +829,9 @@ internal class ArsclibResourceCoder(
             module.zipEntryMap.autoSortApkFiles()
 
             logger.info(
-                "Resource APK inputs: reusing ${module.zipEntryMap.listInputSources().size - encoder.encodedEntries.size} " +
+                "Reusing ${module.zipEntryMap.listInputSources().size - encoder.encodedEntries.size} " +
                         "unchanged archive entries, rebuilding ${encoder.encodedEntries.size} entries, " +
-                        "dropping $droppedEntries entries, leaving out $omittedEntries entries the patched APK replaces",
+                        "dropping $droppedEntries entries, leaving out $omittedEntries replaced entries",
             )
 
             val writeDuration = measureTime {

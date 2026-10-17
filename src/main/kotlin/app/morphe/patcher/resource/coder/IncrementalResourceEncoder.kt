@@ -183,7 +183,7 @@ internal class IncrementalResourceEncoder(
 
             logger.info(
                 "Encoded $encoded of $declared values in ${appValuesFiles.size} files, ${resFiles.size} " +
-                        "resource files and ${configurations.size} configurations of patches for $packageName"
+                        "resource files and ${configurations.size} configurations of patches"
             )
             logger.fine { "Resource table update timings for $packageName: ids=$registered, values=$values" }
         }
