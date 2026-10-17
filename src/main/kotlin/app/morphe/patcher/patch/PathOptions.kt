@@ -3,7 +3,7 @@
  * https://github.com/MorpheApp/morphe-patcher
  */
 
-@file:Suppress("unused", "DEPRECATION")
+@file:Suppress("unused", "DEPRECATION", "DEPRECATION_ERROR")
 
 package app.morphe.patcher.patch
 

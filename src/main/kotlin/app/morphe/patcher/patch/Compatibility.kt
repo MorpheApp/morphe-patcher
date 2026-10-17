@@ -5,9 +5,6 @@
 
 package app.morphe.patcher.patch
 
-import kotlin.collections.all
-import kotlin.collections.isNotEmpty
-
 private val SHA_256_REGEX = Regex("^[0-9a-fA-F]{64}$")
 private val PACKAGE_NAME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$")
 
@@ -100,7 +97,10 @@ data class AppTarget(
         description = description
     )
 
-    // @Deprecated("Here only for binary backwards compatibility") // TODO: Remove after next major version bump.
+    @Deprecated(
+        "Here only for binary backwards compatibility",
+        level = DeprecationLevel.HIDDEN
+    )
     constructor(
         version: String?,
         isExperimental: Boolean = false,
@@ -113,7 +113,10 @@ data class AppTarget(
         description = null
     )
 
-    // @Deprecated("Here only for binary backwards compatibility") // TODO: Remove after next major version bump.
+    @Deprecated(
+        "Here only for binary backwards compatibility",
+        level = DeprecationLevel.HIDDEN
+    )
     constructor(
         version: String?,
         isExperimental: Boolean = false,
@@ -359,7 +362,10 @@ data class Compatibility internal constructor(
         return copy(targets = updatedTargets)
     }
 
-    @Deprecated("Here only for binary backwards compatibility", level = DeprecationLevel.HIDDEN)
+    @Deprecated(
+        "Here only for binary backwards compatibility",
+        level = DeprecationLevel.HIDDEN
+    )
     fun copy(
         packageName: String? = this.packageName,
         name: String? = this.name,

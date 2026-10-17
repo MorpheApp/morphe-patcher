@@ -3,13 +3,25 @@
 package app.morphe.patcher.patch
 
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.util.jar.Attributes
+import java.util.jar.JarOutputStream
+import java.util.jar.Manifest
+import java.util.logging.Handler
+import java.util.logging.Level
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.reflect.KFunction
 import kotlin.reflect.full.companionObject
 import kotlin.reflect.full.declaredFunctions
 import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.jvm.javaField
 import kotlin.test.assertEquals
+import kotlin.test.assertFails
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 // region Test patches.
 
@@ -17,8 +29,13 @@ import kotlin.test.assertEquals
 val publicUnnamedPatch = bytecodePatch(default = true) {
 }
 
+// Not loaded, because it's private, but remembers the bundle of the patch that depends on it.
+private val privateUnnamedDependency = bytecodePatch {
+}
+
 // Loaded, because it's named.
 val publicPatch = bytecodePatch("Public") {
+    dependsOn(privateUnnamedDependency)
 }
 
 // Not loaded, because it's private.
@@ -51,8 +68,10 @@ internal object PatchLoaderTest {
     private val TEST_PATCHES_CLASS = ::publicPatch.javaField!!.declaringClass.name
     private val TEST_PATCHES_CLASS_LOADER = ::publicPatch.javaClass.classLoader
 
-    @Test
-    fun `loads patches correctly`() {
+    /**
+     * Calls the private PatchLoader.Companion.loadPatches function with the test patches.
+     */
+    private fun loadPatches(patchesFile: File): Set<Patch<*>> {
         // Get instance of private PatchLoader.Companion class.
         val patchLoaderCompanionObject = getPrivateFieldByType(
             PatchLoader::class.java,
@@ -67,11 +86,16 @@ internal object PatchLoaderTest {
         ) as KFunction<Map<File, Set<Patch<*>>>>
 
         // Call private PatchLoader.Companion.loadPatches function.
-        val patches = loadPatchesFunction.call(
+        return loadPatchesFunction.call(
             patchLoaderCompanionObject,
             TEST_PATCHES_CLASS_LOADER,
-            mapOf(File("patchesFile") to setOf(TEST_PATCHES_CLASS)),
+            mapOf(patchesFile to setOf(TEST_PATCHES_CLASS)),
         ).values.first()
+    }
+
+    @Test
+    fun `loads patches correctly`() {
+        val patches = loadPatches(File("patchesFile"))
 
         assertEquals(
             2,
@@ -80,6 +104,82 @@ internal object PatchLoaderTest {
                 "because there's only two named patches declared as public static fields " +
                 "or returned by public static and non-parametrized methods.",
         )
+    }
+
+    @Test
+    fun `loaded patches remember the bundle they were loaded from`(@TempDir tempDir: File) {
+        val patchesFile = tempDir.resolve("patches.mpp")
+        val manifest = Manifest().apply {
+            mainAttributes[Attributes.Name.MANIFEST_VERSION] = "1.0"
+            mainAttributes.putValue("Name", "Test patches")
+            mainAttributes.putValue("Version", "2.3.4")
+            mainAttributes.putValue("Patcher-Version", "1.16.0")
+        }
+        JarOutputStream(patchesFile.outputStream(), manifest).close()
+
+        val patches = loadPatches(patchesFile)
+
+        patches.forEach { patch ->
+            assertEquals(
+                PatchBundleInfo(patchesFile, "Test patches", "2.3.4", "1.16.0", retryingFiltersCanChangeMatches = false),
+                patch.bundle,
+            )
+        }
+        assertEquals(
+            publicPatch.bundle,
+            publicPatch.dependencies.single().bundle,
+            "a dependency that is not loaded itself is built with the patch that depends on it",
+        )
+
+        // A bundle that has no manifest declares nothing.
+        loadPatches(tempDir.resolve("missing.mpp")).forEach { patch ->
+            assertNull(patch.bundle!!.patcherVersion)
+            assertEquals("missing.mpp", patch.bundle.toString())
+        }
+        assertEquals(publicPatch.bundle, publicPatch.dependencies.single().bundle)
+    }
+
+    @Test
+    fun `universal patches declared with default true fail to load from bundles built for 2_0_0`(@TempDir tempDir: File) {
+        assertTrue(publicPatch.declaredUniversalWithDefault)
+        assertFalse(publicPatch.default)
+        assertEquals("PatchLoaderTest.kt", publicPatch.declaredAt?.fileName, "the patch is declared in this file")
+
+        fun bundle(patcherVersion: String) = tempDir.resolve("patches-$patcherVersion.mpp").also {
+            val manifest = Manifest().apply {
+                mainAttributes[Attributes.Name.MANIFEST_VERSION] = "1.0"
+                mainAttributes.putValue("Name", "Test patches")
+                mainAttributes.putValue("Patcher-Version", patcherVersion)
+            }
+            JarOutputStream(it.outputStream(), manifest).close()
+        }
+
+        val warnings = mutableListOf<String>()
+        val handler = object : Handler() {
+            override fun publish(record: LogRecord) {
+                if (record.level == Level.WARNING) warnings += record.message
+            }
+
+            override fun flush() {}
+            override fun close() {}
+        }
+        val logger = Logger.getLogger(PatchLoader::class.java.name)
+        logger.addHandler(handler)
+        try {
+            loadPatches(bundle("1.16.0")).forEach { assertFalse(it.default) }
+        } finally {
+            logger.removeHandler(handler)
+        }
+
+        val warning = warnings.single()
+        assertTrue("so they are loaded with default false" in warning, warning)
+        assertTrue("Test patches (${bundle("1.16.0")})" in warning, "the bundle is named: $warning")
+        assertTrue("\"Public\" declared at" in warning && "PatchLoaderTest.kt" in warning, warning)
+
+        val exception = assertFails { loadPatches(bundle("2.0.0-dev.5")) }
+        val message = generateSequence(exception) { it.cause }.filterIsInstance<PatchException>().first().message!!
+        assertTrue("Test patches (${bundle("2.0.0-dev.5")})" in message, message)
+        assertTrue("\"Public\" declared at" in message && "PatchLoaderTest.kt" in message, message)
     }
 
     private fun getPrivateFieldByType(cls: Class<*>, fieldType: Class<*>) =

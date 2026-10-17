@@ -6,20 +6,16 @@
 package app.morphe.patcher.resource.processor
 
 import app.morphe.patcher.patch.PatchException
-import app.morphe.patcher.resource.fileResourceTypes
 import app.morphe.patcher.resource.parseXml
 import app.morphe.patcher.resource.postOrderTraverse
 import app.morphe.patcher.resource.utf8Writer
 import app.morphe.patcher.util.Document
+import app.morphe.patcher.util.XmlWriter
 import org.w3c.dom.Element
 import org.xmlpull.v1.XmlPullParser
 import java.io.File
-import java.util.ArrayDeque
 import java.util.logging.Logger
 import javax.xml.parsers.DocumentBuilderFactory
-import javax.xml.transform.TransformerFactory
-import javax.xml.transform.dom.DOMSource
-import javax.xml.transform.stream.StreamResult
 
 internal class AaptMacroProcessor(
     internal val get: (path: String) -> File,
@@ -35,8 +31,6 @@ internal class AaptMacroProcessor(
 
     private val dbFactory = DocumentBuilderFactory.newInstance()
     private val docBuilder = dbFactory.newDocumentBuilder()
-    private val transformerFactory = TransformerFactory.newInstance()
-    private val transformer = transformerFactory.newTransformer()
 
     fun process() {
         logger.info("Processing aapt macros")
@@ -133,7 +127,7 @@ internal class AaptMacroProcessor(
 
     private fun writeDocumentToFile(doc: org.w3c.dom.Document, file: File) {
         file.utf8Writer().use { writer ->
-            transformer.transform(DOMSource(doc), StreamResult(writer))
+            XmlWriter(writer).writeDocument(doc)
         }
         modifiedResResources.add(file)
     }

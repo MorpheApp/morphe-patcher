@@ -151,6 +151,41 @@ internal object DocumentTest {
         document.close()
     }
 
+    @Test
+    fun `Document saves characters that need escaping and surrogate pairs`() {
+        val tempFile = File(tempDir, "escaping.xml")
+        tempFile.writeText(simpleXml)
+
+        Document(tempFile).use { document ->
+            val element = document.getElementsByTagName("element").item(0) as org.w3c.dom.Element
+            element.setAttribute("attr", "a \"quoted\" & <tagged>\nline\ttab")
+            element.textContent = "1 < 2 & 3 > 2 😀"
+        }
+
+        val savedContent = tempFile.readText()
+        assertTrue(savedContent.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"))
+        assertTrue("😀" in savedContent, "Surrogate pairs are written as characters")
+
+        val element = Document(tempFile).getElementsByTagName("element").item(0) as org.w3c.dom.Element
+        assertEquals("a \"quoted\" & <tagged>\nline\ttab", element.getAttribute("attr"))
+        assertEquals("1 < 2 & 3 > 2 😀", element.textContent)
+    }
+
+    @Test
+    fun `Document saves comments, CDATA sections and empty elements`() {
+        val tempFile = File(tempDir, "nodes.xml")
+        tempFile.writeText(
+            """<?xml version="1.0" encoding="UTF-8"?><root><!-- a comment --><a><![CDATA[<raw>]]></a><b/></root>""",
+        )
+
+        Document(tempFile).close()
+
+        assertEquals(
+            """<?xml version="1.0" encoding="UTF-8"?><root><!-- a comment --><a><![CDATA[<raw>]]></a><b/></root>""",
+            tempFile.readText(),
+        )
+    }
+
     // ==================== Edge case tests ====================
 
     @Test

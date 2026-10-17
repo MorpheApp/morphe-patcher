@@ -25,6 +25,8 @@ import com.android.tools.smali.dexlib2.writer.pool.DexPool
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import java.io.ByteArrayInputStream
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -546,33 +548,35 @@ internal object PatchClassesTest {
         return classDefs.mapTo(LinkedHashSet()) { classes.getValue(it.type) }
     }
 
-    @Test
-    fun `dex backed instruction references are indexed`() {
-        val classes = PatchClasses(
-            dexBackedClasses(
-                createClassDef(
-                    "Lcom/test/Referrer;",
-                    listOf(
-                        createMethodWithSmali(
-                            "Lcom/test/Referrer;",
-                            "references",
-                            """
-                                invoke-static { }, Lcom/test/MethodOwner;->calledMethod()V
-                                sget v0, Lcom/test/FieldOwner;->accessedField:I
-                                new-instance v0, Lcom/test/NewType;
-                                const-string v0, "dexString"
-                                const v0, 0x7f010203
-                                return-void
-                            """
-                        )
+    @ParameterizedTest
+    @ValueSource(booleans = [true, false])
+    fun `instruction references are indexed`(dexBacked: Boolean) {
+        val classDefs = arrayOf(
+            createClassDef(
+                "Lcom/test/Referrer;",
+                listOf(
+                    createMethodWithSmali(
+                        "Lcom/test/Referrer;",
+                        "references",
+                        """
+                            invoke-static { }, Lcom/test/MethodOwner;->calledMethod()V
+                            invoke-static { v0, v1 }, Lcom/test/MethodOwner;->signature(Lcom/test/ParameterType;I)Lcom/test/ReturnType;
+                            sget v0, Lcom/test/FieldOwner;->accessedField:I
+                            sget-object v0, Lcom/test/FieldOwner;->objectField:Lcom/test/FieldType;
+                            new-instance v0, Lcom/test/NewType;
+                            const-string v0, "dexString"
+                            const v0, 0x7f010203
+                            return-void
+                        """
                     )
-                ),
-                createClassDef(
-                    "Lcom/test/Other;",
-                    listOf(createMethodWithSmali("Lcom/test/Other;", "other", "return-void"))
-                ),
-            )
+                )
+            ),
+            createClassDef(
+                "Lcom/test/Other;",
+                listOf(createMethodWithSmali("Lcom/test/Other;", "other", "return-void"))
+            ),
         )
+        val classes = PatchClasses(if (dexBacked) dexBackedClasses(*classDefs) else classDefs.toSet())
 
         fun List<PatchClasses.ClassDefWrapper>.types() = map { it.classDef.type }
         val referrer = listOf("Lcom/test/Referrer;")
@@ -580,6 +584,12 @@ internal object PatchClassesTest {
         assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/MethodOwner;").types())
         assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/FieldOwner;").types())
         assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/NewType;").types())
+        assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/ParameterType;").types())
+        assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/ReturnType;").types())
+        assertEquals(referrer, classes.getIndexedClassesReferencingType("Lcom/test/FieldType;").types())
+        // Primitive types are in most classes and are not indexed.
+        assertTrue(classes.getIndexedClassesReferencingType("I").isEmpty())
+        assertTrue(classes.getIndexedClassesReferencingType("V").isEmpty())
         assertEquals(referrer, classes.getIndexedClassesReferencingMemberName("calledMethod").types())
         assertEquals(referrer, classes.getIndexedClassesReferencingMemberName("accessedField").types())
         assertEquals(referrer, classes.getIndexedClassesContainingLiteral(0x7f010203).types())
@@ -588,6 +598,143 @@ internal object PatchClassesTest {
 
         assertTrue(classes.getIndexedClassesReferencingType("Lcom/test/Missing;").isEmpty())
         assertTrue(classes.getIndexedClassesReferencingMemberName("missing").isEmpty())
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = [true, false])
+    fun `literals of every format are indexed`(dexBacked: Boolean) {
+        val classDef = createClassDef(
+            "Lcom/test/Literals;",
+            listOf(
+                createMethodWithSmali(
+                    "Lcom/test/Literals;",
+                    "literals",
+                    """
+                        const/4 v0, -0x3
+                        const/16 v0, -0x1234
+                        const/high16 v0, 0x7f010000
+                        const v0, 0x12345678
+                        const-wide/16 v0, 0x7fff
+                        const-wide/32 v0, -0x12345678
+                        const-wide v0, 0x123456789abcdef0L
+                        const-wide/high16 v0, 0x4024000000000000L
+                        add-int/lit8 v0, v1, -0x5
+                        add-int/lit16 v0, v1, 0x1235
+                        packed-switch v0, :packed
+                        sparse-switch v0, :sparse
+                        fill-array-data v0, :array
+                        goto :end
+                        :packed
+                        .packed-switch 0x1
+                            :end
+                            :end
+                        .end packed-switch
+                        :sparse
+                        .sparse-switch
+                            0x10 -> :end
+                            0x20 -> :end
+                        .end sparse-switch
+                        :array
+                        .array-data 4
+                            0x1
+                            0x2
+                            0x3
+                        .end array-data
+                        :end
+                        const v0, 0x7f020304
+                        return-void
+                    """
+                )
+            )
+        )
+        val classes = PatchClasses(if (dexBacked) dexBackedClasses(classDef) else setOf(classDef))
+
+        listOf(
+            -0x3L, -0x1234L, 0x7f010000L, 0x12345678L, 0x7fffL, -0x12345678L,
+            0x123456789abcdef0L, 0x4024000000000000L, -0x5L, 0x1235L,
+            // Read after the payloads.
+            0x7f020304L,
+        ).forEach { literal ->
+            assertEquals(
+                listOf("Lcom/test/Literals;"),
+                classes.getIndexedClassesContainingLiteral(literal).map { it.classDef.type },
+                "Literal $literal",
+            )
+        }
+        assertTrue(classes.getIndexedClassesContainingLiteral(0x7f999999).isEmpty())
+    }
+
+    @Test
+    fun `candidates of mutable classes are the methods that changed and can satisfy the conditions`() {
+        val classes = PatchClasses(
+            dexBackedClasses(
+                createClassDef(
+                    "Lcom/test/A;",
+                    listOf(
+                        createMethodWithSmali("Lcom/test/A;", "a1", "const v0, 0x1234\nreturn-void"),
+                        createMethodWithSmali("Lcom/test/A;", "a2", "return-void"),
+                    )
+                ),
+            )
+        )
+        classes.getClassesByReferenceMap()
+        val wrapper = classes.classMap.getValue("Lcom/test/A;")
+        fun literalCondition(literal: Long) = PatchClasses.IndexCondition(
+            classes.getIndexedClassesContainingLiteral(literal)
+        ) { it.hasLiteral(literal) }
+        fun candidates(literal: Long) = classes.candidateConditionClasses(listOf(literalCondition(literal))).classes
+
+        // Reading the instructions of a mutable method does not change them.
+        val mutableClass = wrapper.getMutableClass()
+        val a2 = mutableClass.methods.first { it.name == "a2" }
+        a2.implementation!!.instructions.toList()
+        assertTrue(wrapper.changedMethods().isEmpty())
+
+        a2.addInstructions(0, "const v0, 0x5678")
+        assertEquals(listOf<Any>(a2), wrapper.changedMethods())
+        assertEquals(listOf(wrapper), candidates(0x5678))
+        assertEquals(listOf<Any>(a2), classes.candidateConditionClasses(listOf(literalCondition(0x5678))).methodsOf(wrapper).toList())
+        assertTrue(candidates(0x9999).isEmpty(), "The changed method does not have the literal")
+        assertEquals(
+            listOf(wrapper),
+            classes.candidateClasses(listOf(classes.getIndexedClassesContainingLiteral(0x9999))).classes,
+            "Lists of classes alone cannot exclude the changed method",
+        )
+
+        val added = ImmutableMethod(
+            "Lcom/test/A;", "added", emptyList(), "V", AccessFlags.PUBLIC.value, null, null,
+            MutableMethodImplementation(1),
+        ).toMutable().apply { addInstructions(0, "const v0, 0x9999") }
+        mutableClass.methods.add(added)
+        assertEquals(listOf<Any>(a2, added), wrapper.changedMethods())
+        assertEquals(listOf(wrapper), candidates(0x9999))
+
+        mutableClass.methods.remove(a2)
+        assertEquals(listOf<Any>(added), wrapper.changedMethods())
+        assertTrue(candidates(0x5678).isEmpty())
+    }
+
+    @Test
+    fun `classes that are mutable when indexed have the methods that changed after`() {
+        val classes = PatchClasses(
+            dexBackedClasses(
+                createClassDef(
+                    "Lcom/test/A;",
+                    listOf(createMethodWithSmali("Lcom/test/A;", "a", "const v0, 0x1234\nreturn-void"))
+                ),
+            )
+        )
+        val wrapper = classes.classMap.getValue("Lcom/test/A;")
+        val method = wrapper.getMutableClass().methods.single()
+        method.addInstructions(0, "const v0, 0x5678")
+        classes.getClassesByReferenceMap()
+
+        assertTrue(wrapper.changedMethods().isEmpty(), "The indexes have the changes made before")
+        assertEquals(listOf(wrapper), classes.getClassesContainingLiteral(0x5678))
+
+        method.addInstructions(0, "const v0, 0x9abc")
+        assertEquals(listOf<Any>(method), wrapper.changedMethods())
+        assertEquals(listOf(wrapper), classes.getClassesContainingLiteral(0x9abc))
     }
 
     @Test

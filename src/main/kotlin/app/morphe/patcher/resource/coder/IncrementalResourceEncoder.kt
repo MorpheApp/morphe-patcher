@@ -20,6 +20,7 @@ import com.reandroid.arsc.coder.XmlSanitizer
 import com.reandroid.arsc.coder.xml.XmlCoder
 import com.reandroid.arsc.coder.xml.XmlEncodeException
 import com.reandroid.arsc.coder.xml.XmlEncodeUtil
+import com.reandroid.arsc.list.OverlayableList
 import com.reandroid.arsc.value.Entry
 import com.reandroid.arsc.value.ResConfig
 import com.reandroid.arsc.value.ValueType
@@ -40,8 +41,9 @@ import kotlin.time.measureTime
  *
  * The table an app ships is the authority for everything a patch left alone. Only the values
  * files a patch touched are re-encoded, each replacing the entries of its type in its
- * configuration, and only new or changed files under `res/` are added to the archive. The rest
- * of the archive is the input APK, which [module] already holds.
+ * configuration, or only adding to them if the file was never decoded, and only new or changed
+ * files under `res/` are added to the archive. The rest of the archive is the input APK, which
+ * [module] already holds.
  *
  * @param module The input APK with its framework attached. It becomes the output.
  * @param workingDir The decoded working directory.
@@ -49,6 +51,8 @@ import kotlin.time.measureTime
  * @param archiveNameOf The name of the archive entry a decoded `res/` file stands for.
  * @param isNewFile Whether a decoded file did not exist at decode time.
  * @param originalNameOf The archive entry name a decoded path stands for, or null if it is not an alias.
+ * @param isAddition Whether a values file was written by a patch without being decoded. Such a file
+ * only adds resources to its configuration or replaces them, as it never held the others.
  */
 internal class IncrementalResourceEncoder(
     private val module: ApkModule,
@@ -57,6 +61,7 @@ internal class IncrementalResourceEncoder(
     private val archiveNameOf: (File) -> String,
     private val isNewFile: (File) -> Boolean,
     private val originalNameOf: (String) -> String?,
+    private val isAddition: (File) -> Boolean = { false },
 ) {
     private val logger = Logger.getLogger(IncrementalResourceEncoder::class.java.name)
 
@@ -113,7 +118,9 @@ internal class IncrementalResourceEncoder(
                 packageBlock.name = newPackageName
             }
 
+            // Sorted so the table comes out the same however the file system listed the files.
             val modified = modifiedResources.filter { it.isFile && it.startsWith(resDirectory) }
+                .sortedBy { it.invariantSeparatorsPath }
             val (valuesFiles, resFiles) = modified.partition {
                 ApkUtil.isValuesDirectoryName(it.parentFile.name, true)
             }
@@ -134,7 +141,13 @@ internal class IncrementalResourceEncoder(
                         XmlEncodeUtil.getQualifiersFromValuesXml(valuesFile),
                         XmlEncodeUtil.getTypeFromValuesXml(valuesFile),
                     )
-                    val counts = encodeValuesFile(valuesFile, typeBlock, valuesCoder, isDefinedByFile)
+                    val counts = encodeValuesFile(
+                        valuesFile,
+                        typeBlock,
+                        valuesCoder,
+                        isDefinedByFile,
+                        isAddition(valuesFile),
+                    )
                     encoded += counts.first
                     declared += counts.second
                 }
@@ -147,13 +160,18 @@ internal class IncrementalResourceEncoder(
                 }
 
                 if (overlayable in modifiedResources && overlayable.isFile) {
-                    packageBlock.overlayableList.clearChildes()
-                    packageBlock.overlayableList.parse(XMLFactory.newPullParser(overlayable))
+                    if (isAddition(overlayable)) {
+                        // Adds to the overlayables the app declares, which the file never held.
+                        packageBlock.overlayableList.parseAddition(overlayable)
+                    } else {
+                        packageBlock.overlayableList.clearChildes()
+                        packageBlock.overlayableList.parse(XMLFactory.newPullParser(overlayable))
+                    }
                 }
 
                 configurations.forEach { valuesDirectory ->
                     valuesDirectory.listFiles { file: File -> file.isFile && file.extension == "xml" }
-                        .orEmpty().forEach { valuesFile ->
+                        .orEmpty().sortedBy { it.name }.forEach { valuesFile ->
                             val typeBlock = packageBlock.patchedTypeBlock(valuesFile, useSparseEntries)
                             valuesCoder.encode(XMLFactory.newPullParser(valuesFile), typeBlock)
                         }
@@ -165,7 +183,7 @@ internal class IncrementalResourceEncoder(
 
             logger.info(
                 "Encoded $encoded of $declared values in ${appValuesFiles.size} files, ${resFiles.size} " +
-                        "resource files and ${configurations.size} configurations of patches for $packageName"
+                        "resource files and ${configurations.size} configurations of patches"
             )
             logger.fine { "Resource table update timings for $packageName: ids=$registered, values=$values" }
         }
@@ -226,6 +244,23 @@ internal class IncrementalResourceEncoder(
     }
 
     /**
+     * Parses overlayables a patch declares into those the app declares. They are parsed into the list of
+     * the package, as their items are resolved against it, and one with the name of an overlayable the app
+     * declares is merged into it.
+     */
+    private fun OverlayableList.parseAddition(file: File) {
+        val declared = size()
+        parse(XMLFactory.newPullParser(file))
+
+        for (index in size() - 1 downTo declared) {
+            val added = get(index)
+            val existing = (0 until declared).map(::get).firstOrNull { it.name == added.name } ?: continue
+            existing.merge(added)
+            remove(index)
+        }
+    }
+
+    /**
      * Takes emptied entries out of the sparse chunks. A sparse chunk lists only the resources it
      * defines, each as a pair of id and offset, so an emptied entry cannot stay behind as a pair
      * with no offset: the resource system reads that as the chunk's first entry, and every
@@ -280,8 +315,9 @@ internal class IncrementalResourceEncoder(
      * Encodes a values file over the entries of its type in its configuration. A string the file
      * declares as the table already holds it is left alone, which is most of a strings file a
      * patch added a few strings to. An entry the file no longer declares is emptied, unless a
-     * file under `res/` defines it.
+     * file under `res/` defines it or the file is an addition.
      *
+     * @param addition Whether the file only adds or replaces entries, see [isAddition].
      * @return How many entries were encoded, and how many the file declares.
      */
     private fun encodeValuesFile(
@@ -289,6 +325,7 @@ internal class IncrementalResourceEncoder(
         typeBlock: TypeBlock,
         valuesCoder: XmlCoder.ValuesXml,
         isDefinedByFile: (Entry) -> Boolean,
+        addition: Boolean,
     ): Pair<Int, Int> {
         val parser = XMLFactory.newPullParser(valuesFile)
         if (parser.eventType == XmlPullParser.START_DOCUMENT) parser.next()
@@ -326,8 +363,10 @@ internal class IncrementalResourceEncoder(
             IOUtil.close(parser)
         }
 
-        existing.values.forEach { entry ->
-            if (entry !in declared && !isDefinedByFile(entry)) entry.empty()
+        if (!addition) {
+            existing.values.forEach { entry ->
+                if (entry !in declared && !isDefinedByFile(entry)) entry.empty()
+            }
         }
 
         return encoded to declared.size

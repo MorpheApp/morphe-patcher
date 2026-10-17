@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION_ERROR")
+
 package app.morphe.patcher.util.smali
 
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
@@ -35,6 +37,7 @@ internal object InlineSmaliCompilerTest {
         val targetIndex = instructionIndex - 1
 
         method.addInstructions(
+            0,
             arrayOfNulls<String>(instructionCount).also {
                 Arrays.fill(it, "const/4 v0, 0x0")
             }.joinToString("\n"),
@@ -60,6 +63,7 @@ internal object InlineSmaliCompilerTest {
         val labelIndex = 1
 
         method.addInstructions(
+            0,
             """
                 const/4 v0, 0x1
                 const/4 v0, 0x0

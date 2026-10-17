@@ -5,22 +5,15 @@
 
 package app.morphe.patcher.resource.coder
 
-import com.android.tools.build.apkzlib.zip.ZFile
-import com.reandroid.apk.AndroidFrameworks
 import com.reandroid.apk.ApkModule
 import com.reandroid.arsc.chunk.PackageBlock
-import com.reandroid.arsc.chunk.TableBlock
-import com.reandroid.arsc.chunk.xml.AndroidManifestBlock
 import com.reandroid.arsc.chunk.xml.ResXmlDocument
-import com.reandroid.arsc.coder.CoderSetting
-import com.reandroid.arsc.coder.xml.XmlCoder
 import com.reandroid.arsc.value.ResConfig
 import com.reandroid.arsc.value.ValueType
-import com.reandroid.xml.XMLFactory
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.ValueSource
+import org.junit.jupiter.params.provider.EnumSource
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.util.logging.Handler
@@ -38,7 +31,8 @@ import kotlin.test.assertTrue
 
 /**
  * Decodes a small APK, edits its resources the way patches do, encodes it again and checks the
- * result. Runs against the incremental encoder and against the full rebuild, which must agree.
+ * result. Runs against the incremental encoder, against the full rebuild, and with resources decoded
+ * on request, which must all agree.
  */
 internal class IncrementalResourceEncoderTest {
     private val warnings = mutableListOf<LogRecord>()
@@ -55,128 +49,45 @@ internal class IncrementalResourceEncoderTest {
     @AfterEach
     fun tearDown() = coderLogger.removeHandler(handler)
 
+    /**
+     * How resources are decoded and encoded.
+     */
+    enum class Mode {
+        /** Every resource is decoded up front, and the changed ones are encoded into the input table. */
+        INCREMENTAL,
+
+        /** Every resource is decoded up front, and the table is rebuilt from every values file. */
+        FULL_REBUILD,
+
+        /** Resources are decoded as they are requested, and the changed ones are encoded into the input table. */
+        ON_REQUEST,
+    }
+
     /** Decodes a fresh input APK with a coder on the requested path. */
-    private fun decode(fullRebuild: Boolean, tempDir: File): Pair<File, ArsclibResourceCoder> {
-        val apk = buildInputApk(tempDir)
+    private fun decode(mode: Mode, tempDir: File): Pair<File, ArsclibResourceCoder> {
+        val apk = ResourceTestApk.build(tempDir)
         val coder = ArsclibResourceCoder(
             tempDir.resolve("working").apply { mkdirs() },
             apk,
-            fullResourceEncode = fullRebuild,
+            fullResourceEncode = mode == Mode.FULL_REBUILD,
         )
-        coder.decodeResources()
+        coder.decodeResources(onRequest = mode == Mode.ON_REQUEST)
         return apk to coder
     }
 
     /** Encodes, and on the incremental path checks it did not fall back to the full rebuild. */
-    private fun encode(coder: ArsclibResourceCoder, fullRebuild: Boolean, tempDir: File): File {
-        val output = coder.encodeResources(tempDir.resolve("out").apply { mkdirs() })
-        if (!fullRebuild) assertTrue(
+    private fun encode(
+        coder: ArsclibResourceCoder,
+        mode: Mode,
+        tempDir: File,
+        omitEntry: (String) -> Boolean = { false },
+    ): File {
+        val output = coder.encodeResources(tempDir.resolve("out").apply { mkdirs() }, omitEntry)
+        if (mode != Mode.FULL_REBUILD) assertTrue(
             warnings.none { it.message.orEmpty().contains("rebuilding the table") },
             "The incremental encoder fell back: ${warnings.map { it.message }}",
         )
         return output
-    }
-
-    // ==================== Fixture ====================
-
-    private fun buildInputApk(dir: File): File {
-        val packageName = "com.test.app"
-        // The coder under test installs an aapt-style string decoder on this singleton, which
-        // would otherwise leak into the fixture of the next test.
-        XmlCoder.getInstance().setting = CoderSetting()
-
-        val table = TableBlock()
-        table.addFramework(AndroidFrameworks.getLatest().tableBlock)
-        val pkg = table.newPackage(0x7f, packageName)
-
-        fun declare(type: String, vararg names: String) = names.forEach { pkg.getOrCreate("", type, it) }
-        declare("attr", "myAttr")
-        declare("string", "app_name", "hello", "keep", "styled", "escaped")
-        declare("color", "accent", "selector", "shared_a", "shared_b")
-        declare("style", "S")
-        declare("array", "arr")
-        declare("layout", "main")
-        declare("drawable", "icon", "sparse_a", "sparse_b", "sparse_c")
-        declare("id", "existing_view")
-
-        fun values(qualifiers: String, type: String, xml: String) {
-            val typeBlock = pkg.getOrCreateTypeBlock(qualifiers, type)
-            XmlCoder.getInstance().VALUES_XML.encode(XMLFactory.newPullParser("<resources>$xml</resources>"), typeBlock)
-        }
-        values("", "attr", """<attr name="myAttr" format="reference|color"/>""")
-        values(
-            "", "string",
-            """<string name="app_name">Test</string>
-               <string name="hello">Hello</string>
-               <string name="keep">Keep</string>
-               <string name="styled">A <b>bold</b> word</string>
-               <string name="escaped">It's "quoted"</string>"""
-        )
-        values("-de", "string", """<string name="hello">Hallo</string><string name="keep">Behalten</string>""")
-        values("", "color", """<color name="accent">#ffff0000</color>""")
-        values("", "style", """<style name="S"><item name="myAttr">@color/accent</item></style>""")
-        values("", "array", """<string-array name="arr"><item>one</item><item>two</item></string-array>""")
-        pkg.getOrCreate("", "id", "existing_view").setValueAsBoolean(false)
-        pkg.getOrCreate("", "layout", "main").setValueAsString("res/layout/main.xml")
-        pkg.getOrCreate("", "drawable", "icon").setValueAsString("res/drawable/icon.png")
-        pkg.getOrCreate("-xxhdpi", "drawable", "icon").setValueAsString("res/drawable-xxhdpi/icon.png")
-        // A sparse configuration, as apps built with aapt2 --enable-sparse-encoding ship them.
-        pkg.getOrCreate("-hdpi", "drawable", "sparse_a").setValueAsString("res/drawable-hdpi/sparse_a.png")
-        pkg.getOrCreate("-hdpi", "drawable", "sparse_b").setValueAsString("res/drawable-hdpi/sparse_b.png")
-        pkg.getOrCreate("-hdpi", "drawable", "sparse_c").setValueAsString("res/drawable-hdpi/sparse_c.png")
-        pkg.getOrCreateSpecTypePair("drawable").getTypeBlock(ResConfig.parse("-hdpi"))!!.headerBlock.isSparse = true
-        pkg.getOrCreate("", "color", "selector").setValueAsString("res/color/selector.xml")
-        // aapt shares one file between resources with the same content, under an obfuscated name.
-        pkg.getOrCreate("", "color", "shared_a").setValueAsString("res/color/x.xml")
-        pkg.getOrCreate("", "color", "shared_b").setValueAsString("res/color/x.xml")
-        table.refresh()
-
-        fun binaryXml(xml: String) = ResXmlDocument().apply {
-            setPackageBlock(pkg)
-            parse(XMLFactory.newPullParser(xml))
-            refreshFull()
-        }.bytes
-
-        val layout = binaryXml(
-            """<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                   android:id="@id/existing_view" android:text="@string/hello"/>"""
-        )
-        val selector = binaryXml(
-            """<selector xmlns:android="http://schemas.android.com/apk/res/android">
-                   <item android:color="@color/accent"/>
-               </selector>"""
-        )
-
-        val manifest = AndroidManifestBlock().apply {
-            setPackageName(packageName)
-            setVersionCode(1)
-            setVersionName("1.0")
-            setMinSdkVersion(26)
-            setTargetSdkVersion(34)
-            setCompileSdkVersion(34)
-            setPlatformBuildVersionCode(34)
-            getOrCreateApplicationElement()
-            refreshFull()
-        }
-
-        table.clearFrameworks()
-        table.refresh()
-
-        val apk = dir.resolve("input.apk")
-        ZFile.openReadWrite(apk).use { zip ->
-            zip.add("resources.arsc", ByteArrayInputStream(table.bytes))
-            zip.add("AndroidManifest.xml", ByteArrayInputStream(manifest.bytes))
-            zip.add("res/layout/main.xml", ByteArrayInputStream(layout))
-            zip.add("res/color/selector.xml", ByteArrayInputStream(selector))
-            zip.add("res/color/x.xml", ByteArrayInputStream(selector))
-            zip.add("res/drawable/icon.png", ByteArrayInputStream("PNG default".toByteArray()))
-            zip.add("res/drawable-xxhdpi/icon.png", ByteArrayInputStream("PNG xxhdpi".toByteArray()))
-            for (name in listOf("sparse_a", "sparse_b", "sparse_c")) {
-                zip.add("res/drawable-hdpi/$name.png", ByteArrayInputStream("PNG $name".toByteArray()))
-            }
-            zip.add("assets/data.bin", ByteArrayInputStream(ByteArray(1024) { it.toByte() }))
-        }
-        return apk
     }
 
     private fun File.edit(transform: (String) -> String) = writeText(transform(readText()))
@@ -190,44 +101,44 @@ internal class IncrementalResourceEncoderTest {
 
     // ==================== Tests ====================
 
-    @ParameterizedTest(name = "full rebuild = {0}")
-    @ValueSource(booleans = [false, true])
-    fun `edited resources are encoded over the input table`(fullRebuild: Boolean, @TempDir tempDir: File) {
-        val (apk, coder) = decode(fullRebuild, tempDir)
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Mode::class)
+    fun `edited resources are encoded over the input table`(mode: Mode, @TempDir tempDir: File) {
+        val (apk, coder) = decode(mode, tempDir)
 
         // Strings: modify, delete, add, in one configuration only.
-        coder.getFile("res/values/strings.xml", null, false).edit {
+        coder.getFile("res/values/strings.xml", null, true).edit {
             it.replace(">Hello<", ">Hello!<")
                 .replace(Regex("""\s*<string name="keep">[^<]*</string>"""), "")
                 .replace("</resources>", """<string name="added">Added \'here\'</string></resources>""")
         }
         // A bag gains an item, an array is rebuilt.
-        coder.getFile("res/values/attrs.xml", null, false).edit {
+        coder.getFile("res/values/attrs.xml", null, true).edit {
             it.replace("</resources>", """<attr name="newAttr" format="boolean"/></resources>""")
         }
-        coder.getFile("res/values/styles.xml", null, false).edit {
+        coder.getFile("res/values/styles.xml", null, true).edit {
             it.replace("</style>", """<item name="newAttr">true</item><item name="android:textColor">@color/accent</item></style>""")
         }
-        coder.getFile("res/values/arrays.xml", null, false).edit {
+        coder.getFile("res/values/arrays.xml", null, true).edit {
             it.replace(Regex("<item>.*</item>", RegexOption.DOT_MATCHES_ALL), "<item>uno</item><item>dos</item><item>tres</item>")
         }
         // A colour is added next to one defined by a file.
-        coder.getFile("res/values/colors.xml", null, false).edit {
+        coder.getFile("res/values/colors.xml", null, true).edit {
             it.replace("</resources>", """<color name="added_color">#ff00ff00</color></resources>""")
         }
         // A new file resource, a changed one with a new id, a deleted one.
-        coder.getFile("res/drawable/new_icon.png", null, false).writeBytes("PNG new".toByteArray())
-        coder.getFile("res/layout/main.xml", null, false).edit {
+        coder.getFile("res/drawable/new_icon.png", null, true).writeBytes("PNG new".toByteArray())
+        coder.getFile("res/layout/main.xml", null, true).edit {
             it.replace("/>", """><View android:id="@+id/new_view"/></LinearLayout>""")
         }
-        coder.getFile("res/drawable-xxhdpi/icon.png", null, false).delete()
+        coder.getFile("res/drawable-xxhdpi/icon.png", null, true).delete()
         // A configuration of a patch.
-        coder.getFile("res/values-mcc1001/colors.xml", null, false).apply {
+        coder.getFile("res/values-mcc1001/colors.xml", null, true).apply {
             parentFile.mkdirs()
             writeText("""<resources><color name="accent">#ff0000ff</color></resources>""")
         }
 
-        val output = encode(coder, fullRebuild, tempDir)
+        val output = encode(coder, mode, tempDir)
 
         ApkModule.loadApkFile(output).use { module ->
             val pkg = module.tableBlock.pickOne()
@@ -282,12 +193,12 @@ internal class IncrementalResourceEncoderTest {
         assertEquals(crcOf(apk, "res/drawable/icon.png"), crcOf(output, "res/drawable/icon.png"))
     }
 
-    @ParameterizedTest(name = "full rebuild = {0}")
-    @ValueSource(booleans = [false, true])
-    fun `an untouched app keeps its table`(fullRebuild: Boolean, @TempDir tempDir: File) {
-        val (apk, coder) = decode(fullRebuild, tempDir)
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Mode::class)
+    fun `an untouched app keeps its table`(mode: Mode, @TempDir tempDir: File) {
+        val (apk, coder) = decode(mode, tempDir)
 
-        val output = encode(coder, fullRebuild, tempDir)
+        val output = encode(coder, mode, tempDir)
 
         val expected = ApkModule.loadApkFile(apk).use { it.tableBlock.pickOne().dump() }
         val actual = ApkModule.loadApkFile(output).use { it.tableBlock.pickOne().dump() }
@@ -295,15 +206,27 @@ internal class IncrementalResourceEncoderTest {
         assertEquals(crcOf(apk, "res/layout/main.xml"), crcOf(output, "res/layout/main.xml"))
     }
 
-    @ParameterizedTest(name = "full rebuild = {0}")
-    @ValueSource(booleans = [false, true])
-    fun `a renamed package renames the table and the manifest`(fullRebuild: Boolean, @TempDir tempDir: File) {
-        val (apk, coder) = decode(fullRebuild, tempDir)
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Mode::class)
+    fun `entries the patched APK replaces are left out`(mode: Mode, @TempDir tempDir: File) {
+        val (apk, coder) = decode(mode, tempDir)
 
-        coder.getFile("AndroidManifest.xml", null, false).edit { it.replace("com.test.app", "app.morphe.test") }
-        coder.getFile("res/values/strings.xml", null, false).edit { it.replace(">Hello<", ">Hello!<") }
+        val output = encode(coder, mode, tempDir) { name -> name == "assets/data.bin" }
 
-        val output = encode(coder, fullRebuild, tempDir)
+        assertNotNull(crcOf(apk, "assets/data.bin"))
+        assertNull(crcOf(output, "assets/data.bin"))
+        assertEquals(crcOf(apk, "res/layout/main.xml"), crcOf(output, "res/layout/main.xml"))
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Mode::class)
+    fun `a renamed package renames the table and the manifest`(mode: Mode, @TempDir tempDir: File) {
+        val (apk, coder) = decode(mode, tempDir)
+
+        coder.getFile("AndroidManifest.xml", null, true).edit { it.replace("com.test.app", "app.morphe.test") }
+        coder.getFile("res/values/strings.xml", null, true).edit { it.replace(">Hello<", ">Hello!<") }
+
+        val output = encode(coder, mode, tempDir)
 
         ApkModule.loadApkFile(output).use { module ->
             assertEquals("app.morphe.test", module.androidManifest.packageName)
@@ -315,30 +238,30 @@ internal class IncrementalResourceEncoderTest {
         assertEquals(crcOf(apk, "res/drawable/icon.png"), crcOf(output, "res/drawable/icon.png"))
     }
 
-    @ParameterizedTest(name = "full rebuild = {0}")
-    @ValueSource(booleans = [false, true])
-    fun `deleting some files of a sparse configuration leaves no phantom entries`(fullRebuild: Boolean, @TempDir tempDir: File) {
-        val (_, coder) = decode(fullRebuild, tempDir)
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Mode::class)
+    fun `deleting some files of a sparse configuration leaves no phantom entries`(mode: Mode, @TempDir tempDir: File) {
+        val (_, coder) = decode(mode, tempDir)
 
         // A patch thinning drawables deletes some, not all, files of a density.
-        assertTrue(coder.getFile("res/drawable-hdpi/sparse_a.png", null, false).delete())
-        assertTrue(coder.getFile("res/drawable-hdpi/sparse_c.png", null, false).delete())
+        assertTrue(coder.getFile("res/drawable-hdpi/sparse_a.png", null, true).delete())
+        assertTrue(coder.getFile("res/drawable-hdpi/sparse_c.png", null, true).delete())
 
-        val output = encode(coder, fullRebuild, tempDir)
+        val output = encode(coder, mode, tempDir)
 
         ApkModule.loadApkFile(output).use { module ->
             val pkg = module.tableBlock.pickOne()
             val hdpi = pkg.getOrCreateSpecTypePair("drawable").getTypeBlock(ResConfig.parse("-hdpi"))
             assertNotNull(hdpi, "the configuration still defines a resource")
             // The full rebuild encodes every app configuration dense; only the incremental path keeps it sparse.
-            if (!fullRebuild) assertTrue(hdpi.isSparse)
+            if (mode != Mode.FULL_REBUILD) assertTrue(hdpi.isSparse)
             assertEquals(
                 listOf("sparse_b"),
                 hdpi.listEntries(true).map { it.name },
                 "only the surviving file has an entry; a phantom pair would resolve to it",
             )
             // A dense chunk, which the full rebuild produces, legitimately keeps null slots.
-            if (!fullRebuild) assertEquals(1, hdpi.entryArray.size(), "a sparse chunk holds no null entries")
+            if (mode != Mode.FULL_REBUILD) assertEquals(1, hdpi.entryArray.size(), "a sparse chunk holds no null entries")
             assertEquals("res/drawable-hdpi/sparse_b.png", pkg.getEntry("-hdpi", "drawable", "sparse_b")!!.resValue.valueAsString)
             assertTrue(pkg.getEntry("-hdpi", "drawable", "sparse_a")?.isNull ?: true)
             assertTrue(pkg.getEntry("-hdpi", "drawable", "sparse_c")?.isNull ?: true)
@@ -349,16 +272,16 @@ internal class IncrementalResourceEncoderTest {
         }
     }
 
-    @ParameterizedTest(name = "full rebuild = {0}")
-    @ValueSource(booleans = [false, true])
-    fun `a deleted values file takes its resources out of the configuration`(fullRebuild: Boolean, @TempDir tempDir: File) {
-        val (_, coder) = decode(fullRebuild, tempDir)
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Mode::class)
+    fun `a deleted values file takes its resources out of the configuration`(mode: Mode, @TempDir tempDir: File) {
+        val (_, coder) = decode(mode, tempDir)
 
         // Patches strip translations by deleting whole locale directories.
-        assertTrue(coder.getFile("res/values-de/strings.xml", null, false).parentFile.deleteRecursively())
-        coder.getFile("res/values/strings.xml", null, false).edit { it.replace(">Hello<", ">Hello!<") }
+        assertTrue(coder.getFile("res/values-de/strings.xml", null, true).parentFile.deleteRecursively())
+        coder.getFile("res/values/strings.xml", null, true).edit { it.replace(">Hello<", ">Hello!<") }
 
-        val output = encode(coder, fullRebuild, tempDir)
+        val output = encode(coder, mode, tempDir)
 
         ApkModule.loadApkFile(output).use { module ->
             val pkg = module.tableBlock.pickOne()
@@ -369,15 +292,15 @@ internal class IncrementalResourceEncoderTest {
         }
     }
 
-    @ParameterizedTest(name = "full rebuild = {0}")
-    @ValueSource(booleans = [false, true])
-    fun `strings no entry uses any more leave the string pool`(fullRebuild: Boolean, @TempDir tempDir: File) {
-        val (_, coder) = decode(fullRebuild, tempDir)
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Mode::class)
+    fun `strings no entry uses any more leave the string pool`(mode: Mode, @TempDir tempDir: File) {
+        val (_, coder) = decode(mode, tempDir)
 
-        assertTrue(coder.getFile("res/values-de/strings.xml", null, false).parentFile.deleteRecursively())
-        coder.getFile("res/values/strings.xml", null, false).edit { it.replace(">Hello<", ">Hello!<") }
+        assertTrue(coder.getFile("res/values-de/strings.xml", null, true).parentFile.deleteRecursively())
+        coder.getFile("res/values/strings.xml", null, true).edit { it.replace(">Hello<", ">Hello!<") }
 
-        val output = encode(coder, fullRebuild, tempDir)
+        val output = encode(coder, mode, tempDir)
 
         ApkModule.loadApkFile(output).use { module ->
             val pool = module.tableBlock.stringPool
@@ -391,24 +314,24 @@ internal class IncrementalResourceEncoderTest {
         }
     }
 
-    @ParameterizedTest(name = "full rebuild = {0}")
-    @ValueSource(booleans = [false, true])
-    fun `an id a patch declares in public xml itself is honoured`(fullRebuild: Boolean, @TempDir tempDir: File) {
-        val (_, coder) = decode(fullRebuild, tempDir)
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Mode::class)
+    fun `an id a patch declares in public xml itself is honoured`(mode: Mode, @TempDir tempDir: File) {
+        val (_, coder) = decode(mode, tempDir)
 
         // Some patches append their own <public> declarations instead of relying on allocation.
-        val publicXml = coder.getFile("res/values/public.xml", null, false)
+        val publicXml = coder.getFile("res/values/public.xml", null, true)
         val stringIds = Regex("""<public id="(0x7f[0-9a-f]{6})" type="string"""").findAll(publicXml.readText())
             .map { it.groupValues[1].removePrefix("0x").toLong(16) }.toList()
         val manualId = stringIds.max() + 1
         publicXml.edit {
             it.replace("</resources>", """<public id="0x${manualId.toString(16)}" type="string" name="manual"/></resources>""")
         }
-        coder.getFile("res/values/strings.xml", null, false).edit {
+        coder.getFile("res/values/strings.xml", null, true).edit {
             it.replace("</resources>", """<string name="manual">Declared by hand</string></resources>""")
         }
 
-        val output = encode(coder, fullRebuild, tempDir)
+        val output = encode(coder, mode, tempDir)
 
         ApkModule.loadApkFile(output).use { module ->
             val pkg = module.tableBlock.pickOne()
@@ -419,15 +342,15 @@ internal class IncrementalResourceEncoderTest {
         }
     }
 
-    @ParameterizedTest(name = "full rebuild = {0}")
-    @ValueSource(booleans = [false, true])
-    fun `a resource sharing a file keeps its archive name when its values file is edited`(fullRebuild: Boolean, @TempDir tempDir: File) {
-        val (_, coder) = decode(fullRebuild, tempDir)
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Mode::class)
+    fun `a resource sharing a file keeps its archive name when its values file is edited`(mode: Mode, @TempDir tempDir: File) {
+        val (_, coder) = decode(mode, tempDir)
 
         // The decoded values file names the shared file by its alias, which is not in the archive.
-        coder.getFile("res/values/colors.xml", null, false).edit { it.replace(">#ffff0000<", ">#ff00ff00<") }
+        coder.getFile("res/values/colors.xml", null, true).edit { it.replace(">#ffff0000<", ">#ff00ff00<") }
 
-        val output = encode(coder, fullRebuild, tempDir)
+        val output = encode(coder, mode, tempDir)
 
         ApkModule.loadApkFile(output).use { module ->
             val pkg = module.tableBlock.pickOne()
@@ -435,6 +358,27 @@ internal class IncrementalResourceEncoderTest {
                 val path = pkg.getEntry("", "color", name)!!.resValue.valueAsString
                 assertTrue(module.zipEntryMap.contains(path), "$name names $path, which is not in the archive")
             }
+        }
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Mode::class)
+    fun `overlayables a patch declares are added`(mode: Mode, @TempDir tempDir: File) {
+        val (_, coder) = decode(mode, tempDir)
+
+        // The app declares none, so there is no file to decode, and the patch writes a new one.
+        coder.getFile("res/values/overlayable.xml", null, true).writeText(
+            """<resources><overlayable name="Theme"><policy type="public">""" +
+                    """<item type="color" name="accent"/></policy></overlayable></resources>"""
+        )
+
+        val output = encode(coder, mode, tempDir)
+
+        ApkModule.loadApkFile(output).use { module ->
+            val pkg = module.tableBlock.pickOne()
+            val overlayable = pkg.overlayableList.get("Theme")
+            assertNotNull(overlayable)
+            assertEquals(1, pkg.overlayableList.size())
         }
     }
 

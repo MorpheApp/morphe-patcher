@@ -47,7 +47,7 @@ internal class PackageRenamingProcessor(
         get("package.json", originalPackageName).apply {
             val packageJson = JSONObject(this)
             packageJson.put("package_name", newPackageName)
-            packageJson.write(this)
+            writeJson(packageJson)
         }
     }
 

@@ -24,29 +24,31 @@ to modify the Dalvik VM bytecode, while the `ResourcePatchContext` provides APIs
 The difference between `ResourcePatch` and `RawResourcePatch` is that Morphe Patcher will decode the resources
 if it is supplied a `ResourcePatch` for execution or if any patch depends on a `ResourcePatch`
 and will not decode the resources before executing `RawResourcePatch`.
-Both, `ResourcePatch` and `RawResourcePatch` can modify arbitrary files in the APK,
+Both `ResourcePatch` and `RawResourcePatch` can modify arbitrary files in the APK,
 whereas only `ResourcePatch` can modify decoded resources. The choice of which type to use depends on the use case.
-Decoding and building resources is a time- and resource-consuming,
+Decoding and building resources takes time and memory,
 so if the patch does not need to modify decoded resources, it is better to use `RawResourcePatch` or `BytecodePatch`.
+Only the manifest is decoded up front, and every other resource when a patch requests it,
+see [Advanced APIs](4_apis.md).
 
 Example of patches:
 
 ```kt
-@Surpress("unused")
+@Suppress("unused")
 val bytecodePatch = bytecodePatch {
     execute { 
         // More about this on the next page of the documentation.
     }
 }
 
-@Surpress("unused")
+@Suppress("unused")
 val rawResourcePatch = rawResourcePatch {
     execute {
         // More about this on the next page of the documentation.
     }
 }
 
-@Surpress("unused")
+@Suppress("unused")
 val resourcePatch = resourcePatch {
     execute {
         // More about this on the next page of the documentation.
@@ -58,7 +60,7 @@ val resourcePatch = resourcePatch {
 > To see real-world examples of patches,
 > check out the repository for [Morphe Patches](https://github.com/MorpheApp/morphe-patches).
 
-## ⏭️ Whats next
+## ⏭️ What's next
 
 The next page will guide you through creating a development environment for creating patches.
 

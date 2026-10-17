@@ -6,6 +6,8 @@
  * https://github.com/LisoUseInAIKyrios/revanced-patcher
  */
 
+@file:Suppress("DEPRECATION_ERROR")
+
 package app.morphe.patcher.patch
 
 import app.morphe.patcher.InternalApi
@@ -14,6 +16,7 @@ import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.StringComparisonType
 import app.morphe.patcher.dex.BytecodeMode
+import app.morphe.patcher.dex.CachingDexBackedDexFile
 import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.dex.DexStripper
 import app.morphe.patcher.dex.MappedFile
@@ -27,6 +30,8 @@ import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import java.io.Closeable
 import java.io.File
 import java.io.InputStream
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.logging.Logger
 
 /**
@@ -41,6 +46,19 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     private val logger = Logger.getLogger(this::class.java.name)
 
     override val fileWorkspace = config.fileWorkspace
+
+    /**
+     * If extra validation checks are done.
+     *
+     * @see PatcherConfig.validate
+     */
+    internal val validate = config.validate
+
+    /**
+     * Total time spent resolving fingerprints, used if [validate] is set.
+     * Each fingerprint excludes the time of other fingerprints it resolves.
+     */
+    internal var fingerprintMatchNanos = 0L
 
     /**
      * [Opcodes] of the supplied [PatcherConfig.apkFile].
@@ -62,6 +80,24 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * Class descriptors that existed in the original APK (before any extensions or patches).
      */
     private lateinit var originalClassDescriptors: Set<String>
+
+    /**
+     * Extension DEX files that added classes to the app.
+     */
+    private val extensionDexFiles = mutableListOf<ExtensionDexFile>()
+
+    /**
+     * An extension DEX file merged into the app.
+     *
+     * @param bytes The contents of the file.
+     * @param classTypes The types of all classes of the file.
+     * @param addedClasses The classes of the file that were added to the app as they are.
+     */
+    private class ExtensionDexFile(
+        val bytes: ByteArray,
+        val classTypes: List<String>,
+        val addedClasses: List<ClassDef>,
+    )
 
     /**
      * Maps each original DEX entry name to the set of class descriptors it contains.
@@ -143,11 +179,18 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
     private fun mergeExtensionStream(extensionStream: InputStream) {
         extensionStream.use { stream ->
-            DexReadWrite.readDexStream(stream).classes.forEach { classDef ->
+            val dexFile = DexReadWrite.readDexStream(stream)
+            val classTypes = ArrayList<String>()
+            val addedClasses = ArrayList<ClassDef>()
+
+            dexFile.classes.forEach { classDef ->
+                classTypes += classDef.type
+
                 val existingClass = patchClasses.classByOrNull(classDef.type) ?: run {
                     logger.fine { "Adding class \"$classDef\"" }
 
                     patchClasses.addClass(classDef)
+                    addedClasses += classDef
 
                     return@forEach
                 }
@@ -162,6 +205,11 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
                     patchClasses.addClass(mergedClass)
                 }
+            }
+
+            val bytes = (dexFile as? CachingDexBackedDexFile)?.bytes
+            if (bytes != null && addedClasses.isNotEmpty()) {
+                extensionDexFiles += ExtensionDexFile(bytes, classTypes, addedClasses)
             }
         }
     }
@@ -290,7 +338,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         patchClasses.getClassesByReferenceMap().forEach { (string, list) ->
             if (comparison.compare(string, literalString)) {
                 list.forEach { wrapper ->
-                    result += wrapper.classDef
+                    if (!wrapper.replaced) result += wrapper.classDef
                 }
             }
         }
@@ -310,7 +358,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      */
     @Deprecated(
         "Use classDefByStrings instead, which handles all string comparisons",
-        ReplaceWith("classDefByStrings(stringLiteral)")
+        ReplaceWith("classDefByStrings(stringLiteral)"),
+        level = DeprecationLevel.HIDDEN
     )
     fun getAllClassesWithString(stringLiteral: String): List<ClassDef> {
         return classDefByStrings(stringLiteral)
@@ -324,7 +373,9 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @return A [app.morphe.patcher.util.MethodNavigator] for the method.
      */
     @Deprecated("Instead use Fingerprint instruction match `getMethodCalled()`," +
-            " or lookup a method from an index using BytecodeUtils MethodReference.getMutableMethod()")
+            " or lookup a method from an index using BytecodeUtils MethodReference.getMutableMethod()",
+        level = DeprecationLevel.HIDDEN
+    )
     @Suppress("DEPRECATION")
     fun navigate(method: MethodReference) = app.morphe.patcher.util.MethodNavigator(this, method)
 
@@ -355,6 +406,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         val classDefs = patchClasses.classMap.values.let { values ->
             values.mapTo(ArrayList(values.size)) { it.classDef }
         }
+        logMutableClassCount()
         patchClasses.close()
 
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
@@ -383,22 +435,30 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         val (modifiedOriginalDescriptors, classesForNewDex)
                 = getModifiedOriginalDescriptorsAndClassesForNewDex()
 
+        // 1. Copy the extension DEX files with the extension classes that patches did not change,
+        // so these classes need not be written again.
+        val extensionDexCopies = copyUnchangedExtensionClasses(classesForNewDex)
+
+        logMutableClassCount()
         patchClasses.close()
 
-        // 1. Write modified + new classes through DexPool, numbered after the originals. This reads
+        // 2. Write modified + new classes through DexPool, numbered after the originals. This reads
         // the original DEX files, so it runs before they are stripped.
+        var nextDexIndex = originalDexMappings.keys.maxOfOrNull {
+            it.name.removePrefix("classes").removeSuffix(".dex").toIntOrNull() ?: 1
+        } ?: 0
         if (classesForNewDex.isNotEmpty()) {
             logger.info("Writing ${classesForNewDex.size} new classes to new DEX files")
-            val firstNewDexIndex = originalDexMappings.keys.maxOfOrNull {
-                it.name.removePrefix("classes").removeSuffix(".dex").toIntOrNull() ?: 1
-            } ?: 0
             DexReadWrite.writeMultiDexFile(config.patchedFiles.resolve("newDex"), classesForNewDex, opcodes, -1, logger)
-                .forEachIndexed { i, dexFile ->
-                    dexFile.safelyMoveTo(dexOutputDir.resolve(getDexName(firstNewDexIndex + i)))
+                .forEach { dexFile ->
+                    dexFile.safelyMoveTo(dexOutputDir.resolve(getDexName(nextDexIndex++)))
                 }
         }
+        extensionDexCopies.forEach { dexFile ->
+            dexFile.safelyMoveTo(dexOutputDir.resolve(getDexName(nextDexIndex++)))
+        }
 
-        // 2. Strip modified class_def entries from original DEX files in-place.
+        // 3. Strip modified class_def entries from original DEX files in-place.
         val originalDexNames = originalDexMappings.keys.mapTo(HashSet()) { it.name }
         val strippedDexNames = originalDexMappings.filter { (_, mappedFile) ->
             DexStripper.stripInPlace(mappedFile, modifiedOriginalDescriptors) > 0
@@ -413,6 +473,53 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         return dexOutputDir.listFiles { it.isFile && (it.name in strippedDexNames || it.name !in originalDexNames) }!!
             .sorted()
             .mapTo(LinkedHashSet()) { dexFile -> PatcherResult.PatchedDexFile(dexFile.name, dexFile.inputStream()) }
+    }
+
+    /**
+     * Writes a copy of each extension DEX file that has classes that patches did not change, without
+     * its other classes, and removes the copied classes from [classesForNewDex].
+     * The copy keeps a class only if it is still the class that the extension DEX file added,
+     * which is not the case for a class that patches made mutable or replaced.
+     *
+     * @return The written copies.
+     */
+    private fun copyUnchangedExtensionClasses(classesForNewDex: MutableList<ClassDef>): List<File> {
+        if (extensionDexFiles.isEmpty()) return emptyList()
+
+        val outputDir = config.patchedFiles.resolve("extensionDex").apply { deleteRecursively(); mkdirs() }
+        val copiedClasses = Collections.newSetFromMap(IdentityHashMap<ClassDef, Boolean>())
+
+        val copies = extensionDexFiles.mapIndexedNotNull { index, extensionDexFile ->
+            val unchangedClasses = extensionDexFile.addedClasses.filter { classDef ->
+                // Desugared library classes are written to their own DEX files.
+                patchClasses.classMap[classDef.type]?.classDef === classDef && !DexReadWrite.isDesugarLib(classDef)
+            }
+            if (unchangedClasses.isEmpty()) return@mapIndexedNotNull null
+
+            val copy = outputDir.resolve("extension$index.dex")
+            val copied = DexReadWrite.writeDexCopy(
+                extensionDexFile.bytes,
+                extensionDexFile.classTypes,
+                unchangedClasses,
+                opcodes,
+                copy,
+            )
+            if (!copied) {
+                logger.fine { "Extension DEX file $index cannot be copied, writing its classes instead" }
+                return@mapIndexedNotNull null
+            }
+
+            copiedClasses += unchangedClasses
+            copy
+        }
+        extensionDexFiles.clear()
+
+        if (copiedClasses.isNotEmpty()) {
+            classesForNewDex.removeAll(copiedClasses)
+            logger.info("Copied ${copiedClasses.size} unchanged extension classes to ${copies.size} DEX files")
+        }
+
+        return copies
     }
 
     /**
@@ -492,6 +599,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         // Release any remaining mappings (e.g. for empty original DEX directories).
         releaseAllDexMappings()
 
+        logMutableClassCount()
         patchClasses.close()
 
         val results = mutableSetOf<PatcherResult.PatchedDexFile>()
@@ -528,10 +636,20 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         return modifiedOriginalDescriptors to classesForNewDex
     }
 
+    /**
+     * Log how many classes were upgraded to [MutableClass] by patches. Call before [PatchClasses.close].
+     */
+    private fun logMutableClassCount() {
+        val total = patchClasses.classMap.size
+        val mutable = patchClasses.classMap.values.count { it.classDef is MutableClass }
+        logger.info("Changed $mutable of $total classes to mutable")
+    }
+
     internal fun getDexName(index: Int): String = if (index == 0) "classes.dex" else "classes${index + 1}.dex"
 
     override fun close() {
         releaseAllDexMappings()
+        extensionDexFiles.clear()
         patchClasses.close()
     }
 }

@@ -273,7 +273,7 @@ object ApkSigner {
                 return
             }
 
-            if (!inPlace) inputApkFile.copyTo(outputApkFile, overwrite = true)
+            if (!inPlace) ApkUtils.copyApk(inputApkFile, outputApkFile)
             signInPlace(outputApkFile, lowestSdkVersion)
         }
 
