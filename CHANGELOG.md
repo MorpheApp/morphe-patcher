@@ -1,3 +1,10 @@
+# [2.0.0-dev.12](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.11...v2.0.0-dev.12) (2026-10-17)
+
+
+### Features
+
+* Add validation flag to perform additional fingerprint checks and logging ([#253](https://github.com/MorpheApp/morphe-patcher/issues/253)) ([966da3f](https://github.com/MorpheApp/morphe-patcher/commit/966da3f8fbbff374d42c3e98818fed09d3c29db6))
+
 # [2.0.0-dev.11](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.10...v2.0.0-dev.11) (2026-10-16)
 
 
