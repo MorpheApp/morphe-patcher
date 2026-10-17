@@ -31,6 +31,8 @@ import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodRefere
 import com.android.tools.smali.dexlib2.util.MethodUtil
 import java.lang.ref.WeakReference
 import java.util.BitSet
+import java.util.concurrent.TimeUnit
+import java.util.logging.Logger
 import kotlin.DeprecationLevel
 
 /**
@@ -320,6 +322,14 @@ open class Fingerprint private constructor(
     internal companion object {
         private val fingerprintList = mutableListOf<WeakReference<Fingerprint>>()
 
+        private val logger = Logger.getLogger(Fingerprint::class.java.name)
+
+        /**
+         * Resolving a fingerprint that takes longer than this is logged if
+         * [PatcherConfig.validate] is set.
+         */
+        private val SLOW_MATCH_NANOS = TimeUnit.MILLISECONDS.toNanos(50)
+
         /**
          * How raw strings declared with [strings] are compared. Only patches built for a version of
          * Morphe Patcher older than 2.0.0 use [StringComparisonType.CONTAINS], see
@@ -436,19 +446,21 @@ open class Fingerprint private constructor(
         if (_matchOrNull != null) return _matchOrNull
 
         if (patchContext.validate) {
-            val classFingerprintLocal = classFingerprint
-            val matches = if (classFingerprintLocal != null) {
-                matchAllInClassOrNull(classFingerprintLocal.originalClassDef)
-            } else {
-                matchAllOrNull()
+            return logIfSlow {
+                val classFingerprintLocal = classFingerprint
+                val matches = if (classFingerprintLocal != null) {
+                    matchAllInClassOrNull(classFingerprintLocal.classFingerprintMatch().originalClassDef)
+                } else {
+                    matchAllOrNullUntimed()
+                }
+                singleMatchOrNull(matches)
             }
-            return singleMatchOrNull(matches)
         }
 
         // Must check first.
         val classFingerprintLocal = classFingerprint
         if (classFingerprint != null) {
-            val match = match(classFingerprintLocal.originalClassDef)
+            val match = match(classFingerprintLocal.classFingerprintMatch().originalClassDef)
             _matchOrNull = match
             return match
         }
@@ -529,7 +541,7 @@ open class Fingerprint private constructor(
     private fun checkClassFingerprintMatchesDefiningClass(classDef: String) {
         val classFingerprintLocal = classFingerprint
         if (classFingerprintLocal != null) {
-            val originalClassDef = classFingerprintLocal.originalClassDef.type
+            val originalClassDef = classFingerprintLocal.classFingerprintMatch().classType
             if (originalClassDef != classDef) {
                 throw IllegalArgumentException("Fingerprint class fingerprint: $classFingerprintLocal " +
                         "resolves to a different class: $originalClassDef than the " +

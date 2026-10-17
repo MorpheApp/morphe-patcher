@@ -83,6 +83,11 @@ internal object PatcherTest {
 
             every { context.bytecodeContext.patchClasses } returns mockk(relaxed = true)
             every { context.bytecodeContext.validate } returns false
+            var fingerprintMatchNanos = 0L
+            every { context.bytecodeContext.fingerprintMatchNanos } answers { fingerprintMatchNanos }
+            every { context.bytecodeContext.fingerprintMatchNanos = any() } answers {
+                fingerprintMatchNanos = firstArg()
+            }
             every { context.bytecodeContext.decodeDexFiles() } just runs
             every { context.bytecodeContext.classDefBy(any<String>()) } answers {
                 context.bytecodeContext.patchClasses.classBy(firstArg<String>())
