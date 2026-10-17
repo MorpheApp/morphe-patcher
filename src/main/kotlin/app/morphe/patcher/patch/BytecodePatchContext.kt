@@ -393,6 +393,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         val classDefs = patchClasses.classMap.values.let { values ->
             values.mapTo(ArrayList(values.size)) { it.classDef }
         }
+        logMutableClassCount()
         patchClasses.close()
 
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
@@ -425,6 +426,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         // so these classes need not be written again.
         val extensionDexCopies = copyUnchangedExtensionClasses(classesForNewDex)
 
+        logMutableClassCount()
         patchClasses.close()
 
         // 2. Write modified + new classes through DexPool, numbered after the originals. This reads
@@ -584,6 +586,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         // Release any remaining mappings (e.g. for empty original DEX directories).
         releaseAllDexMappings()
 
+        logMutableClassCount()
         patchClasses.close()
 
         val results = mutableSetOf<PatcherResult.PatchedDexFile>()
@@ -618,6 +621,15 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         }
 
         return modifiedOriginalDescriptors to classesForNewDex
+    }
+
+    /**
+     * Log how many classes were upgraded to [MutableClass] by patches. Call before [PatchClasses.close].
+     */
+    private fun logMutableClassCount() {
+        val total = patchClasses.classMap.size
+        val mutable = patchClasses.classMap.values.count { it.classDef is MutableClass }
+        logger.info("Changed $mutable of $total classes to mutable")
     }
 
     internal fun getDexName(index: Int): String = if (index == 0) "classes.dex" else "classes${index + 1}.dex"
