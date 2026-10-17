@@ -115,7 +115,7 @@ data class AppTarget(
 
     @Deprecated(
         "Here only for binary backwards compatibility",
-        level = DeprecationLevel.WARNING
+        level = DeprecationLevel.HIDDEN
     )
     constructor(
         version: String?,

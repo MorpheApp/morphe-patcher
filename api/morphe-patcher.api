@@ -642,7 +642,7 @@ public final class app/morphe/patcher/patch/AppTarget : java/lang/Comparable {
 	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Map;ZLjava/lang/Integer;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Ljava/lang/String;ZLjava/lang/Integer;)V
 	public synthetic fun <init> (Ljava/lang/String;ZLjava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public fun <init> (Ljava/lang/String;ZLjava/lang/Integer;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;ZLjava/lang/Integer;Ljava/lang/String;)V
 	public synthetic fun <init> (Ljava/lang/String;ZLjava/lang/Integer;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun compareTo (Lapp/morphe/patcher/patch/AppTarget;)I
 	public synthetic fun compareTo (Ljava/lang/Object;)I
