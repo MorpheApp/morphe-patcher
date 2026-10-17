@@ -82,6 +82,7 @@ internal object PatcherTest {
             )
 
             every { context.bytecodeContext.patchClasses } returns mockk(relaxed = true)
+            every { context.bytecodeContext.validate } returns false
             every { context.bytecodeContext.decodeDexFiles() } just runs
             every { context.bytecodeContext.classDefBy(any<String>()) } answers {
                 context.bytecodeContext.patchClasses.classBy(firstArg<String>())
@@ -1781,6 +1782,51 @@ internal object PatcherTest {
             assertTrue((dynamicStreams + eagerStream).all { it.closed })
         } finally {
             unmockkObject(DexReadWrite)
+        }
+    }
+
+    @Test
+    fun `validate fingerprints requires a single match`() {
+        val patchClasses = PatchClasses(
+            dexBackedClasses(
+                "Lclass1;" to listOf(
+                    dexBackedMethod("Lclass1;", "method1", "const-string v0, \"shared\"\nreturn-void"),
+                    dexBackedMethod("Lclass1;", "method2", "const-string v0, \"unique\"\nreturn-void"),
+                ),
+                "Lclass2;" to listOf(
+                    dexBackedMethod("Lclass2;", "method3", "const-string v0, \"shared\"\nreturn-void"),
+                ),
+            )
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+
+        with(patcher.context.bytecodeContext) {
+            // Without validation the first match is used.
+            assertEquals("method1", Fingerprint(strings = listOf("shared")).match().originalMethod.name)
+
+            every { validate } returns true
+
+            assertThrows<PatchException> {
+                Fingerprint(strings = listOf("shared")).match()
+            }
+            assertThrows<PatchException> {
+                Fingerprint(filters = listOf(string("shared"))).matchOrNull()
+            }
+            assertNull(Fingerprint(strings = listOf("missing")).matchOrNull())
+
+            val unique = Fingerprint(strings = listOf("unique"))
+            assertEquals("method2", unique.match().originalMethod.name)
+            assertSame(unique.match(), unique.match())
+
+            // Matching against a class only checks the methods of the class.
+            val class2 = classDefBy("Lclass2;")
+            assertEquals("method3", Fingerprint(strings = listOf("shared")).match(class2).originalMethod.name)
+            assertThrows<PatchException> {
+                Fingerprint(returnType = "V").match(classDefBy("Lclass1;"))
+            }
+
+            // matchAll is unaffected.
+            assertEquals(2, Fingerprint(strings = listOf("shared")).matchAll().size)
         }
     }
 

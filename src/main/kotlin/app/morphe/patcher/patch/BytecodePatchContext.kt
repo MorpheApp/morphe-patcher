@@ -48,6 +48,13 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     override val fileWorkspace = config.fileWorkspace
 
     /**
+     * If extra validation checks are done.
+     *
+     * @see PatcherConfig.validate
+     */
+    internal val validate = config.validate
+
+    /**
      * [Opcodes] of the supplied [PatcherConfig.apkFile].
      */
     internal lateinit var opcodes: Opcodes

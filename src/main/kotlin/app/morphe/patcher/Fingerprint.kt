@@ -435,6 +435,16 @@ open class Fingerprint private constructor(
     fun matchOrNull(): Match? {
         if (_matchOrNull != null) return _matchOrNull
 
+        if (patchContext.validate) {
+            val classFingerprintLocal = classFingerprint
+            val matches = if (classFingerprintLocal != null) {
+                matchAllInClassOrNull(classFingerprintLocal.originalClassDef)
+            } else {
+                matchAllOrNull()
+            }
+            return singleMatchOrNull(matches)
+        }
+
         // Must check first.
         val classFingerprintLocal = classFingerprint
         if (classFingerprint != null) {
@@ -552,6 +562,10 @@ open class Fingerprint private constructor(
 
         if (_matchOrNull != null) return _matchOrNull
 
+        if (patchContext.validate) {
+            return singleMatchOrNull(matchAllInClassOrNull(classDef))
+        }
+
         if (!classMatches(classDef)) return null
 
         for (method in methodsOf(classDef)) {
@@ -601,6 +615,41 @@ open class Fingerprint private constructor(
         if (!classMatches(classDef)) return null
 
         return matchMethodOrNull(method, classDef)
+    }
+
+    /**
+     * All methods of [classDef] that match, or null if none match.
+     * Unlike [matchAllOrNull], this does not clear the match of [classFingerprint].
+     */
+    context(patchContext: BytecodePatchContext)
+    private fun matchAllInClassOrNull(classDef: ClassDef): List<Match>? {
+        if (!classMatches(classDef)) return null
+
+        val matches = methodsOf(classDef).mapNotNull { method ->
+            matchMethodOrNull(method, classDef)
+        }
+        _matchOrNull = null
+
+        return matches.ifEmpty { null }
+    }
+
+    /**
+     * Sets the match to the only entry of [matches], used if [PatcherConfig.validate] is set.
+     *
+     * @throws PatchException If more than one method matches.
+     */
+    private fun singleMatchOrNull(matches: List<Match>?): Match? {
+        if (matches == null) return null
+
+        if (matches.size > 1) {
+            throw PatchException(
+                "Fingerprint validation failed. Expected a single match but found ${matches.size} matches: $this " +
+                    "Matched methods: ${matches.joinToString { it.methodReference.toString() }}"
+            )
+        }
+
+        _matchOrNull = matches.first()
+        return _matchOrNull
     }
 
     /**
