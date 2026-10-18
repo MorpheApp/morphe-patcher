@@ -127,7 +127,7 @@ data class AppTarget(
         versionCodes = null,
         isExperimental = isExperimental,
         minSdk = minSdk,
-        description = null
+        description = description
     )
 
     init {

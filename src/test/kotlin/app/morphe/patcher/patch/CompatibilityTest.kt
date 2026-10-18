@@ -34,6 +34,24 @@ internal object CompatibilityTest {
     }
 
     @Test
+    fun `binary compatible description constructor keeps every argument`() {
+        // Hidden from Kotlin callers, but patch bundles compiled against 1.x still call it.
+        val constructor = AppTarget::class.java.getConstructor(
+            String::class.java,
+            Boolean::class.javaPrimitiveType,
+            Int::class.javaObjectType,
+            String::class.java,
+        )
+        val target = constructor.newInstance("1.2.3", true, 26, "Recommended release")
+
+        assertEquals("1.2.3", target.version)
+        assertEquals(null, target.versionCodes)
+        assertTrue(target.isExperimental)
+        assertEquals(26, target.minSdk)
+        assertEquals("Recommended release", target.description)
+    }
+
+    @Test
     fun `package name validation`() {
         assertDoesNotThrow {
             Compatibility(
