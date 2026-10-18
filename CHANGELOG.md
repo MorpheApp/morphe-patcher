@@ -1,3 +1,10 @@
+# [2.0.0-dev.13](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.12...v2.0.0-dev.13) (2026-10-18)
+
+
+### Bug Fixes
+
+* Keep the description in the AppTarget binary compatibility constructor ([#255](https://github.com/MorpheApp/morphe-patcher/issues/255)) ([290d087](https://github.com/MorpheApp/morphe-patcher/commit/290d087aa3e426826a1245edee2475030a48b655))
+
 # [2.0.0-dev.12](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.11...v2.0.0-dev.12) (2026-10-17)
 
 
