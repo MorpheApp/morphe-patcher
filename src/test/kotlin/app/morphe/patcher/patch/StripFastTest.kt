@@ -23,6 +23,8 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 internal class StripFastTest {
     @TempDir
@@ -30,7 +32,7 @@ internal class StripFastTest {
 
     @OptIn(InternalApi::class)
     @Test
-    fun `only the stripped and new dex files are output, numbered after the originals`() {
+    fun `a dex file left without classes is dropped and the others are renumbered`() {
         val apk = temporaryDirectory.resolve("input.apk")
         ZipOutputStream(apk.outputStream()).use { zip ->
             listOf("classes.dex" to "La;", "classes2.dex" to "Lb;").forEach { (name, type) ->
@@ -44,15 +46,72 @@ internal class StripFastTest {
             initializeTemporaryFilesDirectories()
         }
 
-        val dexFiles = BytecodePatchContext(config, mockk(relaxed = true)).use { context ->
+        val (dexFiles, complete) = BytecodePatchContext(config, mockk(relaxed = true)).use { context ->
             context.decodeDexFiles()
             context.mutableClassDefBy("La;")
+            context.get().associate { it.name to it.stream.use { stream -> stream.readBytes() } } to context.dexFilesComplete
+        }
+
+        assertEquals(setOf("classes.dex", "classes2.dex"), dexFiles.keys)
+        assertEquals(setOf("Lb;"), typesIn(dexFiles.getValue("classes.dex")))
+        assertEquals(setOf("La;"), typesIn(dexFiles.getValue("classes2.dex")))
+        assertTrue(complete)
+    }
+
+    @OptIn(InternalApi::class)
+    @Test
+    fun `a dex file between others left without classes does not leave a gap`() {
+        val apk = temporaryDirectory.resolve("input.apk")
+        ZipOutputStream(apk.outputStream()).use { zip ->
+            listOf("classes.dex" to "La;", "classes2.dex" to "Lb;", "classes3.dex" to "Lc;").forEach { (name, type) ->
+                zip.putNextEntry(ZipEntry(name))
+                zip.write(dexOf(type))
+                zip.closeEntry()
+            }
+        }
+        val config = PatcherConfig(apk, temporaryDirectory.resolve("tmp")).apply {
+            bytecodeMode = BytecodeMode.STRIP_FAST
+            initializeTemporaryFilesDirectories()
+        }
+
+        val dexFiles = BytecodePatchContext(config, mockk(relaxed = true)).use { context ->
+            context.decodeDexFiles()
+            context.mutableClassDefBy("Lb;")
             context.get().associate { it.name to it.stream.use { stream -> stream.readBytes() } }
         }
 
+        assertEquals(
+            mapOf("classes.dex" to setOf("La;"), "classes2.dex" to setOf("Lc;"), "classes3.dex" to setOf("Lb;")),
+            dexFiles.mapValues { (_, dex) -> typesIn(dex) },
+        )
+    }
+
+    @OptIn(InternalApi::class)
+    @Test
+    fun `only the stripped and new dex files are output, numbered after the originals`() {
+        val apk = temporaryDirectory.resolve("input.apk")
+        ZipOutputStream(apk.outputStream()).use { zip ->
+            listOf("classes.dex" to arrayOf("La;", "Lc;"), "classes2.dex" to arrayOf("Lb;")).forEach { (name, types) ->
+                zip.putNextEntry(ZipEntry(name))
+                zip.write(dexOf(*types))
+                zip.closeEntry()
+            }
+        }
+        val config = PatcherConfig(apk, temporaryDirectory.resolve("tmp")).apply {
+            bytecodeMode = BytecodeMode.STRIP_FAST
+            initializeTemporaryFilesDirectories()
+        }
+
+        val (dexFiles, complete) = BytecodePatchContext(config, mockk(relaxed = true)).use { context ->
+            context.decodeDexFiles()
+            context.mutableClassDefBy("La;")
+            context.get().associate { it.name to it.stream.use { stream -> stream.readBytes() } } to context.dexFilesComplete
+        }
+
         assertEquals(setOf("classes.dex", "classes3.dex"), dexFiles.keys)
-        assertEquals(emptySet(), typesIn(dexFiles.getValue("classes.dex")))
+        assertEquals(setOf("Lc;"), typesIn(dexFiles.getValue("classes.dex")))
         assertEquals(setOf("La;"), typesIn(dexFiles.getValue("classes3.dex")))
+        assertFalse(complete)
     }
 
     @OptIn(InternalApi::class)

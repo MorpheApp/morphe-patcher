@@ -106,6 +106,11 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     private lateinit var classDescriptorsByEntry: Map<String, Set<String>>
 
     /**
+     * Whether [BytecodeMode.STRIP_FAST] compiled every DEX file of the input, which it otherwise does not.
+     */
+    internal var dexFilesComplete = false
+
+    /**
      * All classes for the target app and any extension classes.
      */
     internal var patchClasses: PatchClasses = PatchClasses(emptySet())
@@ -444,9 +449,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         // 2. Write modified + new classes through DexPool, numbered after the originals. This reads
         // the original DEX files, so it runs before they are stripped.
-        var nextDexIndex = originalDexMappings.keys.maxOfOrNull {
-            it.name.removePrefix("classes").removeSuffix(".dex").toIntOrNull() ?: 1
-        } ?: 0
+        var nextDexIndex = originalDexMappings.keys.maxOfOrNull(::dexIndex) ?: 0
         if (classesForNewDex.isNotEmpty()) {
             logger.info("Writing ${classesForNewDex.size} new classes to new DEX files")
             DexReadWrite.writeMultiDexFile(config.patchedFiles.resolve("newDex"), classesForNewDex, opcodes, -1, logger)
@@ -460,17 +463,31 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         // 3. Strip modified class_def entries from original DEX files in-place.
         val originalDexNames = originalDexMappings.keys.mapTo(HashSet()) { it.name }
-        val strippedDexNames = originalDexMappings.filter { (_, mappedFile) ->
-            DexStripper.stripInPlace(mappedFile, modifiedOriginalDescriptors) > 0
+        val emptiedDexNames = HashSet<String>()
+        val strippedDexNames = originalDexMappings.filter { (originalDex, mappedFile) ->
+            val stripped = DexStripper.stripInPlace(mappedFile, modifiedOriginalDescriptors)
+            if (stripped > 0 && stripped == classDescriptorsByEntry[originalDex.name]?.size) {
+                emptiedDexNames += originalDex.name
+            }
+            stripped > 0
         }.keys.mapTo(HashSet()) { it.name }
         logger.info("Stripped ${modifiedOriginalDescriptors.size} modified classes from ${strippedDexNames.size} original DEX files")
         releaseAllDexMappings()
 
         // The verifier checks classes across every DEX file, while the result holds only those that changed.
-        dexWorkingDir.listFiles { it.isFile }!!.forEach { it.safelyMoveTo(dexOutputDir.resolve(it.name)) }
+        dexWorkingDir.listFiles { it.isFile && it.name !in emptiedDexNames }!!
+            .forEach { it.safelyMoveTo(dexOutputDir.resolve(it.name)) }
         config.verifier.verifyDexDirectory(dexOutputDir)
 
-        return dexOutputDir.listFiles { it.isFile && (it.name in strippedDexNames || it.name !in originalDexNames) }!!
+        if (emptiedDexNames.isNotEmpty()) {
+            dexFilesComplete = true
+            logger.info("Removing ${emptiedDexNames.size} DEX files left without classes")
+            dexOutputDir.listFiles { it.isFile }!!.sortedBy(::dexIndex).forEachIndexed { index, dexFile ->
+                dexFile.safelyMoveTo(dexOutputDir.resolve(getDexName(index)))
+            }
+        }
+
+        return dexOutputDir.listFiles { it.isFile && (dexFilesComplete || it.name in strippedDexNames || it.name !in originalDexNames) }!!
             .sorted()
             .mapTo(LinkedHashSet()) { dexFile -> PatcherResult.PatchedDexFile(dexFile.name, dexFile.inputStream()) }
     }
@@ -644,6 +661,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         val mutable = patchClasses.classMap.values.count { it.classDef is MutableClass }
         logger.info("Changed $mutable of $total classes to mutable")
     }
+
+    private fun dexIndex(dexFile: File) = dexFile.name.removePrefix("classes").removeSuffix(".dex").toIntOrNull() ?: 1
 
     internal fun getDexName(index: Int): String = if (index == 0) "classes.dex" else "classes${index + 1}.dex"
 
