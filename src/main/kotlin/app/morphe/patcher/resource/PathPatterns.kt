@@ -59,12 +59,33 @@ internal class PathPatterns(patterns: Collection<String>) {
         if (matches(directory)) return { true }
 
         val directorySegments = segmentsOf(directory)
-        val candidates = globs.filterIndexed { index, _ -> mayMatchBelow(segments[index], directorySegments) }
-        if (candidates.isEmpty()) return { false }
+
+        // A pattern one segment below the directory and without `**` already matched the directory, so only
+        // its last segment is left, which is matched against the file name. Patches decode a few files by
+        // name at a time out of directories of thousands, such as res/drawable*/icon.*, so a name without
+        // wildcards is looked up instead.
+        val names = HashSet<String>()
+        val nameGlobs = ArrayList<Glob>()
+        val pathGlobs = ArrayList<Glob>()
+        globs.forEachIndexed { index, glob ->
+            val patternSegments = segments[index]
+            if (!mayMatchBelow(patternSegments, directorySegments)) return@forEachIndexed
+            if (patternSegments == null || patternSegments.size != directorySegments.size + 1 ||
+                patternSegments.any { it == null }
+            ) {
+                pathGlobs += glob
+                return@forEachIndexed
+            }
+            val nameGlob = patternSegments.last()!!
+            val literal = nameGlob.literal
+            if (literal != null) names += literal else nameGlobs += nameGlob
+        }
+        if (names.isEmpty() && nameGlobs.isEmpty() && pathGlobs.isEmpty()) return { false }
 
         return { path ->
-            val normalized = normalize(path)
-            candidates.any { it.matches(normalized) }
+            val name = path.substring(path.lastIndexOf('/') + 1)
+            name in names || nameGlobs.any { it.matches(name) } ||
+                    (pathGlobs.isNotEmpty() && normalize(path).let { normalized -> pathGlobs.any { it.matches(normalized) } })
         }
     }
 
@@ -94,6 +115,9 @@ internal class PathPatterns(patterns: Collection<String>) {
 private class Glob(private val pattern: String) {
     // A pattern without wildcards matches only itself.
     private val isLiteral = pattern.none { it == '*' || it == '?' }
+
+    /** The pattern if it has no wildcards and so matches only itself, or null. */
+    val literal: String? get() = pattern.takeIf { isLiteral }
 
     fun matches(path: String) = when {
         pattern.isEmpty() -> true

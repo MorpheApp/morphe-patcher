@@ -100,14 +100,24 @@ internal class PathPatternsTest {
         val patterns = listOf(
             "**", "", "res", "res/layout", "res/layout*/*", "res/drawable*/icon.*", "**/strings.xml",
             "res/**.xml", "res/*/main.xml", "res/drawable-?dpi/icon.png", "res/values-de", "assets",
+            // File names without wildcards, in one directory and in several
+            "res/drawable*/icon.png", "res/values/strings.xml", "AndroidManifest.xml", "res/*/icon.xml",
+            "res/drawable-xxhdpi/ico?.png", "*.xml",
         )
         val paths = listOf(
             "AndroidManifest.xml", "assets/data.bin", "assets/sub/data.bin", "res/layout/main.xml",
             "res/layout-land/main.xml", "res/drawable/icon.xml", "res/drawable-xxhdpi/icon.png",
             "res/drawable-hdpi/icon.png", "res/values/strings.xml", "res/values-de/strings.xml", "res/xml/main.xml",
+            "res/drawable-xxhdpi/icon.webp", "res/drawable/other.png",
         )
 
-        (patterns.map { listOf(it) } + listOf(patterns.drop(4).take(3))).forEach { patternList ->
+        // Each pattern alone, and several together the way a patch decodes a few files by name
+        val patternLists = patterns.map { listOf(it) } + listOf(
+            patterns.drop(4).take(3),
+            listOf("res/drawable*/icon.png", "res/drawable*/other.*", "res/values/strings.xml"),
+            listOf("res/drawable-?dpi/icon.png", "res/**.xml", "res/drawable/other.png"),
+        )
+        patternLists.forEach { patternList ->
             val matcher = PathPatterns(patternList)
             paths.forEach { path ->
                 assertEquals(
