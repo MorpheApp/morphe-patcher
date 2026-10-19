@@ -1,3 +1,10 @@
+# [2.0.0-dev.19](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.18...v2.0.0-dev.19) (2026-10-19)
+
+
+### Bug Fixes
+
+* Update ARSCLib dependency ([de9a1ea](https://github.com/MorpheApp/morphe-patcher/commit/de9a1ea6cbf4baad7890af410b0c7535d29ce105))
+
 # [2.0.0-dev.18](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.17...v2.0.0-dev.18) (2026-10-19)
 
 
