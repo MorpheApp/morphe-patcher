@@ -344,7 +344,7 @@ internal class IncrementalResourceEncoder(
 
         val existing = typeBlock.listEntries(true).associateByTo(HashMap()) { it.name }
         val declared = HashSet<Entry>()
-        var encoded = 0
+        val encoded = HashSet<Entry>()
         try {
             while (XMLUtil.ensureStartTag(parser) == XmlPullParser.START_TAG) {
                 val element = XMLElement.parseElement(parser)
@@ -363,7 +363,7 @@ internal class IncrementalResourceEncoder(
                 if (entry.isComplex) entry.empty()
                 valuesCoder.encodeEntry(element, typeBlock)
                 entry.restoreArchiveName()
-                encoded++
+                encoded += entry
             }
         } catch (exception: XmlEncodeException) {
             throw XmlEncodeException(parser, exception.message)
@@ -377,7 +377,7 @@ internal class IncrementalResourceEncoder(
             }
         }
 
-        return encoded to declared.size
+        return encoded.size to declared.size
     }
 
     /**
