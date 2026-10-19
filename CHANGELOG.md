@@ -1,3 +1,10 @@
+# [2.0.0-dev.18](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.17...v2.0.0-dev.18) (2026-10-19)
+
+
+### Bug Fixes
+
+* Do not over count encoded resources ([50f389c](https://github.com/MorpheApp/morphe-patcher/commit/50f389c8a9d598236e3b9b767f34be77f34a63de))
+
 # [2.0.0-dev.17](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.16...v2.0.0-dev.17) (2026-10-19)
 
 
