@@ -20,6 +20,7 @@ import app.morphe.patcher.patch.anyRecursively
 import app.morphe.patcher.resource.ResourceMode
 import kotlinx.coroutines.flow.flow
 import java.io.Closeable
+import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 
 /**
@@ -106,9 +107,20 @@ class Patcher(private val config: PatcherConfig) : Closeable {
                 }
             }
 
-            // Execute the patch.
+            // Execute the patch. Dependencies already executed above, so they are not included in the time.
             return try {
-                execute(context)
+                if (config.validate) {
+                    val startNanos = System.nanoTime()
+                    execute(context)
+                    val executeNanos = System.nanoTime() - startNanos
+                    if (executeNanos > SLOW_PATCH_NANOS) {
+                        logger.info(
+                            "Patch took ${TimeUnit.NANOSECONDS.toMillis(executeNanos)} ms to execute: $logName"
+                        )
+                    }
+                } else {
+                    execute(context)
+                }
 
                 PatchResult(this)
             } catch (exception: PatchException) {
@@ -201,5 +213,12 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         context.resourceContext.omitEntry = { name -> ApkUtils.isReplacedOnApply(name, dexFileNames, dexFilesComplete) }
         val resFiles = context.resourceContext.get()
         return PatcherResult(dexFiles, resFiles, dexFilesComplete)
+    }
+
+    private companion object {
+        /**
+         * Executing a patch that takes longer than this is logged if [PatcherConfig.validate] is set.
+         */
+        val SLOW_PATCH_NANOS = TimeUnit.MILLISECONDS.toNanos(100)
     }
 }

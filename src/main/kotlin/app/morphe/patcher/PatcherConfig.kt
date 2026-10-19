@@ -31,6 +31,7 @@ import java.util.logging.Logger
  * only if every bundle is. Without any bundle, patching uses the behavior of the oldest version.
  * @param validate If extra validation checks are done. Currently, every [Fingerprint.match] and
  * [Fingerprint.matchOrNull] must match at most one method, the same as using `matchSingle()`.
+ * Slow fingerprints and patches are also logged.
  */
 class PatcherConfig(
     internal val apkFile: File,

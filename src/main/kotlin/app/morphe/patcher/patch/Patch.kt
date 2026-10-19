@@ -141,6 +141,13 @@ sealed class Patch<C : PatchContext<*>>(
     fun execute(context: C) = executeBlock(context)
 
     /**
+     * The name of the patch, or if it has no name the class name of its execution block.
+     * Patches are declared with a DSL, so an unnamed patch has no other way to be identified.
+     */
+    internal val logName: String
+        get() = name ?: executeBlock.javaClass.name
+
+    /**
      * Calls the finalizing block of the patch.
      * This function is called by [Patcher.invoke].
      *
