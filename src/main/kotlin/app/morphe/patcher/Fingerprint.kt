@@ -327,7 +327,7 @@ open class Fingerprint private constructor(
          * Resolving a fingerprint that takes longer than this is logged if
          * [PatcherConfig.validate] is set.
          */
-        private val SLOW_MATCH_NANOS = TimeUnit.MILLISECONDS.toNanos(50)
+        private val SLOW_MATCH_NANOS = TimeUnit.MILLISECONDS.toNanos(30)
 
         /**
          * How raw strings declared with [strings] are compared. Only patches built for a version of
