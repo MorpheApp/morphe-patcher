@@ -1,3 +1,10 @@
+# [2.0.0-dev.17](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.16...v2.0.0-dev.17) (2026-10-19)
+
+
+### Performance Improvements
+
+* Match file names directly when decoding resources by pattern ([4554677](https://github.com/MorpheApp/morphe-patcher/commit/45546770e6c211a99b92f85e8775913a0d06a7c2))
+
 # [2.0.0-dev.16](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.15...v2.0.0-dev.16) (2026-10-19)
 
 
