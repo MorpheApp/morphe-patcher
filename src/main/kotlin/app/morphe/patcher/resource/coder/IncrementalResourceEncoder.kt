@@ -90,6 +90,13 @@ internal class IncrementalResourceEncoder(
         newPackageName: String,
     ) {
         val tableBlock = module.tableBlock ?: throw PatchException("The APK has no resource table")
+
+        // New strings go at the end of the pools instead of the pools being sorted, so the strings
+        // already there keep their index. Sorting a pool and updating every value that refers to
+        // one of its strings was most of the time the table took.
+        tableBlock.stringPool.isKeepStringOrder = true
+        tableBlock.forEach { it.specStringPool.isKeepStringOrder = true }
+
         val valuesCoder = XmlCoder.getInstance().VALUES_XML
         val useSparseEntries = module.useSparseEntries()
         val patchedDirectories = patchedConfigurations.toSet()
@@ -206,8 +213,9 @@ internal class IncrementalResourceEncoder(
         }
 
         // The table starts as the input's, so the strings of emptied entries, such as a removed
-        // locale's, would stay in the pool unreferenced. A full rebuild only writes used ones.
-        tableBlock.stringPool.removeUnusedStrings()
+        // locale's, would stay in the pool unreferenced. They are emptied rather than removed,
+        // which would move every string after them. A styled one keeps its text for its spans.
+        tableBlock.stringPool.listUnused().forEach { if (!it.hasStyle()) it.set("") }
 
         // Written without this, the table's styled strings came out misaligned, although the
         // archive refreshes the table again when it writes it.
