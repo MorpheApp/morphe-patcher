@@ -1,3 +1,10 @@
+# [2.0.0-dev.16](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.15...v2.0.0-dev.16) (2026-10-19)
+
+
+### Bug Fixes
+
+* Update ARSCLib dependency, do not sort resource strings ([27c9afa](https://github.com/MorpheApp/morphe-patcher/commit/27c9afaa6077ee04e021e426d0e5543f8baa0ae6))
+
 # [2.0.0-dev.15](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.14...v2.0.0-dev.15) (2026-10-19)
 
 
