@@ -1,3 +1,10 @@
+# [2.0.0-dev.14](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.13...v2.0.0-dev.14) (2026-10-19)
+
+
+### Bug Fixes
+
+* Use regex to escape/unescape strings to avoid Android slow XML processing ([#256](https://github.com/MorpheApp/morphe-patcher/issues/256)) ([e0f99b8](https://github.com/MorpheApp/morphe-patcher/commit/e0f99b8f4756ffcd40ef01fcd4c4c409a7591dd9))
+
 # [2.0.0-dev.13](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.12...v2.0.0-dev.13) (2026-10-18)
 
 
