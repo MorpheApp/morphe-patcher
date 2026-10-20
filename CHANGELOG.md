@@ -1,3 +1,10 @@
+# [2.0.0-dev.20](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.19...v2.0.0-dev.20) (2026-10-20)
+
+
+### Bug Fixes
+
+* Do not write duplicate attributes after setAttributeNS ([743859b](https://github.com/MorpheApp/morphe-patcher/commit/743859bfa192c0c29a786647223b0e982a65c5ca))
+
 # [2.0.0-dev.19](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.18...v2.0.0-dev.19) (2026-10-19)
 
 
