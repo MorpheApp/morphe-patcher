@@ -46,7 +46,58 @@ class Document private constructor(
         private val readerCount = mutableMapOf<File, Int>()
 
         fun parse(inputStream: InputStream): Document =
-            DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(inputStream)
+            DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(inputStream).apply {
+                documentElement?.resolveAttributeNamespaces(emptyMap())
+            }
+
+        /**
+         * Gives each prefixed attribute the namespace its prefix is declared with, as a namespace aware
+         * parser would, so that the namespace methods such as [Element.setAttributeNS] replace a parsed
+         * attribute instead of adding a second attribute with the same name.
+         *
+         * The parser is not namespace aware, because a namespace aware parser fails on a prefix that is
+         * not declared, and on Android leaves the `xmlns` attributes out of the document.
+         *
+         * @param namespaces The namespace URI each prefix is declared with at the parent element.
+         */
+        private fun Element.resolveAttributeNamespaces(namespaces: Map<String, String>) {
+            val attributeList = (0 until attributes.length).map { attributes.item(it) as Attr }
+
+            var elementNamespaces = namespaces
+            attributeList.filter { it.name.startsWith("xmlns:") }.takeIf { it.isNotEmpty() }?.let { declarations ->
+                elementNamespaces = namespaces + declarations.map { it.name.substring("xmlns:".length) to it.value }
+            }
+
+            if (elementNamespaces.isNotEmpty()) {
+                val namespaceURIs = attributeList.map { attribute ->
+                    val prefix = attribute.name.substringBefore(':', "")
+                    if (prefix == "xmlns") null else elementNamespaces[prefix]
+                }
+
+                // All attributes are added again in their order, which adding only the replaced ones would change.
+                if (namespaceURIs.any { it != null }) {
+                    attributeList.forEach(::removeAttributeNode)
+                    attributeList.forEachIndexed { index, attribute ->
+                        val namespaceURI = namespaceURIs[index]
+                        if (namespaceURI == null) {
+                            setAttributeNode(attribute)
+                        } else {
+                            setAttributeNodeNS(
+                                ownerDocument.createAttributeNS(namespaceURI, attribute.name).also {
+                                    it.value = attribute.value
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
+            var child = firstChild
+            while (child != null) {
+                if (child is Element) child.resolveAttributeNamespaces(elementNamespaces)
+                child = child.nextSibling
+            }
+        }
     }
 }
 
@@ -56,8 +107,17 @@ class Document private constructor(
  * This replaces the platform transformer, which on Android checks every character against the output
  * encoding and takes a lock for every character it writes, and which escapes surrogate pairs to
  * invalid character references unless it writes UTF-16.
+ *
+ * Namespace declarations missing from the document are added where they are first used, such as for
+ * nodes a patch adds in a namespace the document does not declare.
  */
 internal class XmlWriter(private val writer: Writer) {
+    /**
+     * The namespace URI each prefix is bound to at the element being written.
+     * The default namespace has the empty prefix.
+     */
+    private val boundNamespaces = mutableMapOf<String, String>()
+
     fun writeDocument(document: Document) {
         writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"")
         if (document.xmlStandalone) writer.write(" standalone=\"yes\"")
@@ -113,7 +173,40 @@ internal class XmlWriter(private val writer: Writer) {
         writer.write("<")
         writer.write(element.tagName)
 
+        // The previous bindings of the prefixes this element binds, restored when the element ends.
+        val previousBindings = mutableListOf<Pair<String, String?>>()
+        fun bind(prefix: String, namespaceURI: String) {
+            previousBindings += prefix to boundNamespaces.put(prefix, namespaceURI)
+        }
+
         val attributes = element.attributes
+        for (index in 0 until attributes.length) {
+            val attribute = attributes.item(index) as Attr
+            if (attribute.name == "xmlns") {
+                bind("", attribute.value)
+            } else if (attribute.name.startsWith("xmlns:")) {
+                bind(attribute.name.substring("xmlns:".length), attribute.value)
+            }
+        }
+
+        fun declareIfUnbound(prefix: String?, namespaceURI: String?) {
+            if (namespaceURI == null || prefix == "xml" || namespaceURI == XMLNS_NAMESPACE_URI) return
+            val boundPrefix = prefix.orEmpty()
+            if (boundNamespaces[boundPrefix] == namespaceURI) return
+
+            bind(boundPrefix, namespaceURI)
+            writer.write(if (boundPrefix.isEmpty()) " xmlns=\"" else " xmlns:$boundPrefix=\"")
+            writeEscaped(namespaceURI, inAttribute = true)
+            writer.write("\"")
+        }
+
+        declareIfUnbound(element.prefix, element.namespaceURI)
+        for (index in 0 until attributes.length) {
+            val attribute = attributes.item(index) as Attr
+            // An attribute without a prefix is in no namespace, whatever the default namespace is.
+            if (attribute.prefix != null) declareIfUnbound(attribute.prefix, attribute.namespaceURI)
+        }
+
         for (index in 0 until attributes.length) {
             val attribute = attributes.item(index) as Attr
             writer.write(" ")
@@ -126,17 +219,20 @@ internal class XmlWriter(private val writer: Writer) {
         var child = element.firstChild
         if (child == null) {
             writer.write("/>")
-            return
+        } else {
+            writer.write(">")
+            while (child != null) {
+                writeNode(child)
+                child = child.nextSibling
+            }
+            writer.write("</")
+            writer.write(element.tagName)
+            writer.write(">")
         }
 
-        writer.write(">")
-        while (child != null) {
-            writeNode(child)
-            child = child.nextSibling
+        for ((prefix, namespaceURI) in previousBindings.asReversed()) {
+            if (namespaceURI == null) boundNamespaces.remove(prefix) else boundNamespaces[prefix] = namespaceURI
         }
-        writer.write("</")
-        writer.write(element.tagName)
-        writer.write(">")
     }
 
     private fun writeDocumentType(documentType: DocumentType) {
@@ -181,5 +277,9 @@ internal class XmlWriter(private val writer: Writer) {
             runStart = index + 1
         }
         if (runStart < text.length) writer.write(text, runStart, text.length - runStart)
+    }
+
+    private companion object {
+        private const val XMLNS_NAMESPACE_URI = "http://www.w3.org/2000/xmlns/"
     }
 }

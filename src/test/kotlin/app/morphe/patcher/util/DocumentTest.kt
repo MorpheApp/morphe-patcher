@@ -186,6 +186,53 @@ internal object DocumentTest {
         )
     }
 
+    @Test
+    fun `Document replaces a parsed attribute set with a namespace`() {
+        val androidNamespace = "http://schemas.android.com/apk/res/android"
+        val tempFile = File(tempDir, "AndroidManifest.xml")
+        tempFile.writeText(
+            """<?xml version="1.0" encoding="UTF-8"?><manifest xmlns:android="$androidNamespace">""" +
+                """<uses-permission android:name="old"/></manifest>""",
+        )
+
+        Document(tempFile).use { document ->
+            val permission = document.getElementsByTagName("uses-permission").item(0) as org.w3c.dom.Element
+            assertEquals("old", permission.getAttributeNS(androidNamespace, "name"))
+            permission.setAttributeNS(androidNamespace, "android:name", "new")
+        }
+
+        assertEquals(
+            """<?xml version="1.0" encoding="UTF-8"?><manifest xmlns:android="$androidNamespace">""" +
+                """<uses-permission android:name="new"/></manifest>""",
+            tempFile.readText(),
+        )
+    }
+
+    @Test
+    fun `Document declares namespaces missing from the document`() {
+        val androidNamespace = "http://schemas.android.com/apk/res/android"
+        val tempFile = File(tempDir, "undeclared.xml")
+        tempFile.writeText(
+            """<?xml version="1.0" encoding="UTF-8"?><manifest xmlns:android="$androidNamespace">""" +
+                """<application android:name=".App"/></manifest>""",
+        )
+
+        Document(tempFile).use { document ->
+            document.documentElement.removeAttribute("xmlns:android")
+            val application = document.getElementsByTagName("application").item(0) as org.w3c.dom.Element
+            application.appendChild(document.createElementNS("urn:test", "test:child"))
+            application.appendChild(document.createElementNS("urn:test", "test:child"))
+        }
+
+        assertEquals(
+            """<?xml version="1.0" encoding="UTF-8"?><manifest>""" +
+                """<application xmlns:android="$androidNamespace" android:name=".App">""" +
+                """<test:child xmlns:test="urn:test"/><test:child xmlns:test="urn:test"/>""" +
+                """</application></manifest>""",
+            tempFile.readText(),
+        )
+    }
+
     // ==================== Edge case tests ====================
 
     @Test
