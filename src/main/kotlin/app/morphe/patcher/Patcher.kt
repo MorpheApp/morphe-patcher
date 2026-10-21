@@ -208,7 +208,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         context.resourceContext.finishDecoding()
         val dexFiles = context.bytecodeContext.get()
         context.bytecodeContext.close()
-        val dexFilesComplete = config.bytecodeMode != BytecodeMode.STRIP_FAST
+        val dexFilesComplete = config.bytecodeMode != BytecodeMode.STRIP_FAST || context.bytecodeContext.dexFilesComplete
         val dexFileNames = dexFiles.mapTo(HashSet()) { it.name }
         context.resourceContext.omitEntry = { name -> ApkUtils.isReplacedOnApply(name, dexFileNames, dexFilesComplete) }
         val resFiles = context.resourceContext.get()

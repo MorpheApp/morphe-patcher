@@ -74,6 +74,7 @@ internal object PatcherTest {
                 mockk<PatcherConfig> {
                     every { resourceMode } returns ResourceMode.NONE
                     every { bytecodeMode } returns BytecodeMode.NONE
+                    every { validate } returns false
                 },
             )
             setPrivateField(
