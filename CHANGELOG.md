@@ -1,3 +1,10 @@
+# [2.0.0-dev.23](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.22...v2.0.0-dev.23) (2026-10-21)
+
+
+### Bug Fixes
+
+* Do not log unmodified resource packages ([f122935](https://github.com/MorpheApp/morphe-patcher/commit/f1229354abda0f8b363327237b4c1f1c0c7d6089))
+
 # [2.0.0-dev.22](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.21...v2.0.0-dev.22) (2026-10-21)
 
 
