@@ -1,3 +1,10 @@
+# [2.0.0-dev.21](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.20...v2.0.0-dev.21) (2026-10-21)
+
+
+### Bug Fixes
+
+* Drop dex files left without classes in STRIP_FAST ([#260](https://github.com/MorpheApp/morphe-patcher/issues/260)) ([f79fae4](https://github.com/MorpheApp/morphe-patcher/commit/f79fae46860ddacd5c7eefb296f82ab1d2d8fbcc))
+
 # [2.0.0-dev.20](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.19...v2.0.0-dev.20) (2026-10-20)
 
 
