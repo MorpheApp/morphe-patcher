@@ -188,10 +188,13 @@ internal class IncrementalResourceEncoder(
             resFiles.forEach { file -> addResFile(packageBlock, file) }
             packageBlock.sortTypes()
 
-            logger.info(
-                "Encoded $encoded of $declared values in ${appValuesFiles.size} files, ${resFiles.size} " +
-                        "resource files and ${configurations.size} configurations of patches"
-            )
+            // Most packages of a split or multi package table are untouched, so only log the ones that changed.
+            if (appValuesFiles.isNotEmpty() || resFiles.isNotEmpty() || configurations.isNotEmpty()) {
+                logger.info(
+                    "Encoded $encoded of $declared values in ${appValuesFiles.size} files, ${resFiles.size} " +
+                            "resource files and ${configurations.size} configurations of patches for $packageName"
+                )
+            }
             logger.fine { "Resource table update timings for $packageName: ids=$registered, values=$values" }
         }
 
