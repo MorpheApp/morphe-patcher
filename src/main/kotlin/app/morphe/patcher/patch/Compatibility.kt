@@ -50,6 +50,31 @@ enum class SupportedAbi {
 }
 
 /**
+ * Device form factor the original app is built for.
+ */
+enum class FormFactor {
+    /**
+     * Phones, tablets, foldables, ChromeOS and other devices that install the regular app.
+     */
+    MOBILE,
+
+    /**
+     * Android TV and Google TV.
+     */
+    TV,
+
+    /**
+     * Wear OS.
+     */
+    WEARABLE,
+
+    /**
+     * Android Automotive OS. Android Auto apps run on the phone and are [MOBILE].
+     */
+    AUTOMOTIVE
+}
+
+/**
  * Instances are sortable from lowest to highest version, with any version (null) last.
  * Semantic versioning is handled and sorts correctly in situations such as 1.1.0 > 1.0.02
  * Non-semantic versioning is sorted alphabetically.
@@ -179,6 +204,7 @@ data class Compatibility internal constructor(
     val appIconColor: Int?,
     val signatures: Set<String>?,
     val targets: List<AppTarget>,
+    val formFactor: FormFactor?,
     internal val isLegacy: Boolean
 ) {
 
@@ -194,7 +220,34 @@ data class Compatibility internal constructor(
      *   `apksigner verify --print-certs` on an original apk (or base.apk from an unzipped apkm)
      *    and `certificate SHA-256 digest:` is the signature.
      * @param targets App targets. Versions are declared newest to oldest. Default is any app target.
+     * @param formFactor Device form factor of the app. Null means the same app is used
+     *   on all form factors. Default is [FormFactor.MOBILE].
      */
+    constructor(
+        packageName: String,
+        name: String,
+        description: String? = null,
+        apkFileType: ApkFileType? = null,
+        appIconColor: Int? = null,
+        signatures: Set<String>? = null,
+        targets: List<AppTarget> = listOf(AppTarget(version = null)),
+        formFactor: FormFactor? = FormFactor.MOBILE
+    ) : this(
+        packageName = packageName,
+        name = name,
+        description = description,
+        apkFileType = apkFileType,
+        appIconColor = appIconColor,
+        signatures = signatures,
+        targets = targets,
+        formFactor = formFactor,
+        isLegacy = false
+    )
+
+    @Deprecated(
+        "Here only for binary backwards compatibility",
+        level = DeprecationLevel.HIDDEN
+    )
     constructor(
         packageName: String,
         name: String,
@@ -211,6 +264,7 @@ data class Compatibility internal constructor(
         appIconColor = appIconColor,
         signatures = signatures,
         targets = targets,
+        formFactor = FormFactor.MOBILE,
         isLegacy = false
     )
 
@@ -228,6 +282,7 @@ data class Compatibility internal constructor(
         appIconColor = null,
         signatures = null,
         targets = listOf(AppTarget(version = null)),
+        formFactor = null,
         isLegacy = false
     )
 
@@ -243,7 +298,34 @@ data class Compatibility internal constructor(
      *   `apksigner verify --print-certs` on an original apk (or base.apk from an unzipped apkm)
      *    and `certificate SHA-256 digest:` is the signature.
      * @param targets App targets. Versions are declared newest to oldest.
+     * @param formFactor Device form factor of the app. Null means the same app is used
+     *   on all form factors. Default is [FormFactor.MOBILE], or null for a universal patch.
      */
+    constructor(
+        packageName: String? = null,
+        name: String? = null,
+        description: String? = null,
+        apkFileType: ApkFileType? = null,
+        appIconColor: String,
+        signatures: Set<String>? = null,
+        targets: List<AppTarget>,
+        formFactor: FormFactor? = if (packageName == null) null else FormFactor.MOBILE
+    ) : this(
+        packageName = packageName,
+        name = name,
+        description = description,
+        apkFileType = apkFileType,
+        appIconColor = parseColor(appIconColor),
+        signatures = signatures,
+        targets = targets,
+        formFactor = formFactor,
+        isLegacy = false
+    )
+
+    @Deprecated(
+        "Here only for binary backwards compatibility",
+        level = DeprecationLevel.HIDDEN
+    )
     constructor(
         packageName: String? = null,
         name: String? = null,
@@ -260,6 +342,7 @@ data class Compatibility internal constructor(
         appIconColor = parseColor(appIconColor),
         signatures = signatures,
         targets = targets,
+        formFactor = if (packageName == null) null else FormFactor.MOBILE,
         isLegacy = false
     )
 
@@ -382,6 +465,7 @@ data class Compatibility internal constructor(
         appIconColor,
         signatures,
         targets,
+        formFactor = formFactor,
         isLegacy = isLegacy
     )
 
@@ -415,6 +499,8 @@ data class Compatibility internal constructor(
                 appIconColor = null,
                 signatures = null,
                 targets = targets,
+                // Legacy declarations do not declare a form factor.
+                formFactor = null,
                 isLegacy = true)
         }
 
