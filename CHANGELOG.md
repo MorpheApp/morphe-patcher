@@ -1,3 +1,10 @@
+# [2.0.0-dev.24](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.23...v2.0.0-dev.24) (2026-10-22)
+
+
+### Features
+
+* Add Compatibility form factor type ([#261](https://github.com/MorpheApp/morphe-patcher/issues/261)) ([d36ea84](https://github.com/MorpheApp/morphe-patcher/commit/d36ea84d022c061c80b846f0cd2b72c00f7785ce))
+
 # [2.0.0-dev.23](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0-dev.22...v2.0.0-dev.23) (2026-10-21)
 
 
