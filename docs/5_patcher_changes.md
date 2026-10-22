@@ -68,6 +68,15 @@ An older bundle is only named in the warning if its bytecode uses one of them.
 - Instruction locations can match before the previous filter, or the last match after it:
   `MatchAfterLast()`, `MatchBeforeAnywhere()`, `MatchBeforeImmediately()`, `MatchBeforeWithin(int)`
   and `MatchBeforeFirst()`.
+- `resourceLiteral(type, name)` matches an instruction loading the id of a resource of the APK being patched,
+  looked up from its resource table
+
+```kt
+filters = listOf(
+    resourceLiteral(ResourceType.LAYOUT, "account_compact_link"),
+    opcode(Opcode.MOVE_RESULT_OBJECT, InstructionLocation.MatchAfterWithin(5)),
+)
+```
 
 See [Fingerprinting](2_2_1_fingerprinting.md) for details.
 

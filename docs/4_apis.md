@@ -14,6 +14,10 @@ A handful of APIs are available to make patch development easier and more effici
 8. 🔬 Get the registers of an instruction with `registersUsed`
 9. ↩️ Override the return value of a method with `returnEarly()` and `returnLate()`
 10. 🔁 Change every matching instruction in all methods with `matchAllMethodIndicesForEach()`
+11. 🏷️ Insert code that jumps to existing code with `addInstructionsWithLabels()` and `addInstructionsAtControlFlowLabel()`
+12. 🔤 Find classes by the strings they contain with `classDefByStrings(String)`
+13. 🆔 Look up resource ids with `resourceId(ResourceType, String)` and `hasResourceId(ResourceType, String)`
+14. 🧰 Small helpers: `getReference()`, `getMutableMethod()`, `p0Register`
 
 ### 🧰 APIs
 
@@ -475,9 +479,127 @@ string("original text").matchAllMethodIndicesForEach { index ->
 }
 ```
 
-## 🎉 Afterword
+#### 🏷️ `addInstructionsWithLabels()` and `addInstructionsAtControlFlowLabel()`
 
-Morphe Patcher is a powerful library to patch Android applications, offering a rich set of APIs to
-develop patches that outlive app updates. Patches make up Morphe; without you, the community of
-patch developers, Morphe would not be what it is today. We hope that this documentation has been
-helpful to you and are excited to see what you will create with Morphe Patcher.
+Added smali can declare its own labels, but it cannot jump to an instruction outside of the added code.
+
+**With a `nop`:** end the added code with a label on a `nop`. Control flow stays inside the added code,
+and the `nop` does nothing at runtime.
+
+```kt
+execute {
+    ShowAdsFingerprint.method.addInstructions(
+        0,
+        """
+            invoke-static { }, Lapp/morphe/extension/AdsPatch;->hideAds()Z
+            move-result v0
+            if-eqz v0, :show
+            return-void
+            :show
+            nop
+        """
+    )
+}
+```
+
+This needs a free register for `v0`, see `findFreeRegister` above.
+
+**With an `ExternalLabel`:** `addInstructionsWithLabels` jumps to an existing instruction instead.
+Pass an `ExternalLabel(name, instruction)` for each outside label the smali refers to.
+
+```kt
+execute {
+    val method = ShowAdsFingerprint.method
+
+    method.addInstructionsWithLabels(
+        0,
+        """
+            invoke-static { }, Lapp/morphe/extension/AdsPatch;->hideAds()Z
+            move-result v0
+            if-nez v0, :skip
+        """,
+        ExternalLabel("skip", method.getInstruction(method.instructions.lastIndex)),
+    )
+}
+```
+
+**At a branch target:** if the insert index is the target of a branch in the original code, `addInstructions`
+places the new code after that label, so the branch skips it. `addInstructionsAtControlFlowLabel(index, smali, labels...)`
+places the new code before the original instruction instead, so the branch runs it.
+
+```kt
+execute {
+    // Index 2 is the instruction at :label in the original code.
+    ShowAdsFingerprint.method.addInstructionsAtControlFlowLabel(
+        2,
+        "invoke-static { }, Lapp/morphe/extension/AdsPatch;->onShowAds()V"
+    )
+}
+```
+
+Before the patch:
+
+```smali
+if-eqz v0, :label
+return-void
+:label
+invoke-virtual { p0 }, Lcom/example/Ads;->show()V
+```
+
+After `addInstructions(index, ...)`, the branch skips the new code:
+
+```smali
+if-eqz v0, :label
+return-void
+invoke-static { }, Lapp/morphe/extension/AdsPatch;->onShowAds()V
+:label
+invoke-virtual { p0 }, Lcom/example/Ads;->show()V
+```
+
+After `addInstructionsAtControlFlowLabel(index, ...)`, the label is on the first new instruction:
+
+```smali
+if-eqz v0, :label
+return-void
+:label
+invoke-static { }, Lapp/morphe/extension/AdsPatch;->onShowAds()V
+invoke-virtual { p0 }, Lcom/example/Ads;->show()V
+```
+
+#### 🔤 `classDefByStrings(String)`
+
+Returns every class that contains a string, as an exact match by default. Pass a `StringComparisonType`
+to match differently. `classDefForEach` iterates over all classes of the app and its extensions.
+
+```kt
+execute {
+    val classes = classDefByStrings("settings_", StringComparisonType.STARTS_WITH)
+}
+```
+
+#### 🆔 `resourceId(ResourceType, String)` and `hasResourceId(ResourceType, String)`
+
+Resource ids differ per app build. `resourceId` returns the id of a resource of the APK being patched,
+and throws a `PatchException` if there is none. `hasResourceId` checks that the resource exists.
+To match an id in a fingerprint, use `resourceLiteral` instead, see [Fingerprinting](2_2_1_fingerprinting.md).
+
+```kt
+execute {
+    val id = resourceId(ResourceType.STRING, "app_name")
+}
+```
+
+#### 🧰 Small helpers
+
+- `Instruction.getReference<T>()`: The method, field or type reference of an instruction as `T`, or `null`.
+- `MethodReference.getMutableMethod()`: The mutable method a method reference points to,
+  making its class mutable. Use this on `getReference<MethodReference>()` of a call instruction.
+- `Method.p0Register`: The register number of `p0`.
+- `MutableMethod.returnBoxedBooleanEarly(Boolean)`: `returnEarly` for methods returning `java.lang.Boolean`
+  or `Object`.
+- `Method.findInstructionIndicesReversed(filter)` and `findInstructionIndicesReversedOrThrow(filter)`:
+  Every index matching an instruction filter, from last to first.
+- `Fingerprint.matchSingle()`: Like `match`, but throws if more than one method matches.
+  All fingerprints match as single when patching with Morphe Desktop CLI using `--validate` parameter.
+  Use `matchSingle()` for apps with no Compatibility version constrain and the fingerprint may
+  not unique match future app releases.
