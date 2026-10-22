@@ -15,6 +15,8 @@ val COMPATIBILITY_XYZ = Compatibility(
   packageName = "app.xyz.mobile",
   // App icon background color
   appIconColor = 0xFF3300,
+  // Device form factor of the app. Default is FormFactor.MOBILE.
+  formFactor = FormFactor.MOBILE,
   // Specific app targets. Do not include any app targets to indicate 'any' app version.
   targets = listOf(
     AppTarget(

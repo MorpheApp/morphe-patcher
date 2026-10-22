@@ -550,6 +550,100 @@ internal object CompatibilityTest {
     }
 
     @Test
+    fun `form factor`() {
+        assertEquals(
+            FormFactor.MOBILE,
+            Compatibility(name = "Example app", packageName = "com.example").formFactor
+        )
+        assertEquals(
+            FormFactor.MOBILE,
+            Compatibility(
+                name = "Example app",
+                packageName = "com.example",
+                appIconColor = "#FF0000",
+                targets = listOf(AppTarget(version = null))
+            ).formFactor
+        )
+        assertEquals(
+            FormFactor.TV,
+            Compatibility(
+                name = "Example app",
+                packageName = "com.example",
+                formFactor = FormFactor.TV
+            ).formFactor
+        )
+        assertEquals(
+            null,
+            Compatibility(
+                name = "Example app",
+                packageName = "com.example",
+                formFactor = null
+            ).formFactor
+        )
+
+        // Universal patches.
+        assertEquals(null, Compatibility(description = "Universal").formFactor)
+        assertEquals(
+            null,
+            Compatibility(
+                appIconColor = "#FF0000",
+                targets = listOf(AppTarget(version = null))
+            ).formFactor
+        )
+
+        // Legacy declarations.
+        assertEquals(null, Compatibility.fromLegacy("com.example" to setOf("1.0.0")).formFactor)
+
+        val compatibility = Compatibility(
+            name = "Example app",
+            packageName = "com.example",
+            formFactor = FormFactor.WEARABLE
+        )
+        assertEquals(
+            FormFactor.WEARABLE,
+            compatibility.including(AppTarget(version = "1.0.0")).formFactor
+        )
+        assertEquals(FormFactor.WEARABLE, compatibility.excluding("1.0.0").formFactor)
+    }
+
+    @Test
+    fun `binary compatible constructors default to mobile form factor`() {
+        // Hidden from Kotlin callers, but patch bundles compiled against 1.x still call them.
+        val intColorConstructor = Compatibility::class.java.getConstructor(
+            String::class.java,
+            String::class.java,
+            String::class.java,
+            ApkFileType::class.java,
+            Int::class.javaObjectType,
+            Set::class.java,
+            List::class.java,
+        )
+        val intColor = intColorConstructor.newInstance(
+            "com.example", "Example app", null, null, 0xFF0000, null, listOf(AppTarget(version = null))
+        )
+        assertEquals(FormFactor.MOBILE, intColor.formFactor)
+
+        val stringColorConstructor = Compatibility::class.java.getConstructor(
+            String::class.java,
+            String::class.java,
+            String::class.java,
+            ApkFileType::class.java,
+            String::class.java,
+            Set::class.java,
+            List::class.java,
+        )
+        val stringColor = stringColorConstructor.newInstance(
+            "com.example", "Example app", null, null, "#FF0000", null, listOf(AppTarget(version = null))
+        )
+        assertEquals(FormFactor.MOBILE, stringColor.formFactor)
+
+        val universal = stringColorConstructor.newInstance(
+            null, null, null, null, "#FF0000", null, listOf(AppTarget(version = null))
+        )
+        assertEquals(null, universal.formFactor)
+    }
+
+    @Test
     fun `app version code`() {
         var compatibility = Compatibility(
             name = "Example app",
