@@ -319,7 +319,7 @@ internal fun MutableMethod.addFreeRegisters(
  * **Fingerprint match indexes will be increased positively by
  * [numberOfParameterRegistersLogical] of the cloned method**.
  */
-internal fun Method.cloneMutable(
+fun Method.cloneMutable(
     name: String = this.name,
     accessFlags: Int = this.accessFlags,
     parameters: List<MethodParameter> = this.parameters,
