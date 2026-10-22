@@ -8,18 +8,22 @@
 
 package app.morphe.patcher.util
 
-import app.morphe.patcher.extensions.InstructionExtensions.instructionsOrNull
+import app.morphe.patcher.dex.CachingDexBackedDexFile
 import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.util.proxy.mutableTypes.ChangeStamps
 import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import com.android.tools.smali.dexlib2.Format
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.ReferenceType
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedClassDef
+import com.android.tools.smali.dexlib2.dexbacked.DexBuffer
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedMethod
 import com.android.tools.smali.dexlib2.dexbacked.instruction.DexBackedInstruction
 import com.android.tools.smali.dexlib2.dexbacked.raw.FieldIdItem
 import com.android.tools.smali.dexlib2.dexbacked.raw.MethodIdItem
+import com.android.tools.smali.dexlib2.dexbacked.raw.ProtoIdItem
+import com.android.tools.smali.dexlib2.dexbacked.raw.TypeListItem
 import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction
@@ -29,6 +33,8 @@ import com.android.tools.smali.dexlib2.iface.reference.FieldReference
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.iface.reference.TypeReference
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.stream.Collectors
 
 /**
@@ -71,6 +77,30 @@ internal class PatchClasses internal constructor(
         internal var indexedClassDef: ClassDef? = null
 
         /**
+         * The methods of a class that was mutable when it was indexed, or null for other classes.
+         */
+        internal var indexedMethods: Set<Method>? = null
+
+        /**
+         * The [ChangeStamps] stamp when a class that was mutable was indexed.
+         */
+        internal var indexedChangeStamp = 0L
+
+        /**
+         * The last result of [changedMethods], and the [MutableClass.methodsChangeStamp]
+         * and number of methods it was found for.
+         */
+        private var changedMethodsCache: List<Method>? = null
+        private var changedMethodsCacheStamp = 0L
+        private var changedMethodsCacheSize = 0
+
+        /**
+         * The instruction values of the methods of [changedMethodsValuesFor].
+         */
+        private var changedMethodsValues: ClassIndexValues? = null
+        private var changedMethodsValuesFor: List<Method>? = null
+
+        /**
          * Methods of [classDef] while it is immutable.
          *
          * Each iteration of dex backed methods decodes the full signature of every method
@@ -90,8 +120,8 @@ internal class PatchClasses internal constructor(
             }
 
         /**
-         * The methods of [classDef] that can have other instructions than [indexedClassDef],
-         * such as added methods and methods with a mutable implementation.
+         * The methods of [classDef] that can have other instructions than when it was indexed,
+         * such as added methods and methods with changed instructions.
          */
         internal fun changedMethods(): List<Method> {
             val classDefLocal = classDef
@@ -100,13 +130,59 @@ internal class PatchClasses internal constructor(
             }
 
             val indexedClassDefLocal = indexedClassDef
-            if (indexedClassDefLocal !is DexBackedClassDef) return classDefLocal.methods.toList()
-            if (!classDefLocal.areMethodsCreated) return emptyList()
+            if (indexedClassDefLocal is DexBackedClassDef && !classDefLocal.areMethodsCreated) return emptyList()
 
-            return classDefLocal.methods.filter { method ->
-                method.isImplementationCreated ||
-                        (method.sourceMethod as? DexBackedMethod)?.classDef !== indexedClassDefLocal
+            // The methods are checked again only after they changed. Adding methods or changing their
+            // instructions changes the stamp, and removing methods changes their number.
+            val stamp = classDefLocal.methodsChangeStamp
+            val size = classDefLocal.methods.size
+            changedMethodsCache?.let { cached ->
+                if (changedMethodsCacheStamp == stamp && changedMethodsCacheSize == size) return cached
             }
+
+            val indexedMethodsLocal = indexedMethods
+            val changedMethods = when {
+                indexedClassDefLocal is DexBackedClassDef -> classDefLocal.methods.filter { method ->
+                    method.instructionsChangeStamp != 0L ||
+                            (method.sourceMethod as? DexBackedMethod)?.classDef !== indexedClassDefLocal
+                }
+                indexedMethodsLocal != null -> classDefLocal.methods.filter { method ->
+                    method !in indexedMethodsLocal || method.instructionsChangeStamp > indexedChangeStamp
+                }
+                else -> classDefLocal.methods.toList()
+            }
+
+            changedMethodsCache = changedMethods
+            changedMethodsCacheStamp = stamp
+            changedMethodsCacheSize = size
+            return changedMethods
+        }
+
+        /**
+         * The instruction values of [changedMethods]. A class that the indexes show cannot satisfy a
+         * condition can satisfy it only with its changed methods.
+         */
+        internal fun changedMethodsIndexValues(): ClassIndexValues {
+            val changedMethods = changedMethods()
+            val cachedValues = changedMethodsValues
+            if (cachedValues != null && changedMethodsValuesFor === changedMethods) return cachedValues
+
+            return collectIndexValues(classDef, changedMethods).also { values ->
+                changedMethodsValues = values
+                changedMethodsValuesFor = changedMethods
+            }
+        }
+
+        /**
+         * Sets what the instruction indexes were built from.
+         */
+        internal fun setIndexed(values: ClassIndexValues) {
+            indexedClassDef = values.classDef.takeUnless { it is MutableClass }
+            indexedMethods = values.mutableMethods
+            indexedChangeStamp = values.changeStamp
+            changedMethodsCache = null
+            changedMethodsValues = null
+            changedMethodsValuesFor = null
         }
 
         fun getMutableClass(): MutableClass {
@@ -120,6 +196,12 @@ internal class PatchClasses internal constructor(
     }
 
     private var nextOrdinal = 0
+
+    /**
+     * If a class was replaced in the class map. The indexes keep replaced classes,
+     * so lists of the indexes are filtered once a class is replaced.
+     */
+    private var hasReplacedClasses = false
 
     private val mutableWrappers = LinkedHashSet<ClassDefWrapper>()
 
@@ -149,6 +231,7 @@ internal class PatchClasses internal constructor(
         private val typeSection = dexFile.typeSection
         private val fieldSection = dexFile.fieldSection
         private val methodSection = dexFile.methodSection
+        private val protoSection = dexFile.protoSection
 
         fun string(stringIndex: Int): String = stringSection[stringIndex]
 
@@ -160,11 +243,31 @@ internal class PatchClasses internal constructor(
         fun fieldName(fieldIndex: Int) =
             string(buffer.readSmallUint(fieldSection.getOffset(fieldIndex) + FieldIdItem.NAME_OFFSET))
 
+        fun fieldType(fieldIndex: Int) =
+            type(buffer.readUshort(fieldSection.getOffset(fieldIndex) + FieldIdItem.TYPE_OFFSET))
+
         fun methodDefiningClass(methodIndex: Int) =
             type(buffer.readUshort(methodSection.getOffset(methodIndex) + MethodIdItem.CLASS_OFFSET))
 
         fun methodName(methodIndex: Int) =
             string(buffer.readSmallUint(methodSection.getOffset(methodIndex) + MethodIdItem.NAME_OFFSET))
+
+        /**
+         * Calls [action] with the return type and each parameter type of the method.
+         */
+        inline fun forEachMethodSignatureType(methodIndex: Int, action: (String) -> Unit) {
+            val protoIndex = buffer.readUshort(methodSection.getOffset(methodIndex) + MethodIdItem.PROTO_OFFSET)
+            val protoOffset = protoSection.getOffset(protoIndex)
+            action(type(buffer.readSmallUint(protoOffset + ProtoIdItem.RETURN_TYPE_OFFSET)))
+
+            val parametersOffset = buffer.readSmallUint(protoOffset + ProtoIdItem.PARAMETERS_OFFSET)
+            if (parametersOffset == 0) return
+            val parameterCount = dataBuffer.readSmallUint(parametersOffset + TypeListItem.SIZE_OFFSET)
+            val parametersStart = parametersOffset + TypeListItem.LIST_OFFSET
+            for (i in 0 until parameterCount) {
+                action(type(dataBuffer.readUshort(parametersStart + 2 * i)))
+            }
+        }
     }
 
     /**
@@ -254,17 +357,27 @@ internal class PatchClasses internal constructor(
      *
      * @param classDef The class the values were collected from.
      * @param strings String constants, can have duplicates.
-     * @param typeHashes Sorted hashes of referenced types, can have duplicates.
+     * @param typeHashes Sorted hashes of referenced types, can have duplicates. See [getIndexedClassesReferencingType].
      * @param memberNameHashes Sorted hashes of referenced field and method names, can have duplicates.
      * @param literalHashes Sorted hashes of literals, can have duplicates.
+     * @param mutableMethods The methods of a mutable class, or null if the class is immutable.
+     * @param changeStamp The [ChangeStamps] stamp before the values of a mutable class were collected.
      */
-    private class ClassIndexValues(
+    internal class ClassIndexValues(
         val classDef: ClassDef,
         val strings: List<String>,
         val typeHashes: IntArray,
         val memberNameHashes: IntArray,
         val literalHashes: IntArray,
-    )
+        val mutableMethods: Set<Method>?,
+        val changeStamp: Long,
+    ) {
+        fun hasType(type: String) = typeHashes.binarySearch(type.hashCode()) >= 0
+
+        fun hasMemberName(name: String) = memberNameHashes.binarySearch(name.hashCode()) >= 0
+
+        fun hasLiteral(literal: Long) = literalHashes.binarySearch(literal.hashCode()) >= 0
+    }
 
     /**
      * Collects the values of the instructions of a class to index.
@@ -276,17 +389,80 @@ internal class PatchClasses internal constructor(
         val literalHashes = IntList()
 
         /**
+         * Collects a type of a field or method signature. Primitive types are in most classes
+         * and are not indexed.
+         */
+        fun addSignatureType(type: String) {
+            if (type.length > 1) typeHashes.add(type.hashCode())
+        }
+
+        /**
+         * Collects the literals and references of the instructions of a dex backed method,
+         * without creating the instructions and references.
+         */
+        fun addDexBackedInstructions(
+            implementation: CachingDexBackedDexFile.MethodImplementation,
+            decoder: DexReferenceDecoder,
+        ) {
+            val dexFile = implementation.dexFile
+            val opcodes = dexFile.opcodes
+            val buffer = decoder.dataBuffer
+            var offset = implementation.instructionsStart
+            val end = offset + implementation.instructionsSize * 2
+
+            // Reads the instructions as DexBackedMethodImplementation and DexBackedInstruction do.
+            while (offset < end) {
+                var opcodeValue = buffer.readUbyte(offset)
+                if (opcodeValue == 0) opcodeValue = buffer.readUshort(offset)
+                val opcode = opcodes.getOpcodeByValue(opcodeValue)
+
+                val codeUnits = when (opcode) {
+                    null -> 1 // Unknown instruction.
+                    Opcode.PACKED_SWITCH_PAYLOAD -> 4 + buffer.readUshort(offset + 2) * 2
+                    Opcode.SPARSE_SWITCH_PAYLOAD -> 2 + buffer.readUshort(offset + 2) * 4
+                    Opcode.ARRAY_PAYLOAD -> 4 + (buffer.readUshort(offset + 2) * buffer.readSmallUint(offset + 4) + 1) / 2
+                    else -> {
+                        addDexBackedLiteral(opcode, offset, buffer)
+                        if (!addDexBackedReference(opcode, offset, decoder)) {
+                            addReference(DexBackedInstruction.readFrom(dexFile, buffer.readerAt(offset)))
+                        }
+                        opcode.format.size / 2
+                    }
+                }
+
+                offset += codeUnits * 2
+            }
+        }
+
+        /**
+         * Collects the literal of a dex backed instruction, which is any instruction of a format
+         * of [WideLiteralInstruction], decoded as the dex backed instruction of the format does.
+         */
+        private fun addDexBackedLiteral(opcode: Opcode, instructionStart: Int, buffer: DexBuffer) {
+            val literal = when (opcode.format) {
+                Format.Format11n -> ((buffer.readByte(instructionStart + 1) shl 24) shr 28).toLong()
+                Format.Format21ih -> (buffer.readShort(instructionStart + 2) shl 16).toLong()
+                Format.Format21lh -> buffer.readShort(instructionStart + 2).toLong() shl 48
+                Format.Format21s, Format.Format22s -> buffer.readShort(instructionStart + 2).toLong()
+                Format.Format22b -> buffer.readByte(instructionStart + 3).toLong()
+                Format.Format31i -> buffer.readInt(instructionStart + 2).toLong()
+                Format.Format51l -> buffer.readLong(instructionStart + 2)
+                else -> return
+            }
+            literalHashes.add(literal.hashCode())
+        }
+
+        /**
          * Collects the reference of a dex backed instruction without creating the reference.
          *
          * @return False if the format of the instruction is not supported.
          */
-        fun addDexBackedReference(instruction: DexBackedInstruction, decoder: DexReferenceDecoder): Boolean {
-            val opcode = instruction.opcode
+        private fun addDexBackedReference(opcode: Opcode, instructionStart: Int, decoder: DexReferenceDecoder): Boolean {
             val referenceType = opcode.referenceType
             if (referenceType == ReferenceType.NONE) return true
 
             // All reference formats store the reference index after the opcode.
-            val referenceIndexOffset = instruction.instructionStart + 2
+            val referenceIndexOffset = instructionStart + 2
             val referenceIndex = when (opcode.format) {
                 Format.Format21c, Format.Format22c, Format.Format35c, Format.Format3rc,
                 Format.Format45cc, Format.Format4rcc -> decoder.dataBuffer.readUshort(referenceIndexOffset)
@@ -302,10 +478,12 @@ internal class PatchClasses internal constructor(
                 ReferenceType.FIELD -> {
                     typeHashes.add(decoder.fieldDefiningClass(referenceIndex).hashCode())
                     memberNameHashes.add(decoder.fieldName(referenceIndex).hashCode())
+                    addSignatureType(decoder.fieldType(referenceIndex))
                 }
                 ReferenceType.METHOD -> {
                     typeHashes.add(decoder.methodDefiningClass(referenceIndex).hashCode())
                     memberNameHashes.add(decoder.methodName(referenceIndex).hashCode())
+                    decoder.forEachMethodSignatureType(referenceIndex, ::addSignatureType)
                 }
             }
             return true
@@ -325,10 +503,13 @@ internal class PatchClasses internal constructor(
                 is MethodReference -> {
                     typeHashes.add(reference.definingClass.hashCode())
                     memberNameHashes.add(reference.name.hashCode())
+                    addSignatureType(reference.returnType)
+                    reference.parameterTypes.forEach { addSignatureType(it.toString()) }
                 }
                 is FieldReference -> {
                     typeHashes.add(reference.definingClass.hashCode())
                     memberNameHashes.add(reference.name.hashCode())
+                    addSignatureType(reference.type)
                 }
                 is TypeReference -> typeHashes.add(reference.type.hashCode())
             }
@@ -336,38 +517,17 @@ internal class PatchClasses internal constructor(
     }
 
     /**
-     * Collects the string, type-reference, member-name-reference,
-     * and literal values of [ClassDefWrapper.classDef] in one traversal.
-     *
-     * Only reads this class, so classes can be collected in parallel.
+     * Collects the index values of all methods of [ClassDefWrapper.classDef].
      */
     private fun ClassDefWrapper.collectIndexValues(): ClassIndexValues {
         val classDef = classDef
-        val decoder = (classDef as? DexBackedClassDef)?.let { DexReferenceDecoder(it.dexFile) }
-        val collector = ClassIndexCollector()
-
-        methods.forEach { method ->
-            method.instructionsOrNull?.forEach { instruction ->
-                if (instruction is WideLiteralInstruction) {
-                    collector.literalHashes.add(instruction.wideLiteral.hashCode())
-                }
-
-                if (decoder == null || instruction !is DexBackedInstruction ||
-                    instruction.dexFile !== decoder.dexFile ||
-                    !collector.addDexBackedReference(instruction, decoder)
-                ) {
-                    collector.addReference(instruction)
-                }
-            }
-        }
-
-        return ClassIndexValues(
-            classDef,
-            collector.strings,
-            collector.typeHashes.toSortedArray(),
-            collector.memberNameHashes.toSortedArray(),
-            collector.literalHashes.toSortedArray(),
+        val changeStamp = ChangeStamps.current
+        // Mutable methods are equal by signature, so they are kept by identity.
+        val mutableMethods = (classDef as? MutableClass)?.methods?.toCollection(
+            Collections.newSetFromMap(IdentityHashMap<Method, Boolean>())
         )
+
+        return collectIndexValues(classDef, methods, mutableMethods, changeStamp)
     }
 
     /**
@@ -385,7 +545,7 @@ internal class PatchClasses internal constructor(
          * Adds the values of a class to the indexes. Classes are added in class map order.
          */
         fun add(wrapper: ClassDefWrapper, values: ClassIndexValues) {
-            wrapper.indexedClassDef = values.classDef.takeUnless { it is MutableClass }
+            wrapper.setIndexed(values)
 
             if (values.strings.isNotEmpty()) {
                 values.strings.forEach { string ->
@@ -416,6 +576,12 @@ internal class PatchClasses internal constructor(
      * Same contents as [stringMap] values except contains no duplicates.
      */
     private var allClassesWithStrings: MutableList<ClassDefWrapper>? = null
+
+    /**
+     * Total time spent building the instruction indexes.
+     */
+    internal var indexBuildNanos = 0L
+        private set
 
     internal constructor(set: Set<ClassDef>) : this(
         // Must use linked hash map. A regular map does not preserve the order of classes found
@@ -468,6 +634,7 @@ internal class PatchClasses internal constructor(
             // The class keeps its position in the class map.
             wrapper.ordinal = replacedWrapper.ordinal
             replacedWrapper.replaced = true
+            hasReplacedClasses = true
             mutableWrappers.remove(replacedWrapper)
         }
 
@@ -486,6 +653,7 @@ internal class PatchClasses internal constructor(
     }
 
     private fun buildInstructionIndexes(): Map<String, List<ClassDefWrapper>> {
+        val startNanos = System.nanoTime()
         val builder = IndexBuilder()
 
         // Scanning the instructions is the costly part and reads each class on its own, so it runs
@@ -498,6 +666,7 @@ internal class PatchClasses internal constructor(
         stringMap = builder.strings
         indexBuilder = builder
         allClassesWithStrings = builder.classesWithStrings
+        indexBuildNanos += System.nanoTime() - startNanos
         return builder.strings
     }
 
@@ -506,18 +675,32 @@ internal class PatchClasses internal constructor(
         return indexBuilder!!
     }
 
+    /**
+     * Classes with the string, without classes that were replaced in the class map.
+     */
     internal fun getClassesFromOpcodeStringLiteral(stringLiteral: String): List<ClassDefWrapper>? {
-        return getClassesByReferenceMap()[stringLiteral]
-    }
-
-    internal fun getAllClassesWithStrings(): List<ClassDefWrapper> {
-        getClassesByReferenceMap() // Load string map if needed.
-        return allClassesWithStrings!!
+        return getClassesByReferenceMap()[stringLiteral]?.withoutReplacedClasses()?.ifEmpty { null }
     }
 
     /**
-     * Indexed classes with instructions that reference the type. Can contain false positives.
-     * Does not include changes of mutable classes, see [candidateClasses].
+     * Classes with strings, without classes that were replaced in the class map.
+     */
+    internal fun getAllClassesWithStrings(): List<ClassDefWrapper> {
+        getClassesByReferenceMap() // Load string map if needed.
+        return allClassesWithStrings!!.withoutReplacedClasses()
+    }
+
+    /**
+     * Classes of an index list that were not replaced in the class map.
+     */
+    internal fun List<ClassDefWrapper>.withoutReplacedClasses(): List<ClassDefWrapper> =
+        if (hasReplacedClasses) filterNot { it.replaced } else this
+
+    /**
+     * Indexed classes with instructions that reference the type: as the class of a field or method,
+     * as the type of a field, as a return or parameter type of a method, or as a type reference
+     * such as `new-instance` and `check-cast`. Primitive types of fields and methods are not indexed.
+     * Can contain false positives. Does not include changes of mutable classes, see [candidateClasses].
      */
     internal fun getIndexedClassesReferencingType(type: String): List<ClassDefWrapper> =
         getIndexBuilder().types[type.hashCode()].orEmpty()
@@ -559,6 +742,18 @@ internal class PatchClasses internal constructor(
     }
 
     /**
+     * A condition of the instruction values that a class must satisfy.
+     *
+     * @param indexedClasses The indexed classes that can satisfy the condition.
+     * @param isSatisfiedBy If the instruction values of some methods can satisfy the condition.
+     *                      Like the indexed classes, it can be true for values that do not.
+     */
+    internal class IndexCondition(
+        val indexedClasses: List<ClassDefWrapper>,
+        val isSatisfiedBy: (ClassIndexValues) -> Boolean,
+    )
+
+    /**
      * Classes that can satisfy all the conditions, in class map order.
      *
      * @param indexedClasses Indexed classes of each condition.
@@ -566,22 +761,18 @@ internal class PatchClasses internal constructor(
      * @return The indexed classes in all lists, and the mutable classes with
      *         changed methods because their contents can differ from the indexes.
      */
-    internal fun candidateClasses(indexedClasses: List<List<ClassDefWrapper>>): Candidates {
-        val smallest = indexedClasses.minBy { it.size }
-        val result = ArrayList<ClassDefWrapper>(smallest.size + mutableWrappers.size)
+    internal fun candidateClasses(indexedClasses: List<List<ClassDefWrapper>>): Candidates =
+        candidateConditionClasses(indexedClasses.map { classes -> IndexCondition(classes) { true } })
 
-        if (smallest.isNotEmpty()) {
-            // Classes of a much larger list are left for the matching to reject,
-            // as finding them in a large list costs more than the matching.
-            val maximumSize = CANDIDATE_INTERSECTION_SIZE_FACTOR * smallest.size
-            val others = indexedClasses.mapNotNull { classes ->
-                if (classes === smallest || classes.size > maximumSize) null else HashSet(classes)
-            }
-
-            smallest.filterTo(result) { wrapper ->
-                !wrapper.replaced && others.all { it.contains(wrapper) }
-            }
-        }
+    /**
+     * Classes that can satisfy all the conditions, in class map order.
+     *
+     * @return The indexed classes that can satisfy all conditions, and the mutable classes
+     *         with changed methods that can satisfy all conditions.
+     */
+    internal fun candidateConditionClasses(conditions: List<IndexCondition>): Candidates {
+        val result = ArrayList<ClassDefWrapper>(conditions.minOf { it.indexedClasses.size } + mutableWrappers.size)
+        addIndexedClassesInAll(conditions.map { it.indexedClasses }, result)
 
         var changedMethods = emptyMap<ClassDefWrapper, List<Method>>()
         if (mutableWrappers.isNotEmpty()) {
@@ -591,7 +782,12 @@ internal class PatchClasses internal constructor(
                 if (indexed.contains(wrapper)) return@forEach
 
                 val methods = wrapper.changedMethods()
-                if (methods.isNotEmpty()) {
+                if (methods.isEmpty()) return@forEach
+
+                // The indexes show the class cannot satisfy a condition with its other methods,
+                // so only the changed methods can satisfy all conditions.
+                val values = wrapper.changedMethodsIndexValues()
+                if (conditions.all { it.isSatisfiedBy(values) }) {
                     result += wrapper
                     changedMethods[wrapper] = methods
                 }
@@ -607,6 +803,43 @@ internal class PatchClasses internal constructor(
         }
 
         return Candidates(result, changedMethods)
+    }
+
+    /**
+     * Indexed classes that can satisfy the conditions of at least one alternative.
+     *
+     * @param alternatives Indexed classes of each condition of each alternative.
+     *                     A class must be in all lists of an alternative to satisfy the alternative.
+     * @return The indexed classes in all lists of any alternative, without duplicates
+     *         and not in class map order.
+     */
+    internal fun indexedClassesOfAny(alternatives: List<List<List<ClassDefWrapper>>>): List<ClassDefWrapper> {
+        val result = LinkedHashSet<ClassDefWrapper>()
+        alternatives.forEach { indexedClasses -> addIndexedClassesInAll(indexedClasses, result) }
+        return ArrayList(result)
+    }
+
+    /**
+     * Adds the indexed classes that are in all lists to [result], in the order of the smallest list.
+     *
+     * Classes of a much larger list are left for the matching to reject, as finding them in a
+     * large list costs more than the matching. So [result] can get classes not in every list.
+     */
+    private fun addIndexedClassesInAll(
+        indexedClasses: List<List<ClassDefWrapper>>,
+        result: MutableCollection<ClassDefWrapper>,
+    ) {
+        val smallest = indexedClasses.minBy { it.size }
+        if (smallest.isEmpty()) return
+
+        val maximumSize = CANDIDATE_INTERSECTION_SIZE_FACTOR * smallest.size
+        val others = indexedClasses.mapNotNull { classes ->
+            if (classes === smallest || classes.size > maximumSize) null else HashSet(classes)
+        }
+
+        smallest.filterTo(result) { wrapper ->
+            !wrapper.replaced && others.all { it.contains(wrapper) }
+        }
     }
 
     internal fun getClassesReferencingType(type: String): List<ClassDefWrapper>? =
@@ -627,6 +860,52 @@ internal class PatchClasses internal constructor(
         private const val INITIAL_HASH_INDEX_CAPACITY = 1 shl 16
 
         private const val INDEX_CHUNK_SIZE = 4096
+
+        /**
+         * Collects the string, type-reference, member-name-reference,
+         * and literal values of the instructions of [methods] of [classDef] in one traversal.
+         *
+         * Only reads the class, so classes can be collected in parallel.
+         *
+         * @param mutableMethods See [ClassIndexValues.mutableMethods].
+         * @param changeStamp See [ClassIndexValues.changeStamp].
+         */
+        fun collectIndexValues(
+            classDef: ClassDef,
+            methods: Iterable<Method>,
+            mutableMethods: Set<Method>? = null,
+            changeStamp: Long = 0,
+        ): ClassIndexValues {
+            val decoder = (classDef as? DexBackedClassDef)?.let { DexReferenceDecoder(it.dexFile) }
+            val collector = ClassIndexCollector()
+
+            methods.forEach { method ->
+                val implementation = method.implementation ?: return@forEach
+                if (decoder != null && implementation is CachingDexBackedDexFile.MethodImplementation &&
+                    implementation.dexFile === decoder.dexFile
+                ) {
+                    collector.addDexBackedInstructions(implementation, decoder)
+                    return@forEach
+                }
+
+                implementation.instructions.forEach { instruction ->
+                    if (instruction is WideLiteralInstruction) {
+                        collector.literalHashes.add(instruction.wideLiteral.hashCode())
+                    }
+                    collector.addReference(instruction)
+                }
+            }
+
+            return ClassIndexValues(
+                classDef,
+                collector.strings,
+                collector.typeHashes.toSortedArray(),
+                collector.memberNameHashes.toSortedArray(),
+                collector.literalHashes.toSortedArray(),
+                mutableMethods,
+                changeStamp,
+            )
+        }
     }
 
     /**

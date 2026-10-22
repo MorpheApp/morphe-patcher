@@ -43,24 +43,56 @@ internal interface ResourceCoder : Closeable {
     /**
      * Decode raw resources from the APK into the working directory and update the package metadata.
      *
+     * @param onRequest Whether to extract nothing up front, but each file when it is requested.
      * @return The package's metadata.
      */
-    fun decodeRaw(): PackageMetadata
+    fun decodeRaw(onRequest: Boolean = false): PackageMetadata
 
     /**
      * Decode resources from the APK into the working directory and update the package metadata.
      *
+     * @param onRequest Whether to decode only the manifest up front, and every other file when it is
+     * requested by [getFile] or [decode].
      * @return The package's metadata.
      */
-    fun decodeResources(): PackageMetadata
+    fun decodeResources(onRequest: Boolean = false): PackageMetadata
+
+    /**
+     * List the files of the APK that can be decoded into the working directory, by the path they are
+     * decoded to, without decoding them.
+     *
+     * The listing describes the input APK, so it does not reflect files a patch has since added or deleted.
+     *
+     * @param pattern A glob pattern the paths must match, see [app.morphe.patcher.resource.PathPatterns].
+     * @param packageName The package whose resources to list. Defaults to the package name of the APK.
+     * @return The matching paths, sorted.
+     */
+    fun listDecodableFiles(pattern: String, packageName: String? = null): List<String>
+
+    /**
+     * Decode the files of the APK matching [patterns] that are not decoded yet. A file a patch already
+     * changed, added or deleted is left alone, and what a patch wrote to a values file before it was
+     * decoded is merged into it.
+     *
+     * @param patterns Glob patterns the paths must match, see [app.morphe.patcher.resource.PathPatterns].
+     * @param packageName The package whose resources to decode. Defaults to the package name of the APK.
+     * @return The paths of the files in the working directory matching [patterns], sorted.
+     */
+    fun decode(patterns: Collection<String>, packageName: String? = null): List<String>
+
+    /**
+     * Called once patches no longer request files, so that what decoding them needs can be released.
+     */
+    fun finishDecoding()
 
     /**
      * Encode resources from the working directory into a new APK file.
      *
      * @param outputDir a File object representing the output directory for patched files.
+     * @param omitEntry Whether to leave out an archive entry, as the patched APK replaces or deletes it.
      * @return a File object representing the output file of the compiled APK.
      */
-    fun encodeResources(outputDir: File): File
+    fun encodeResources(outputDir: File, omitEntry: (String) -> Boolean = { false }): File
 
     /**
      * Get other resource files.
@@ -92,7 +124,8 @@ internal interface ResourceCoder : Closeable {
      *
      * @param path The path of the file.
      * @param packageName The package name of the file. Defaults to the package name of the APK.
-     * @param copy Whether to copy the file from the original APK if it does not exist yet in the working directory.
+     * @param copy Whether to decode the file from the original APK if it is not decoded yet. Only applies
+     * when files are decoded on request.
      * @return a File object representing the desired file.
      */
     fun getFile(path: String, packageName: String? = null, copy: Boolean = true): File

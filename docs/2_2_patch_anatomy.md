@@ -15,6 +15,8 @@ val COMPATIBILITY_XYZ = Compatibility(
   packageName = "app.xyz.mobile",
   // App icon background color
   appIconColor = 0xFF3300,
+  // Device form factor of the app. Default is FormFactor.MOBILE.
+  formFactor = FormFactor.MOBILE,
   // Specific app targets. Do not include any app targets to indicate 'any' app version.
   targets = listOf(
     AppTarget(
@@ -62,6 +64,17 @@ val disableAdsPatch = bytecodePatch(
 ```
 
 > [!TIP]
+> If a method only needs to always return a constant value, `returnEarly()` and `returnLate()`
+> do it without writing smali:
+>
+> ```kt
+> // Skip the method and always return false.
+> showAdsFingerprint.method.returnEarly(false)
+> ```
+>
+> See the `returnEarly()` and `returnLate()` section of [Advanced APIs](4_apis.md) for details.
+
+> [!TIP]
 > To see real-world examples of patches,
 > check out the repository for [Morphe Patches](https://github.com/MorpheApp/morphe-patches).
 
@@ -94,9 +107,9 @@ val patch = bytecodePatch(name = "Patch", default = true) {
 Options of a patch can be set after loading the patches with `PatchLoader` by obtaining the instance for the patch:
 
 ```kt
-loadPatchesJar(patches).apply {
-    // Type is checked at runtime.
-    first { it.name == "Patch" }.options["Option"] = "Value"
+loadPatchesFromJar(setOf(File("morphe-patches.mpp"))).apply {
+    // Options are set by name, and the type is checked at runtime.
+    first { it.name == "Patch" }.options["Inbuilt option"] = "Value"
 }
 ```
 
@@ -238,8 +251,8 @@ The same order is followed for multiple patches depending on the patch.
 - A patch can declare compatibility with specific packages and versions,
   but patches can still be executed on any package or version.
   It is recommended that compatibility is specified to present known compatible packages and versions.
-    - If `compatibleWith` is not used, the patch is treated as compatible with any package
-- If a package is specified with no versions, the patch is compatible with any version of the package
+  - If `compatibleWith` is not used, the patch is treated as compatible with any package.
+  - If a package is specified with no versions, the patch is compatible with any version of the package.
 - A patch can raise a `PatchException` at any time of execution to indicate that the patch failed to execute.
 
 ## ⏭️ What's next

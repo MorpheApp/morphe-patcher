@@ -3,6 +3,8 @@
  * https://github.com/MorpheApp/morphe-patcher
  */
 
+@file:Suppress("DEPRECATION_ERROR")
+
 package app.morphe.patcher.patch
 
 import org.junit.jupiter.api.assertDoesNotThrow
@@ -26,6 +28,24 @@ internal object CompatibilityTest {
 
         assertEquals("1.2.3", target.version)
         assertEquals(SupportedAbi.entries.associateWith { 123 }, target.versionCodes)
+        assertTrue(target.isExperimental)
+        assertEquals(26, target.minSdk)
+        assertEquals("Recommended release", target.description)
+    }
+
+    @Test
+    fun `binary compatible description constructor keeps every argument`() {
+        // Hidden from Kotlin callers, but patch bundles compiled against 1.x still call it.
+        val constructor = AppTarget::class.java.getConstructor(
+            String::class.java,
+            Boolean::class.javaPrimitiveType,
+            Int::class.javaObjectType,
+            String::class.java,
+        )
+        val target = constructor.newInstance("1.2.3", true, 26, "Recommended release")
+
+        assertEquals("1.2.3", target.version)
+        assertEquals(null, target.versionCodes)
         assertTrue(target.isExperimental)
         assertEquals(26, target.minSdk)
         assertEquals("Recommended release", target.description)
@@ -84,22 +104,10 @@ internal object CompatibilityTest {
     }
 
     @Test
-    fun `legacy usage`() {
-        val patch = bytecodePatch(name = "Test") {
-            compatibleWith(
-                "compatible.package"("1.0.0"),
-            )
-        }
-
-        assertEquals(1, patch.compatiblePackages!!.size)
-        assertEquals("compatible.package", patch.compatiblePackages!!.first().first)
-    }
-
-    @Test
     fun `legacy to Compatibility`() {
         var patch = bytecodePatch(name = "Test") {
             compatibleWith(
-                "compatible.package"("1.0.0"),
+                Compatibility.fromLegacy("compatible.package" to setOf("1.0.0")),
             )
         }
         assertEquals(
@@ -109,7 +117,7 @@ internal object CompatibilityTest {
 
         patch = bytecodePatch(name = "Test") {
             compatibleWith(
-                "compatible.package",
+                Compatibility.fromLegacy("compatible.package" to null),
             )
         }
         assertEquals(
@@ -539,6 +547,100 @@ internal object CompatibilityTest {
                 appIconColor = "#0000"
             )
         }
+    }
+
+    @Test
+    fun `form factor`() {
+        assertEquals(
+            FormFactor.MOBILE,
+            Compatibility(name = "Example app", packageName = "com.example").formFactor
+        )
+        assertEquals(
+            FormFactor.MOBILE,
+            Compatibility(
+                name = "Example app",
+                packageName = "com.example",
+                appIconColor = "#FF0000",
+                targets = listOf(AppTarget(version = null))
+            ).formFactor
+        )
+        assertEquals(
+            FormFactor.TV,
+            Compatibility(
+                name = "Example app",
+                packageName = "com.example",
+                formFactor = FormFactor.TV
+            ).formFactor
+        )
+        assertEquals(
+            null,
+            Compatibility(
+                name = "Example app",
+                packageName = "com.example",
+                formFactor = null
+            ).formFactor
+        )
+
+        // Universal patches.
+        assertEquals(null, Compatibility(description = "Universal").formFactor)
+        assertEquals(
+            null,
+            Compatibility(
+                appIconColor = "#FF0000",
+                targets = listOf(AppTarget(version = null))
+            ).formFactor
+        )
+
+        // Legacy declarations.
+        assertEquals(null, Compatibility.fromLegacy("com.example" to setOf("1.0.0")).formFactor)
+
+        val compatibility = Compatibility(
+            name = "Example app",
+            packageName = "com.example",
+            formFactor = FormFactor.WEARABLE
+        )
+        assertEquals(
+            FormFactor.WEARABLE,
+            compatibility.including(AppTarget(version = "1.0.0")).formFactor
+        )
+        assertEquals(FormFactor.WEARABLE, compatibility.excluding("1.0.0").formFactor)
+    }
+
+    @Test
+    fun `binary compatible constructors default to mobile form factor`() {
+        // Hidden from Kotlin callers, but patch bundles compiled against 1.x still call them.
+        val intColorConstructor = Compatibility::class.java.getConstructor(
+            String::class.java,
+            String::class.java,
+            String::class.java,
+            ApkFileType::class.java,
+            Int::class.javaObjectType,
+            Set::class.java,
+            List::class.java,
+        )
+        val intColor = intColorConstructor.newInstance(
+            "com.example", "Example app", null, null, 0xFF0000, null, listOf(AppTarget(version = null))
+        )
+        assertEquals(FormFactor.MOBILE, intColor.formFactor)
+
+        val stringColorConstructor = Compatibility::class.java.getConstructor(
+            String::class.java,
+            String::class.java,
+            String::class.java,
+            ApkFileType::class.java,
+            String::class.java,
+            Set::class.java,
+            List::class.java,
+        )
+        val stringColor = stringColorConstructor.newInstance(
+            "com.example", "Example app", null, null, "#FF0000", null, listOf(AppTarget(version = null))
+        )
+        assertEquals(FormFactor.MOBILE, stringColor.formFactor)
+
+        val universal = stringColorConstructor.newInstance(
+            null, null, null, null, "#FF0000", null, listOf(AppTarget(version = null))
+        )
+        assertEquals(null, universal.formFactor)
     }
 
     @Test

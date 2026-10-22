@@ -16,7 +16,7 @@
 </div> 
 
 # 💉 Morphe Patcher
-Morphe Patcher used to patch Android applications.
+Morphe Patcher is used to patch Android applications.
 
 &nbsp;
 ## ❓ About
@@ -49,7 +49,7 @@ To use Morphe Patcher in your project, follow these steps:
 
    ```kt
     dependencies {
-        implementation("app.morphe:morphe-patcher:{$version}")
+        implementation("app.morphe:morphe-patcher:$version")
     }
    ```
 
@@ -71,7 +71,7 @@ You can find the fundamentals of Morphe Patcher and how to create patches [here]
 
 ## 📜 License
 
-Morphe Patches are licensed under the [GNU General Public License v3.0](LICENSE), with additional conditions under GPLv3 Section 7:
+Morphe Patcher is licensed under the [GNU General Public License v3.0](LICENSE), with additional conditions under GPLv3 Section 7:
 
 - **Name & Branding Restrictions (7c & 7e):** Derivative works must use their own distinct branding. The **"Morphe"** name, logos, and trademarks may not be used for the branding or title of derivative works.
 

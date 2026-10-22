@@ -3,6 +3,8 @@
  * https://github.com/revanced/revanced-library/tree/06733072045c8016a75f232dec76505c0ba2e1cd
  */
 
+@file:Suppress("DEPRECATION_ERROR")
+
 package app.morphe.patcher.patch
 
 import kotlin.test.Test
@@ -138,7 +140,7 @@ internal class MostCommonCompatibleVersionsTest {
     }
 
     private fun assertEqualsVersions(
-        expected: PackageNameMap,
+        expected: Map<String, LinkedHashMap<String, Count>>,
         patches: Set<Patch<*>>,
         compatiblePackageNames: Set<String>?,
         countUnusedPatches: Boolean = false,
@@ -169,15 +171,9 @@ internal class MostCommonCompatibleVersionsTest {
         default = default,
     ) {
         if (versions == null) {
-            compatibleWith(packageName)
+            compatibleWith(Compatibility.fromLegacy(packageName to null))
         } else {
-            compatibleWith(
-                if (versions.isEmpty()) {
-                    packageName()
-                } else {
-                    packageName(*versions.toTypedArray())
-                }
-            )
+            compatibleWith(Compatibility.fromLegacy(packageName to versions))
         }
 
         options()

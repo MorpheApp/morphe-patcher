@@ -12,7 +12,9 @@ import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMuta
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethodParameter.Companion.toMutable
 import app.morphe.patcher.util.proxy.mutableTypes.MutableAnnotationElement.Companion.toMutable
 import com.android.tools.smali.dexlib2.AccessFlags
+import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction10x
 import com.android.tools.smali.dexlib2.immutable.ImmutableAnnotation
 import com.android.tools.smali.dexlib2.immutable.ImmutableAnnotationElement
 import com.android.tools.smali.dexlib2.immutable.ImmutableClassDef
@@ -142,6 +144,34 @@ internal object MutableClassTest {
 
         assertEquals(1, annotations.size)
         assertTrue(annotations is MutableSet)
+    }
+
+    @Test
+    fun `changes of the methods and their instructions are stamped`() {
+        val implementation = MutableMethodImplementation(1).apply {
+            addInstruction(BuilderInstruction10x(Opcode.RETURN_VOID))
+        }
+        val method = ImmutableMethod(
+            "Lcom/test/Stamped;", "method", null, "V", AccessFlags.PUBLIC.value, null, null, implementation,
+        )
+        val mutableClass = ImmutableClassDef(
+            "Lcom/test/Stamped;", AccessFlags.PUBLIC.value, null, null, null, null, null, listOf(method),
+        ).toMutable()
+
+        val mutableMethod = mutableClass.methods.single()
+        mutableMethod.implementation!!.instructions.toList()
+        assertEquals(0L, mutableMethod.instructionsChangeStamp, "Reading instructions is not a change")
+        assertEquals(0L, mutableClass.methodsChangeStamp)
+
+        mutableMethod.implementation!!.addInstruction(0, BuilderInstruction10x(Opcode.NOP))
+        assertTrue(mutableMethod.instructionsChangeStamp > 0)
+        assertEquals(mutableMethod.instructionsChangeStamp, mutableClass.methodsChangeStamp)
+
+        val addedMethod = ImmutableMethod(
+            "Lcom/test/Stamped;", "added", null, "V", AccessFlags.PUBLIC.value, null, null, null,
+        ).toMutable()
+        mutableClass.methods.add(addedMethod)
+        assertTrue(mutableClass.methodsChangeStamp > mutableMethod.instructionsChangeStamp)
     }
 
     @Test

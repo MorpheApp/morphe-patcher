@@ -8,6 +8,9 @@ package app.morphe.patcher.dex
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import com.android.tools.smali.dexlib2.Opcodes
+import com.android.tools.smali.dexlib2.VersionMap
+import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
+import com.android.tools.smali.dexlib2.dexbacked.raw.HeaderItem
 import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.DexFile
 import com.android.tools.smali.dexlib2.writer.io.FileDataStore
@@ -51,12 +54,23 @@ internal class MultidexReadResult(
 }
 
 internal object DexReadWrite {
-    private const val MIN_CLASSES_PER_SEGMENT = 1000
+    private const val MIN_CLASSES_PER_SEGMENT = 250
     private const val MAX_THREADS = 4
     private val DESUGAR_NAMESPACES = setOf(
         "Lj$/",
         $$"L$r8$"
     )
+
+    /**
+     * DEX versions that [writeDexCopy] copies. Version 41 can be a container of multiple DEX files.
+     */
+    private const val MIN_COPIED_DEX_VERSION = 35
+    private const val MAX_COPIED_DEX_VERSION = 40
+
+    /**
+     * The first DEX version with call sites and method handles.
+     */
+    private const val METHOD_HANDLES_DEX_VERSION = 38
 
     /**
      * Reads a multidex file and returns a [MultidexReadResult] containing a merged [DexFile]
@@ -153,7 +167,71 @@ internal object DexReadWrite {
         // Normally DexFileFactory would take care of this, but it doesn't support reading from streams, so we have to do it ourselves.
 
         // TODO: Load extensions in memory mapped fashion?
-        return CachingDexBackedDexFile(null, ByteBuffer.wrap(inputStream.readBytes()))
+        return CachingDexBackedDexFile(null, inputStream.readBytes())
+    }
+
+    /**
+     * Writes a copy of a DEX file that has only some of its classes, instead of writing
+     * the classes with a [DexPool].
+     *
+     * If the DEX version of the file is newer than the version a [DexPool] writes for [opcodes],
+     * the copy has the version of the [DexPool], so the classes run on the same Android versions.
+     * This requires the file to use no instructions and items the older version does not support.
+     *
+     * @param dexBytes The contents of the DEX file.
+     * @param classTypes The types of all classes of the DEX file.
+     * @param keptClasses The classes of the DEX file to keep.
+     * @param opcodes The opcodes a [DexPool] writes the other classes with.
+     * @param outputFile The file to write the copy to.
+     * @return False if the copy cannot have the DEX version of the [DexPool], and nothing was written.
+     */
+    internal fun writeDexCopy(
+        dexBytes: ByteArray,
+        classTypes: Collection<String>,
+        keptClasses: Collection<ClassDef>,
+        opcodes: Opcodes,
+        outputFile: File,
+    ): Boolean {
+        // Newer versions can be a container of multiple DEX files.
+        val dexVersion = HeaderItem.getVersion(dexBytes, 0)
+        if (dexVersion !in MIN_COPIED_DEX_VERSION..MAX_COPIED_DEX_VERSION) return false
+
+        val pooledDexVersion = VersionMap.mapApiToDexVersion(opcodes.api)
+        if (pooledDexVersion == VersionMap.NO_VERSION) return false
+
+        val lowerDexVersion = dexVersion > pooledDexVersion
+        if (lowerDexVersion && !canLowerDexVersion(dexBytes, keptClasses, opcodes, pooledDexVersion)) return false
+
+        val buffer = ByteBuffer.wrap(dexBytes.copyOf())
+        val keptTypes = keptClasses.mapTo(HashSet()) { it.type }
+        DexStripper.strip(buffer, classTypes.filterTo(HashSet()) { it !in keptTypes })
+        if (lowerDexVersion) DexStripper.setDexVersion(buffer, pooledDexVersion)
+
+        outputFile.writeBytes(buffer.array())
+        return true
+    }
+
+    /**
+     * If the DEX file and its kept classes use only items and instructions of [dexVersion] and [opcodes].
+     */
+    private fun canLowerDexVersion(
+        dexBytes: ByteArray,
+        keptClasses: Collection<ClassDef>,
+        opcodes: Opcodes,
+        dexVersion: Int,
+    ): Boolean {
+        if (dexVersion < METHOD_HANDLES_DEX_VERSION) {
+            val dexFile = DexBackedDexFile(null, ByteBuffer.wrap(dexBytes))
+            if (dexFile.callSiteSection.size > 0 || dexFile.methodHandleSection.size > 0) return false
+        }
+
+        return keptClasses.parallelStream().allMatch { classDef ->
+            classDef.methods.all { method ->
+                method.implementation?.instructions?.all { instruction ->
+                    opcodes.getOpcodeValue(instruction.opcode) != null
+                } ?: true
+            }
+        }
     }
 
     /**
@@ -307,7 +385,7 @@ internal object DexReadWrite {
         return tempFile
     }
 
-    private fun isDesugarLib(classDef: ClassDef): Boolean {
+    internal fun isDesugarLib(classDef: ClassDef): Boolean {
         return DESUGAR_NAMESPACES.any { classDef.type.startsWith(it) }
     }
 }

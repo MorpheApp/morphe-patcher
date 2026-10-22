@@ -9,6 +9,7 @@ import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.ApkSigner.newApkSigner
 import app.morphe.patcher.apk.ApkSigner.newKeyStore
 import app.morphe.patcher.apk.ApkSigner.newPrivateKeyCertificatePair
+import app.morphe.patcher.apk.ApkUtils.applyTo
 import com.android.apksig.ApkVerifier
 import com.android.apksig.apk.ApkFormatException
 import com.android.tools.build.apkzlib.zip.AlignmentRules
@@ -27,7 +28,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.security.NoSuchAlgorithmException
 import java.security.cert.X509Certificate
-import java.util.*
+import java.util.Date
 import java.util.concurrent.ForkJoinPool
 import java.util.logging.Logger
 import kotlin.time.Duration.Companion.days
@@ -48,8 +49,9 @@ object ApkUtils {
     // Alignment for all other files.
     private const val DEFAULT_ALIGNMENT = 4
 
-    // Within a few percent of the default level's size in markedly less time.
-    private const val COMPRESSION_LEVEL = 3
+    // The fastest level. The dex files it compresses are about 3% larger than at level 3, which takes
+    // about 40% longer, and well within 10% of the default level, which takes about three times as long.
+    private const val COMPRESSION_LEVEL = 1
 
     private val dexEntryName = Regex("""classes(?:\d+)?\.dex""")
 
@@ -63,6 +65,28 @@ object ApkUtils {
                 AlignmentRules.constant(DEFAULT_ALIGNMENT),
             ),
         ).setCompressor(DeflateExecutionCompressor(ForkJoinPool.commonPool(), COMPRESSION_LEVEL))
+
+    /**
+     * Copies [source] over [target] with the file copy of the platform, which is several times faster
+     * than copying through a stream for a file the size of an APK.
+     */
+    internal fun copyApk(source: File, target: File) {
+        target.absoluteFile.parentFile?.mkdirs()
+        Files.copy(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+    }
+
+    /**
+     * Whether [applyTo] replaces or deletes the entry [name] of its output base, so that a resource APK
+     * written for it can leave the entry out.
+     *
+     * An entry deleted from the middle of an archive leaves a gap, and apkzlib moves every entry after a
+     * gap larger than it can cover with an extra field. The DEX files are near the start of an APK, so
+     * replacing them moved most of the archive.
+     */
+    internal fun isReplacedOnApply(name: String, dexFileNames: Set<String>, dexFilesComplete: Boolean) =
+        name in dexFileNames ||
+            name.matches(v1SignatureEntryName) ||
+            (dexFilesComplete && dexFileNames.isNotEmpty() && name.matches(dexEntryName))
 
     /**
      * Writes this module to [file] aligned as [applyTo] aligns, so that it has nothing left to move.
@@ -97,7 +121,7 @@ object ApkUtils {
             logger.info("Using compiled resource APK as output base")
 
             if (resourcesApk.canonicalFile != apkFile.canonicalFile) {
-                resourcesApk.copyTo(apkFile, overwrite = true)
+                copyApk(resourcesApk, apkFile)
             }
         }
 

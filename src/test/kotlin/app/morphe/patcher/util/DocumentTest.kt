@@ -151,6 +151,88 @@ internal object DocumentTest {
         document.close()
     }
 
+    @Test
+    fun `Document saves characters that need escaping and surrogate pairs`() {
+        val tempFile = File(tempDir, "escaping.xml")
+        tempFile.writeText(simpleXml)
+
+        Document(tempFile).use { document ->
+            val element = document.getElementsByTagName("element").item(0) as org.w3c.dom.Element
+            element.setAttribute("attr", "a \"quoted\" & <tagged>\nline\ttab")
+            element.textContent = "1 < 2 & 3 > 2 😀"
+        }
+
+        val savedContent = tempFile.readText()
+        assertTrue(savedContent.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"))
+        assertTrue("😀" in savedContent, "Surrogate pairs are written as characters")
+
+        val element = Document(tempFile).getElementsByTagName("element").item(0) as org.w3c.dom.Element
+        assertEquals("a \"quoted\" & <tagged>\nline\ttab", element.getAttribute("attr"))
+        assertEquals("1 < 2 & 3 > 2 😀", element.textContent)
+    }
+
+    @Test
+    fun `Document saves comments, CDATA sections and empty elements`() {
+        val tempFile = File(tempDir, "nodes.xml")
+        tempFile.writeText(
+            """<?xml version="1.0" encoding="UTF-8"?><root><!-- a comment --><a><![CDATA[<raw>]]></a><b/></root>""",
+        )
+
+        Document(tempFile).close()
+
+        assertEquals(
+            """<?xml version="1.0" encoding="UTF-8"?><root><!-- a comment --><a><![CDATA[<raw>]]></a><b/></root>""",
+            tempFile.readText(),
+        )
+    }
+
+    @Test
+    fun `Document replaces a parsed attribute set with a namespace`() {
+        val androidNamespace = "http://schemas.android.com/apk/res/android"
+        val tempFile = File(tempDir, "AndroidManifest.xml")
+        tempFile.writeText(
+            """<?xml version="1.0" encoding="UTF-8"?><manifest xmlns:android="$androidNamespace">""" +
+                """<uses-permission android:name="old"/></manifest>""",
+        )
+
+        Document(tempFile).use { document ->
+            val permission = document.getElementsByTagName("uses-permission").item(0) as org.w3c.dom.Element
+            assertEquals("old", permission.getAttributeNS(androidNamespace, "name"))
+            permission.setAttributeNS(androidNamespace, "android:name", "new")
+        }
+
+        assertEquals(
+            """<?xml version="1.0" encoding="UTF-8"?><manifest xmlns:android="$androidNamespace">""" +
+                """<uses-permission android:name="new"/></manifest>""",
+            tempFile.readText(),
+        )
+    }
+
+    @Test
+    fun `Document declares namespaces missing from the document`() {
+        val androidNamespace = "http://schemas.android.com/apk/res/android"
+        val tempFile = File(tempDir, "undeclared.xml")
+        tempFile.writeText(
+            """<?xml version="1.0" encoding="UTF-8"?><manifest xmlns:android="$androidNamespace">""" +
+                """<application android:name=".App"/></manifest>""",
+        )
+
+        Document(tempFile).use { document ->
+            document.documentElement.removeAttribute("xmlns:android")
+            val application = document.getElementsByTagName("application").item(0) as org.w3c.dom.Element
+            application.appendChild(document.createElementNS("urn:test", "test:child"))
+            application.appendChild(document.createElementNS("urn:test", "test:child"))
+        }
+
+        assertEquals(
+            """<?xml version="1.0" encoding="UTF-8"?><manifest>""" +
+                """<application xmlns:android="$androidNamespace" android:name=".App">""" +
+                """<test:child xmlns:test="urn:test"/><test:child xmlns:test="urn:test"/>""" +
+                """</application></manifest>""",
+            tempFile.readText(),
+        )
+    }
+
     // ==================== Edge case tests ====================
 
     @Test

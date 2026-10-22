@@ -16,33 +16,37 @@ import com.reandroid.json.JSONArray
  * - `alias`: the human-readable path ARSCLib writes to disk (e.g. `res/drawable-mdpi/drawable_0x7f080695.png`)
  *
  * Entries where name and alias are identical are not recorded by ARSCLib.
+ * When resources are decoded on request, the pairs come from the resource table instead.
  */
-internal class PathMap(pathMapJson: String) {
-
+internal class PathMap(
+    /** Original APK names paired with the on-disk alias each is decoded to. */
+    entries: Iterable<Pair<String, String>>,
+) {
     /** Original APK name → on-disk alias. */
-    private val nameToAlias: Map<String, String>
+    private val nameToAlias = mutableMapOf<String, String>()
 
     /** On-disk alias → original APK name. */
-    private val aliasToName: Map<String, String>
+    private val aliasToName = mutableMapOf<String, String>()
 
     init {
-        val nameToAliasMap = mutableMapOf<String, String>()
-        val aliasToNameMap = mutableMapOf<String, String>()
-
-        val array = JSONArray(pathMapJson)
-        for (i in 0 until array.length()) {
-            val entry = array.getJSONObject(i)
-            val name = sanitizePath(entry.getString("name"))
-            val alias = sanitizePath(entry.getString("alias"))
+        entries.forEach { (entryName, entryAlias) ->
+            val name = sanitizePath(entryName)
+            val alias = sanitizePath(entryAlias)
             if (name != alias) {
-                nameToAliasMap[name] = alias
-                aliasToNameMap[alias] = name
+                nameToAlias[name] = alias
+                aliasToName[alias] = name
             }
         }
-
-        nameToAlias = nameToAliasMap
-        aliasToName = aliasToNameMap
     }
+
+    constructor(pathMapJson: String) : this(
+        JSONArray(pathMapJson).let { array ->
+            (0 until array.length()).map { index ->
+                val entry = array.getJSONObject(index)
+                entry.getString("name") to entry.getString("alias")
+            }
+        }
+    )
 
     /**
      * Given an on-disk alias path, return the original APK name,

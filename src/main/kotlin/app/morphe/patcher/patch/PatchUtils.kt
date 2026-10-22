@@ -3,13 +3,17 @@
  * https://github.com/revanced/revanced-library/tree/06733072045c8016a75f232dec76505c0ba2e1cd
  */
 
+@file:Suppress("DEPRECATION_ERROR")
+
 package app.morphe.patcher.patch
 
 import java.util.logging.Logger
 
 typealias Count = Int
-typealias VersionMap = LinkedHashMap<VersionName, Count>
-typealias PackageNameMap = Map<PackageName, VersionMap>
+@Deprecated("Instead use Compatibility objects", level = DeprecationLevel.HIDDEN)
+typealias VersionMap = LinkedHashMap<String, Count>
+@Deprecated("Instead use Compatibility objects", level = DeprecationLevel.HIDDEN)
+typealias PackageNameMap = Map<String, VersionMap>
 typealias PatchName = String
 typealias OptionKey = String
 typealias OptionValue = Any?
@@ -27,14 +31,14 @@ private val logger = Logger.getLogger("PatchUtils")
 fun Set<Patch<*>>.mostCommonCompatibleVersions(
     packageNames: Set<String>? = null,
     countUnusedPatches: Boolean = false,
-): PackageNameMap = buildMap {
-    fun filterWantedPackages(compatiblePackages: List<Package>): List<Package> {
+): Map<String, LinkedHashMap<String, Count>> = buildMap {
+    fun filterWantedPackages(compatiblePackages: List<Pair<String, Set<String>?>>): List<Pair<String, Set<String>?>> {
         val wantedPackages = packageNames?.toHashSet() ?: return compatiblePackages
         return compatiblePackages.filter { (name, _) -> name in wantedPackages }
     }
 
     this@mostCommonCompatibleVersions.filter { it.default || countUnusedPatches }
-        .flatMap { it.compatiblePackages ?: emptyList() }
+        .flatMap { it.compatibility?.mapNotNull { compat -> compat.legacy } ?: emptyList() }
         .let(::filterWantedPackages)
         .forEach { (name, versions) ->
             if (versions?.isEmpty() == true) {
@@ -54,7 +58,7 @@ fun Set<Patch<*>>.mostCommonCompatibleVersions(
             versionMap
                 .asIterable()
                 .sortedWith(compareByDescending { it.value })
-                .associate { it.key to it.value } as VersionMap
+                .associate { it.key to it.value } as LinkedHashMap<String, Count>
     }
 }
 

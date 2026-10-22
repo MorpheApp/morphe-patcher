@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION_ERROR")
+
 package app.morphe.patcher.patch
 
 import kotlin.test.Test
@@ -15,12 +17,12 @@ internal object PatchTest {
     fun `can create patch with compatible packages`() {
         val patch = bytecodePatch(name = "Test", default = false) {
             compatibleWith(
-                "compatible.package"("1.0.0"),
+                Compatibility("compatible.package", "1.0.0"),
             )
         }
 
-        assertEquals(1, patch.compatiblePackages!!.size)
-        assertEquals("compatible.package", patch.compatiblePackages!!.first().first)
+        assertEquals(1, patch.compatibility!!.size)
+        assertEquals("compatible.package", patch.compatibility!!.first().packageName)
     }
 
     @Test

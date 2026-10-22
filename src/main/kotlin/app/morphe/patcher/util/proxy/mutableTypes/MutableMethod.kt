@@ -12,8 +12,10 @@ import app.morphe.patcher.util.proxy.mutableTypes.MutableAnnotation.Companion.to
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethodParameter.Companion.toMutable
 import com.android.tools.smali.dexlib2.HiddenApiRestriction
 import com.android.tools.smali.dexlib2.base.reference.BaseMethodReference
+import com.android.tools.smali.dexlib2.builder.BuilderInstruction
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
 import com.android.tools.smali.dexlib2.iface.Method
+import com.android.tools.smali.dexlib2.iface.MethodImplementation
 
 class MutableMethod(method: Method) :
     BaseMethodReference(),
@@ -24,7 +26,7 @@ class MutableMethod(method: Method) :
     private var returnType = method.returnType
 
     // Create own mutable MethodImplementation (due to not being able to change members like register count)
-    private val implementationDelegate = lazy { method.implementation?.let { MutableMethodImplementation(it) } }
+    private val implementationDelegate = lazy { method.implementation?.let { Implementation(it) } }
     private val _implementation by implementationDelegate
     private val _annotations by lazy { method.annotations.map { annotation -> annotation.toMutable() }.toMutableSet() }
     private val _parameters by lazy { method.parameters.map { parameter -> parameter.toMutable() }.toMutableList() }
@@ -42,6 +44,61 @@ class MutableMethod(method: Method) :
      */
     internal val isImplementationCreated: Boolean
         get() = implementationDelegate.isInitialized()
+
+    /**
+     * The [ChangeStamps] stamp of the last change of the instructions, or 0 if the instructions
+     * are the same as the instructions of [sourceMethod].
+     */
+    internal var instructionsChangeStamp = 0L
+        private set
+
+    /**
+     * The mutable classes this method was added to, which are told when the instructions change.
+     * A class this method was removed from is kept, which only makes it check its methods again.
+     */
+    private val owners = ArrayList<MutableClass>(1)
+
+    internal fun addOwner(owner: MutableClass) {
+        if (owners.none { it === owner }) owners += owner
+    }
+
+    private fun instructionsChanged() {
+        val stamp = ChangeStamps.next()
+        instructionsChangeStamp = stamp
+        owners.forEach { owner -> owner.methodsChanged(stamp) }
+    }
+
+    /**
+     * A mutable implementation that tells this method when its instructions change.
+     * All changes of the instructions are done with the methods overridden here.
+     */
+    private inner class Implementation(implementation: MethodImplementation) :
+        MutableMethodImplementation(implementation) {
+        override fun addInstruction(index: Int, instruction: BuilderInstruction) {
+            super.addInstruction(index, instruction)
+            instructionsChanged()
+        }
+
+        override fun addInstruction(instruction: BuilderInstruction) {
+            super.addInstruction(instruction)
+            instructionsChanged()
+        }
+
+        override fun replaceInstruction(index: Int, replacementInstruction: BuilderInstruction) {
+            super.replaceInstruction(index, replacementInstruction)
+            instructionsChanged()
+        }
+
+        override fun removeInstruction(index: Int) {
+            super.removeInstruction(index)
+            instructionsChanged()
+        }
+
+        override fun swapInstructions(index1: Int, index2: Int) {
+            super.swapInstructions(index1, index2)
+            instructionsChanged()
+        }
+    }
 
     fun setDefiningClass(definingClass: String) {
         this.definingClass = definingClass

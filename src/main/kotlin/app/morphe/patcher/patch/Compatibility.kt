@@ -5,9 +5,6 @@
 
 package app.morphe.patcher.patch
 
-import kotlin.collections.all
-import kotlin.collections.isNotEmpty
-
 private val SHA_256_REGEX = Regex("^[0-9a-fA-F]{64}$")
 private val PACKAGE_NAME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$")
 
@@ -50,6 +47,31 @@ enum class SupportedAbi {
     ARMEABI_V7A,
     X86_64,
     X86
+}
+
+/**
+ * Device form factor the original app is built for.
+ */
+enum class FormFactor {
+    /**
+     * Phones, tablets, foldables, ChromeOS and other devices that install the regular app.
+     */
+    MOBILE,
+
+    /**
+     * Android TV and Google TV.
+     */
+    TV,
+
+    /**
+     * Wear OS.
+     */
+    WEARABLE,
+
+    /**
+     * Android Automotive OS. Android Auto apps run on the phone and are [MOBILE].
+     */
+    AUTOMOTIVE
 }
 
 /**
@@ -100,7 +122,10 @@ data class AppTarget(
         description = description
     )
 
-    // @Deprecated("Here only for binary backwards compatibility") // TODO: Remove after next major version bump.
+    @Deprecated(
+        "Here only for binary backwards compatibility",
+        level = DeprecationLevel.HIDDEN
+    )
     constructor(
         version: String?,
         isExperimental: Boolean = false,
@@ -113,7 +138,10 @@ data class AppTarget(
         description = null
     )
 
-    // @Deprecated("Here only for binary backwards compatibility") // TODO: Remove after next major version bump.
+    @Deprecated(
+        "Here only for binary backwards compatibility",
+        level = DeprecationLevel.HIDDEN
+    )
     constructor(
         version: String?,
         isExperimental: Boolean = false,
@@ -124,7 +152,7 @@ data class AppTarget(
         versionCodes = null,
         isExperimental = isExperimental,
         minSdk = minSdk,
-        description = null
+        description = description
     )
 
     init {
@@ -176,6 +204,7 @@ data class Compatibility internal constructor(
     val appIconColor: Int?,
     val signatures: Set<String>?,
     val targets: List<AppTarget>,
+    val formFactor: FormFactor?,
     internal val isLegacy: Boolean
 ) {
 
@@ -191,7 +220,34 @@ data class Compatibility internal constructor(
      *   `apksigner verify --print-certs` on an original apk (or base.apk from an unzipped apkm)
      *    and `certificate SHA-256 digest:` is the signature.
      * @param targets App targets. Versions are declared newest to oldest. Default is any app target.
+     * @param formFactor Device form factor of the app. Null means the same app is used
+     *   on all form factors. Default is [FormFactor.MOBILE].
      */
+    constructor(
+        packageName: String,
+        name: String,
+        description: String? = null,
+        apkFileType: ApkFileType? = null,
+        appIconColor: Int? = null,
+        signatures: Set<String>? = null,
+        targets: List<AppTarget> = listOf(AppTarget(version = null)),
+        formFactor: FormFactor? = FormFactor.MOBILE
+    ) : this(
+        packageName = packageName,
+        name = name,
+        description = description,
+        apkFileType = apkFileType,
+        appIconColor = appIconColor,
+        signatures = signatures,
+        targets = targets,
+        formFactor = formFactor,
+        isLegacy = false
+    )
+
+    @Deprecated(
+        "Here only for binary backwards compatibility",
+        level = DeprecationLevel.HIDDEN
+    )
     constructor(
         packageName: String,
         name: String,
@@ -208,6 +264,7 @@ data class Compatibility internal constructor(
         appIconColor = appIconColor,
         signatures = signatures,
         targets = targets,
+        formFactor = FormFactor.MOBILE,
         isLegacy = false
     )
 
@@ -225,6 +282,7 @@ data class Compatibility internal constructor(
         appIconColor = null,
         signatures = null,
         targets = listOf(AppTarget(version = null)),
+        formFactor = null,
         isLegacy = false
     )
 
@@ -240,7 +298,34 @@ data class Compatibility internal constructor(
      *   `apksigner verify --print-certs` on an original apk (or base.apk from an unzipped apkm)
      *    and `certificate SHA-256 digest:` is the signature.
      * @param targets App targets. Versions are declared newest to oldest.
+     * @param formFactor Device form factor of the app. Null means the same app is used
+     *   on all form factors. Default is [FormFactor.MOBILE], or null for a universal patch.
      */
+    constructor(
+        packageName: String? = null,
+        name: String? = null,
+        description: String? = null,
+        apkFileType: ApkFileType? = null,
+        appIconColor: String,
+        signatures: Set<String>? = null,
+        targets: List<AppTarget>,
+        formFactor: FormFactor? = if (packageName == null) null else FormFactor.MOBILE
+    ) : this(
+        packageName = packageName,
+        name = name,
+        description = description,
+        apkFileType = apkFileType,
+        appIconColor = parseColor(appIconColor),
+        signatures = signatures,
+        targets = targets,
+        formFactor = formFactor,
+        isLegacy = false
+    )
+
+    @Deprecated(
+        "Here only for binary backwards compatibility",
+        level = DeprecationLevel.HIDDEN
+    )
     constructor(
         packageName: String? = null,
         name: String? = null,
@@ -257,6 +342,7 @@ data class Compatibility internal constructor(
         appIconColor = parseColor(appIconColor),
         signatures = signatures,
         targets = targets,
+        formFactor = if (packageName == null) null else FormFactor.MOBILE,
         isLegacy = false
     )
 
@@ -359,7 +445,10 @@ data class Compatibility internal constructor(
         return copy(targets = updatedTargets)
     }
 
-    @Deprecated("Here only for binary backwards compatibility", level = DeprecationLevel.HIDDEN)
+    @Deprecated(
+        "Here only for binary backwards compatibility",
+        level = DeprecationLevel.HIDDEN
+    )
     fun copy(
         packageName: String? = this.packageName,
         name: String? = this.name,
@@ -376,6 +465,7 @@ data class Compatibility internal constructor(
         appIconColor,
         signatures,
         targets,
+        formFactor = formFactor,
         isLegacy = isLegacy
     )
 
@@ -409,6 +499,8 @@ data class Compatibility internal constructor(
                 appIconColor = null,
                 signatures = null,
                 targets = targets,
+                // Legacy declarations do not declare a form factor.
+                formFactor = null,
                 isLegacy = true)
         }
 

@@ -120,21 +120,21 @@ class SdkDexVerifier(
     }
 
     /**
-     * Validate every `.dex` file in [directory] (non-recursive).
+     * Validate every `.dex` file in [dexDir] (non-recursive).
      *
      * @throws DexVerificationException on the first failing file.
      */
-    override fun verifyDexDirectory(directory: File) {
-        require(directory.isDirectory) { "Not a directory: $directory" }
-        val dexFiles = directory.listFiles { f -> f.isFile && f.extension == "dex" }
+    override fun verifyDexDirectory(dexDir: File) {
+        require(dexDir.isDirectory) { "Not a directory: $dexDir" }
+        val dexFiles = dexDir.listFiles { f -> f.isFile && f.extension == "dex" }
             ?.sorted()
             ?: emptyList()
-        require(dexFiles.isNotEmpty()) { "No .dex files found in $directory" }
+        require(dexFiles.isNotEmpty()) { "No .dex files found in $dexDir" }
         logger.info { "Verifying ${dexFiles.size} DEX files with dexdump/d8" }
         for (dex in dexFiles) {
             verifyDexFile(dex)
         }
-        verifyClassHierarchy(directory)
+        verifyClassHierarchy(dexDir)
     }
 
     /**

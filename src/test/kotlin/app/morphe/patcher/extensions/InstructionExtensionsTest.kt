@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION_ERROR")
+
 package app.morphe.patcher.extensions
 
 import app.morphe.patcher.extensions.InstructionExtensions.addInstruction
@@ -145,7 +147,7 @@ private object InstructionExtensionsTest {
     @Test
     fun addSmaliInstructionsToMethod() =
         applyToMethod {
-            addInstructions(getTestSmaliInstructions(0..1)).also {
+            addInstructions(implementation!!.instructions.size, getTestSmaliInstructions(0..1)).also {
                 assertRegisterIs(0, 10)
                 assertRegisterIs(1, 11)
 

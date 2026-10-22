@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION_ERROR")
+
 package app.morphe.patcher.patch
 
 import kotlin.reflect.KProperty
@@ -22,13 +24,10 @@ import kotlin.reflect.typeOf
 @Suppress("MemberVisibilityCanBePrivate", "unused")
 open class Option<T>
 @PublishedApi
-@Deprecated("Use the constructor with the name instead of a key instead.")
 internal constructor(
-    @Deprecated("Use the name property instead.")
     val key: String,
     val default: T? = null,
     val values: Map<String, T?>? = null,
-    @Deprecated("Use the name property instead.")
     val title: String? = null,
     val description: String? = null,
     val required: Boolean = false,
@@ -72,8 +71,6 @@ internal constructor(
     var value: T?
         /**
          * Set the value of the [Option].
-         *
-         * @param value The value to set.
          *
          * @throws OptionException.ValueRequiredException If the value is required but null.
          * @throws OptionException.ValueValidationException If the value is invalid.
