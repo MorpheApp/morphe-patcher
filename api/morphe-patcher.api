@@ -1300,6 +1300,8 @@ public final class app/morphe/patcher/resource/XmlPullParserUtilsKt {
 public final class app/morphe/patcher/util/BytecodeUtilsKt {
 	public static final fun addFreeRegisters (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;I)Lkotlin/Pair;
 	public static final fun addInstructionsAtControlFlowLabel (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;ILjava/lang/String;[Lapp/morphe/patcher/util/smali/ExternalLabel;)V
+	public static final fun cloneMutable (Lcom/android/tools/smali/dexlib2/iface/Method;Ljava/lang/String;ILjava/util/List;Ljava/lang/String;I)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static synthetic fun cloneMutable$default (Lcom/android/tools/smali/dexlib2/iface/Method;Ljava/lang/String;ILjava/util/List;Ljava/lang/String;IILjava/lang/Object;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
 	public static final fun cloneParameters (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
 	public static final fun findInstructionIndicesReversed (Lcom/android/tools/smali/dexlib2/iface/Method;Lapp/morphe/patcher/InstructionFilter;)Ljava/util/List;
 	public static final fun findInstructionIndicesReversedOrThrow (Lcom/android/tools/smali/dexlib2/iface/Method;Lapp/morphe/patcher/InstructionFilter;)Ljava/util/List;
