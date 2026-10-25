@@ -49,7 +49,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
 import java.util.logging.Level
 import java.util.logging.Logger
-import java.util.zip.ZipFile
+import com.android.tools.build.apkzlib.zip.ZFile
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.measureTime
@@ -206,8 +206,8 @@ internal class ArsclibResourceCoder(
 
     /** Entry names of the input APK, read once, since [deleteFile] is often called per entry. */
     private val apkEntryNames: Set<String> by lazy {
-        ZipFile(apkFile).use { zipFile ->
-            zipFile.entries().asSequence().mapTo(HashSet()) { it.name }
+        ZFile.openReadOnly(apkFile).use { zFile ->
+            zFile.entries().mapTo(LinkedHashSet()) { it.centralDirectoryHeader.name }
         }
     }
 
@@ -586,15 +586,12 @@ internal class ArsclibResourceCoder(
 
         // Libraries are not staged on disk, so mark them for deletion from the rebuilt APK
         // instead of deleting extracted copies. This is what NONE mode already does.
-        ZipFile(apkFile).use { zipFile ->
-            for (entry in zipFile.entries()) {
-                val name = entry.name
-                val parts = name.split("/")
-                if (name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") && parts.size > 1 &&
-                    CpuArchitecture.valueOfOrNull(parts[1]) !in keepArchitectures
-                ) {
-                    strippedLibraries += name
-                }
+        for (name in apkEntryNames) {
+            val parts = name.split("/")
+            if (name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") && parts.size > 1 &&
+                CpuArchitecture.valueOfOrNull(parts[1]) !in keepArchitectures
+            ) {
+                strippedLibraries += name
             }
         }
 
@@ -627,17 +624,17 @@ internal class ArsclibResourceCoder(
 
         logger.info("extractNativeLibs changed to $current, restaging native libraries")
         val staging = workingDir.resolve(PATCHED_ROOT_DIRECTORY)
-        ZipFile(apkFile).use { zipFile ->
-            for (entry in zipFile.entries()) {
-                val name = entry.name
+        ZFile.openReadOnly(apkFile).use { zFile ->
+            zFile.entries().forEach entries@{ entry ->
+                val name = entry.centralDirectoryHeader.name
                 if (!name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") || name.endsWith("/") ||
-                    name in strippedLibraries || name in deletedArchiveEntries) continue
+                    name in strippedLibraries || name in deletedArchiveEntries) return@entries
                 // Straight into the staging directory: these only need to reach the output,
                 // no patch is going to read them.
-                val destination = resolveInside(staging, name) ?: continue
+                val destination = resolveInside(staging, name) ?: return@entries
                 if (!destination.exists()) {
                     destination.parentFile?.mkdirs()
-                    zipFile.getInputStream(entry).use { input ->
+                    zFile.get(name)?.open()?.use { input ->
                         destination.outputStream().use { output -> input.copyTo(output) }
                     }
                 }
@@ -1225,16 +1222,13 @@ internal class ArsclibResourceCoder(
                             "${keepArchitectures.joinToString(", ") { it.arch }})"
                 )
                 var strippedLibCount = 0
-                ZipFile(apkFile).use { zipFile ->
-                    for (entry in zipFile.entries()) {
-                        val name = entry.name
-                        val parts = name.split("/")
-                        if (name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") && parts.size > 1 &&
-                            CpuArchitecture.valueOfOrNull(parts[1]) !in keepArchitectures
-                        ) {
-                            add(name)
-                            strippedLibCount++
-                        }
+                for (name in apkEntryNames) {
+                    val parts = name.split("/")
+                    if (name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") && parts.size > 1 &&
+                        CpuArchitecture.valueOfOrNull(parts[1]) !in keepArchitectures
+                    ) {
+                        add(name)
+                        strippedLibCount++
                     }
                 }
                 logger.info("Stripped $strippedLibCount lib files")
@@ -1439,8 +1433,8 @@ internal class ArsclibResourceCoder(
         }
         if (pending.isEmpty()) return
 
-        ZipFile(apkFile).use { zipFile ->
-            pending.forEach { alias -> extractEntry(zipFile, archiveNameOf(alias)) }
+        ZFile.openReadOnly(apkFile).use { zFile ->
+            pending.forEach { alias -> extractEntry(zFile, archiveNameOf(alias)) }
         }
         decodedOnRequestCount += pending.size
     }
@@ -1483,12 +1477,7 @@ internal class ArsclibResourceCoder(
     }
 
     override fun listApkEntries(prefix: String): List<String> =
-        ZipFile(apkFile).use { zipFile ->
-            zipFile.entries().asSequence()
-                .map { it.name }
-                .filter { it.startsWith(prefix) }
-                .toList()
-        }
+        apkEntryNames.filter { it.startsWith(prefix) }
 
     /**
      * Whether a root entry is staged to the working directory during decode. Everything is,
@@ -1511,17 +1500,17 @@ internal class ArsclibResourceCoder(
     private fun extractRootEntries(aliasedPath: String) {
         // The working directory holds on-disk alias paths, the archive holds original names.
         val apkPath = archiveNameOf(aliasedPath)
-        ZipFile(apkFile).use { zipFile ->
-            val exact = zipFile.getEntry(apkPath)
+        ZFile.openReadOnly(apkFile).use { zFile ->
+            val exact = zFile.get(apkPath)
             if (exact != null) {
-                extractEntry(zipFile, apkPath)
+                extractEntry(zFile, apkPath)
                 return@use
             }
             // A patch may ask for a directory (and then list it), which staging used to provide.
             val prefix = "${apkPath.trimEnd('/')}/"
-            for (entry in zipFile.entries()) {
-                val name = entry.name
-                if (name.startsWith(prefix)) extractEntry(zipFile, name)
+            zFile.entries().forEach { entry ->
+                val name = entry.centralDirectoryHeader.name
+                if (name.startsWith(prefix)) extractEntry(zFile, name)
             }
         }
     }
@@ -1541,13 +1530,13 @@ internal class ArsclibResourceCoder(
         return resolved
     }
 
-    private fun extractEntry(zipFile: ZipFile, apkPath: String) {
-        val entry = zipFile.getEntry(apkPath) ?: return
-        if (entry.isDirectory) return
+    private fun extractEntry(zFile: ZFile, apkPath: String) {
+        val entry = zFile.get(apkPath) ?: return
+        if (entry.centralDirectoryHeader.name.endsWith("/")) return
         val destination = resolveInside(otherResourcesRootDirectory, aliasOf(apkPath)) ?: return
         if (destination.exists()) return
         destination.parentFile?.mkdirs()
-        val hash = zipFile.getInputStream(entry).use { input -> destination.copyFromComputingHash(input) }
+        val hash = entry.open().use { input -> destination.copyFromComputingHash(input) }
         if (!destination.exists()) return
         // Hash rather than (mtime, size): a patch usually rewrites the file within the same
         // filesystem timestamp tick, and same-length edits would otherwise read as unchanged.
