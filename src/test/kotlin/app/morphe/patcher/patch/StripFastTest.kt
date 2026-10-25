@@ -35,9 +35,9 @@ internal class StripFastTest {
     fun `a dex file left without classes is dropped and the others are renumbered`() {
         val apk = temporaryDirectory.resolve("input.apk")
         ZipOutputStream(apk.outputStream()).use { zip ->
-            listOf("classes.dex" to "La;", "classes2.dex" to "Lb;").forEach { (name, type) ->
+            listOf("classes.dex" to arrayOf("La1;", "La2;"), "classes2.dex" to arrayOf("Lb;")).forEach { (name, types) ->
                 zip.putNextEntry(ZipEntry(name))
-                zip.write(dexOf(type))
+                zip.write(dexOf(*types))
                 zip.closeEntry()
             }
         }
@@ -48,13 +48,14 @@ internal class StripFastTest {
 
         val (dexFiles, complete) = BytecodePatchContext(config, mockk(relaxed = true)).use { context ->
             context.decodeDexFiles()
-            context.mutableClassDefBy("La;")
+            context.mutableClassDefBy("La1;")
+            context.mutableClassDefBy("La2;")
             context.get().associate { it.name to it.stream.use { stream -> stream.readBytes() } } to context.dexFilesComplete
         }
 
         assertEquals(setOf("classes.dex", "classes2.dex"), dexFiles.keys)
         assertEquals(setOf("Lb;"), typesIn(dexFiles.getValue("classes.dex")))
-        assertEquals(setOf("La;"), typesIn(dexFiles.getValue("classes2.dex")))
+        assertEquals(setOf("La1;", "La2;"), typesIn(dexFiles.getValue("classes2.dex")))
         assertTrue(complete)
     }
 
