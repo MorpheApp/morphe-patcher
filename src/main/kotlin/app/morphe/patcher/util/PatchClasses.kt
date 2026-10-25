@@ -171,6 +171,7 @@ internal class PatchClasses internal constructor(
          * Sets what the instruction indexes were built from.
          */
         internal fun setIndexed(values: ClassIndexValues) {
+            hasStrings = values.strings.isNotEmpty()
             indexedClassDef = values.classDef.takeUnless { it is MutableClass }
             indexedMethods = values.mutableMethods
             indexedChangeStamp = values.changeStamp
@@ -587,7 +588,6 @@ internal class PatchClasses internal constructor(
             wrapper.setIndexed(values)
 
             if (values.strings.isNotEmpty()) {
-                wrapper.hasStrings = true
                 values.strings.forEach { string ->
                     // A class that already holds the string is always the last class of the list.
                     when (val existing = strings[string]) {
@@ -736,7 +736,7 @@ internal class PatchClasses internal constructor(
      */
     internal fun getAllClassesWithStrings(): List<ClassDefWrapper> {
         getClassesByReferenceMap() // Load string map if needed.
-        return classMap.values.filter { it.hasStrings }.withoutReplacedClasses()
+        return classMap.values.filter { it.hasStrings }
     }
 
     /**
