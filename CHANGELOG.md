@@ -1,3 +1,10 @@
+## [2.0.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.1-dev.1...v2.0.1-dev.2) (2026-10-25)
+
+
+### Bug Fixes
+
+* Release native memory of APK entries once read ([2fbfeb5](https://github.com/MorpheApp/morphe-patcher/commit/2fbfeb59c58861c58209e6274acbbf2e9204d9c8))
+
 ## [2.0.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0...v2.0.1-dev.1) (2026-10-25)
 
 
