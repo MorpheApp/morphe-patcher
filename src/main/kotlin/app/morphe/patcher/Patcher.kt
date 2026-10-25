@@ -110,9 +110,12 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             // Execute the patch. Dependencies already executed above, so they are not included in the time.
             return try {
                 if (config.validate) {
+                    val patchClasses = context.bytecodeContext.patchClasses
+                    val indexStartNanos = patchClasses.indexBuildNanos
                     val startNanos = System.nanoTime()
                     execute(context)
-                    val executeNanos = System.nanoTime() - startNanos
+                    val indexBuildNanos = patchClasses.indexBuildNanos - indexStartNanos
+                    val executeNanos = System.nanoTime() - startNanos - indexBuildNanos
                     if (executeNanos > SLOW_PATCH_NANOS) {
                         logger.info(
                             "Patch took ${TimeUnit.NANOSECONDS.toMillis(executeNanos)} ms to execute: $logName"
@@ -133,6 +136,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         // Prevent decoding the app manifest twice if it is not needed.
         if (config.resourceMode != ResourceMode.NONE) {
             context.resourceContext.decodeResources(config.resourceMode)
+            context.resourceContext.finishDecoding()
         }
 
         if (config.bytecodeMode != BytecodeMode.NONE) {

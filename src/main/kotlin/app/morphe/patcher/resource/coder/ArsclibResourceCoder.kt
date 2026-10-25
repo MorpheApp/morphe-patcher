@@ -26,7 +26,6 @@ import app.morphe.patcher.resource.processor.StringsXmlUnEscapeProcessor
 import app.morphe.patcher.util.Document
 import app.morphe.patcher.util.FileUtils.safelyDelete
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
-import com.android.tools.build.apkzlib.zip.ZFile
 import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
@@ -50,6 +49,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
 import java.util.logging.Level
 import java.util.logging.Logger
+import com.android.tools.build.apkzlib.zip.ZFile
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.measureTime
@@ -71,7 +71,7 @@ internal const val FULL_RESOURCE_ENCODE_PROPERTY = "morphe.patcher.fullResourceE
  * The heap below which the parsed resource table is not kept between the resource id lookups of
  * fingerprints and the encoding of the resources.
  */
-private const val RETAINED_TABLE_MIN_HEAP = 1024L * 1024 * 1024
+private const val RETAINED_TABLE_MIN_HEAP = 1536L * 1024 * 1024
 
 /**
  * A resource table that uses sparse entries cannot be read below Android 8.
@@ -207,7 +207,7 @@ internal class ArsclibResourceCoder(
     /** Entry names of the input APK, read once, since [deleteFile] is often called per entry. */
     private val apkEntryNames: Set<String> by lazy {
         ZFile.openReadOnly(apkFile).use { zFile ->
-            zFile.entries().mapTo(HashSet()) { it.centralDirectoryHeader.name }
+            zFile.entries().mapTo(LinkedHashSet()) { it.centralDirectoryHeader.name }
         }
     }
 
@@ -398,8 +398,7 @@ internal class ArsclibResourceCoder(
      */
     @Synchronized
     private fun releaseInputModuleUnlessRetainable() {
-        if (holdInputModule) return
-        if (Runtime.getRuntime().maxMemory() >= RETAINED_TABLE_MIN_HEAP) return
+        if (holdInputModule || Runtime.getRuntime().maxMemory() >= RETAINED_TABLE_MIN_HEAP) return
         inputModule?.close()
         inputModule = null
         // Closing keeps the parsed table, so no reference to the module may remain for it to be freed.
@@ -551,6 +550,7 @@ internal class ArsclibResourceCoder(
         onRequestDecoder = decoder
 
         logger.info("Decoding resources on request, ${decoder.size} files can be decoded")
+        releaseInputModuleUnlessRetainable()
         return true
     }
 
@@ -586,15 +586,12 @@ internal class ArsclibResourceCoder(
 
         // Libraries are not staged on disk, so mark them for deletion from the rebuilt APK
         // instead of deleting extracted copies. This is what NONE mode already does.
-        ZFile.openReadOnly(apkFile).use { zFile ->
-            zFile.entries().forEach { entry ->
-                val name = entry.centralDirectoryHeader.name
-                val parts = name.split("/")
-                if (name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") && parts.size > 1 &&
-                    CpuArchitecture.valueOfOrNull(parts[1]) !in keepArchitectures
-                ) {
-                    strippedLibraries += name
-                }
+        for (name in apkEntryNames) {
+            val parts = name.split("/")
+            if (name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") && parts.size > 1 &&
+                CpuArchitecture.valueOfOrNull(parts[1]) !in keepArchitectures
+            ) {
+                strippedLibraries += name
             }
         }
 
@@ -629,23 +626,23 @@ internal class ArsclibResourceCoder(
         val staging = workingDir.resolve(PATCHED_ROOT_DIRECTORY)
         ZFile.openReadOnly(apkFile).use { zFile ->
             zFile.entries().forEach entries@{ entry ->
-                    val name = entry.centralDirectoryHeader.name
-                    if (!name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") || name.endsWith("/") ||
-                        name in strippedLibraries || name in deletedArchiveEntries) return@entries
-                    // Straight into the staging directory: these only need to reach the output,
-                    // no patch is going to read them.
-                    val destination = resolveInside(staging, name) ?: return@entries
-                    if (!destination.exists()) {
-                        destination.parentFile?.mkdirs()
-                        zFile.get(name)?.open()?.use { input ->
-                            destination.outputStream().use { output -> input.copyTo(output) }
-                        }
-                    }
-                    if (destination.exists()) {
-                        relocatedRootFiles[pathKey(destination)] = name
-                        if (!current) uncompressedOverrides += name
+                val name = entry.centralDirectoryHeader.name
+                if (!name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") || name.endsWith("/") ||
+                    name in strippedLibraries || name in deletedArchiveEntries) return@entries
+                // Straight into the staging directory: these only need to reach the output,
+                // no patch is going to read them.
+                val destination = resolveInside(staging, name) ?: return@entries
+                if (!destination.exists()) {
+                    destination.parentFile?.mkdirs()
+                    zFile.get(name)?.open()?.use { input ->
+                        destination.outputStream().use { output -> input.copyTo(output) }
                     }
                 }
+                if (destination.exists()) {
+                    relocatedRootFiles[pathKey(destination)] = name
+                    if (!current) uncompressedOverrides += name
+                }
+            }
         }
     }
 
@@ -1225,16 +1222,13 @@ internal class ArsclibResourceCoder(
                             "${keepArchitectures.joinToString(", ") { it.arch }})"
                 )
                 var strippedLibCount = 0
-                ZFile.openReadOnly(apkFile).use { zFile ->
-                    zFile.entries().forEach { entry ->
-                        val name = entry.centralDirectoryHeader.name
-                        val parts = name.split("/")
-                        if (name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") && parts.size > 1 &&
-                            CpuArchitecture.valueOfOrNull(parts[1]) !in keepArchitectures
-                        ) {
-                            add(name)
-                            strippedLibCount++
-                        }
+                for (name in apkEntryNames) {
+                    val parts = name.split("/")
+                    if (name.startsWith("$NATIVE_LIBRARY_DIRECTORY/") && parts.size > 1 &&
+                        CpuArchitecture.valueOfOrNull(parts[1]) !in keepArchitectures
+                    ) {
+                        add(name)
+                        strippedLibCount++
                     }
                 }
                 logger.info("Stripped $strippedLibCount lib files")
@@ -1373,6 +1367,8 @@ internal class ArsclibResourceCoder(
         } catch (exception: Exception) {
             written.forEach { (file, held) -> held.safelyMoveTo(file) }
             throw exception
+        } finally {
+            releaseInputModuleUnlessRetainable()
         }
 
         // Strings are escaped as when decoding every resource, which is the form patches expect.
@@ -1481,11 +1477,7 @@ internal class ArsclibResourceCoder(
     }
 
     override fun listApkEntries(prefix: String): List<String> =
-        ZFile.openReadOnly(apkFile).use { zFile ->
-            zFile.entries().mapNotNull { entry ->
-                entry.centralDirectoryHeader.name.takeIf { it.startsWith(prefix) }
-            }
-        }
+        apkEntryNames.filter { it.startsWith(prefix) }
 
     /**
      * Whether a root entry is staged to the working directory during decode. Everything is,

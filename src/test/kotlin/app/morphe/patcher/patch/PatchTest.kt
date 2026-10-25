@@ -22,7 +22,7 @@ internal object PatchTest {
         }
 
         assertEquals(1, patch.compatibility!!.size)
-        assertEquals("compatible.package", patch.compatibility!!.first().packageName)
+        assertEquals("compatible.package", patch.compatibility.first().packageName)
     }
 
     @Test
