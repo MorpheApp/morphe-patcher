@@ -40,14 +40,16 @@ import kotlin.math.min
  * from being rewritten, renamed, or deleted.
  *
  * @param dexFile A merged [DexFile] containing all classes from all DEX entries.
- * @param classDescriptorsByEntry Maps each DEX entry name to the set of class descriptors it contains.
+ * @param classDescriptorsByEntrySupplier Maps each DEX entry name to the set of class descriptors it contains.
  * @param mappedFiles The DEX files in the APK, already mapped into memory (classes.dex, classes2.dex, etc.).
  */
 internal class MultidexReadResult(
     val dexFile: DexFile,
-    val classDescriptorsByEntry: Map<String, Set<String>>,
+    classDescriptorsByEntrySupplier: () -> Map<String, Set<String>>,
     val mappedFiles: List<MappedFile>,
 ) : Closeable {
+    val classDescriptorsByEntry: Map<String, Set<String>> by lazy(classDescriptorsByEntrySupplier)
+
     override fun close() {
         mappedFiles.forEach { it.close() }
     }
@@ -93,10 +95,12 @@ internal object DexReadWrite {
         }
         val entryNames = extractedFiles.map { file -> file.name }
 
-        // Track which class descriptors belong to which DEX entry.
-        val classDescriptorsByEntry = entryNames.zip(memoryMappedDexFiles).associate { (name, dex) ->
-            name to dex.classes.let { classes ->
-                classes.mapTo(HashSet(2 * classes.size)) { it.type }
+        // Track which class descriptors belong to which DEX entry lazily when requested during DEX compilation.
+        val classDescriptorsByEntrySupplier = {
+            entryNames.zip(memoryMappedDexFiles).associate { (name, dex) ->
+                name to dex.classes.let { classes ->
+                    classes.mapTo(HashSet(2 * classes.size)) { it.type }
+                }
             }
         }
 
@@ -115,7 +119,7 @@ internal object DexReadWrite {
             }
         }
 
-        return MultidexReadResult(mergedDexFile, classDescriptorsByEntry, mappedFiles)
+        return MultidexReadResult(mergedDexFile, classDescriptorsByEntrySupplier, mappedFiles)
     }
 
     /**

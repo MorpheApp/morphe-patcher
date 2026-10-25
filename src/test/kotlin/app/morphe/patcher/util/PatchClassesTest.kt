@@ -801,4 +801,62 @@ internal object PatchClassesTest {
         assertEquals(listOf<Any>(addedMethod), wrapper.changedMethods())
         assertFalse(addedMethod.isImplementationCreated)
     }
+
+    @Test
+    fun `HashIndex properly handles single items, collisions and table growth`() {
+        val classDefs = (0 until 300).map { i ->
+            val literal = 0x10000L + i
+            createClassDef(
+                "Lcom/test/Class$i;",
+                listOf(
+                    createMethodWithSmali(
+                        "Lcom/test/Class$i;",
+                        "m",
+                        "const v0, $literal\nconst v1, 0x9999\nreturn-void"
+                    )
+                )
+            )
+        }
+        val classes = PatchClasses(dexBackedClasses(*classDefs.toTypedArray()))
+        classes.getClassesByReferenceMap()
+
+        // Test unique literals (single-item buckets)
+        for (i in 0 until 300) {
+            val literal = 0x10000L + i
+            val found = classes.getClassesContainingLiteral(literal)
+            assertNotNull(found)
+            assertEquals(1, found.size)
+            assertEquals("Lcom/test/Class$i;", found.single().classDef.type)
+        }
+
+        // Test shared literal across all 300 classes (collided bucket)
+        val sharedFound = classes.getClassesContainingLiteral(0x9999L)
+        assertNotNull(sharedFound)
+        assertEquals(300, sharedFound.size)
+    }
+
+    @Test
+    fun `empty string literals are properly indexed and retrievable`() {
+        val classWithEmpty = createClassDef(
+            "Lcom/test/ClassWithEmptyString;",
+            listOf(createMethodWithStrings("Lcom/test/ClassWithEmptyString;", "methodEmpty", listOf("")))
+        )
+        val classWithOther = createClassDef(
+            "Lcom/test/ClassWithOther;",
+            listOf(createMethodWithStrings("Lcom/test/ClassWithOther;", "methodOther", listOf("nonEmpty")))
+        )
+        val classes = PatchClasses(setOf(classWithEmpty, classWithOther))
+
+        val emptyStringClasses = classes.getClassesFromOpcodeStringLiteral("")
+        assertNotNull(emptyStringClasses)
+        assertEquals(1, emptyStringClasses.size)
+        assertEquals("Lcom/test/ClassWithEmptyString;", emptyStringClasses.single().classDef.type)
+
+        val stringMap = classes.getClassesByReferenceMap()
+        assertTrue(stringMap.containsKey(""))
+        assertEquals(listOf("Lcom/test/ClassWithEmptyString;"), stringMap[""]!!.map { it.classDef.type })
+
+        val classesWithStrings = classes.getAllClassesWithStrings()
+        assertTrue(classesWithStrings.any { it.classDef.type == "Lcom/test/ClassWithEmptyString;" })
+    }
 }

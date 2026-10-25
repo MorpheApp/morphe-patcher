@@ -91,6 +91,7 @@ kotlin {
 }
 
 tasks.withType<Test> {
+    maxHeapSize = "1024m"
     // Allow running the test suite against a specific JDK (e.g. -PtestJavaVersion=11)
     // while Gradle itself keeps running on JDK 17+. Used by CI to verify the library
     // works across the JDK versions it supports.

@@ -46,6 +46,7 @@ internal class PatchClasses internal constructor(
      */
     internal val classMap: MutableMap<String, ClassDefWrapper>
 ) {
+    private val logger = java.util.logging.Logger.getLogger(PatchClasses::class.java.name)
 
     /**
      * Container to hold the class definition that is either mutable or immutable.
@@ -69,6 +70,11 @@ internal class PatchClasses internal constructor(
          * If this class was replaced in the class map by another class of the same type.
          */
         internal var replaced = false
+
+        /**
+         * Whether instructions in this class contain any string constants.
+         */
+        internal var hasStrings = false
 
         /**
          * The immutable class the instruction indexes were built from,
@@ -101,14 +107,6 @@ internal class PatchClasses internal constructor(
         private var changedMethodsValuesFor: List<Method>? = null
 
         /**
-         * Methods of [classDef] while it is immutable.
-         *
-         * Each iteration of dex backed methods decodes the full signature of every method
-         * to filter duplicate methods, so the methods are kept after the first iteration.
-         */
-        private var immutableMethods: List<Method>? = null
-
-        /**
          * The methods of [classDef].
          */
         val methods: Iterable<Method>
@@ -116,7 +114,7 @@ internal class PatchClasses internal constructor(
                 val classDefLocal = classDef
                 if (classDefLocal is MutableClass) return classDefLocal.methods
 
-                return immutableMethods ?: classDefLocal.methods.toList().also { immutableMethods = it }
+                return classDefLocal.methods
             }
 
         /**
@@ -188,7 +186,6 @@ internal class PatchClasses internal constructor(
         fun getMutableClass(): MutableClass {
             if (classDef !is MutableClass) {
                 classDef = MutableClass(classDef)
-                immutableMethods = null
                 onMakeMutable?.invoke(this)
             }
             return classDef as MutableClass
@@ -276,7 +273,7 @@ internal class PatchClasses internal constructor(
      */
     private class HashIndex {
         private var hashes = IntArray(INITIAL_HASH_INDEX_CAPACITY)
-        private var classes = arrayOfNulls<MutableList<ClassDefWrapper>>(INITIAL_HASH_INDEX_CAPACITY)
+        private var classes = arrayOfNulls<Any>(INITIAL_HASH_INDEX_CAPACITY)
         private var size = 0
 
         private fun slotOf(hash: Int): Int {
@@ -289,7 +286,15 @@ internal class PatchClasses internal constructor(
             }
         }
 
-        operator fun get(hash: Int): List<ClassDefWrapper>? = classes[slotOf(hash)]
+        operator fun get(hash: Int): List<ClassDefWrapper>? {
+            val entry = classes[slotOf(hash)] ?: return null
+            return if (entry is ClassDefWrapper) {
+                Collections.singletonList(entry)
+            } else {
+                @Suppress("UNCHECKED_CAST")
+                entry as List<ClassDefWrapper>
+            }
+        }
 
         /**
          * Adds [wrapper] to the classes of each hash.
@@ -313,27 +318,49 @@ internal class PatchClasses internal constructor(
             val slot = slotOf(hash)
             val slotClasses = classes[slot]
             if (slotClasses != null) {
-                if (slotClasses[slotClasses.lastIndex] !== wrapper) slotClasses += wrapper
+                if (slotClasses is ClassDefWrapper) {
+                    if (slotClasses !== wrapper) {
+                        val list = ArrayList<ClassDefWrapper>(4)
+                        list.add(slotClasses)
+                        list.add(wrapper)
+                        classes[slot] = list
+                    }
+                } else {
+                    @Suppress("UNCHECKED_CAST")
+                    val list = slotClasses as ArrayList<ClassDefWrapper>
+                    if (list.isEmpty() || list[list.lastIndex] !== wrapper) {
+                        list.add(wrapper)
+                    }
+                }
                 return
             }
 
             hashes[slot] = hash
-            classes[slot] = ArrayList<ClassDefWrapper>(1).apply { add(wrapper) }
-            // Keep at most half of the slots in use.
+            classes[slot] = wrapper
             if (++size * 2 > hashes.size) grow()
         }
 
         private fun grow() {
             val oldHashes = hashes
             val oldClasses = classes
-            hashes = IntArray(oldHashes.size * 2)
-            classes = arrayOfNulls(oldHashes.size * 2)
+            val newCapacity = oldHashes.size * 2
+            val mask = newCapacity - 1
+            val newHashes = IntArray(newCapacity)
+            val newClasses = arrayOfNulls<Any>(newCapacity)
+
             for (i in oldHashes.indices) {
                 val oldSlotClasses = oldClasses[i] ?: continue
-                val slot = slotOf(oldHashes[i])
-                hashes[slot] = oldHashes[i]
-                classes[slot] = oldSlotClasses
+                val hash = oldHashes[i]
+                var slot = (hash * -0x61c88647).let { it xor (it ushr 16) } and mask
+                while (newClasses[slot] != null) {
+                    slot = (slot + 1) and mask
+                }
+                newHashes[slot] = hash
+                newClasses[slot] = oldSlotClasses
             }
+
+            hashes = newHashes
+            classes = newClasses
         }
     }
 
@@ -347,6 +374,10 @@ internal class PatchClasses internal constructor(
         fun add(value: Int) {
             if (size == values.size) values = values.copyOf(size * 2)
             values[size++] = value
+        }
+
+        fun clear() {
+            size = 0
         }
 
         fun toSortedArray() = values.copyOf(size).apply { sort() }
@@ -388,12 +419,19 @@ internal class PatchClasses internal constructor(
         val memberNameHashes = IntList()
         val literalHashes = IntList()
 
+        fun clear() {
+            strings.clear()
+            typeHashes.clear()
+            memberNameHashes.clear()
+            literalHashes.clear()
+        }
+
         /**
-         * Collects a type of a field or method signature. Primitive types are in most classes
-         * and are not indexed.
+         * Collects a type of a field or method signature. Primitive types and java/lang/Object
+         * are in most classes and are not indexed.
          */
         fun addSignatureType(type: String) {
-            if (type.length > 1) typeHashes.add(type.hashCode())
+            if (type.length > 1 && type != "Ljava/lang/Object;") typeHashes.add(type.hashCode())
         }
 
         /**
@@ -539,7 +577,6 @@ internal class PatchClasses internal constructor(
         val types = HashIndex()
         val memberNames = HashIndex()
         val literals = HashIndex()
-        val classesWithStrings = ArrayList<ClassDefWrapper>()
 
         /**
          * Adds the values of a class to the indexes. Classes are added in class map order.
@@ -548,12 +585,25 @@ internal class PatchClasses internal constructor(
             wrapper.setIndexed(values)
 
             if (values.strings.isNotEmpty()) {
+                wrapper.hasStrings = true
                 values.strings.forEach { string ->
-                    val list = strings.getOrPut(string) { ArrayList(1) }
-                    // A class that already holds the string is always the last class of the list.
-                    if (list.isEmpty() || list[list.lastIndex] !== wrapper) list += wrapper
+                    val existing = strings[string]
+                    if (existing == null) {
+                        strings[string] = Collections.singletonList(wrapper) as MutableList<ClassDefWrapper>
+                    } else if (existing is ArrayList<ClassDefWrapper>) {
+                        if (existing.isEmpty() || existing[existing.lastIndex] !== wrapper) {
+                            existing.add(wrapper)
+                        }
+                    } else {
+                        val first = existing[0]
+                        if (first !== wrapper) {
+                            val list = ArrayList<ClassDefWrapper>(4)
+                            list.add(first)
+                            list.add(wrapper)
+                            strings[string] = list
+                        }
+                    }
                 }
-                classesWithStrings += wrapper
             }
             types.addAll(values.typeHashes, wrapper)
             memberNames.addAll(values.memberNameHashes, wrapper)
@@ -570,12 +620,6 @@ internal class PatchClasses internal constructor(
      * Instructions indexes, or null if not yet built.
      */
     private var indexBuilder: IndexBuilder? = null
-
-    /**
-     * All classes that contain at least 1 string.
-     * Same contents as [stringMap] values except contains no duplicates.
-     */
-    private var allClassesWithStrings: MutableList<ClassDefWrapper>? = null
 
     /**
      * Total time spent building the instruction indexes.
@@ -612,7 +656,6 @@ internal class PatchClasses internal constructor(
     internal fun closeReferenceMap() {
         stringMap = null
         indexBuilder = null
-        allClassesWithStrings = null
         mutableWrappers.clear()
         classMap.values.forEach { wrapper ->
             if (wrapper.classDef is MutableClass) {
@@ -654,10 +697,9 @@ internal class PatchClasses internal constructor(
 
     private fun buildInstructionIndexes(): Map<String, List<ClassDefWrapper>> {
         val startNanos = System.nanoTime()
+        logger.info("Building instruction indexes for ${classMap.size} classes...")
         val builder = IndexBuilder()
 
-        // Scanning the instructions is the costly part and reads each class on its own, so it runs
-        // in parallel, a chunk at a time to bound memory, while the indexes are filled in class order.
         classMap.values.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
             chunk.parallelStream().map { wrapper -> wrapper.collectIndexValues() }.collect(Collectors.toList())
                 .forEachIndexed { i, values -> builder.add(chunk[i], values) }
@@ -665,7 +707,6 @@ internal class PatchClasses internal constructor(
 
         stringMap = builder.strings
         indexBuilder = builder
-        allClassesWithStrings = builder.classesWithStrings
         indexBuildNanos += System.nanoTime() - startNanos
         return builder.strings
     }
@@ -687,7 +728,7 @@ internal class PatchClasses internal constructor(
      */
     internal fun getAllClassesWithStrings(): List<ClassDefWrapper> {
         getClassesByReferenceMap() // Load string map if needed.
-        return allClassesWithStrings!!.withoutReplacedClasses()
+        return classMap.values.filter { it.hasStrings }.withoutReplacedClasses()
     }
 
     /**
@@ -857,9 +898,11 @@ internal class PatchClasses internal constructor(
         /**
          * Must be a power of 2.
          */
-        private const val INITIAL_HASH_INDEX_CAPACITY = 1 shl 16
+        private const val INITIAL_HASH_INDEX_CAPACITY = 1 shl 19
 
         private const val INDEX_CHUNK_SIZE = 4096
+
+        private val threadLocalCollector = ThreadLocal.withInitial { ClassIndexCollector() }
 
         /**
          * Collects the string, type-reference, member-name-reference,
@@ -877,7 +920,8 @@ internal class PatchClasses internal constructor(
             changeStamp: Long = 0,
         ): ClassIndexValues {
             val decoder = (classDef as? DexBackedClassDef)?.let { DexReferenceDecoder(it.dexFile) }
-            val collector = ClassIndexCollector()
+            val collector = threadLocalCollector.get()
+            collector.clear()
 
             methods.forEach { method ->
                 val implementation = method.implementation ?: return@forEach
@@ -896,9 +940,11 @@ internal class PatchClasses internal constructor(
                 }
             }
 
+            val collectedStrings = if (collector.strings.isEmpty()) emptyList() else ArrayList(collector.strings)
+
             return ClassIndexValues(
                 classDef,
-                collector.strings,
+                collectedStrings,
                 collector.typeHashes.toSortedArray(),
                 collector.memberNameHashes.toSortedArray(),
                 collector.literalHashes.toSortedArray(),

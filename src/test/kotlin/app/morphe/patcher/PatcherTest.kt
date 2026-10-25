@@ -1877,6 +1877,27 @@ internal object PatcherTest {
     }
 
     @Test
+    fun `fingerprint matches methods with empty string filters`() {
+        val patchClasses = PatchClasses(
+            dexBackedClasses(
+                "Lclass1;" to listOf(
+                    dexBackedMethod("Lclass1;", "methodWithEmptyString", "const-string v0, \"\"\nreturn-void"),
+                    dexBackedMethod("Lclass1;", "methodWithText", "const-string v0, \"text\"\nreturn-void"),
+                ),
+            )
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+
+        with(patcher.context.bytecodeContext) {
+            val emptyStringFingerprint = Fingerprint(
+                filters = listOf(string(""))
+            )
+            val match = emptyStringFingerprint.match()
+            assertEquals("methodWithEmptyString", match.originalMethod.name)
+        }
+    }
+
+    @Test
     fun `validate logs slow fingerprints`() {
         val patchClasses = PatchClasses(
             dexBackedClasses(

@@ -20,6 +20,7 @@ import app.morphe.patcher.dex.CachingDexBackedDexFile
 import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.dex.DexStripper
 import app.morphe.patcher.dex.MappedFile
+import app.morphe.patcher.dex.MultidexReadResult
 import app.morphe.patcher.util.ClassMerger.merge
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import app.morphe.patcher.util.PatchClasses
@@ -77,9 +78,9 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     private var originalDexMappings: MutableMap<File, MappedFile> = LinkedHashMap()
 
     /**
-     * Class descriptors that existed in the original APK (before any extensions or patches).
+     * Number of classes that existed in the original APK (before any extensions or patches).
      */
-    private lateinit var originalClassDescriptors: Set<String>
+    private var originalClassCount = 0
 
     /**
      * Extension DEX files that added classes to the app.
@@ -99,11 +100,8 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         val addedClasses: List<ClassDef>,
     )
 
-    /**
-     * Maps each original DEX entry name to the set of class descriptors it contains.
-     * Used by [BytecodeMode.STRIP_SAFE] to rebuild only DEX files with modified classes.
-     */
-    private lateinit var classDescriptorsByEntry: Map<String, Set<String>>
+    private lateinit var readResult: MultidexReadResult
+    private val classDescriptorsByEntry get() = readResult.classDescriptorsByEntry
 
     /**
      * Whether [BytecodeMode.STRIP_FAST] compiled every DEX file of the input, which it otherwise does not.
@@ -126,14 +124,13 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
         dexWorkingDir.apply { deleteRecursively(); mkdirs()}
 
-        val readResult = DexReadWrite.readMultidexFileFromZip(config.apkFile, dexWorkingDir)
-        opcodes = readResult.dexFile.opcodes
-        val classes = readResult.dexFile.classes
-        originalClassDescriptors = classes.let { defs ->
-            defs.mapTo(HashSet(2 * defs.size)) { it.type }
-        }
-        classDescriptorsByEntry = readResult.classDescriptorsByEntry
+        val readResultLocal = DexReadWrite.readMultidexFileFromZip(config.apkFile, dexWorkingDir)
+        readResult = readResultLocal
+        opcodes = readResultLocal.dexFile.opcodes
+        val classes = readResultLocal.dexFile.classes
+        originalClassCount = classes.size
         patchClasses = PatchClasses(classes)
+        patchClasses.getClassesByReferenceMap()
 
         // Insertion-ordered so iteration follows the original classes*.dex order; a plain
         // HashMap iterates in File-hash order, which varies with the temporary directory
@@ -638,7 +635,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         for (entry in patchClasses.classMap.values) {
             val def = entry.classDef
-            val inOriginalClassDescriptors = def.type in originalClassDescriptors
+            val inOriginalClassDescriptors = entry.ordinal < originalClassCount
 
             if (def is MutableClass) {
                 classesForNewDex.add(def)
