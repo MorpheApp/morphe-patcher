@@ -1,3 +1,10 @@
+## [2.0.2-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.1...v2.0.2-dev.1) (2026-10-25)
+
+
+### Bug Fixes
+
+* Allow ExternalLabel to target an instruction index or instruction match ([d6a326b](https://github.com/MorpheApp/morphe-patcher/commit/d6a326b6c47aa3467c0d3bf951d3399b51b0e592))
+
 ## [2.0.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.0...v2.0.1) (2026-10-25)
 
 
