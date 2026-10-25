@@ -805,14 +805,15 @@ internal object PatchClassesTest {
     @Test
     fun `HashIndex properly handles single items, collisions and table growth`() {
         val classDefs = (0 until 300).map { i ->
-            val literal = 0x10000L + i
+            val literal1 = 0x10000L + i
+            val literal2 = 0x20000L + i
             createClassDef(
                 "Lcom/test/Class$i;",
                 listOf(
                     createMethodWithSmali(
                         "Lcom/test/Class$i;",
                         "m",
-                        "const v0, $literal\nconst v1, 0x9999\nreturn-void"
+                        "const v0, $literal1\nconst v1, $literal2\nconst v2, 0x9999\nreturn-void"
                     )
                 )
             )
@@ -820,19 +821,41 @@ internal object PatchClassesTest {
         val classes = PatchClasses(dexBackedClasses(*classDefs.toTypedArray()))
         classes.getClassesByReferenceMap()
 
-        // Test unique literals (single-item buckets)
+        // Test unique literals (single-item buckets) after table growth
         for (i in 0 until 300) {
-            val literal = 0x10000L + i
-            val found = classes.getClassesContainingLiteral(literal)
-            assertNotNull(found)
-            assertEquals(1, found.size)
-            assertEquals("Lcom/test/Class$i;", found.single().classDef.type)
+            for (literal in listOf(0x10000L + i, 0x20000L + i)) {
+                val found = classes.getClassesContainingLiteral(literal)
+                assertNotNull(found)
+                assertEquals(1, found.size)
+                assertEquals("Lcom/test/Class$i;", found.single().classDef.type)
+            }
         }
 
         // Test shared literal across all 300 classes (collided bucket)
         val sharedFound = classes.getClassesContainingLiteral(0x9999L)
         assertNotNull(sharedFound)
         assertEquals(300, sharedFound.size)
+    }
+
+    @Test
+    fun `instruction indexes are built lazily on first lookup`() {
+        val classes = PatchClasses(
+            dexBackedClasses(
+                createClassDef(
+                    "Lcom/test/LazyClass;",
+                    listOf(createMethodWithStrings("Lcom/test/LazyClass;", "m", listOf("lazyString")))
+                )
+            )
+        )
+
+        assertEquals(0L, classes.indexBuildNanos)
+        classes.addClass(createClassDef("Lcom/test/AddedBeforeIndex;"))
+        assertEquals(0L, classes.indexBuildNanos)
+
+        val found = classes.getClassesFromOpcodeStringLiteral("lazyString")
+        assertNotNull(found)
+        assertEquals(1, found.size)
+        assertTrue(classes.indexBuildNanos > 0L)
     }
 
     @Test

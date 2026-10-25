@@ -2403,6 +2403,43 @@ internal object PatcherTest {
         }
     }
 
+    @Test
+    fun `fingerprint matches methods with Object signature types`() {
+        val patchClasses = PatchClasses(
+            dexBackedClasses(
+                "Lcom/test/SubClass;" to listOf(
+                    dexBackedMethod(
+                        "Lcom/test/SubClass;",
+                        "lookup",
+                        """
+                            sget-object v0, Lcom/test/Holder;->key:Ljava/lang/Object;
+                            sget-object v1, Lcom/test/Holder;->map:Ljava/util/Map;
+                            invoke-interface {v1, v0}, Ljava/util/Map;->get(Ljava/lang/Object;)Ljava/lang/Object;
+                            return-void
+                        """.trimIndent(),
+                    ),
+                ),
+            ),
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns patchClasses
+
+        with(patcher.context.bytecodeContext) {
+            val fingerprint = Fingerprint(
+                returnType = "V",
+                filters = listOf(
+                    fieldAccess(type = "Ljava/lang/Object;"),
+                    methodCall(
+                        returnType = "Ljava/lang/Object;",
+                        parameters = listOf("Ljava/lang/Object;"),
+                    ),
+                ),
+            )
+            val match = fingerprint.matchOrNull()
+            assertNotNull(match)
+            assertEquals("lookup", match.method.name)
+        }
+    }
+
     private operator fun Set<Patch<*>>.invoke(): List<PatchResult> {
         every { patcher.context.executablePatches } returns toMutableSet()
         every { with(patcher.context.bytecodeContext) { mergeExtension(any<BytecodePatch>()) } } just runs

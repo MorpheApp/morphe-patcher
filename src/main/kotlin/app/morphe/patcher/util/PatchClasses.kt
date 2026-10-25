@@ -35,6 +35,7 @@ import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.iface.reference.TypeReference
 import java.util.Collections
 import java.util.IdentityHashMap
+import java.util.logging.Logger
 import java.util.stream.Collectors
 
 /**
@@ -46,7 +47,7 @@ internal class PatchClasses internal constructor(
      */
     internal val classMap: MutableMap<String, ClassDefWrapper>
 ) {
-    private val logger = java.util.logging.Logger.getLogger(PatchClasses::class.java.name)
+    private val logger = Logger.getLogger(PatchClasses::class.java.name)
 
     /**
      * Container to hold the class definition that is either mutable or immutable.
@@ -110,12 +111,7 @@ internal class PatchClasses internal constructor(
          * The methods of [classDef].
          */
         val methods: Iterable<Method>
-            get() {
-                val classDefLocal = classDef
-                if (classDefLocal is MutableClass) return classDefLocal.methods
-
-                return classDefLocal.methods
-            }
+            get() = classDef.methods
 
         /**
          * The methods of [classDef] that can have other instructions than when it was indexed,
@@ -271,14 +267,17 @@ internal class PatchClasses internal constructor(
      * Classes by the hashes of indexed values. Unlike a [HashMap], the hashes are not boxed.
      * Different values can have the same hash, so the classes of a hash can be false positives.
      */
-    private class HashIndex {
-        private var hashes = IntArray(INITIAL_HASH_INDEX_CAPACITY)
-        private var classes = arrayOfNulls<Any>(INITIAL_HASH_INDEX_CAPACITY)
+    private class HashIndex(initialCapacity: Int) {
+        private var hashes = IntArray(initialCapacity)
+        private var classes = arrayOfNulls<Any>(initialCapacity)
         private var size = 0
+
+        private fun mixHash(hash: Int, mask: Int): Int =
+            (hash * -0x61c88647).let { it xor (it ushr 16) } and mask
 
         private fun slotOf(hash: Int): Int {
             val mask = hashes.size - 1
-            var slot = (hash * -0x61c88647).let { it xor (it ushr 16) } and mask
+            var slot = mixHash(hash, mask)
             while (true) {
                 val slotClasses = classes[slot]
                 if (slotClasses == null || hashes[slot] == hash) return slot
@@ -328,7 +327,7 @@ internal class PatchClasses internal constructor(
                 } else {
                     @Suppress("UNCHECKED_CAST")
                     val list = slotClasses as ArrayList<ClassDefWrapper>
-                    if (list.isEmpty() || list[list.lastIndex] !== wrapper) {
+                    if (list[list.lastIndex] !== wrapper) {
                         list.add(wrapper)
                     }
                 }
@@ -337,6 +336,7 @@ internal class PatchClasses internal constructor(
 
             hashes[slot] = hash
             classes[slot] = wrapper
+            // Keep at most half of the slots in use.
             if (++size * 2 > hashes.size) grow()
         }
 
@@ -351,7 +351,7 @@ internal class PatchClasses internal constructor(
             for (i in oldHashes.indices) {
                 val oldSlotClasses = oldClasses[i] ?: continue
                 val hash = oldHashes[i]
-                var slot = (hash * -0x61c88647).let { it xor (it ushr 16) } and mask
+                var slot = mixHash(hash, mask)
                 while (newClasses[slot] != null) {
                     slot = (slot + 1) and mask
                 }
@@ -380,7 +380,7 @@ internal class PatchClasses internal constructor(
             size = 0
         }
 
-        fun toSortedArray() = values.copyOf(size).apply { sort() }
+        fun toSortedArray() = if (size == 0) EMPTY_INT_ARRAY else values.copyOf(size).apply { sort() }
     }
 
     /**
@@ -427,11 +427,11 @@ internal class PatchClasses internal constructor(
         }
 
         /**
-         * Collects a type of a field or method signature. Primitive types and java/lang/Object
-         * are in most classes and are not indexed.
+         * Collects a type of a field or method signature. Primitive types are in most classes
+         * and are not indexed.
          */
         fun addSignatureType(type: String) {
-            if (type.length > 1 && type != "Ljava/lang/Object;") typeHashes.add(type.hashCode())
+            if (type.length > 1) typeHashes.add(type.hashCode())
         }
 
         /**
@@ -571,12 +571,14 @@ internal class PatchClasses internal constructor(
     /**
      * The indexes of the instruction values.
      */
-    private class IndexBuilder {
+    private class IndexBuilder(classCount: Int) {
+        private val initialCapacity = initialHashIndexCapacity(classCount)
+
         // Default 0.75f load factor works well and a lower value does not improve patching time.
-        val strings = HashMap<String, MutableList<ClassDefWrapper>>()
-        val types = HashIndex()
-        val memberNames = HashIndex()
-        val literals = HashIndex()
+        val strings = HashMap<String, List<ClassDefWrapper>>()
+        val types = HashIndex(initialCapacity)
+        val memberNames = HashIndex(initialCapacity)
+        val literals = HashIndex(initialCapacity)
 
         /**
          * Adds the values of a class to the indexes. Classes are added in class map order.
@@ -587,20 +589,24 @@ internal class PatchClasses internal constructor(
             if (values.strings.isNotEmpty()) {
                 wrapper.hasStrings = true
                 values.strings.forEach { string ->
-                    val existing = strings[string]
-                    if (existing == null) {
-                        strings[string] = Collections.singletonList(wrapper) as MutableList<ClassDefWrapper>
-                    } else if (existing is ArrayList<ClassDefWrapper>) {
-                        if (existing.isEmpty() || existing[existing.lastIndex] !== wrapper) {
-                            existing.add(wrapper)
+                    // A class that already holds the string is always the last class of the list.
+                    when (val existing = strings[string]) {
+                        null -> strings[string] = Collections.singletonList(wrapper)
+                        is ArrayList<*> -> {
+                            @Suppress("UNCHECKED_CAST")
+                            val list = existing as ArrayList<ClassDefWrapper>
+                            if (list[list.lastIndex] !== wrapper) {
+                                list.add(wrapper)
+                            }
                         }
-                    } else {
-                        val first = existing[0]
-                        if (first !== wrapper) {
-                            val list = ArrayList<ClassDefWrapper>(4)
-                            list.add(first)
-                            list.add(wrapper)
-                            strings[string] = list
+                        else -> {
+                            val first = existing[0]
+                            if (first !== wrapper) {
+                                strings[string] = ArrayList<ClassDefWrapper>(4).apply {
+                                    add(first)
+                                    add(wrapper)
+                                }
+                            }
                         }
                     }
                 }
@@ -614,7 +620,7 @@ internal class PatchClasses internal constructor(
     /**
      * Opcode string constant -> List<ClassDefWrapper>
      */
-    private var stringMap: MutableMap<String, MutableList<ClassDefWrapper>>? = null
+    private var stringMap: Map<String, List<ClassDefWrapper>>? = null
 
     /**
      * Instructions indexes, or null if not yet built.
@@ -698,8 +704,10 @@ internal class PatchClasses internal constructor(
     private fun buildInstructionIndexes(): Map<String, List<ClassDefWrapper>> {
         val startNanos = System.nanoTime()
         logger.info("Building instruction indexes for ${classMap.size} classes...")
-        val builder = IndexBuilder()
+        val builder = IndexBuilder(classMap.size)
 
+        // Scanning the instructions is the costly part and reads each class on its own, so it runs
+        // in parallel, a chunk at a time to bound memory, while the indexes are filled in class order.
         classMap.values.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
             chunk.parallelStream().map { wrapper -> wrapper.collectIndexValues() }.collect(Collectors.toList())
                 .forEachIndexed { i, values -> builder.add(chunk[i], values) }
@@ -896,11 +904,20 @@ internal class PatchClasses internal constructor(
         private const val CANDIDATE_INTERSECTION_SIZE_FACTOR = 16
 
         /**
-         * Must be a power of 2.
+         * Must be powers of 2.
          */
-        private const val INITIAL_HASH_INDEX_CAPACITY = 1 shl 19
+        private const val MIN_HASH_INDEX_CAPACITY = 16
+        private const val MAX_INITIAL_HASH_INDEX_CAPACITY = 1 shl 19
+
+        private fun initialHashIndexCapacity(classCount: Int): Int {
+            if (classCount <= 4) return MIN_HASH_INDEX_CAPACITY
+            return (Integer.highestOneBit(classCount - 1) shl 2)
+                .coerceIn(MIN_HASH_INDEX_CAPACITY, MAX_INITIAL_HASH_INDEX_CAPACITY)
+        }
 
         private const val INDEX_CHUNK_SIZE = 4096
+
+        private val EMPTY_INT_ARRAY = IntArray(0)
 
         private val threadLocalCollector = ThreadLocal.withInitial { ClassIndexCollector() }
 

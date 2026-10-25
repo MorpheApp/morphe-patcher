@@ -124,13 +124,11 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
         dexWorkingDir.apply { deleteRecursively(); mkdirs()}
 
-        val readResultLocal = DexReadWrite.readMultidexFileFromZip(config.apkFile, dexWorkingDir)
-        readResult = readResultLocal
-        opcodes = readResultLocal.dexFile.opcodes
-        val classes = readResultLocal.dexFile.classes
+        readResult = DexReadWrite.readMultidexFileFromZip(config.apkFile, dexWorkingDir)
+        opcodes = readResult.dexFile.opcodes
+        val classes = readResult.dexFile.classes
         originalClassCount = classes.size
         patchClasses = PatchClasses(classes)
-        patchClasses.getClassesByReferenceMap()
 
         // Insertion-ordered so iteration follows the original classes*.dex order; a plain
         // HashMap iterates in File-hash order, which varies with the temporary directory
@@ -463,7 +461,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         val emptiedDexNames = HashSet<String>()
         val strippedDexNames = originalDexMappings.filter { (originalDex, mappedFile) ->
             val stripped = DexStripper.stripInPlace(mappedFile, modifiedOriginalDescriptors)
-            if (stripped > 0 && stripped == classDescriptorsByEntry[originalDex.name]?.size) {
+            if (stripped > 0 && stripped == readResult.entryClassCounts[originalDex.name]) {
                 emptiedDexNames += originalDex.name
             }
             stripped > 0
@@ -635,6 +633,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         for (entry in patchClasses.classMap.values) {
             val def = entry.classDef
+            // Original classes receive ordinals 0 until originalClassCount, and replaced classes keep the ordinal of the class they replaced.
             val inOriginalClassDescriptors = entry.ordinal < originalClassCount
 
             if (def is MutableClass) {
