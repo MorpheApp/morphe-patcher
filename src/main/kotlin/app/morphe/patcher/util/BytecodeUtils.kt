@@ -33,6 +33,7 @@ import app.morphe.patcher.InstructionFilter
 import app.morphe.patcher.extensions.InstructionExtensions.addInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructionsWithLabels
+import app.morphe.patcher.extensions.InstructionExtensions.externalLabelIndex
 import app.morphe.patcher.extensions.InstructionExtensions.getInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.instructions
 import app.morphe.patcher.extensions.InstructionExtensions.removeInstruction
@@ -154,12 +155,20 @@ fun MutableMethod.addInstructionsAtControlFlowLabel(
     instructions: String,
     vararg externalLabels: ExternalLabel
 ) {
+    // Resolve the label indices before the original instruction is duplicated,
+    // and move labels at or after the insert index past the duplicated instruction.
+    // A label for the original instruction then points to the duplicate, which is kept.
+    val adjustedLabels = externalLabels.map { label ->
+        val targetIndex = externalLabelIndex(label)
+        ExternalLabel(label.name, if (targetIndex >= insertIndex) targetIndex + 1 else targetIndex)
+    }.toTypedArray()
+
     // Duplicate original instruction and add to +1 index.
     addInstruction(insertIndex + 1, getInstruction(insertIndex))
 
     // Add patch code at same index as duplicated instruction,
     // so it uses the original instruction control flow label.
-    addInstructionsWithLabels(insertIndex + 1, instructions, *externalLabels)
+    addInstructionsWithLabels(insertIndex + 1, instructions, *adjustedLabels)
 
     // Remove original non duplicated instruction.
     removeInstruction(insertIndex)

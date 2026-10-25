@@ -27,8 +27,11 @@ import app.morphe.patcher.extensions.InstructionExtensions.getInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.instructions
 import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod
+import app.morphe.patcher.util.smali.ExternalLabel
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.Opcodes
+import com.android.tools.smali.dexlib2.builder.BuilderOffsetInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.TwoRegisterInstruction
 import com.android.tools.smali.dexlib2.writer.builder.DexBuilder
 import com.android.tools.smali.smali.smaliFlexLexer
@@ -164,5 +167,63 @@ class BytecodeUtilsTest {
         assertFailsWith<IllegalStateException> {
             mutableClass.methods.first().addFreeRegisters(0, mutableClass)
         }
+    }
+
+    @Test
+    fun `addInstructionsAtControlFlowLabel with external label target index`() {
+        val mutableClass = mutableClass(
+            registers = 2,
+            body = """
+                const/4 v0, 0x0
+                const/4 v1, 0x1
+                const/4 v0, 0x2
+                const/4 v1, 0x3
+                return-void
+            """
+        )
+        val method = mutableClass.methods.first()
+
+        // Insert at index 1 targeting index 3 (which was "const/4 v1, 0x3")
+        method.addInstructionsAtControlFlowLabel(
+            1,
+            """
+                if-eqz v0, :skip
+            """,
+            ExternalLabel("skip", 3)
+        )
+
+        // The inserted if-eqz instruction (inserted at index 1 after the original was removed)
+        val ifInstruction = method.getInstruction<BuilderOffsetInstruction>(1)
+        val targetInstruction = ifInstruction.target.location.instruction!!
+        assertEquals(Opcode.CONST_4, targetInstruction.opcode)
+        assertEquals(1, (targetInstruction as OneRegisterInstruction).registerA)
+    }
+
+    @Test
+    fun `addInstructionsAtControlFlowLabel with external label at insert index`() {
+        val mutableClass = mutableClass(
+            registers = 2,
+            body = """
+                const/4 v0, 0x0
+                const/4 v1, 0x1
+                return-void
+            """
+        )
+        val method = mutableClass.methods.first()
+
+        // Label for the instruction at the insert index, which is moved after the patch code.
+        method.addInstructionsAtControlFlowLabel(
+            1,
+            """
+                if-eqz v0, :original
+                const/4 v0, 0x2
+            """,
+            ExternalLabel("original", method.getInstruction(1))
+        )
+
+        val ifInstruction = method.getInstruction<BuilderOffsetInstruction>(1)
+        assertEquals(3, ifInstruction.target.location.index)
+        val targetInstruction = ifInstruction.target.location.instruction as OneRegisterInstruction
+        assertEquals(1, targetInstruction.registerA)
     }
 }

@@ -1768,6 +1768,8 @@ public final class app/morphe/patcher/util/proxy/mutableTypes/encodedValue/Mutab
 }
 
 public final class app/morphe/patcher/util/smali/ExternalLabel {
+	public fun <init> (Ljava/lang/String;I)V
+	public fun <init> (Ljava/lang/String;Lapp/morphe/patcher/Match$InstructionMatch;)V
 	public fun <init> (Ljava/lang/String;Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;)V
 	public final fun copy (Ljava/lang/String;Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;)Lapp/morphe/patcher/util/smali/ExternalLabel;
 	public static synthetic fun copy$default (Lapp/morphe/patcher/util/smali/ExternalLabel;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;ILjava/lang/Object;)Lapp/morphe/patcher/util/smali/ExternalLabel;

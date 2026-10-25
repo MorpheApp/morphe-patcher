@@ -166,11 +166,14 @@ object InstructionExtensions {
         smaliInstructions: String,
         vararg externalLabels: ExternalLabel,
     ) {
+        // Resolve the external label indices before any instructions are added.
+        val externalLabelIndices = externalLabels.map { externalLabelIndex(it) }
+
         // Create reference dummy instructions for the instructions.
         val nopSmali =
             StringBuilder(smaliInstructions).also { builder ->
-                externalLabels.forEach { (name, _) ->
-                    builder.append("\n:$name\nnop")
+                externalLabels.forEach { label ->
+                    builder.append("\n:${label.name}\nnop")
                 }
             }.toString()
 
@@ -183,8 +186,9 @@ object InstructionExtensions {
             compiledInstructions.subList(0, compiledInstructions.size - externalLabels.size),
         )
 
+        val addedCount = compiledInstructions.size - externalLabels.size
         implementation!!.apply {
-            this@apply.instructions.subList(index, index + compiledInstructions.size - externalLabels.size)
+            this@apply.instructions.subList(index, index + addedCount)
                 .forEachIndexed { compiledInstructionIndex, compiledInstruction ->
                     // If the compiled instruction is not an offset instruction, skip it.
                     if (compiledInstruction !is BuilderOffsetInstruction) return@forEachIndexed
@@ -193,7 +197,7 @@ object InstructionExtensions {
                      * Create a new label for the instruction
                      * and replace it with the label of the [compiledInstruction] at [compiledInstructionIndex].
                      */
-                    fun Instruction.makeNewLabel(targetIndex: Int = -1) {
+                    fun makeNewLabel(finalIndex: Int) {
                         fun replaceOffset(
                             i: BuilderOffsetInstruction,
                             label: Label,
@@ -217,18 +221,6 @@ object InstructionExtensions {
                             }
                         }
 
-                        // Create the final label index.
-                        val finalIndex = if (targetIndex >= 0) targetIndex else this@apply.instructions.indexOf(this)
-
-                        // If the instruction was not found, throw an exception.
-                        if (finalIndex < 0) {
-                            throw PatchException(
-                                "Instruction not found in method implementation. " +
-                                    "If you're using an external label, make sure it's an instruction from the " +
-                                        "mutable method implementation.",
-                            )
-                        }
-
                         // Create the final label.
                         val label = newLabelForIndex(finalIndex)
 
@@ -246,20 +238,51 @@ object InstructionExtensions {
                     val dummyInstructionsStartIndex = compiledInstructions.size - externalLabels.size
                     if (labelIndex < dummyInstructionsStartIndex) {
                         // Get the targets index (insertion index + the index of the dummy instruction).
-                        this.instructions[index + labelIndex].makeNewLabel(index + labelIndex)
+                        makeNewLabel(index + labelIndex)
                         return@forEachIndexed
                     }
 
                     // Since the compiled instruction points to a dummy instruction,
                     // we can find the real instruction which it was created for by calculation.
 
-                    // Get the index of the instruction in the externalLabels list
-                    // which the dummy instruction was created for.
+                    // Get the index of the external label which the dummy instruction was created for.
                     // This works because we created the dummy instructions in the same order as the externalLabels list.
-                    val (_, instruction) = externalLabels[labelIndex - dummyInstructionsStartIndex]
-                    instruction.makeNewLabel()
+                    val targetIndex = externalLabelIndices[labelIndex - dummyInstructionsStartIndex]
+
+                    // Instructions at or after the insertion index were moved by the added instructions.
+                    makeNewLabel(if (targetIndex >= index) targetIndex + addedCount else targetIndex)
                 }
         }
+    }
+
+    /**
+     * Get the index of the instruction an [ExternalLabel] is for.
+     * Must be called before any instructions are added for the label.
+     */
+    internal fun MutableMethod.externalLabelIndex(label: ExternalLabel): Int {
+        val instructions = implementation!!.instructions
+
+        val index = when (val instruction = label.instruction) {
+            null -> label.targetIndex
+            else -> instructions.indexOf(instruction).takeIf { it >= 0 }
+                // Instructions from a match of a method that was not yet changed
+                // are the instructions of the source method, which have the same indices.
+                ?: if (instructionsChangeStamp == 0L) {
+                    sourceMethod.implementation?.instructions?.indexOfFirst { it === instruction } ?: -1
+                } else {
+                    -1
+                }
+        }
+
+        if (index !in instructions.indices) {
+            throw PatchException(
+                "External label instruction not found in method implementation: $label. " +
+                    "Make sure it's an instruction from the mutable method implementation, " +
+                    "or use an instruction index or instruction match instead.",
+            )
+        }
+
+        return index
     }
 
     /**

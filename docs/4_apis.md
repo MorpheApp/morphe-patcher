@@ -505,7 +505,8 @@ execute {
 This needs a free register for `v0`, see `findFreeRegister` above.
 
 **With an `ExternalLabel`:** `addInstructionsWithLabels` jumps to an existing instruction instead.
-Pass an `ExternalLabel(name, instruction)` for each outside label the smali refers to.
+Pass an `ExternalLabel(name, instruction)`, `ExternalLabel(name, targetIndex)`, or `ExternalLabel(name, instructionMatch)`
+for each outside label the smali refers to. An index is the index of the instruction before the new instructions are added.
 
 ```kt
 execute {
@@ -518,7 +519,7 @@ execute {
             move-result v0
             if-nez v0, :skip
         """,
-        ExternalLabel("skip", method.getInstruction(method.instructions.lastIndex)),
+        ExternalLabel("skip", method.instructions.lastIndex),
     )
 }
 ```
