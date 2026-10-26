@@ -1,3 +1,10 @@
+# [2.1.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.2-dev.1...v2.1.0-dev.1) (2026-10-26)
+
+
+### Features
+
+* Sign and verify patch bundles ([8dd3818](https://github.com/MorpheApp/morphe-patcher/commit/8dd381823175665624ef21c6b468821d3fdbe7bb))
+
 ## [2.0.2-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.1...v2.0.2-dev.1) (2026-10-25)
 
 
