@@ -5,7 +5,9 @@ package app.morphe.patcher.patch
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.nio.ByteBuffer
 import java.util.jar.Attributes
+import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import java.util.jar.Manifest
 import java.util.logging.Handler
@@ -180,6 +182,56 @@ internal object PatchLoaderTest {
         val message = generateSequence(exception) { it.cause }.filterIsInstance<PatchException>().first().message!!
         assertTrue("Test patches (${bundle("2.0.0-dev.5")})" in message, message)
         assertTrue("\"Public\" declared at" in message && "PatchLoaderTest.kt" in message, message)
+    }
+
+    /**
+     * A bundle with entries by name, holding the header of a class file of the version.
+     */
+    private fun bundleWithClassFileVersions(file: File, versions: Map<String, Int>) = file.also {
+        val manifest = Manifest().apply {
+            mainAttributes[Attributes.Name.MANIFEST_VERSION] = "1.0"
+            mainAttributes.putValue("Name", "Test patches")
+        }
+        JarOutputStream(it.outputStream(), manifest).use { jar ->
+            versions.forEach { (name, version) ->
+                jar.putNextEntry(JarEntry(name))
+                jar.write(ByteBuffer.allocate(8).putInt(0xCAFEBABE.toInt()).putShort(0).putShort(version.toShort()).array())
+                jar.closeEntry()
+            }
+        }
+    }
+
+    @Test
+    fun `bundles with classes compiled for Java 17 or older load`(@TempDir tempDir: File) {
+        val patchesFile = bundleWithClassFileVersions(
+            tempDir.resolve("patches.mpp"),
+            mapOf(
+                "app/Java11.class" to 55,
+                "app/Java17.class" to 61,
+                // Never loaded.
+                "META-INF/versions/21/app/Java21.class" to 65,
+                "app/Java21.txt" to 65,
+            ),
+        )
+
+        assertEquals(2, loadPatches(patchesFile).size)
+    }
+
+    @Test
+    fun `bundles with classes compiled for a newer Java version than 17 fail to load`(@TempDir tempDir: File) {
+        val patchesFile = tempDir.resolve("patches.mpp")
+        val versions = mapOf("app/Java17.class" to 61) + (1..12).associate { "app/Java21_$it.class" to 65 }
+        bundleWithClassFileVersions(patchesFile, versions)
+
+        val exception = assertFails { loadPatches(patchesFile) }
+        val message = generateSequence(exception) { it.cause }.filterIsInstance<PatchException>().first().message!!
+
+        assertTrue("Test patches ($patchesFile)" in message, "the bundle is named: $message")
+        assertTrue("Java 17 or older" in message, message)
+        assertTrue("app/Java21_1.class (Java 21, class file version 65)" in message, message)
+        assertTrue("app/Java21_10.class" in message && "app/Java21_11.class" !in message, message)
+        assertTrue("... and 2 more" in message, message)
+        assertFalse("app/Java17.class" in message, message)
     }
 
     private fun getPrivateFieldByType(cls: Class<*>, fieldType: Class<*>) =
