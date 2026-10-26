@@ -1033,6 +1033,13 @@ public abstract class app/morphe/patcher/patch/PatchBuilder {
 	protected final fun setFinalizeBlock (Lkotlin/jvm/functions/Function1;)V
 }
 
+public final class app/morphe/patcher/patch/PatchBundleSignature {
+	public static final field INSTANCE Lapp/morphe/patcher/patch/PatchBundleSignature;
+	public final fun fingerprint (Ljava/lang/String;)Ljava/lang/String;
+	public final fun sign (Ljava/io/File;Ljava/lang/String;)Ljava/lang/String;
+	public final fun verify (Ljava/io/File;)Ljava/lang/String;
+}
+
 public abstract interface class app/morphe/patcher/patch/PatchContext : java/util/function/Supplier {
 	public abstract fun getFileWorkspace ()Ljava/io/File;
 }
