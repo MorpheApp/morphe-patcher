@@ -1,3 +1,10 @@
+# [2.1.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0-dev.1...v2.1.0-dev.2) (2026-10-26)
+
+
+### Bug Fixes
+
+* Refuse to load patch bundles with classes compiled for newer than Java 17 as used by Morphe Manager ([099b0dd](https://github.com/MorpheApp/morphe-patcher/commit/099b0dd5d12daa5bc35d9f0078df11b6418acbbd))
+
 # [2.1.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.2-dev.1...v2.1.0-dev.1) (2026-10-26)
 
 
