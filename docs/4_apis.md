@@ -17,7 +17,8 @@ A handful of APIs are available to make patch development easier and more effici
 11. 🏷️ Insert code that jumps to existing code with `addInstructionsWithLabels()` and `addInstructionsAtControlFlowLabel()`
 12. 🔤 Find classes by the strings they contain with `classDefByStrings(String)`
 13. 🆔 Look up resource ids with `resourceId(ResourceType, String)` and `hasResourceId(ResourceType, String)`
-14. 🧰 Small helpers: `getReference()`, `getMutableMethod()`, `p0Register`
+14. ✅ Run extra checks while developing patches with `validate`
+15. 🧰 Small helpers: `getReference()`, `getMutableMethod()`, `p0Register`
 
 ### 🧰 APIs
 
@@ -599,6 +600,19 @@ execute {
     val id = resourceId(ResourceType.STRING, "app_name")
 }
 ```
+
+#### ✅ `validate`
+
+`validate` is true when patching with extra validation checks, such as with the `--validate` parameter of
+Morphe Desktop CLI. The patcher then requires every fingerprint to match a single method, and logs slow
+fingerprints and patches.
+
+Patches can use it for their own optional checks that are useful while developing patches, but are not
+required to patch the app and do not need to run every time for the end user. For example:
+
+- Verify that app resources used by extension code exist in the target app.
+- Verify that certain features are or are not present in the target app.
+- Other optional checks that are slow or only useful for development.
 
 #### 🧰 Small helpers
 

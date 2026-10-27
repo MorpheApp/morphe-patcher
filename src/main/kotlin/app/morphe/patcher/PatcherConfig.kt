@@ -32,6 +32,7 @@ import java.util.logging.Logger
  * @param validate If extra validation checks are done. Currently, every [Fingerprint.match] and
  * [Fingerprint.matchOrNull] must match at most one method, the same as using `matchSingle()`.
  * Slow fingerprints and patches are also logged.
+ * Patches can check [app.morphe.patcher.patch.PatchContext.validate] to do their own validation checks.
  */
 class PatcherConfig(
     internal val apkFile: File,

@@ -21,4 +21,13 @@ sealed interface PatchContext<T> : Supplier<T> {
      * This directory has write access and can be used for temporary files.
      */
     val fileWorkspace: File
+
+    /**
+     * If extra validation checks are done, such as when patching with the `--validate` CLI argument.
+     * Patches can use this to run their own optional checks that are too slow or too strict
+     * to always run for the end user.
+     *
+     * @see app.morphe.patcher.PatcherConfig.validate
+     */
+    val validate: Boolean
 }
