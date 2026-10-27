@@ -66,6 +66,16 @@ execute {
 }
 ```
 
+`getFieldAccessed()` does the same for a field access instruction. If only the reference is needed
+(the defining class, name or type), use `methodReference` or `fieldReference` instead:
+
+```kt
+execute {
+    val methodReference = ShowAdsFingerprint.instructionMatches.first().methodReference
+    val fieldReference = SomeFingerprint.instructionMatches.last().fieldReference
+}
+```
+
 #### 💾 `get(String, Boolean)` and `delete(String)`
 
 The `get(String, Boolean)` function returns a `File` object that can be used to read and write resource files.

@@ -490,8 +490,14 @@ Each item of `instructionMatches` corresponds to the filter declared at the same
 - `index`: The index of the matched instruction in the method.
 - `instruction`: The matched instruction.
 - `getInstruction<T>()`: The matched instruction, cast to the expected type such as `OneRegisterInstruction`.
+- `methodReference`: For a method call, the reference of the method that is called.
+- `fieldReference`: For a field access, the reference of the field that is accessed.
 - `getMethodCalled()`: For a method call, the mutable method that is called.
 - `getFieldAccessed()`: For a field access, the mutable field that is accessed.
+
+`methodReference` and `fieldReference` throw an exception if the instruction is not a method call
+or field access. Prefer them over `getMethodCalled()` and `getFieldAccessed()` if only the defining class,
+name or type is needed, since they do not look up the method or field and do not make its class mutable.
 
 Be careful if making more than 1 modification to the same method. Adding or removing instructions in
 a method can cause fingerprint match indexes to no longer be correct. The simplest solution is

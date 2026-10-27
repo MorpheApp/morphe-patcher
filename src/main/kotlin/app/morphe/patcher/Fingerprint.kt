@@ -1813,17 +1813,45 @@ class Match internal constructor(
         fun <T> getInstruction(): T = instruction as T
 
         /**
+         * The method reference of a method call instruction.
+         * This may only be used on filters that match method calls such as [methodCall]
+         * or [opcode] with an `INVOKE_*` [Opcode].
+         *
+         * @throws IllegalArgumentException If the instruction is not a method call.
+         */
+        val methodReference: MethodReference
+            get() {
+                val reference = (instruction as? ReferenceInstruction)?.reference
+                require(reference is MethodReference) {
+                    "Matched instruction is not a method call: $instruction"
+                }
+                return reference
+            }
+
+        /**
+         * The field reference of a field access instruction.
+         * This may only be used on filters that match field accesses such as [fieldAccess]
+         * or [opcode] with a `GET`/`PUT` [Opcode].
+         *
+         * @throws IllegalArgumentException If the instruction is not a field access.
+         */
+        val fieldReference: FieldReference
+            get() {
+                val reference = (instruction as? ReferenceInstruction)?.reference
+                require(reference is FieldReference) {
+                    "Matched instruction is not a field access: $instruction"
+                }
+                return reference
+            }
+
+        /**
          * Returns the mutable method of a method call instruction.
          * This may only be used on filters that match method calls such as [methodCall]
          * or [opcode] with an `INVOKE_*` [Opcode].
          */
         context(patchContext: BytecodePatchContext)
         fun getMethodCalled(): MutableMethod {
-            require(instruction is ReferenceInstruction && instruction.reference is MethodReference) {
-                "Matched instruction is not a method call: $instruction"
-            }
-
-            val methodReference = instruction.reference as MethodReference
+            val methodReference = methodReference
             return patchContext.mutableClassDefBy(methodReference.definingClass).methods.first { classMethod ->
                 MethodUtil.methodSignaturesMatch(classMethod, methodReference)
             }
@@ -1836,11 +1864,7 @@ class Match internal constructor(
          */
         context(patchContext: BytecodePatchContext)
         fun getFieldAccessed(): MutableField {
-            require(instruction is ReferenceInstruction && instruction.reference is FieldReference) {
-                "Matched instruction is not a a field access call: $instruction"
-            }
-
-            val fieldReference = instruction.reference as FieldReference
+            val fieldReference = fieldReference
             val mutableClass = patchContext.mutableClassDefBy(fieldReference.definingClass)
             return mutableClass.fields.first { classField ->
                 classField.type == fieldReference.type && classField.name == fieldReference.name
