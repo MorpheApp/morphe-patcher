@@ -1,3 +1,10 @@
+# [2.1.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0-dev.2...v2.1.0-dev.3) (2026-10-27)
+
+
+### Bug Fixes
+
+* Show a concise stack trace if a patch throw an exception ([20f1d65](https://github.com/MorpheApp/morphe-patcher/commit/20f1d65e31f7b2e0024e00103a563e13fa742675))
+
 # [2.1.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0-dev.1...v2.1.0-dev.2) (2026-10-26)
 
 
