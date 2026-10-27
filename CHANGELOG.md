@@ -1,3 +1,10 @@
+# [2.1.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0-dev.3...v2.1.0-dev.4) (2026-10-27)
+
+
+### Features
+
+* Add methodReference and fieldReference to InstructionMatch ([9f0458f](https://github.com/MorpheApp/morphe-patcher/commit/9f0458f164a361084eab64eca9f25ae936d833b5))
+
 # [2.1.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0-dev.2...v2.1.0-dev.3) (2026-10-27)
 
 
