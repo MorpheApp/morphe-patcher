@@ -1,3 +1,10 @@
+# [2.1.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0-dev.5...v2.1.0-dev.6) (2026-10-28)
+
+
+### Bug Fixes
+
+* Speed up patches that add many new files to large APKs ([538e85f](https://github.com/MorpheApp/morphe-patcher/commit/538e85fdbce42e977c4207badc34beadd892684a))
+
 # [2.1.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0-dev.4...v2.1.0-dev.5) (2026-10-28)
 
 
