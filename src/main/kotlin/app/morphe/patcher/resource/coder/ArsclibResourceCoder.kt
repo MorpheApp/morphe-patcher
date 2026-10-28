@@ -344,7 +344,7 @@ internal class ArsclibResourceCoder(
      */
     private var originalExtractNativeLibs: Boolean? = null
 
-    private val lazyPackageInfo = lazy {
+    private val packageInfo by lazy {
         ApkModule.loadApkFile(apkFile).use { module ->
             val manifest = module.androidManifest
             originalExtractNativeLibs = manifest.isExtractNativeLibs
@@ -369,7 +369,7 @@ internal class ArsclibResourceCoder(
     @Synchronized
     private fun inputModule(): ApkModule = (inputModule ?: ApkModule.loadApkFile(apkFile).also {
         if (it.hasAndroidManifest()) {
-            lazyPackageInfo.value.frameworkVersion?.let { version -> it.setPreferredFramework(version) }
+            packageInfo.frameworkVersion?.let { version -> it.setPreferredFramework(version) }
         }
         inputModule = it
     }).also { module ->
@@ -417,10 +417,10 @@ internal class ArsclibResourceCoder(
 
     override fun getPackageMetadata(): PackageMetadata {
         return PackageMetadata(
-            lazyPackageInfo.value.packageName,
-            lazyPackageInfo.value.versionName,
-            lazyPackageInfo.value.versionCode,
-            lazyPackageInfo.value.signatureBlock
+            packageInfo.packageName,
+            packageInfo.versionName,
+            packageInfo.versionCode,
+            packageInfo.signatureBlock
         )
     }
 
@@ -611,7 +611,7 @@ internal class ArsclibResourceCoder(
      * and are re-added with the compression the new value calls for.
      */
     private fun routeNativeLibrariesIfCompressionChanged() {
-        lazyPackageInfo.value // populates originalExtractNativeLibs
+        packageInfo // populates originalExtractNativeLibs
         // Absent means the platform default (true since API 23), so treat it as a value rather
         // than skipping: adding or removing the attribute is exactly the interesting case.
         val original = originalExtractNativeLibs ?: true
@@ -690,7 +690,7 @@ internal class ArsclibResourceCoder(
             val manifestNode = manifest.getElementsByTagName("manifest").item(0) as Element
             manifestNode.getAttribute("package")
         }
-        val originalPackageName = lazyPackageInfo.value.packageName
+        val originalPackageName = packageInfo.packageName
         val packageRenamed = originalPackageName != newPackageName
 
         val incremental = !fullResourceEncode
@@ -850,7 +850,7 @@ internal class ArsclibResourceCoder(
         try {
             val encoder = ApkModuleXmlEncoder()
             encoder.apkModule.use { loadedModule ->
-                lazyPackageInfo.value.frameworkVersion?.let { loadedModule.setPreferredFramework(it) }
+                packageInfo.frameworkVersion?.let { loadedModule.setPreferredFramework(it) }
 
                 val scanDuration = measureTime {
                     encoder.scanDirectory(workingDir)
@@ -1258,7 +1258,7 @@ internal class ArsclibResourceCoder(
 
         val retval = if (aliasedPath == "res" || aliasedPath.startsWith("res/") || aliasedPath == "package.json") {
             // Only resource paths are package scoped, so do not read the manifest for the rest.
-            val pkgName = packageName ?: lazyPackageInfo.value.packageName
+            val pkgName = packageName ?: packageInfo.packageName
             val file = packageDirectories[pkgName]?.resolve(aliasedPath) ?: throw PatchException("Package $pkgName not found")
             if (copy) onRequestDecoder?.packages?.get(pkgName)?.let { decodeOnRequest(it, listOf(aliasedPath)) }
             file
@@ -1304,7 +1304,7 @@ internal class ArsclibResourceCoder(
     }
 
     override fun listDecodableFiles(pattern: String, packageName: String?): List<String> {
-        val pkgName = packageName ?: lazyPackageInfo.value.packageName
+        val pkgName = packageName ?: packageInfo.packageName
         val matcher = PathPatterns(listOf(pattern))
 
         val paths = onRequestDecoder?.let { decoder ->
@@ -1318,7 +1318,7 @@ internal class ArsclibResourceCoder(
     }
 
     override fun decode(patterns: Collection<String>, packageName: String?): List<String> {
-        val pkgName = packageName ?: lazyPackageInfo.value.packageName
+        val pkgName = packageName ?: packageInfo.packageName
         val matcher = PathPatterns(patterns)
 
         onRequestDecoder?.let { decoder ->
@@ -1496,22 +1496,23 @@ internal class ArsclibResourceCoder(
      * Extract a single root entry from the input APK into the working directory, and record it
      * in the snapshot so that [detectFileChanges] treats it as pre-existing rather than added.
      * A patch that goes on to modify or delete it is then detected exactly as before.
+     * Entries are looked up in [apkEntryNames] first, since patches adding many new files request
+     * paths the archive does not have, and opening a large APK for each of them dominates patching.
      */
     private fun extractRootEntries(aliasedPath: String) {
         // The working directory holds on-disk alias paths, the archive holds original names.
         val apkPath = archiveNameOf(aliasedPath)
-        ZFile.openReadOnly(apkFile).use { zFile ->
-            val exact = zFile.get(apkPath)
-            if (exact != null) {
-                extractEntry(zFile, apkPath)
-                return@use
-            }
+        val entries = if (apkPath in apkEntryNames) {
+            listOf(apkPath)
+        } else {
             // A patch may ask for a directory (and then list it), which staging used to provide.
             val prefix = "${apkPath.trimEnd('/')}/"
-            zFile.entries().forEach { entry ->
-                val name = entry.centralDirectoryHeader.name
-                if (name.startsWith(prefix)) extractEntry(zFile, name)
-            }
+            apkEntryNames.filter { it.startsWith(prefix) }
+        }
+        if (entries.isEmpty()) return
+
+        ZFile.openReadOnly(apkFile).use { zFile ->
+            entries.forEach { name -> extractEntry(zFile, name) }
         }
     }
 
@@ -1586,7 +1587,7 @@ internal class ArsclibResourceCoder(
      * @return a File object representing the copied file.
      */
     override fun addFile(destPath: String, srcFile: File, packageName: String?): File {
-        val pkgName = packageName ?: lazyPackageInfo.value.packageName
+        val pkgName = packageName ?: packageInfo.packageName
         val destFile =
             packageDirectories[pkgName]?.resolve(destPath) ?: throw PatchException("Package $pkgName not found")
         Files.copy(srcFile.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
@@ -1600,7 +1601,7 @@ internal class ArsclibResourceCoder(
         // Decoded resources are package scoped and live in the working directory; removing the
         // file there is enough, the snapshot diff reports it as deleted.
         if (alias == "res" || alias.startsWith("res/") || alias == "package.json") {
-            val pkgName = packageName ?: lazyPackageInfo.value.packageName
+            val pkgName = packageName ?: packageInfo.packageName
             val packageDirectory = packageDirectories[pkgName] ?: throw PatchException("Package $pkgName not found")
             val file = resolveInside(packageDirectory, alias)
                 ?: throw PatchException("Refusing to delete \"$path\": it escapes the working directory")
