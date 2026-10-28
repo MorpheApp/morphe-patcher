@@ -1,3 +1,10 @@
+# [2.1.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0-dev.4...v2.1.0-dev.5) (2026-10-28)
+
+
+### Features
+
+* Expose validate flag to patches for optional development checks ([0d41596](https://github.com/MorpheApp/morphe-patcher/commit/0d41596a82e72fbbd09dc147b78c2c376866e3b2))
+
 # [2.1.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0-dev.3...v2.1.0-dev.4) (2026-10-27)
 
 
