@@ -1045,7 +1045,7 @@ public final class app/morphe/patcher/patch/PatchBundleSignature {
 
 public abstract interface class app/morphe/patcher/patch/PatchContext : java/util/function/Supplier {
 	public abstract fun getFileWorkspace ()Ljava/io/File;
-    	public abstract fun getValidate ()Z
+	public abstract fun getValidate ()Z
 }
 
 public final class app/morphe/patcher/patch/PatchException : java/lang/Exception {

@@ -455,18 +455,14 @@ internal class PatchClasses internal constructor(
                 if (opcodeValue == 0) opcodeValue = buffer.readUshort(offset)
                 val opcode = opcodes.getOpcodeByValue(opcodeValue)
 
-                val codeUnits = when (opcode) {
-                    null -> 1 // Unknown instruction.
-                    Opcode.PACKED_SWITCH_PAYLOAD -> 4 + buffer.readUshort(offset + 2) * 2
-                    Opcode.SPARSE_SWITCH_PAYLOAD -> 2 + buffer.readUshort(offset + 2) * 4
-                    Opcode.ARRAY_PAYLOAD -> 4 + (buffer.readUshort(offset + 2) * buffer.readSmallUint(offset + 4) + 1) / 2
-                    else -> {
-                        addDexBackedLiteral(opcode, offset, buffer)
-                        if (!addDexBackedReference(opcode, offset, decoder)) {
-                            addReference(DexBackedInstruction.readFrom(dexFile, buffer.readerAt(offset)))
-                        }
-                        opcode.format.size / 2
+                val codeUnits = if (opcode == null || opcode.format.isPayloadFormat) {
+                    DexBackedInstruction.getCodeUnits(dexFile, offset)
+                } else {
+                    addDexBackedLiteral(opcode, offset, buffer)
+                    if (!addDexBackedReference(opcode, offset, decoder)) {
+                        addReference(DexBackedInstruction.readFrom(dexFile, buffer.readerAt(offset)))
                     }
+                    opcode.format.size / 2
                 }
 
                 offset += codeUnits * 2
