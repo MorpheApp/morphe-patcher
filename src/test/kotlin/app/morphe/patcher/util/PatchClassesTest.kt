@@ -665,6 +665,47 @@ internal object PatchClassesTest {
     }
 
     @Test
+    fun `array payloads of width zero are indexed as dexlib2 reads them`() {
+        val classDef = createClassDef(
+            "Lcom/test/ZeroWidthArray;",
+            listOf(
+                createMethodWithSmali(
+                    "Lcom/test/ZeroWidthArray;",
+                    "zeroWidthArray",
+                    """
+                        fill-array-data v0, :array
+                        goto :end
+                        :array
+                        .array-data 1
+                        .end array-data
+                        :end
+                        const v0, 0x7f020304
+                        return-void
+                    """
+                )
+            )
+        )
+        val dexPool = DexPool(Opcodes.getDefault())
+        dexPool.internClass(classDef)
+        val dataStore = MemoryDataStore()
+        dexPool.writeTo(dataStore)
+        val bytes = dataStore.data
+        val emptyPayload = byteArrayOf(0x00, 0x03, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00)
+        val payloadStart = (0..bytes.size - emptyPayload.size).single { start ->
+            emptyPayload.indices.all { bytes[start + it] == emptyPayload[it] }
+        }
+        byteArrayOf(0x00, 0x03, 0x00, 0x00, 0xde.toByte(), 0x1e, 0x26, 0xa1.toByte())
+            .copyInto(bytes, payloadStart)
+
+        val classes = PatchClasses(DexReadWrite.readDexStream(ByteArrayInputStream(bytes)).classes)
+
+        assertEquals(
+            listOf("Lcom/test/ZeroWidthArray;"),
+            classes.getIndexedClassesContainingLiteral(0x7f020304).map { it.classDef.type },
+        )
+    }
+
+    @Test
     fun `candidates of mutable classes are the methods that changed and can satisfy the conditions`() {
         val classes = PatchClasses(
             dexBackedClasses(
