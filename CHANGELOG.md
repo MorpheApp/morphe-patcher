@@ -1,3 +1,10 @@
+# [2.1.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0-dev.6...v2.1.0-dev.7) (2026-10-29)
+
+
+### Bug Fixes
+
+* Index array payloads of element width 0 as dexlib2 reads them ([#271](https://github.com/MorpheApp/morphe-patcher/issues/271)) ([05be160](https://github.com/MorpheApp/morphe-patcher/commit/05be16043b8b0711a765277562103da53b70597a))
+
 # [2.1.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0-dev.5...v2.1.0-dev.6) (2026-10-28)
 
 
