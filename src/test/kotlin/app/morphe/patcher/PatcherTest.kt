@@ -209,6 +209,71 @@ internal object PatcherTest {
     }
 
     @Test
+    fun `stack traces of patch exceptions are trimmed to the patch`() {
+        fun fail(): Nothing = throw IllegalStateException("Failure")
+
+        // Frames of the patcher and its caller are below the call into the patch.
+        fun Throwable.assertTrimmed() {
+            val patcherClassName = Patcher::class.java.name
+
+            generateSequence(this) { it.cause }.forEach { throwable ->
+                throwable.stackTrace.forEach { frame ->
+                    assertFalse(
+                        frame.className == patcherClassName ||
+                            frame.className.startsWith("$patcherClassName$") ||
+                            frame.className.startsWith("kotlinx.") ||
+                            frame.className.startsWith("org.junit."),
+                        "Expected no frames below the patch, but found: $frame",
+                    )
+                }
+            }
+        }
+
+        fun Throwable.assertEndsAtPatchCall(method: String) {
+            assertTrue(stackTrace.isNotEmpty(), "Expected the frames of the patch to be kept.")
+            assertTrue(
+                stackTrace.any { it.className == Patch::class.java.name && it.methodName == method },
+                "Expected the call into the patch to be kept.",
+            )
+        }
+
+        val direct = bytecodePatch { execute { throw PatchException("Direct") } }().exception
+        assertNotNull(direct)
+        direct.assertTrimmed()
+        direct.assertEndsAtPatchCall("execute")
+
+        // The wrapper has no frames of the patch.
+        val wrapped = bytecodePatch { execute { fail() } }().exception
+        assertNotNull(wrapped)
+        wrapped.assertTrimmed()
+        assertTrue(wrapped.stackTrace.isEmpty())
+        assertTrue(wrapped.cause is IllegalStateException)
+        wrapped.cause!!.assertEndsAtPatchCall("execute")
+
+        val dependant = bytecodePatch {
+            dependsOn(bytecodePatch { execute { fail() } })
+            execute { }
+        }().exception
+        assertNotNull(dependant)
+        dependant.assertTrimmed()
+        assertTrue(dependant.stackTrace.isEmpty())
+        assertFalse(dependant.message!!.contains("\tat "), "Expected no stack trace in the message.")
+        assertTrue(dependant.cause!!.cause is IllegalStateException)
+        dependant.cause!!.cause!!.assertEndsAtPatchCall("execute")
+
+        val finalized = bytecodePatch {
+            execute { }
+            finalize { fail() }
+        }().exception
+        assertNotNull(finalized)
+        finalized.assertTrimmed()
+        assertFalse(finalized.message!!.contains("\tat "), "Expected no stack trace in the message.")
+        assertTrue(finalized.cause is IllegalStateException)
+        assertNull(finalized.cause!!.cause, "Expected the exception to be wrapped only once.")
+        finalized.cause!!.assertEndsAtPatchCall("finalize")
+    }
+
+    @Test
     fun `universal patch that is default on`() {
         // Verify default is false even though universal declared true.
         val patch = bytecodePatch(name = "Test", default = true) { }

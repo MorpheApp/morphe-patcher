@@ -48,12 +48,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
     override val fileWorkspace = config.fileWorkspace
 
-    /**
-     * If extra validation checks are done.
-     *
-     * @see PatcherConfig.validate
-     */
-    internal val validate = config.validate
+    override val validate = config.validate
 
     /**
      * Total time spent resolving fingerprints, used if [validate] is set.

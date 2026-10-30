@@ -2,6 +2,7 @@
 
 package app.morphe.patcher.extensions
 
+import app.morphe.patcher.Match
 import app.morphe.patcher.extensions.InstructionExtensions.addInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructionsWithLabels
@@ -10,6 +11,8 @@ import app.morphe.patcher.extensions.InstructionExtensions.removeInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.removeInstructions
 import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.replaceInstructions
+import app.morphe.patcher.opcode
+import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
 import app.morphe.patcher.util.smali.ExternalLabel
@@ -23,6 +26,7 @@ import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
 import org.junit.jupiter.api.BeforeEach
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 private object InstructionExtensionsTest {
     private lateinit var testMethod: MutableMethod
@@ -175,6 +179,135 @@ private object InstructionExtensionsTest {
 
                 assertEquals(5, gotoTarget.registerA)
             }
+        }
+
+    @Test
+    fun addSmaliInstructionsWithExternalLabelTargetIndexAfterInsert() =
+        applyToMethod {
+            val label = ExternalLabel("testLabel", 5)
+
+            addInstructionsWithLabels(
+                5,
+                getTestSmaliInstructions(0..1).plus("\n").plus("goto :${label.name}"),
+                label,
+            ).also {
+                assertRegisterIs(0, 5)
+                assertRegisterIs(1, 6)
+                assertRegisterIs(5, 8)
+
+                val gotoTarget =
+                    getInstruction<BuilderOffsetInstruction>(7)
+                        .target.location.instruction as OneRegisterInstruction
+
+                assertEquals(5, gotoTarget.registerA)
+            }
+        }
+
+    @Test
+    fun addSmaliInstructionsWithExternalLabelTargetIndexBeforeInsert() =
+        applyToMethod {
+            val label = ExternalLabel("testLabel", 2)
+
+            addInstructionsWithLabels(
+                5,
+                getTestSmaliInstructions(0..1).plus("\n").plus("goto :${label.name}"),
+                label,
+            ).also {
+                val gotoTarget =
+                    getInstruction<BuilderOffsetInstruction>(7)
+                        .target.location.instruction as OneRegisterInstruction
+
+                assertEquals(2, gotoTarget.registerA)
+            }
+        }
+
+    @Test
+    fun addSmaliInstructionsWithExternalLabelInstructionMatch() =
+        applyToMethod {
+            val instructionMatch = Match.InstructionMatch(opcode(Opcode.CONST_16), 5, getInstruction(5))
+            val label = ExternalLabel("testLabel", instructionMatch)
+
+            addInstructionsWithLabels(
+                5,
+                getTestSmaliInstructions(0..1).plus("\n").plus("goto :${label.name}"),
+                label,
+            ).also {
+                assertRegisterIs(0, 5)
+                assertRegisterIs(1, 6)
+                assertRegisterIs(5, 8)
+
+                val gotoTarget =
+                    getInstruction<BuilderOffsetInstruction>(7)
+                        .target.location.instruction as OneRegisterInstruction
+
+                assertEquals(5, gotoTarget.registerA)
+            }
+        }
+
+    @Test
+    fun addSmaliInstructionsWithExternalLabelImmutableInstruction() =
+        applyToMethod {
+            // Instruction from immutable sourceMethod (e.g. as returned by Fingerprint match)
+            val immutableInstruction = sourceMethod.implementation!!.instructions.elementAt(5)
+            val label = ExternalLabel("testLabel", immutableInstruction)
+
+            addInstructionsWithLabels(
+                5,
+                getTestSmaliInstructions(0..1).plus("\n").plus("goto :${label.name}"),
+                label,
+            ).also {
+                assertRegisterIs(0, 5)
+                assertRegisterIs(1, 6)
+                assertRegisterIs(5, 8)
+
+                val gotoTarget =
+                    getInstruction<BuilderOffsetInstruction>(7)
+                        .target.location.instruction as OneRegisterInstruction
+
+                assertEquals(5, gotoTarget.registerA)
+            }
+        }
+
+    @Test
+    fun addSmaliInstructionsWithExternalLabelInvalidInstructionThrows() =
+        applyToMethod {
+            val foreignInstruction = TestInstruction(99)
+            val label = ExternalLabel("testLabel", foreignInstruction)
+
+            assertFailsWith<PatchException> {
+                addInstructionsWithLabels(
+                    5,
+                    getTestSmaliInstructions(0..1).plus("\n").plus("goto :${label.name}"),
+                    label,
+                )
+            }
+        }
+
+    @Test
+    fun addSmaliInstructionsWithExternalLabelImmutableInstructionAfterChangeThrows() =
+        applyToMethod {
+            val immutableInstruction = sourceMethod.implementation!!.instructions.elementAt(5)
+            val label = ExternalLabel("testLabel", immutableInstruction)
+
+            // The source method indices no longer match the indices of the changed method.
+            addInstructions(0, getTestSmaliInstruction(0))
+
+            assertFailsWith<PatchException> {
+                addInstructionsWithLabels(5, "goto :${label.name}", label)
+            }
+        }
+
+    @Test
+    fun addSmaliInstructionsWithExternalLabelTargetIndexOutOfBoundsThrows() =
+        applyToMethod {
+            val label = ExternalLabel("testLabel", 10)
+
+            assertFailsWith<PatchException> {
+                addInstructionsWithLabels(5, "goto :${label.name}", label)
+            }
+
+            // The method is not changed if a label is invalid.
+            assertEquals(10, implementation!!.instructions.size)
         }
 
     @Test

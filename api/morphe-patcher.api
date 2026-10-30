@@ -289,11 +289,13 @@ public final class app/morphe/patcher/Match {
 
 public final class app/morphe/patcher/Match$InstructionMatch {
 	public final fun getFieldAccessed (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableField;
+	public final fun getFieldReference ()Lcom/android/tools/smali/dexlib2/iface/reference/FieldReference;
 	public final fun getFilter ()Lapp/morphe/patcher/InstructionFilter;
 	public final fun getIndex ()I
 	public final fun getInstruction ()Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;
 	public final fun getInstruction ()Ljava/lang/Object;
 	public final fun getMethodCalled (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public final fun getMethodReference ()Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -699,6 +701,7 @@ public final class app/morphe/patcher/patch/BytecodePatchContext : app/morphe/pa
 	public final fun getAllClassesWithStrings ()Ljava/util/List;
 	public fun getFileWorkspace ()Ljava/io/File;
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
+	public fun getValidate ()Z
 	public final fun mutableClassDefBy (Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun mutableClassDefBy (Ljava/lang/String;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun mutableClassDefBy (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
@@ -1033,8 +1036,16 @@ public abstract class app/morphe/patcher/patch/PatchBuilder {
 	protected final fun setFinalizeBlock (Lkotlin/jvm/functions/Function1;)V
 }
 
+public final class app/morphe/patcher/patch/PatchBundleSignature {
+	public static final field INSTANCE Lapp/morphe/patcher/patch/PatchBundleSignature;
+	public final fun fingerprint (Ljava/lang/String;)Ljava/lang/String;
+	public final fun sign (Ljava/io/File;Ljava/lang/String;)Ljava/lang/String;
+	public final fun verify (Ljava/io/File;)Ljava/lang/String;
+}
+
 public abstract interface class app/morphe/patcher/patch/PatchContext : java/util/function/Supplier {
 	public abstract fun getFileWorkspace ()Ljava/io/File;
+	public abstract fun getValidate ()Z
 }
 
 public final class app/morphe/patcher/patch/PatchException : java/lang/Exception {
@@ -1154,6 +1165,7 @@ public final class app/morphe/patcher/patch/ResourcePatchContext : app/morphe/pa
 	public fun getFileWorkspace ()Ljava/io/File;
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
 	public final fun getResourceIds ()Lapp/morphe/patcher/resource/ResourceIds;
+	public fun getValidate ()Z
 	public final fun listApkEntries (Ljava/lang/String;)Ljava/util/List;
 	public static synthetic fun listApkEntries$default (Lapp/morphe/patcher/patch/ResourcePatchContext;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/List;
 	public final fun listDecodableFiles (Ljava/lang/String;Ljava/lang/String;)Ljava/util/List;
@@ -1768,6 +1780,8 @@ public final class app/morphe/patcher/util/proxy/mutableTypes/encodedValue/Mutab
 }
 
 public final class app/morphe/patcher/util/smali/ExternalLabel {
+	public fun <init> (Ljava/lang/String;I)V
+	public fun <init> (Ljava/lang/String;Lapp/morphe/patcher/Match$InstructionMatch;)V
 	public fun <init> (Ljava/lang/String;Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;)V
 	public final fun copy (Ljava/lang/String;Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;)Lapp/morphe/patcher/util/smali/ExternalLabel;
 	public static synthetic fun copy$default (Lapp/morphe/patcher/util/smali/ExternalLabel;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;ILjava/lang/Object;)Lapp/morphe/patcher/util/smali/ExternalLabel;

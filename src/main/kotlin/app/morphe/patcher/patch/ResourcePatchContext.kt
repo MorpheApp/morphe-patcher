@@ -39,6 +39,8 @@ class ResourcePatchContext internal constructor(
 
     override val fileWorkspace = config.fileWorkspace
 
+    override val validate = config.validate
+
     private val resourceCoder: ResourceCoder = ArsclibResourceCoder(config.apkFiles, config.apkFile, config.keepArchitectures)
 
     /**

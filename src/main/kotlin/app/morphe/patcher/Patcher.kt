@@ -20,6 +20,8 @@ import app.morphe.patcher.patch.anyRecursively
 import app.morphe.patcher.resource.ResourceMode
 import kotlinx.coroutines.flow.flow
 import java.io.Closeable
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 
@@ -92,7 +94,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             executedPatches[this]?.let { patchResult ->
                 patchResult.exception ?: return patchResult
 
-                return PatchResult(this, PatchException("The patch '$this' failed previously"))
+                return PatchResult(this, PatchException("The patch '$this' failed previously").withoutStackTrace())
             }
 
             // Recursively execute all dependency patches.
@@ -101,8 +103,9 @@ class Patcher(private val config: PatcherConfig) : Closeable {
                     return PatchResult(
                         this,
                         PatchException(
-                            "The patch \"$this\" depends on \"$dependency\", which raised an exception:\n${it.stackTraceToString()}",
-                        ),
+                            "The patch \"$this\" depends on \"$dependency\", which raised an exception",
+                            it,
+                        ).withoutStackTrace(),
                     )
                 }
             }
@@ -126,10 +129,8 @@ class Patcher(private val config: PatcherConfig) : Closeable {
                 }
 
                 PatchResult(this)
-            } catch (exception: PatchException) {
-                PatchResult(this, exception)
             } catch (exception: Exception) {
-                PatchResult(this, PatchException(exception))
+                PatchResult(this, exception.toPatchException())
             }.also { executedPatches[this] = it }
         }
 
@@ -168,23 +169,11 @@ class Patcher(private val config: PatcherConfig) : Closeable {
                     patch.finalize(context)
 
                     executionResult
-                } catch (exception: PatchException) {
-                    PatchResult(patch, exception)
                 } catch (exception: Exception) {
-                    PatchResult(patch, PatchException(exception))
+                    PatchResult(patch, exception.toPatchException())
                 }
 
-            if (result.exception != null) {
-                emit(
-                    PatchResult(
-                        patch,
-                        PatchException(
-                            "The patch \"$patch\" raised an exception: ${result.exception.stackTraceToString()}",
-                            result.exception,
-                        ),
-                    ),
-                )
-            } else if (patch in context.executablePatches) {
+            if (result.exception != null || patch in context.executablePatches) {
                 emit(result)
             }
         }
@@ -224,5 +213,49 @@ class Patcher(private val config: PatcherConfig) : Closeable {
          * Executing a patch that takes longer than this is logged if [PatcherConfig.validate] is set.
          */
         val SLOW_PATCH_NANOS = TimeUnit.MILLISECONDS.toNanos(100)
+
+        /**
+         * The classes whose execute and finalize methods call the blocks of a patch.
+         */
+        val PATCH_CLASS_NAMES = setOf(
+            Patch::class.java.name,
+            BytecodePatch::class.java.name,
+            RawResourcePatch::class.java.name,
+            ResourcePatch::class.java.name,
+        )
+
+        /**
+         * Trim the stack trace of an exception raised by a patch, and wrap it in a [PatchException]
+         * if it is not one already.
+         */
+        fun Exception.toPatchException(): PatchException {
+            trimToPatch()
+
+            // The frames of the wrapper are only of the patcher and its caller.
+            return this as? PatchException ?: PatchException(this).withoutStackTrace()
+        }
+
+        fun PatchException.withoutStackTrace() = apply { stackTrace = emptyArray() }
+
+        /**
+         * Remove the frames below the call into the patch from the stack traces of this exception,
+         * its causes and its suppressed exceptions. The frames below the patch are only of the
+         * patcher and whatever called it, which users do not need to see.
+         * A stack trace without a call into a patch, such as one of another thread, is kept.
+         */
+        fun Throwable.trimToPatch(visited: MutableSet<Throwable> = Collections.newSetFromMap(IdentityHashMap())) {
+            if (!visited.add(this)) return
+
+            val trace = stackTrace
+            // The last frame is the call by the patcher. Earlier ones may be of a patch executing another.
+            val patchCallIndex = trace.indexOfLast { frame ->
+                frame.className in PATCH_CLASS_NAMES &&
+                    (frame.methodName.startsWith("execute") || frame.methodName.startsWith("finalize"))
+            }
+            if (patchCallIndex >= 0) stackTrace = trace.copyOfRange(0, patchCallIndex + 1)
+
+            cause?.trimToPatch(visited)
+            suppressed.forEach { it.trimToPatch(visited) }
+        }
     }
 }

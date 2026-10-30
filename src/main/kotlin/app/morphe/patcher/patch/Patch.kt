@@ -9,15 +9,19 @@ import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.resolvePatcherBehaviors
 import dalvik.system.DexClassLoader
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.net.URLClassLoader
+import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.util.function.Supplier
 import java.util.jar.JarFile
+import java.util.logging.Level
 import java.util.logging.Logger
+import java.util.zip.ZipFile
 
 @Deprecated("Use Compatibility instead", level = DeprecationLevel.HIDDEN)
 typealias PackageName = String
@@ -963,6 +967,17 @@ sealed class PatchLoader(
     private companion object {
         private val logger = Logger.getLogger(PatchLoader::class.java.name)
 
+        /**
+         * The newest class file version patches can be compiled for, which is that of Java 17.
+         * Morphe Manager runs patches in an embedded Java 17 VM, which cannot load newer classes.
+         */
+        private const val MAX_CLASS_FILE_VERSION = 61
+
+        /**
+         * The most classes named when a bundle has classes that are too new.
+         */
+        private const val MAX_NAMED_CLASSES = 10
+
         val Class<*>.isPatch get() = Patch::class.java.isAssignableFrom(this)
 
         /**
@@ -999,6 +1014,8 @@ sealed class PatchLoader(
         private fun ClassLoader.loadPatches(binaryClassNamesByPatchesFile: Map<File, Set<String>>) =
             binaryClassNamesByPatchesFile.mapValues { (patchesFile, binaryClassNames) ->
                 val bundle = PatchBundleInfo.read(patchesFile)
+                // Before any class is loaded, as this VM may not be able to load them.
+                checkClassFileVersions(bundle)
 
                 binaryClassNames.asSequence().mapNotNull {
                     try {
@@ -1018,6 +1035,67 @@ sealed class PatchLoader(
                     it.assignBundleToDependencies(bundle)
                 }.toSet()
             }.also { checkUniversalPatchDefaults(it.values.flatten()) }
+
+        /**
+         * Fails if a class of the bundle is compiled for a newer Java version than [MAX_CLASS_FILE_VERSION],
+         * even if this VM can load it, so that a bundle loads the same in every Morphe host.
+         * Bundles loaded from DEX files are checked too, because their classes are loaded
+         * from the class files when patching in Morphe Manager.
+         * Classes under META-INF/versions/ are never loaded, so they are not checked.
+         * If the bundle cannot be read, then it is not checked.
+         */
+        private fun checkClassFileVersions(bundle: PatchBundleInfo) {
+            val tooNew = try {
+                ZipFile(bundle.file).use { zip ->
+                    zip.entries().asSequence().filter { entry ->
+                        entry.name.endsWith(".class") && !entry.name.startsWith("META-INF/versions/")
+                    }.mapNotNull { entry ->
+                        val version = zip.getInputStream(entry).use { it.classFileVersion() }
+                        if (version != null && version > MAX_CLASS_FILE_VERSION) entry.name to version else null
+                    }.toList()
+                }
+            } catch (exception: IOException) {
+                logger.log(Level.WARNING, "Failed to read the class files of the patch bundle ${bundle.file}", exception)
+                return
+            }
+            if (tooNew.isEmpty()) return
+
+            fun javaVersion(classFileVersion: Int) = classFileVersion - 44
+
+            val message = buildString {
+                appendLine(
+                    "Patch bundle $bundle (${bundle.file}) has classes compiled for a newer Java version than " +
+                        "Java ${javaVersion(MAX_CLASS_FILE_VERSION)}, which Morphe Manager cannot load. " +
+                        "Compile the patches and the dependencies they bundle for " +
+                        "Java ${javaVersion(MAX_CLASS_FILE_VERSION)} or older:"
+                )
+                tooNew.take(MAX_NAMED_CLASSES).forEach { (name, version) ->
+                    appendLine("  - $name (Java ${javaVersion(version)}, class file version $version)")
+                }
+                if (tooNew.size > MAX_NAMED_CLASSES) appendLine("  ... and ${tooNew.size - MAX_NAMED_CLASSES} more")
+            }.trimEnd()
+
+            throw PatchException(message)
+        }
+
+        /**
+         * The major version of the class file this stream reads, or null if it does not read a class file.
+         */
+        private fun InputStream.classFileVersion(): Int? {
+            // The magic number, then the minor and the major version.
+            // Read by hand, because readNBytes(Int) needs Android 13.
+            val header = ByteArray(8)
+            var read = 0
+            while (read < header.size) {
+                val count = read(header, read, header.size - read)
+                if (count < 0) return null
+                read += count
+            }
+
+            val buffer = ByteBuffer.wrap(header)
+            if (buffer.int != 0xCAFEBABE.toInt()) return null
+            return buffer.getShort(6).toInt() and 0xFFFF
+        }
 
         /**
          * Fails if universal patches are declared with default true and
