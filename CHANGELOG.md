@@ -1,3 +1,21 @@
+# [2.1.0](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.1...v2.1.0) (2026-10-30)
+
+
+### Bug Fixes
+
+* Allow ExternalLabel to target an instruction index or instruction match ([d6a326b](https://github.com/MorpheApp/morphe-patcher/commit/d6a326b6c47aa3467c0d3bf951d3399b51b0e592))
+* Index array payloads of element width 0 as dexlib2 reads them ([#271](https://github.com/MorpheApp/morphe-patcher/issues/271)) ([05be160](https://github.com/MorpheApp/morphe-patcher/commit/05be16043b8b0711a765277562103da53b70597a))
+* Refuse to load patch bundles with classes compiled for newer than Java 17 as used by Morphe Manager ([099b0dd](https://github.com/MorpheApp/morphe-patcher/commit/099b0dd5d12daa5bc35d9f0078df11b6418acbbd))
+* Show a concise stack trace if a patch throw an exception ([20f1d65](https://github.com/MorpheApp/morphe-patcher/commit/20f1d65e31f7b2e0024e00103a563e13fa742675))
+* Speed up patches that add many new files to large APKs ([538e85f](https://github.com/MorpheApp/morphe-patcher/commit/538e85fdbce42e977c4207badc34beadd892684a))
+
+
+### Features
+
+* Add methodReference and fieldReference to InstructionMatch ([9f0458f](https://github.com/MorpheApp/morphe-patcher/commit/9f0458f164a361084eab64eca9f25ae936d833b5))
+* Expose validate flag to patches for optional development checks ([0d41596](https://github.com/MorpheApp/morphe-patcher/commit/0d41596a82e72fbbd09dc147b78c2c376866e3b2))
+* Sign and verify patch bundles ([8dd3818](https://github.com/MorpheApp/morphe-patcher/commit/8dd381823175665624ef21c6b468821d3fdbe7bb))
+
 # [2.1.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0-dev.6...v2.1.0-dev.7) (2026-10-29)
 
 
