@@ -9,15 +9,26 @@ import com.android.apksig.DefaultApkSignerEngine
 import com.android.apksig.KeyConfig
 import com.android.apksig.apk.ApkSigningBlockNotFoundException
 import com.android.apksig.util.DataSources
+import org.bouncycastle.asn1.ASN1Encoding
+import org.bouncycastle.asn1.DERBMPString
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
 import org.bouncycastle.cert.X509v3CertificateBuilder
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
+import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils
+import org.bouncycastle.crypto.engines.DESedeEngine
+import org.bouncycastle.crypto.modes.CBCBlockCipher
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
+import org.bouncycastle.pkcs.PKCS12PfxPduBuilder
+import org.bouncycastle.pkcs.bc.BcPKCS12MacCalculatorBuilder
+import org.bouncycastle.pkcs.bc.BcPKCS12PBEOutputEncryptorBuilder
+import org.bouncycastle.pkcs.jcajce.JcaPKCS12SafeBagBuilder
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.io.RandomAccessFile
 import java.math.BigInteger
 import java.nio.ByteBuffer
@@ -41,6 +52,9 @@ import com.android.apksig.apk.ApkUtils as ApkSigUtils
 @Suppress("MemberVisibilityCanBePrivate", "unused")
 object ApkSigner {
     private val logger = Logger.getLogger(ApkSigner::class.java.name)
+
+    // As many as keytool uses, which keeps opening a keystore quick on slow devices
+    private const val KEY_STORE_ITERATION_COUNT = 10_000
 
     init {
         if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
@@ -88,31 +102,47 @@ object ApkSigner {
     }
 
     /**
-     * Create a new PKCS12 keystore holding the given entries.
+     * Write a PKCS12 keystore holding a key for each alias in [entries] to [outputStream].
      *
-     * @param entries The entries to add to the keystore.
+     * The keys are encrypted with [password] using 3DES, as BouncyCastle, which Android reads
+     * PKCS12 with, decrypts them with the keystore password. The certificates are public and left
+     * unencrypted, where BouncyCastle's own keystore encrypts them with RC2, which OpenSSL 3 reads
+     * only in legacy mode. Only BouncyCastle's own primitives are used, so the file is the same
+     * whichever security providers the platform has.
      *
-     * @return The created keystore.
-     *
-     * @see KeyStoreEntry
-     * @see KeyStore
+     * @param outputStream The stream to write the keystore to.
+     * @param password The password for the keystore and every key in it.
+     * @param entries The private key and certificate pairs by alias.
      */
-    fun newKeyStore(entries: Set<KeyStoreEntry>): KeyStore {
-        logger.fine("Creating keystore")
+    fun writeKeyStore(outputStream: OutputStream, password: String, entries: Map<String, PrivateKeyCertificatePair>) {
+        logger.fine("Writing keystore")
 
-        return KeyStoreType.PKCS12.newInstance().apply {
-            load(null)
+        val passwordChars = password.toCharArray()
+        val extensionUtils = JcaX509ExtensionUtils()
+        val builder = PKCS12PfxPduBuilder()
+        entries.forEach { (alias, pair) ->
+            val keyEncryptor = BcPKCS12PBEOutputEncryptorBuilder(
+                PKCSObjectIdentifiers.pbeWithSHAAnd3_KeyTripleDES_CBC,
+                CBCBlockCipher.newInstance(DESedeEngine()),
+            ).setIterationCount(KEY_STORE_ITERATION_COUNT).build(passwordChars)
 
-            entries.forEach { entry ->
-                // Add all entries to the keystore.
-                setKeyEntry(
-                    entry.alias,
-                    entry.privateKeyCertificatePair.privateKey,
-                    entry.password.toCharArray(),
-                    arrayOf(entry.privateKeyCertificatePair.certificate),
+            // The shared local key id is what pairs a key with its certificate
+            val friendlyName = DERBMPString(alias)
+            val localKeyId = extensionUtils.createSubjectKeyIdentifier(pair.certificate.publicKey)
+            listOf(
+                JcaPKCS12SafeBagBuilder(pair.certificate),
+                JcaPKCS12SafeBagBuilder(pair.privateKey, keyEncryptor),
+            ).forEach {
+                builder.addData(
+                    it.addBagAttribute(PKCSObjectIdentifiers.pkcs_9_at_friendlyName, friendlyName)
+                        .addBagAttribute(PKCSObjectIdentifiers.pkcs_9_at_localKeyId, localKeyId)
+                        .build(),
                 )
             }
         }
+
+        val macCalculator = BcPKCS12MacCalculatorBuilder().setIterationCount(KEY_STORE_ITERATION_COUNT)
+        outputStream.write(builder.build(macCalculator, passwordChars).getEncoded(ASN1Encoding.DER))
     }
 
     /**
@@ -246,21 +276,6 @@ object ApkSigner {
         signer: String,
         privateKeyCertificatePair: PrivateKeyCertificatePair,
     ) = Signer(signer, privateKeyCertificatePair)
-
-    /**
-     * An entry in a keystore.
-     *
-     * @param alias The alias of the entry.
-     * @param password The password for recovering the signing key.
-     * @param privateKeyCertificatePair The private key and certificate pair.
-     *
-     * @see PrivateKeyCertificatePair
-     */
-    class KeyStoreEntry(
-        val alias: String,
-        val password: String,
-        val privateKeyCertificatePair: PrivateKeyCertificatePair,
-    )
 
     /**
      * A private key and certificate pair.

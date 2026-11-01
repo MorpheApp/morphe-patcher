@@ -7,7 +7,6 @@ package app.morphe.patcher.apk
 
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.ApkSigner.newApkSigner
-import app.morphe.patcher.apk.ApkSigner.newKeyStore
 import app.morphe.patcher.apk.ApkSigner.newPrivateKeyCertificatePair
 import com.android.apksig.ApkVerifier
 import com.android.apksig.apk.ApkFormatException
@@ -217,7 +216,11 @@ object ApkUtils {
         val stagingFile = File(keyStoreFile.absoluteFile.parentFile, "${keyStoreFile.name}.tmp")
         try {
             stagingFile.outputStream().use { stream ->
-                writeKeyStore(stream, keyStoreDetails, privateKeyCertificatePair, keyStoreDetails.storePassword)
+                ApkSigner.writeKeyStore(
+                    stream,
+                    keyStoreDetails.storePassword,
+                    mapOf(keyStoreDetails.alias to privateKeyCertificatePair),
+                )
             }
             try {
                 Files.move(
@@ -269,21 +272,11 @@ object ApkUtils {
      *
      * @throws IllegalArgumentException If the keystore cannot be read or holds no such key.
      */
-    fun exportKeyStore(keyStoreDetails: KeyStoreDetails, outputStream: OutputStream) = writeKeyStore(
+    fun exportKeyStore(keyStoreDetails: KeyStoreDetails, outputStream: OutputStream) = ApkSigner.writeKeyStore(
         outputStream,
-        keyStoreDetails,
-        readPrivateKeyCertificatePairFromKeyStore(keyStoreDetails),
         keyStoreDetails.password,
+        mapOf(keyStoreDetails.alias to readPrivateKeyCertificatePairFromKeyStore(keyStoreDetails)),
     )
-
-    private fun writeKeyStore(
-        outputStream: OutputStream,
-        keyStoreDetails: KeyStoreDetails,
-        privateKeyCertificatePair: ApkSigner.PrivateKeyCertificatePair,
-        storePassword: String,
-    ) = newKeyStore(
-        setOf(ApkSigner.KeyStoreEntry(keyStoreDetails.alias, keyStoreDetails.password, privateKeyCertificatePair)),
-    ).store(outputStream, storePassword.toCharArray())
 
     /**
      * Signs [inputApkFile] with the given options and saves the signed apk to [outputApkFile].

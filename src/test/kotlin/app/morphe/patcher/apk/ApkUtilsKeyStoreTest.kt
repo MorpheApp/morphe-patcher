@@ -5,7 +5,11 @@
 
 package app.morphe.patcher.apk
 
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers
 import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.bouncycastle.pkcs.PKCS12PfxPdu
+import org.bouncycastle.pkcs.PKCS12SafeBagFactory
+import org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo
 import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -84,6 +88,24 @@ internal class ApkUtilsKeyStoreTest {
 
         assertEquals(pair.certificate, keyStore.getCertificate("alias"))
         assertEquals(pair.privateKey, keyStore.getKey("alias", KEY_PASSWORD.toCharArray()) as PrivateKey)
+    }
+
+    @Test
+    fun `written keystore leaves certificates unencrypted and encrypts keys with 3DES`() {
+        val details = details(temporaryDirectory.resolve("test.keystore"))
+        ApkUtils.newPrivateKeyCertificatePair(ApkUtils.PrivateKeyCertificatePairDetails(), details)
+
+        val exported = ByteArrayOutputStream().also { ApkUtils.exportKeyStore(details, it) }.toByteArray()
+        val pdu = PKCS12PfxPdu(exported)
+
+        // RC2 encrypted data is what OpenSSL 3 refuses outside legacy mode
+        assertTrue(pdu.contentInfos.all { it.contentType == PKCSObjectIdentifiers.data })
+        val keyBag = pdu.contentInfos.flatMap { PKCS12SafeBagFactory(it).safeBags.toList() }
+            .single { it.type == PKCSObjectIdentifiers.pkcs8ShroudedKeyBag }
+        assertEquals(
+            PKCSObjectIdentifiers.pbeWithSHAAnd3_KeyTripleDES_CBC,
+            (keyBag.bagValue as PKCS8EncryptedPrivateKeyInfo).encryptionAlgorithm.algorithm,
+        )
     }
 
     // The JDK's own provider stands in for the signing tools that never load BouncyCastle
