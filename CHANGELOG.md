@@ -1,3 +1,10 @@
+# [2.2.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.1...v2.2.0-dev.2) (2026-11-01)
+
+
+### Features
+
+* Write PKCS12 keystores that OpenSSL 3 reads ([3e6929a](https://github.com/MorpheApp/morphe-patcher/commit/3e6929ac309dfb307a3a256b87eda06b346c4db3))
+
 # [2.2.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0...v2.2.0-dev.1) (2026-11-01)
 
 
