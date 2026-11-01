@@ -9,7 +9,6 @@ import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.ApkSigner.newApkSigner
 import app.morphe.patcher.apk.ApkSigner.newKeyStore
 import app.morphe.patcher.apk.ApkSigner.newPrivateKeyCertificatePair
-import app.morphe.patcher.apk.ApkUtils.applyTo
 import com.android.apksig.ApkVerifier
 import com.android.apksig.apk.ApkFormatException
 import com.android.tools.build.apkzlib.zip.AlignmentRules
@@ -23,9 +22,11 @@ import com.reandroid.apk.ApkModule
 import com.reandroid.archive.writer.ZipAligner
 import java.io.File
 import java.io.IOException
+import java.io.OutputStream
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.security.KeyStore
 import java.security.NoSuchAlgorithmException
 import java.security.cert.X509Certificate
 import java.util.Date
@@ -216,15 +217,7 @@ object ApkUtils {
         val stagingFile = File(keyStoreFile.absoluteFile.parentFile, "${keyStoreFile.name}.tmp")
         try {
             stagingFile.outputStream().use { stream ->
-                newKeyStore(
-                    setOf(
-                        ApkSigner.KeyStoreEntry(
-                            keyStoreDetails.alias,
-                            keyStoreDetails.password,
-                            privateKeyCertificatePair,
-                        ),
-                    ),
-                ).store(stream, keyStoreDetails.keyStorePassword?.toCharArray())
+                writeKeyStore(stream, keyStoreDetails, privateKeyCertificatePair, keyStoreDetails.storePassword)
             }
             try {
                 Files.move(
@@ -251,12 +244,46 @@ object ApkUtils {
     internal fun readPrivateKeyCertificatePairFromKeyStore(
         keyStoreDetails: KeyStoreDetails,
     ) = ApkSigner.readPrivateKeyCertificatePair(
-        keyStoreDetails.keyStore.inputStream().use { stream ->
-            ApkSigner.readKeyStore(stream, keyStoreDetails.keyStorePassword)
-        },
+        readKeyStore(keyStoreDetails),
         keyStoreDetails.alias,
         keyStoreDetails.password,
     )
+
+    /**
+     * Reads the keystore in [keyStoreDetails], whichever [ApkSigner.KeyStoreType] it is.
+     *
+     * @throws IllegalArgumentException If the keystore format is not recognized or its password is invalid.
+     */
+    fun readKeyStore(keyStoreDetails: KeyStoreDetails): KeyStore {
+        val data = keyStoreDetails.keyStore.readBytes()
+        val type = ApkSigner.keyStoreType(data)
+        // A BKS keystore Morphe wrote has no password of its own
+        val password = if (type == ApkSigner.KeyStoreType.BKS) keyStoreDetails.keyStorePassword
+        else keyStoreDetails.storePassword
+        return ApkSigner.readKeyStore(data, type, password)
+    }
+
+    /**
+     * Writes the signing key in [keyStoreDetails] to [outputStream] as a PKCS12 keystore that
+     * opens with the key's password alone, the form other signing tools expect.
+     *
+     * @throws IllegalArgumentException If the keystore cannot be read or holds no such key.
+     */
+    fun exportKeyStore(keyStoreDetails: KeyStoreDetails, outputStream: OutputStream) = writeKeyStore(
+        outputStream,
+        keyStoreDetails,
+        readPrivateKeyCertificatePairFromKeyStore(keyStoreDetails),
+        keyStoreDetails.password,
+    )
+
+    private fun writeKeyStore(
+        outputStream: OutputStream,
+        keyStoreDetails: KeyStoreDetails,
+        privateKeyCertificatePair: ApkSigner.PrivateKeyCertificatePair,
+        storePassword: String,
+    ) = newKeyStore(
+        setOf(ApkSigner.KeyStoreEntry(keyStoreDetails.alias, keyStoreDetails.password, privateKeyCertificatePair)),
+    ).store(outputStream, storePassword.toCharArray())
 
     /**
      * Signs [inputApkFile] with the given options and saves the signed apk to [outputApkFile].
@@ -326,7 +353,8 @@ object ApkUtils {
      * Details for a keystore.
      *
      * @param keyStore The file to save the keystore to.
-     * @param keyStorePassword The password for the keystore.
+     * @param keyStorePassword The password for the keystore. Null means the one of the signing key,
+     *   which a PKCS12 keystore shares by convention, or none for a BKS keystore Morphe wrote before.
      * @param alias The alias of the key store entry to use for signing.
      * @param password The password for recovering the signing key.
      */
@@ -335,7 +363,9 @@ object ApkUtils {
         val keyStorePassword: String? = null,
         val alias: String,
         val password: String,
-    )
+    ) {
+        internal val storePassword get() = keyStorePassword ?: password
+    }
 
     /**
      * Details for a private key and certificate pair.

@@ -449,6 +449,20 @@ public final class app/morphe/patcher/apk/ApkSigner$KeyStoreEntry {
 	public final fun getPrivateKeyCertificatePair ()Lapp/morphe/patcher/apk/ApkSigner$PrivateKeyCertificatePair;
 }
 
+public final class app/morphe/patcher/apk/ApkSigner$KeyStoreType : java/lang/Enum {
+	public static final field BKS Lapp/morphe/patcher/apk/ApkSigner$KeyStoreType;
+	public static final field Companion Lapp/morphe/patcher/apk/ApkSigner$KeyStoreType$Companion;
+	public static final field JKS Lapp/morphe/patcher/apk/ApkSigner$KeyStoreType;
+	public static final field PKCS12 Lapp/morphe/patcher/apk/ApkSigner$KeyStoreType;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/apk/ApkSigner$KeyStoreType;
+	public static fun values ()[Lapp/morphe/patcher/apk/ApkSigner$KeyStoreType;
+}
+
+public final class app/morphe/patcher/apk/ApkSigner$KeyStoreType$Companion {
+	public final fun of ([B)Lapp/morphe/patcher/apk/ApkSigner$KeyStoreType;
+}
+
 public final class app/morphe/patcher/apk/ApkSigner$PrivateKeyCertificatePair {
 	public fun <init> (Ljava/security/PrivateKey;Ljava/security/cert/X509Certificate;)V
 	public final fun getCertificate ()Ljava/security/cert/X509Certificate;
@@ -464,6 +478,8 @@ public final class app/morphe/patcher/apk/ApkSigner$Signer {
 public final class app/morphe/patcher/apk/ApkUtils {
 	public static final field INSTANCE Lapp/morphe/patcher/apk/ApkUtils;
 	public final fun applyTo (Lapp/morphe/patcher/PatcherResult;Ljava/io/File;)V
+	public final fun exportKeyStore (Lapp/morphe/patcher/apk/ApkUtils$KeyStoreDetails;Ljava/io/OutputStream;)V
+	public final fun readKeyStore (Lapp/morphe/patcher/apk/ApkUtils$KeyStoreDetails;)Ljava/security/KeyStore;
 	public final fun signApk (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Lapp/morphe/patcher/apk/ApkUtils$KeyStoreDetails;)V
 	public final fun signApk (Ljava/io/File;Ljava/io/File;Ljava/lang/String;Lapp/morphe/patcher/apk/ApkUtils$KeyStoreDetails;I)V
 	public static synthetic fun signApk$default (Lapp/morphe/patcher/apk/ApkUtils;Ljava/io/File;Ljava/io/File;Ljava/lang/String;Lapp/morphe/patcher/apk/ApkUtils$KeyStoreDetails;IILjava/lang/Object;)V

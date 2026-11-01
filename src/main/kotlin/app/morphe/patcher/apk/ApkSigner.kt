@@ -48,10 +48,47 @@ object ApkSigner {
         }
     }
 
-    private fun newKeyStoreInstance() = KeyStore.getInstance("BKS", BouncyCastleProvider.PROVIDER_NAME)
+    /**
+     * The format of a keystore file, told apart by the bytes it begins with.
+     */
+    enum class KeyStoreType {
+        /** The standard format Morphe writes, which every signing tool reads. */
+        PKCS12,
+
+        /** BouncyCastle's own format, which Morphe wrote before and still reads. */
+        BKS,
+
+        /** The legacy Java format, readable only where the JDK provides it, not on Android. */
+        JKS;
+
+        internal fun newInstance(): KeyStore = when (this) {
+            JKS -> KeyStore.getInstance(name)
+            else -> KeyStore.getInstance(name, BouncyCastleProvider.PROVIDER_NAME)
+        }
+
+        companion object {
+            /**
+             * The type of keystore starting with [header], or null if it matches none.
+             *
+             * PKCS12 is a DER sequence with a long-form length, JKS begins with its magic
+             * number and BKS with its version, a big-endian int of 0, 1 or 2.
+             */
+            fun of(header: ByteArray): KeyStoreType? {
+                if (header.size < 4) return null
+                return when {
+                    header[0] == 0x30.toByte() && (header[1].toInt() and 0xFF) in 0x80..0x84 -> PKCS12
+                    header[0] == 0xFE.toByte() && header[1] == 0xED.toByte() &&
+                        header[2] == 0xFE.toByte() && header[3] == 0xED.toByte() -> JKS
+                    header[0] == 0.toByte() && header[1] == 0.toByte() && header[2] == 0.toByte() &&
+                        header[3] in 0..2 -> BKS
+                    else -> null
+                }
+            }
+        }
+    }
 
     /**
-     * Create a new keystore with a new keypair.
+     * Create a new PKCS12 keystore holding the given entries.
      *
      * @param entries The entries to add to the keystore.
      *
@@ -63,7 +100,7 @@ object ApkSigner {
     fun newKeyStore(entries: Set<KeyStoreEntry>): KeyStore {
         logger.fine("Creating keystore")
 
-        return newKeyStoreInstance().apply {
+        return KeyStoreType.PKCS12.newInstance().apply {
             load(null)
 
             entries.forEach { entry ->
@@ -79,14 +116,14 @@ object ApkSigner {
     }
 
     /**
-     * Read a keystore from the given [keyStoreInputStream].
+     * Read a keystore of any [KeyStoreType] from the given [keyStoreInputStream].
      *
      * @param keyStoreInputStream The stream to read the keystore from.
      * @param keyStorePassword The password for the keystore.
      *
      * @return The keystore.
      *
-     * @throws IllegalArgumentException If the keystore password is invalid.
+     * @throws IllegalArgumentException If the keystore format is not recognized or its password is invalid.
      *
      * @see KeyStore
      */
@@ -94,11 +131,19 @@ object ApkSigner {
         keyStoreInputStream: InputStream,
         keyStorePassword: String?,
     ): KeyStore {
-        logger.fine("Reading keystore")
+        val data = keyStoreInputStream.readBytes()
+        return readKeyStore(data, keyStoreType(data), keyStorePassword)
+    }
 
-        return newKeyStoreInstance().apply {
+    internal fun keyStoreType(data: ByteArray) =
+        requireNotNull(KeyStoreType.of(data)) { "Unrecognized keystore format" }
+
+    internal fun readKeyStore(data: ByteArray, type: KeyStoreType, keyStorePassword: String?): KeyStore {
+        logger.fine { "Reading $type keystore" }
+
+        return type.newInstance().apply {
             try {
-                load(keyStoreInputStream, keyStorePassword?.toCharArray())
+                load(data.inputStream(), keyStorePassword?.toCharArray())
             } catch (exception: IOException) {
                 if (exception.cause is UnrecoverableKeyException) {
                     throw IllegalArgumentException("Invalid keystore password")
@@ -168,8 +213,8 @@ object ApkSigner {
     ): PrivateKeyCertificatePair {
         logger.fine { "Reading key and certificate pair from keystore entry $keyStoreEntryAlias" }
 
-        if (!keyStore.containsAlias(keyStoreEntryAlias)) {
-            throw IllegalArgumentException("Keystore does not contain entry with alias $keyStoreEntryAlias")
+        require(keyStore.containsAlias(keyStoreEntryAlias)) {
+            "Keystore does not contain entry with alias $keyStoreEntryAlias"
         }
 
         // Read the private key and certificate from the keystore.
@@ -177,7 +222,7 @@ object ApkSigner {
         val privateKey =
             try {
                 keyStore.getKey(keyStoreEntryAlias, keyStoreEntryPassword.toCharArray()) as PrivateKey
-            } catch (exception: UnrecoverableKeyException) {
+            } catch (_: UnrecoverableKeyException) {
                 throw IllegalArgumentException("Invalid password for keystore entry $keyStoreEntryAlias")
             }
 
