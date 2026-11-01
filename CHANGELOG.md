@@ -1,3 +1,10 @@
+# [2.2.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0...v2.2.0-dev.1) (2026-11-01)
+
+
+### Features
+
+* Write keystores as PKCS12 and export them with a password ([21d6b4f](https://github.com/MorpheApp/morphe-patcher/commit/21d6b4ffdced71e44ad274719a82cd77a7f5be62))
+
 # [2.1.0](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.1...v2.1.0) (2026-10-30)
 
 
