@@ -47,6 +47,41 @@ class PatcherConfig(
     internal val validate: Boolean = false,
     internal val progress: PatcherProgress? = null,
 ) {
+    internal var bundleFiles: Map<String, File> = emptyMap()
+        private set
+
+    /**
+     * Creates a configuration with files extracted from the bundle the package came from.
+     *
+     * @param bundleFiles Files keyed by their path inside the bundle, for example
+     * `Android/obb/com.example/main.1.com.example.obb`. A patch that reads one should declare
+     * `ApkFileType.XAPK_REQUIRED`.
+     */
+    constructor(
+        apkFile: File,
+        temporaryFilesPath: File = File("morphe-temporary-files"),
+        keepArchitectures: Set<CpuArchitecture> = emptySet(),
+        useBytecodeMode: BytecodeMode = BytecodeMode.STRIP_FAST,
+        verifier: DexVerifier = NoOpDexVerifier,
+        fileWorkspacePath: File? = null,
+        targetPatcherVersion: String? = null,
+        validate: Boolean = false,
+        progress: PatcherProgress? = null,
+        bundleFiles: Map<String, File>,
+    ) : this(
+        apkFile,
+        temporaryFilesPath,
+        keepArchitectures,
+        useBytecodeMode,
+        verifier,
+        fileWorkspacePath,
+        targetPatcherVersion,
+        validate,
+        progress,
+    ) {
+        this.bundleFiles = bundleFiles
+    }
+
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
 
     /**

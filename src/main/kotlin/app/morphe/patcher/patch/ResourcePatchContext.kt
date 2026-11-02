@@ -58,6 +58,7 @@ class ResourcePatchContext internal constructor(
         config.apkFile,
         config.keepArchitectures,
         progress = config.progress,
+        bundleFiles = config.bundleFiles,
     )
 
     /**

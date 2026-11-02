@@ -33,6 +33,7 @@ import com.reandroid.arsc.value.ValueType
 import com.reandroid.utils.HexUtil
 import java.io.File
 import java.io.IOException
+import java.nio.file.Path
 import java.util.function.Predicate
 
 @Suppress("unused")
@@ -89,6 +90,66 @@ class ApkMerger(
             dir.deleteOnExit()
         }
         logger.info("Saved to: $outputFile")
+    }
+
+    /**
+     * Extract the files of a bundle that are not APKs, so that patches can read them.
+     *
+     * A bundle such as `.xapk` can carry files next to its APK modules. The OBB of the app is
+     * extracted: every file with the `.obb` extension, and every file under `Android/obb/`, where the
+     * format puts it. Matching the extension as well keeps a bundle that names the OBB some other way
+     * from reading as a bundle without one. The files are copied to [outputDir] under the path they
+     * have inside the bundle, and are not merged into the APK.
+     *
+     * An OBB is copied as it is, without reading its format, which may be anything the app supports.
+     *
+     * A bundle without OBB files, such as a plain APK, yields an empty map.
+     *
+     * @param bundleFile The bundle to extract the files from.
+     * @param outputDir The directory to extract the files to. The caller owns it, and must keep it
+     * for as long as the extracted files are needed.
+     * @return The extracted files, keyed by the path they have inside the bundle, such as
+     * `Android/obb/com.example/main.1.com.example.obb`.
+     */
+    @Throws(IOException::class)
+    fun extractBundleFiles(bundleFile: File, outputDir: File): Map<String, File> {
+        if (!bundleFile.isFile) return emptyMap()
+
+        val outputRoot = outputDir.canonicalFile.toPath()
+        return ArchiveFile(bundleFile).use { archive ->
+            val names = archive.iterator().asSequence()
+                .map { it.name }
+                .filter { !it.endsWith("/") && (it.endsWith(".obb", true) || it.startsWith(OBB_DIRECTORY, true)) }
+                .filter { it.isContainedPath(outputDir, outputRoot) }
+                .toList()
+
+            if (names.isEmpty()) return@use emptyMap()
+
+            logger.info("Extracting ${names.size} bundle file(s) to: $outputDir")
+            outputDir.mkdirs()
+            val extracted = names.toHashSet()
+
+            // The permissions the archive declares can leave the files unreadable for a patch.
+            fixFilePermissions(archive)
+            archive.extractAll(outputDir, Predicate { it.name in extracted }, arsclibLogger)
+
+            names.associateWith { File(outputDir, it) }
+                .filterValues { it.isFile && it.canonicalFile.toPath().startsWith(outputRoot) }
+        }
+    }
+
+    /**
+     * Whether the path of an archive entry stays below [outputDir].
+     *
+     * An archive can name an entry `../../shared_prefs/x.obb` or `C:/x.obb`, which would write it
+     * outside that directory. The path is resolved before anything is extracted, since a file already
+     * written outside cannot be taken back.
+     */
+    private fun String.isContainedPath(outputDir: File, outputRoot: Path): Boolean {
+        if (isEmpty() || startsWith("/") || contains('\\') || contains(':')) return false
+        if (split('/').any { it == ".." || it == "." }) return false
+        return runCatching { File(outputDir, this).canonicalFile.toPath().startsWith(outputRoot) }
+            .getOrDefault(false)
     }
 
     @Throws(IOException::class)
@@ -216,5 +277,12 @@ class ApkMerger(
             specTypePair.removeNullEntries(entry.getId())
         }
         return true
+    }
+
+    private companion object {
+        /**
+         * The directory of a bundle that holds the OBB files of the app, which patches can read.
+         */
+        private const val OBB_DIRECTORY = "Android/obb/"
     }
 }

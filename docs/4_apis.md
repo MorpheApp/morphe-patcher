@@ -205,6 +205,28 @@ execute {
 The listing describes the input APK, so it does not reflect files a patch has since added,
 changed or deleted.
 
+#### 🗄️ `packageMetadata.bundleFiles`
+
+A bundle such as `.xapk` carries files next to its APK modules. The ones patches can read are every
+file with the `.obb` extension and every file under `Android/obb/`, wherever the bundle keeps them.
+They never become a part of the APK, so
+`listApkEntries(String)` and `get(String, Boolean)` do not see them either.
+`packageMetadata.bundleFiles` maps the path a file has inside the bundle to the extracted file.
+
+```kt
+execute {
+    val obb = packageMetadata.bundleFiles.entries
+        .firstOrNull { it.key.endsWith(".obb", ignoreCase = true) }
+        ?.value
+        ?: throw PatchException("This patch needs the OBB, which only a bundle such as .xapk carries.")
+}
+```
+
+The map is empty when the app was patched from a plain APK, or when the caller did not extract the
+bundle files, which is why a patch that needs one declares `ApkFileType.XAPK_REQUIRED`.
+`ApkMerger.extractBundleFiles(File, File)` extracts them, for a caller that merges a bundle
+before patching it.
+
 #### 🗂️ `decode(String...)` and `listDecodableFiles(String)`
 
 Resources are decoded when patches need them:

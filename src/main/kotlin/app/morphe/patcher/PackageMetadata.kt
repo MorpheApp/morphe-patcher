@@ -10,6 +10,7 @@ package app.morphe.patcher
 
 import app.morphe.patcher.apk.ApkSignatureScheme
 import com.reandroid.archive.block.ApkSignatureBlock
+import java.io.File
 import java.security.cert.X509Certificate
 
 /**
@@ -19,12 +20,17 @@ import java.security.cert.X509Certificate
  * @param versionCode The version code of the package.
  * @param versionName The version name of the package.
  * @param signatureBlock The APK signature block of the package, or `null` if the package is unsigned.
+ * @param bundleFiles The files of the bundle the package was extracted from that are not part of the APK,
+ * keyed by the path they have inside the bundle, such as `Android/obb/com.example/main.1.com.example.obb`.
+ * A patch that reads one should declare `ApkFileType.XAPK_REQUIRED`, and expect an empty map when the
+ * package was not patched from a bundle, or the bundle carried no such file.
  */
 class PackageMetadata internal constructor(
     val packageName: String,
     val versionName: String,
     val versionCode: String,
-    private val signatureBlock: ApkSignatureBlock?
+    private val signatureBlock: ApkSignatureBlock?,
+    val bundleFiles: Map<String, File> = emptyMap(),
 ) {
     /**
      * Get the signing certificates of the package, grouped by the [ApkSignatureScheme] they belong to.
