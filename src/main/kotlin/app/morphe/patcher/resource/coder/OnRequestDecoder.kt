@@ -134,10 +134,11 @@ internal class OnRequestDecoder(
     val pathMap: PathMap
 
     /**
-     * The coder setting values are decoded with. The encoder installs its own on the shared instance, which
-     * must not change how a file decoded afterward reads.
+     * The coder setting values are decoded with, the one a new process starts out with. The encoder installs
+     * its own on the shared instance, which must not change how a file decoded afterward reads, nor may a
+     * setting an earlier patching run of the process left.
      */
-    private val decodeSetting: CoderSetting = XmlCoder.getInstance().setting
+    private val decodeSetting: CoderSetting = XmlCoderSettings.decoding()
 
     /** Dropped when the module is released, so that it does not keep the module in memory. */
     private var state: ModuleState? = ModuleState(module(), timings)
@@ -402,16 +403,7 @@ internal class OnRequestDecoder(
         }
     }
 
-    private inline fun <T> withDecodeSetting(block: () -> T): T {
-        val coder = XmlCoder.getInstance()
-        val setting = coder.setting
-        coder.setting = decodeSetting
-        try {
-            return block()
-        } finally {
-            coder.setting = setting
-        }
-    }
+    private inline fun <T> withDecodeSetting(block: () -> T): T = XmlCoderSettings.withSetting(decodeSetting, block)
 
     private fun File.createOutputStream(): OutputStream {
         parentFile?.mkdirs()

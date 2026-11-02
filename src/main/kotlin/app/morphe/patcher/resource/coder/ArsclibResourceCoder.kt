@@ -43,8 +43,6 @@ import com.reandroid.archive.FileInputSource
 import com.reandroid.archive.InputSource
 import com.reandroid.archive.block.ApkSignatureBlock
 import com.reandroid.arsc.chunk.PackageBlock
-import com.reandroid.arsc.coder.CoderSetting
-import com.reandroid.arsc.coder.xml.AaptXmlStringDecoder
 import com.reandroid.arsc.coder.xml.XmlCoder
 import com.reandroid.arsc.value.ResConfig
 import com.reandroid.json.JSONObject
@@ -548,7 +546,8 @@ internal class ArsclibResourceCoder(
 
                 xmlDecoder.setDexDecoder { _, _ -> }
                 xmlDecoder.dexProfileDecoder = null
-                xmlDecoder.decode(workingDir)
+                // Decoded as in a new process, whatever setting an earlier run of this one left.
+                XmlCoderSettings.withSetting(XmlCoderSettings.decoding()) { xmlDecoder.decode(workingDir) }
 
                 // Update ARSCLib package metadata so the resources will be accessible under the correct package name.
                 workingDir.resolve("resources").listFiles { it.isDirectory }?.forEach { dir ->
@@ -854,49 +853,48 @@ internal class ArsclibResourceCoder(
         }.keys.toSet()
 
         logger.info("Writing resource APK")
-        XmlCoder.getInstance().setting = CoderSetting().also {
-            it.stringDecoder = AaptXmlStringDecoder()
-        }
+        // The coder is shared by the process, so its setting is installed only while encoding.
+        return XmlCoderSettings.withSetting(XmlCoderSettings.encoding()) {
+            fun fallBack(cause: Throwable) {
+                logger.log(
+                    Level.WARNING,
+                    "Encoding the changed resources into the resource table failed, rebuilding the table: $cause",
+                    cause
+                )
+                // The rebuild reads every values file, so whatever was not decoded on request is decoded now.
+                onRequestDecoder?.packages?.values?.forEach { decodeOnRequest(it, it.paths.toList()) }
 
-        fun fallBack(cause: Throwable) {
-            logger.log(
-                Level.WARNING,
-                "Encoding the changed resources into the resource table failed, rebuilding the table: $cause",
-                cause
-            )
-            // The rebuild reads every values file, so whatever was not decoded on request is decoded now.
-            onRequestDecoder?.packages?.values?.forEach { decodeOnRequest(it, it.paths.toList()) }
+                // The rebuild reads the ids from public.xml, which was decoded from the table just now,
+                // so the ids given to new resources are given again, in the same order.
+                tablePublicIds?.let { ids ->
+                    val publicXml = getFile("res/values/public.xml", null, false)
+                    if (!publicXml.isFile) throw PatchException("public.xml of $originalPackageName was not decoded", cause)
+                    PublicXmlManager(publicXml).use { ids.replayOn(PublicXmlIds(it)) }
+                }
 
-            // The rebuild reads the ids from public.xml, which was decoded from the table just now,
-            // so the ids given to new resources are given again, in the same order.
-            tablePublicIds?.let { ids ->
-                val publicXml = getFile("res/values/public.xml", null, false)
-                if (!publicXml.isFile) throw PatchException("public.xml of $originalPackageName was not decoded", cause)
-                PublicXmlManager(publicXml).use { ids.replayOn(PublicXmlIds(it)) }
+                // Finish the processing the incremental path limited to the changed files.
+                unescaper.process(unescaper.stringsFiles() - changedFiles.toSet())
+                modifiedResResources += renamer.process()
             }
 
-            // Finish the processing the incremental path limited to the changed files.
-            unescaper.process(unescaper.stringsFiles() - changedFiles.toSet())
-            modifiedResResources += renamer.process()
-        }
-
-        if (incremental) {
-            try {
-                return encodeResourcesIncrementally(
-                    outputApk, idsToDeclare, originalPackageName, newPackageName, packagesToEncode, omitEntry, write, timings,
-                ).also { timings.log() }
-            } catch (failure: DexFilesFailure) {
-                // Not a failure of encoding the resources, which rebuilding the table would not help.
-                throw failure
-            } catch (exception: Exception) {
-                fallBack(exception)
-            } catch (error: LinkageError) {
-                // A host may run this against an ARSCLib that lacks something this path calls.
-                fallBack(error)
+            if (incremental) {
+                try {
+                    return encodeResourcesIncrementally(
+                        outputApk, idsToDeclare, originalPackageName, newPackageName, packagesToEncode, omitEntry, write, timings,
+                    ).also { timings.log() }
+                } catch (failure: DexFilesFailure) {
+                    // Not a failure of encoding the resources, which rebuilding the table would not help.
+                    throw failure
+                } catch (exception: Exception) {
+                    fallBack(exception)
+                } catch (error: LinkageError) {
+                    // A host may run this against an ARSCLib that lacks something this path calls.
+                    fallBack(error)
+                }
             }
-        }
 
-        return encodeResourcesFully(outputApk, packageRenamed, omitEntry, write, timings).also { timings.log() }
+            encodeResourcesFully(outputApk, packageRenamed, omitEntry, write, timings).also { timings.log() }
+        }
     }
 
     /**

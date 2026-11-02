@@ -21,8 +21,7 @@ import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.coder.FULL_RESOURCE_ENCODE_PROPERTY
 import app.morphe.patcher.resource.coder.ResourceTestApk
 import com.android.tools.build.apkzlib.zip.ZFile
-import com.reandroid.arsc.coder.CoderSetting
-import com.reandroid.arsc.coder.xml.XmlCoder
+import com.reandroid.arsc.chunk.TableBlock
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
@@ -54,6 +53,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -124,6 +124,40 @@ internal class WriteApkTest {
         assertContentEquals("recreated ".repeat(40).toByteArray(), read(written, "assets/recreate.txt"))
         assertContentEquals("added ".repeat(100).toByteArray(), read(written, "assets/added.txt"))
         assertSigns(written)
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["on request", "up front", "full rebuild"])
+    fun `patching again in the same process compiles the same resources`(decoding: String) {
+        val input = inputApk {}
+        val patches = {
+            val patch = resourcePatch("Change a string") {
+                execute {
+                    document("res/values/strings.xml").use { document ->
+                        val strings = document.getElementsByTagName("string")
+                        for (index in 0 until strings.length) {
+                            val string = strings.item(index)
+                            // Longer than what it replaces, so that the change is seen even within one tick of the file time.
+                            if (string.attributes.getNamedItem("name").nodeValue == "hello") string.textContent = "Patched by a patch"
+                        }
+                    }
+                }
+            }
+            setOf(if (decoding == "up front") patch.builtFor("1.15.1") else patch.builtFor(ON_REQUEST))
+        }
+
+        val tables = withFullRebuild(decoding == "full rebuild") {
+            listOf("first", "second").map { name ->
+                val result = patcher(input, name, Config(), patches()).use { it.get() }
+                read(assertNotNull(result.resources.resourcesApk), "resources.arsc")
+            }
+        }
+
+        assertContentEquals(tables[0], tables[1], "the second run compiles what the first one does")
+        val packageBlock = TableBlock.load(ByteArrayInputStream(tables[1])).listPackages().single()
+        assertEquals("Patched by a patch", packageBlock.getEntry("", "string", "hello").resValue.valueAsString)
+        // Decoded as the first run of a process decodes it, not with the string decoder of the encoder.
+        assertEquals("It's \"quoted\"", packageBlock.getEntry("", "string", "escaped").resValue.valueAsString)
     }
 
     @Test
@@ -369,9 +403,6 @@ internal class WriteApkTest {
     }
 
     private fun patcher(input: File, name: String, config: Config, patches: Set<Patch<*>>): Patcher {
-        // Encoding installs a string decoder on this singleton, which a later run in the same process
-        // would decode the values with, so each run starts as the first one in a process does.
-        XmlCoder.getInstance().setting = CoderSetting()
         return Patcher(
             PatcherConfig(
                 input,
