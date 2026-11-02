@@ -1,3 +1,10 @@
+# [2.2.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.3...v2.2.0-dev.4) (2026-11-02)
+
+
+### Bug Fixes
+
+* Change internal logging to default off ([13bf14c](https://github.com/MorpheApp/morphe-patcher/commit/13bf14c3536b25958522d046ae8beef711edf738))
+
 # [2.2.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.2...v2.2.0-dev.3) (2026-11-02)
 
 
