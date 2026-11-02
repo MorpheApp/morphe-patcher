@@ -10,7 +10,6 @@ import com.reandroid.apk.AndroidFrameworks
 import com.reandroid.arsc.chunk.TableBlock
 import com.reandroid.arsc.chunk.xml.AndroidManifestBlock
 import com.reandroid.arsc.chunk.xml.ResXmlDocument
-import com.reandroid.arsc.coder.CoderSetting
 import com.reandroid.arsc.coder.xml.XmlCoder
 import com.reandroid.arsc.value.ResConfig
 import com.reandroid.xml.XMLFactory
@@ -23,10 +22,6 @@ import java.io.File
 internal object ResourceTestApk {
     fun build(dir: File): File {
         val packageName = "com.test.app"
-        // The coder under test installs an aapt-style string decoder on this singleton, which
-        // would otherwise leak into the fixture of the next test.
-        XmlCoder.getInstance().setting = CoderSetting()
-
         val table = TableBlock()
         table.addFramework(AndroidFrameworks.getLatest().tableBlock)
         val pkg = table.newPackage(0x7f, packageName)
@@ -74,7 +69,7 @@ internal object ResourceTestApk {
         table.refresh()
 
         fun binaryXml(xml: String) = ResXmlDocument().apply {
-            setPackageBlock(pkg)
+            packageBlock = pkg
             parse(XMLFactory.newPullParser(xml))
             refreshFull()
         }.bytes
@@ -91,12 +86,12 @@ internal object ResourceTestApk {
 
         val manifest = AndroidManifestBlock().apply {
             setPackageName(packageName)
-            setVersionCode(1)
-            setVersionName("1.0")
+            versionCode = 1
+            versionName = "1.0"
             setMinSdkVersion(26)
             setTargetSdkVersion(34)
-            setCompileSdkVersion(34)
-            setPlatformBuildVersionCode(34)
+            compileSdkVersion = 34
+            platformBuildVersionCode = 34
             getOrCreateApplicationElement()
             refreshFull()
         }

@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.resource
 
+import app.morphe.patcher.patch.PatchException
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
@@ -228,20 +229,50 @@ internal object PublicXmlManagerTest {
     }
 
     @Test
-    fun `createPublicId assigns id 1 for a brand new type`() {
+    fun `createPublicId gives a brand new type the type id after the highest one`() {
         val file = createPublicXml(
-            entries = listOf(Triple("string", "existing", "0x7f020001")),
+            entries = listOf(
+                Triple("string", "existing", "0x7f020001"),
+                Triple("anim", "fade_in", "0x7f040000"),
+            ),
         )
-        val manager = PublicXmlManager(file)
 
-        manager.use { manager ->
+        PublicXmlManager(file).use { manager ->
             manager.createPublicId("color", "primary")
-            assertTrue(manager.idExists("color", "primary"))
+            manager.createPublicId("color", "secondary")
+            manager.createPublicId("dimen", "gap")
+            manager.createPublicId("string", "added")
+
+            val ids = manager.getDefinedIds()
+            assertEquals(0x7f050000, ids["color" to "primary"])
+            assertEquals(0x7f050001, ids["color" to "secondary"])
+            assertEquals(0x7f060000, ids["dimen" to "gap"], "new types get consecutive type ids")
+            assertEquals(0x7f020002, ids["string" to "added"])
         }
 
         val content = file.readText()
-        assertTrue(content.contains("0x1"), "Expected new id 0x1 for the brand-new type 'color'")
-        assertTrue(content.contains("name=\"primary\""))
+        assertTrue(content.contains("id=\"0x7f050000\" type=\"color\" name=\"primary\""), content)
+    }
+
+    @Test
+    fun `createPublicId gives a brand new type of a package without ids the first type id`() {
+        val file = createPublicXml(packageId = "0x7e")
+
+        PublicXmlManager(file).use { manager ->
+            manager.createPublicId("color", "primary")
+            assertEquals(0x7e010000, manager.getDefinedIds()["color" to "primary"])
+        }
+    }
+
+    @Test
+    fun `createPublicId throws when no type id is left for a brand new type`() {
+        val file = createPublicXml(entries = listOf(Triple("string", "last", "0x7fff0000")))
+
+        PublicXmlManager(file).use { manager ->
+            manager.createPublicId("string", "added")
+            assertEquals(0x7fff0001, manager.getDefinedIds()["string" to "added"])
+            assertThrows<PatchException> { manager.createPublicId("color", "primary") }
+        }
     }
 
     @Test

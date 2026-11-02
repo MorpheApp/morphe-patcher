@@ -10,12 +10,15 @@ import java.io.InputStream
  * @param resources The patched resources.
  * @param dexFilesComplete Whether [dexFiles] replaces every dex file of the input,
  *   rather than only those it names.
+ * @param storedDexFileNames The names of the [dexFiles] the input APK stores uncompressed, which are
+ *   stored uncompressed in the patched APK as well.
  */
 @Suppress("MemberVisibilityCanBePrivate")
 class PatcherResult internal constructor(
     val dexFiles: Set<PatchedDexFile>,
     val resources: PatchedResources,
     internal val dexFilesComplete: Boolean = true,
+    internal val storedDexFileNames: Set<String> = emptySet(),
 ) {
 
     /**

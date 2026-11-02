@@ -354,6 +354,7 @@ public final class app/morphe/patcher/Patcher : java/io/Closeable {
 	public final fun getContext ()Lapp/morphe/patcher/PatcherContext;
 	public final fun invoke ()Lkotlinx/coroutines/flow/Flow;
 	public final fun plusAssign (Ljava/util/Set;)V
+	public final fun writeApk (Ljava/io/File;)V
 }
 
 public final class app/morphe/patcher/PatcherConfig {

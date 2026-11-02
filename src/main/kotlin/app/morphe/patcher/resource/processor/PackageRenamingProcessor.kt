@@ -41,9 +41,15 @@ internal class PackageRenamingProcessor(
      * Updates the declarations of the package name: `public.xml` through [publicXmlManager] and
      * `package.json`.
      */
-    fun renameDeclarations(publicXmlManager: PublicXmlManager) {
+    fun renameDeclarations(publicXmlManager: PublicXmlManager) = renameDeclarations(PublicXmlIds(publicXmlManager))
+
+    /**
+     * Updates the declarations of the package name: the public ids through [publicIds] and
+     * `package.json`.
+     */
+    fun renameDeclarations(publicIds: PublicIds) {
         if (originalPackageName == newPackageName) return
-        publicXmlManager.changePackageName(newPackageName)
+        publicIds.changePackageName(newPackageName)
         get("package.json", originalPackageName).apply {
             val packageJson = JSONObject(this)
             packageJson.put("package_name", newPackageName)
