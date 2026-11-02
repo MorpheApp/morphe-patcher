@@ -7,8 +7,31 @@ package app.morphe.patcher.resource
 
 import app.morphe.patcher.logging.PhaseTimings
 import app.morphe.patcher.logging.measure
+import app.morphe.patcher.patch.PatchException
 import com.reandroid.arsc.chunk.PackageBlock
 import com.reandroid.arsc.container.SpecTypePair
+
+/** The type id of the resource id [id]. */
+internal fun typeIdOf(id: Int) = (id ushr 16) and 0xff
+
+/** The first resource id of the type [typeId] of the package [packageId]. */
+internal fun firstIdOf(packageId: Int, typeId: Int) = (packageId shl 24) or (typeId shl 16)
+
+/**
+ * The type id a type new to a package is given: the one after [highestTypeId], the highest type id
+ * of the ids of the package.
+ *
+ * @throws PatchException If the package has no type id left.
+ */
+internal fun newTypeId(highestTypeId: Int, type: String, packageName: String): Int {
+    val typeId = highestTypeId + 1
+    if (typeId > 0xff) throw PatchException("No type id is left for resources of the new type $type in $packageName")
+    return typeId
+}
+
+/** The package id of the `id` attribute of the `<resources>` element of `public.xml`, such as `0x7f`. */
+internal fun parsePackageId(id: String): Int =
+    if (id.startsWith("0x") || id.startsWith("0X")) id.substring(2).toInt(16) else id.toInt()
 
 /**
  * The public resource ids of a package, as the processors that give new resources an id and the
@@ -60,6 +83,16 @@ internal class TablePublicIds(
     private class TypeIds(val ids: HashMap<String, Int>, var highest: Int)
 
     private val types = HashMap<String, TypeIds>()
+
+    /**
+     * The highest type id of the ids `public.xml` lists, which a type new to the package is given the
+     * next one of, as by a [PublicXmlManager].
+     */
+    private var highestTypeId: Int? = null
+
+    private fun highestTypeId(): Int = highestTypeId ?: timings.measure("tableIds") {
+        table().specTypePairs.asSequence().filter { it.publicEntries().any() }.maxOfOrNull { it.id } ?: 0
+    }
 
     /**
      * The types `public.xml` lists, in the order it first lists them, which is the order a
@@ -136,8 +169,14 @@ internal class TablePublicIds(
         val typeIds = typeIds(type)
         if (name in typeIds.ids) return
 
-        // The arithmetic of PublicXmlManager: a type without ids starts from 0.
-        val id = typeIds.highest + 1
+        // As PublicXmlManager does it: a type without ids is new to the package, and is given the type id
+        // after the highest one.
+        val id = if (typeIds.highest != 0) typeIds.highest + 1 else {
+            val table = table()
+            val typeId = newTypeId(highestTypeId(), type, table.name)
+            highestTypeId = typeId
+            firstIdOf(table.id, typeId)
+        }
         typeIds.highest = id
         typeIds.ids[name] = id
         created.getOrPut(type) { LinkedHashMap() }[name] = id

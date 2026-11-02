@@ -69,6 +69,8 @@ internal class TablePublicIdsTest {
             "drawable" to "new_icon",
             "string" to "added", // created already
             "attr" to "newAttr",
+            "bool" to "flag", // another type without ids
+            "dimen" to "third",
         )
         calls.forEach { (type, name) ->
             table.createPublicId(type, name)
@@ -78,7 +80,10 @@ internal class TablePublicIdsTest {
         val expected = manager.getDefinedIds().filterKeys { it !in before }
         // In order, as the encoder declares them in order.
         assertEquals(expected.toList(), table.idsToDeclare().toList())
-        assertEquals(1, table.idsToDeclare().getValue("dimen" to "first"), "a type without ids starts from 0")
+        // The test APK has types 0x01 to 0x08, so a type new to it is 0x09.
+        assertEquals(0x7f090000, table.idsToDeclare().getValue("dimen" to "first"), "a new type gets the next type id")
+        assertEquals(0x7f090001, table.idsToDeclare().getValue("dimen" to "second"))
+        assertEquals(0x7f0a0000, table.idsToDeclare().getValue("bool" to "flag"), "new types get consecutive type ids")
         manager.getHighestResourceIds().forEach { (type, highest) -> assertEquals(highest, table.highestId(type)) }
     }
 
@@ -87,6 +92,7 @@ internal class TablePublicIdsTest {
         val before = manager.getDefinedIds().keys
         table.createPublicId("string", "added")
         table.createPublicId("dimen", "first")
+        table.createPublicId("bool", "flag")
         table.changePackageName("app.morphe.test")
         table.releaseTable()
 

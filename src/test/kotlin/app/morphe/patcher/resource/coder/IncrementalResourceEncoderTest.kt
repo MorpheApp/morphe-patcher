@@ -389,6 +389,41 @@ internal class IncrementalResourceEncoderTest {
         }
     }
 
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Mode::class)
+    fun `values of a type new to the app get ids of a new type`(mode: Mode, @TempDir tempDir: File) {
+        val (_, coder) = decode(mode, tempDir)
+        // The app has types 0x01 to 0x08 and neither of these.
+        coder.getFile("res/values/bools.xml", null, true)
+            .writeText("""<?xml version="1.0" encoding="utf-8"?><resources><bool name="enabled">true</bool></resources>""")
+        coder.getFile("res/values/dimens.xml", null, true).writeText(
+            """<?xml version="1.0" encoding="utf-8"?>""" +
+                    """<resources><dimen name="gap">8dp</dimen><dimen name="margin">16dp</dimen></resources>"""
+        )
+
+        val output = encode(coder, mode, tempDir)
+
+        ApkModule.loadApkFile(output).use { module ->
+            val pkg = module.tableBlock.pickOne()
+            // New types get the type ids after the highest one of the app, in the order they are created in.
+            val expected = mapOf(
+                Triple("bool", "enabled", ValueType.BOOLEAN) to 0x7f090000,
+                Triple("dimen", "gap", ValueType.DIMENSION) to 0x7f0a0000,
+                Triple("dimen", "margin", ValueType.DIMENSION) to 0x7f0a0001,
+            )
+            expected.forEach { (resource, id) ->
+                val (type, name, valueType) = resource
+                val entry = assertNotNull(pkg.getEntry("", type, name), "@$type/$name")
+                assertEquals(id, entry.resourceId, "id of @$type/$name")
+                assertEquals(type, pkg.typeNameOf((id shr 16) and 0xff))
+                val resolved = assertNotNull(module.tableBlock.getResource(id), "0x${id.toString(16)} resolves")
+                assertEquals(name, resolved.name)
+                assertEquals(valueType, entry.resValue.valueType)
+            }
+            assertEquals("Hello", pkg.string("", "hello"), "the types the app has are kept")
+        }
+    }
+
     /**
      * Decodes on request in [directory], makes the changes patches make that need new ids, and
      * encodes.
