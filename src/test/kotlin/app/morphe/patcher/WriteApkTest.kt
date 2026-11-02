@@ -130,6 +130,9 @@ internal class WriteApkTest {
     @ValueSource(strings = ["on request", "up front", "full rebuild"])
     fun `patching again in the same process compiles the same resources`(decoding: String) {
         val input = inputApk {}
+        // The same size as the file it replaces when decoded on request, where an edit within one tick of
+        // the file time is told apart by the content. Longer when decoded up front, where only metadata is compared.
+        val patched = if (decoding == "up front") "Patched by a patch" else "Patched"
         val patches = {
             val patch = resourcePatch("Change a string") {
                 execute {
@@ -137,8 +140,7 @@ internal class WriteApkTest {
                         val strings = document.getElementsByTagName("string")
                         for (index in 0 until strings.length) {
                             val string = strings.item(index)
-                            // Longer than what it replaces, so that the change is seen even within one tick of the file time.
-                            if (string.attributes.getNamedItem("name").nodeValue == "hello") string.textContent = "Patched by a patch"
+                            if (string.attributes.getNamedItem("name").nodeValue == "hello") string.textContent = patched
                         }
                     }
                 }
@@ -155,7 +157,7 @@ internal class WriteApkTest {
 
         assertContentEquals(tables[0], tables[1], "the second run compiles what the first one does")
         val packageBlock = TableBlock.load(ByteArrayInputStream(tables[1])).listPackages().single()
-        assertEquals("Patched by a patch", packageBlock.getEntry("", "string", "hello").resValue.valueAsString)
+        assertEquals(patched, packageBlock.getEntry("", "string", "hello").resValue.valueAsString)
         // Decoded as the first run of a process decodes it, not with the string decoder of the encoder.
         assertEquals("It's \"quoted\"", packageBlock.getEntry("", "string", "escaped").resValue.valueAsString)
     }

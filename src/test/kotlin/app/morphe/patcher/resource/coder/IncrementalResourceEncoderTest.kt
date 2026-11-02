@@ -17,6 +17,8 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.logging.Handler
 import java.util.logging.Level
 import java.util.logging.LogRecord
@@ -496,6 +498,64 @@ internal class IncrementalResourceEncoderTest {
             assertEquals("Added", pkg.string("", "added"))
             assertEquals("Hello", pkg.string("", "hello"))
         }
+    }
+
+    /**
+     * Rewrites this file with [transform] applied, keeping its size, and puts its timestamps back to what
+     * they were, as an edit within one tick of the file system's timestamp clock leaves them.
+     */
+    private fun File.editKeepingMetadata(transform: (String) -> String) {
+        val path = toPath()
+        val before = Files.readAttributes(path, BasicFileAttributes::class.java)
+        val text = readText()
+        val edited = transform(text)
+        assertTrue(edited != text && edited.length == text.length, "the edit changes the content and keeps the size")
+        writeText(edited)
+        Files.setLastModifiedTime(path, before.lastModifiedTime())
+        // Not every file system lets the creation time be set, but rewriting a file in place keeps it anyway.
+        runCatching { Files.setAttribute(path, "creationTime", before.creationTime()) }
+        val after = Files.readAttributes(path, BasicFileAttributes::class.java)
+        assertEquals(before.size(), after.size())
+        assertEquals(before.lastModifiedTime(), after.lastModifiedTime())
+    }
+
+    @Test
+    fun `an edit of a file decoded on request that keeps its size and timestamps is encoded`(@TempDir tempDir: File) {
+        val (_, coder) = decode(Mode.ON_REQUEST, tempDir)
+
+        coder.getFile("res/values/strings.xml", null, true).editKeepingMetadata { it.replace(">Hello<", ">Howdy<") }
+
+        val output = encode(coder, Mode.ON_REQUEST, tempDir)
+        ApkModule.loadApkFile(output).use { module ->
+            assertEquals("Howdy", module.tableBlock.pickOne().string("", "hello"))
+        }
+    }
+
+    @Test
+    fun `a file decoded on request that is left alone is not reported as changed`(@TempDir tempDir: File) {
+        val (_, coder) = decode(Mode.ON_REQUEST, tempDir)
+        val strings = coder.getFile("res/values/strings.xml", null, true)
+        assertTrue(strings.isFile)
+
+        coder.detectFileChanges()
+
+        assertTrue(coder.modifiedResResources.isEmpty(), "unchanged: ${coder.modifiedResResources}")
+    }
+
+    /**
+     * Every file is decoded before any patch runs here, so an edit does not fall within the timestamp tick
+     * of the decode in practice, and no checksum is recorded for the thousands of files decoded up front.
+     * An edit that does keep every attribute therefore stays unnoticed, as it always has.
+     */
+    @Test
+    fun `an edit of a file decoded up front that keeps its size and timestamps is not noticed`(@TempDir tempDir: File) {
+        val (_, coder) = decode(Mode.INCREMENTAL, tempDir)
+        val strings = coder.getFile("res/values/strings.xml", null, true)
+
+        strings.editKeepingMetadata { it.replace(">Hello<", ">Howdy<") }
+        coder.detectFileChanges()
+
+        assertTrue(coder.modifiedResResources.isEmpty(), "only metadata is compared for files decoded up front")
     }
 
     private fun PackageBlock.dump(): List<String> = buildList {

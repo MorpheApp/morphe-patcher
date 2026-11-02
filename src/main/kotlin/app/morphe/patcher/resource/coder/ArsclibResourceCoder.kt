@@ -56,6 +56,7 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
 import java.util.logging.Level
+import java.util.zip.CRC32
 import java.util.logging.Logger
 import com.android.tools.build.apkzlib.zip.ZFile
 import kotlin.time.Duration
@@ -156,12 +157,17 @@ internal class ArsclibResourceCoder(
      * Snapshot of file metadata and identity captured after decoding resources.
      * High-resolution timestamps and file keys improve same-size change detection when the filesystem exposes
      * distinguishable metadata, without rereading every decoded resource payload.
+     *
+     * @param checksum The CRC32 of the content, recorded for files decoded on request. A patch typically
+     * edits such a file right after it was decoded, within one tick of the file system's timestamp clock,
+     * so an edit that keeps the size leaves every other attribute as it was.
      */
     internal class FileSnapshot(
         val creationTime: FileTime,
         val lastModified: FileTime,
         val size: Long,
         val fileKey: Any?,
+        val checksum: Long? = null,
     )
     internal var fileSnapshotCache: MutableMap<String, FileSnapshot> = mutableMapOf()
 
@@ -862,7 +868,8 @@ internal class ArsclibResourceCoder(
                     cause
                 )
                 // The rebuild reads every values file, so whatever was not decoded on request is decoded now.
-                onRequestDecoder?.packages?.values?.forEach { decodeOnRequest(it, it.paths.toList()) }
+                // No patch edits what is decoded now, so the files are not read back for a checksum.
+                onRequestDecoder?.packages?.values?.forEach { decodeOnRequest(it, it.paths.toList(), checksums = false) }
 
                 // The rebuild reads the ids from public.xml, which was decoded from the table just now,
                 // so the ids given to new resources are given again, in the same order.
@@ -1271,23 +1278,41 @@ internal class ArsclibResourceCoder(
         return if (separator > 0) resourceDirectory.name.substring(separator) else ""
     }
 
-    private fun File.snapshot(): FileSnapshot {
+    /** @param withChecksum Whether to also record the CRC32 of the content, which reads the whole file. */
+    private fun File.snapshot(withChecksum: Boolean = false): FileSnapshot {
         val attributes = Files.readAttributes(toPath(), BasicFileAttributes::class.java)
         return FileSnapshot(
             attributes.creationTime(),
             attributes.lastModifiedTime(),
             attributes.size(),
             attributes.fileKey(),
+            if (withChecksum) crc32() else null,
         )
     }
 
     private fun File.differsFrom(snapshot: FileSnapshot?): Boolean {
         if (snapshot == null) return true
         val attributes = Files.readAttributes(toPath(), BasicFileAttributes::class.java)
-        return attributes.creationTime() != snapshot.creationTime ||
-                attributes.lastModifiedTime() != snapshot.lastModified ||
-                attributes.size() != snapshot.size ||
-                attributes.fileKey() != snapshot.fileKey
+        if (attributes.creationTime() != snapshot.creationTime ||
+            attributes.lastModifiedTime() != snapshot.lastModified ||
+            attributes.size() != snapshot.size ||
+            attributes.fileKey() != snapshot.fileKey
+        ) return true
+        // Every attribute matching does not rule out an edit within one tick of the timestamp clock.
+        return snapshot.checksum != null && crc32() != snapshot.checksum
+    }
+
+    private fun File.crc32(): Long {
+        val crc = CRC32()
+        inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                crc.update(buffer, 0, read)
+            }
+        }
+        return crc.value
     }
 
     override fun getOtherResourceFiles(outputDir: File, resourceMode: ResourceMode): File? {
@@ -1663,8 +1688,11 @@ internal class ArsclibResourceCoder(
      * Decodes files of a package that are not decoded yet, which are files that are neither in the snapshot,
      * as decoded or deleted files are, nor in the working directory. A values file a patch wrote before it
      * was decoded is decoded as well, and what the patch wrote is merged into it.
+     *
+     * @param checksums Whether to record the checksum of each decoded file in its snapshot, so that an edit
+     * that keeps the size within the timestamp tick of the decode is noticed.
      */
-    private fun decodeOnRequest(decodablePackage: DecodablePackage, paths: Collection<String>) {
+    private fun decodeOnRequest(decodablePackage: DecodablePackage, paths: Collection<String>, checksums: Boolean = true) {
         val decoder = onRequestDecoder ?: return
         val pending = paths.filter { path ->
             val file = decodablePackage.directory.resolve(path)
@@ -1699,7 +1727,7 @@ internal class ArsclibResourceCoder(
             StringsXmlEscapeProcessor({ path, pkg -> getFile(path, pkg, false) }, packageDirectories)
                 .process(stringsFiles, log = false)
         }
-        decoded.forEach { fileSnapshotCache[pathKey(it)] = it.snapshot() }
+        decoded.forEach { fileSnapshotCache[pathKey(it)] = it.snapshot(withChecksum = checksums) }
 
         written.forEach { (file, held) ->
             if (file.isFile) {
