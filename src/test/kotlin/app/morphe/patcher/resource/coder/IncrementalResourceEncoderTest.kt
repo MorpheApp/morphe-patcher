@@ -11,6 +11,7 @@ import com.reandroid.arsc.chunk.xml.ResXmlDocument
 import com.reandroid.arsc.value.ResConfig
 import com.reandroid.arsc.value.ValueType
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
@@ -46,8 +47,14 @@ internal class IncrementalResourceEncoderTest {
     }
     private val coderLogger = Logger.getLogger(ArsclibResourceCoder::class.java.name).also { it.addHandler(handler) }
 
+    /** Closed after each test, as an open coder keeps the input APK open, which Windows cannot delete. */
+    private val coders = mutableListOf<ArsclibResourceCoder>()
+
     @AfterEach
-    fun tearDown() = coderLogger.removeHandler(handler)
+    fun tearDown() {
+        coderLogger.removeHandler(handler)
+        coders.forEach(ArsclibResourceCoder::close)
+    }
 
     /**
      * How resources are decoded and encoded.
@@ -70,7 +77,7 @@ internal class IncrementalResourceEncoderTest {
             tempDir.resolve("working").apply { mkdirs() },
             apk,
             fullResourceEncode = mode == Mode.FULL_REBUILD,
-        )
+        ).also(coders::add)
         coder.decodeResources(onRequest = mode == Mode.ON_REQUEST)
         return apk to coder
     }
@@ -379,6 +386,80 @@ internal class IncrementalResourceEncoderTest {
             val overlayable = pkg.overlayableList.get("Theme")
             assertNotNull(overlayable)
             assertEquals(1, pkg.overlayableList.size())
+        }
+    }
+
+    /**
+     * Decodes on request in [directory], makes the changes patches make that need new ids, and
+     * encodes.
+     */
+    private fun encodeWithNewIds(
+        directory: File,
+        configure: ArsclibResourceCoder.() -> Unit,
+    ): File {
+        val (_, coder) = decode(Mode.ON_REQUEST, directory.apply { mkdirs() })
+        coder.configure()
+
+        coder.getFile("res/values/strings.xml", null, true).edit {
+            it.replace("</resources>", """<string name="added">Added</string><string name="added_too">Too</string></resources>""")
+        }
+        coder.getFile("res/values/colors.xml", null, true).edit {
+            it.replace("</resources>", """<color name="added_color">#ff00ff00</color></resources>""")
+        }
+        coder.getFile("res/drawable/new_icon.png", null, true).writeBytes("PNG new".toByteArray())
+        coder.getFile("res/layout/main.xml", null, true).edit {
+            it.replace("/>", """><View android:id="@+id/new_view"/><View android:id="@+id/other_view"/></LinearLayout>""")
+        }
+
+        return coder.encodeResources(directory.resolve("out").apply { mkdirs() }) { false }
+            .also { coder.close() }
+    }
+
+    private fun bytesOf(apk: File, entry: String): ByteArray = ZipFile(apk).use { zip ->
+        zip.getInputStream(zip.getEntry(entry)).use { it.readBytes() }
+    }
+
+    private fun idsOf(apk: File, vararg resources: Pair<String, String>) = ApkModule.loadApkFile(apk).use { module ->
+        val pkg = module.tableBlock.pickOne()
+        resources.associateWith { (type, name) -> pkg.getEntry("", type, name)?.resourceId }
+    }
+
+    @Test
+    fun `ids read from the table encode the same table as ids read from public xml`(@TempDir tempDir: File) {
+        val fromTable = encodeWithNewIds(tempDir.resolve("table")) { publicIdsFromTable = true }
+        val fromFile = encodeWithNewIds(tempDir.resolve("file")) { publicIdsFromTable = false }
+        assertTrue(warnings.isEmpty(), "The incremental encoder fell back: ${warnings.map { it.message }}")
+        fun publicXmls(name: String) = tempDir.resolve(name).walkTopDown().count { it.name == "public.xml" }
+        assertEquals(0, publicXmls("table"), "the ids were read from the table, so public.xml was not decoded")
+        assertEquals(1, publicXmls("file"))
+
+        assertContentEquals(bytesOf(fromFile, "resources.arsc"), bytesOf(fromTable, "resources.arsc"))
+        assertContentEquals(bytesOf(fromFile, "AndroidManifest.xml"), bytesOf(fromTable, "AndroidManifest.xml"))
+        assertContentEquals(bytesOf(fromFile, "res/layout/main.xml"), bytesOf(fromTable, "res/layout/main.xml"))
+    }
+
+    @Test
+    fun `the rebuild after the incremental encoder failed gives new resources the same ids`(@TempDir tempDir: File) {
+        val resources = arrayOf(
+            "string" to "added",
+            "string" to "added_too",
+            "color" to "added_color",
+            "drawable" to "new_icon",
+            "id" to "new_view",
+            "id" to "other_view",
+        )
+        val expected = idsOf(encodeWithNewIds(tempDir.resolve("incremental")) {}, *resources)
+        assertTrue(warnings.isEmpty(), "The incremental encoder fell back: ${warnings.map { it.message }}")
+        assertTrue(expected.values.all { it != null }, "every new resource has an id: $expected")
+
+        val rebuilt = encodeWithNewIds(tempDir.resolve("rebuilt")) { failIncrementalForTest = true }
+        assertTrue(warnings.any { it.message.orEmpty().contains("rebuilding the table") }, "The incremental encoder did not fall back")
+
+        assertEquals(expected, idsOf(rebuilt, *resources))
+        ApkModule.loadApkFile(rebuilt).use { module ->
+            val pkg = module.tableBlock.pickOne()
+            assertEquals("Added", pkg.string("", "added"))
+            assertEquals("Hello", pkg.string("", "hello"))
         }
     }
 

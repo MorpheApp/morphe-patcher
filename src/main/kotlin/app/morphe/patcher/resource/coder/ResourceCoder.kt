@@ -6,6 +6,8 @@
 package app.morphe.patcher.resource.coder
 
 import app.morphe.patcher.PackageMetadata
+import app.morphe.patcher.apk.CompressedDexFiles
+import app.morphe.patcher.logging.PhaseTimings
 import app.morphe.patcher.resource.ResourceMode
 import java.io.Closeable
 import java.io.File
@@ -93,6 +95,29 @@ internal interface ResourceCoder : Closeable {
      * @return a File object representing the output file of the compiled APK.
      */
     fun encodeResources(outputDir: File, omitEntry: (String) -> Boolean = { false }): File
+
+    /**
+     * Write the patched APK: the input APK with the resources from the working directory, encoded as
+     * [encodeResources] encodes them in [ResourceMode.FULL], the other files [getOtherResourceFiles]
+     * returns, without the files [getDeletedFiles] returns and the entries [omitEntry] matches, and with
+     * [dexFiles]. This is what [app.morphe.patcher.apk.ApkUtils.applyTo] makes of the result of
+     * [encodeResources] and the input APK, written in one pass. The APK is aligned, but not signed.
+     *
+     * @param outputApk The file to write the patched APK to.
+     * @param outputDir The output directory for patched files, which temporary files are written to.
+     * @param resourceMode The resource mode that is being used.
+     * @param omitEntry Whether to leave out an archive entry, as the patched APK replaces or deletes it.
+     * @param dexFiles The patched DEX files, which are waited for once the resources are encoded.
+     * @param timings Where the steps of writing the APK are measured.
+     */
+    fun writeApk(
+        outputApk: File,
+        outputDir: File,
+        resourceMode: ResourceMode,
+        omitEntry: (String) -> Boolean,
+        dexFiles: CompressedDexFiles,
+        timings: PhaseTimings,
+    )
 
     /**
      * Get other resource files.

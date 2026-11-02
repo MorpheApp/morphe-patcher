@@ -13,12 +13,15 @@ import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.PatcherBehavior
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherResult
+import app.morphe.patcher.apk.CompressedDexFiles
+import app.morphe.patcher.logging.PhaseTimings
 import app.morphe.patcher.resource.ResourceIds
 import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.resource.coder.ArsclibResourceCoder
 import app.morphe.patcher.resource.coder.ResourceCoder
 import app.morphe.patcher.util.Document
 import java.io.Closeable
+import java.io.File
 import java.io.InputStream
 import java.util.logging.Logger
 
@@ -117,6 +120,19 @@ class ResourcePatchContext internal constructor(
             resourceCoder.getUncompressedFiles(config.resourceMode),
             resourceCoder.getDeletedFiles(config.resourceMode),
         )
+    }
+
+    /**
+     * Compile resources in [PatcherConfig.apkFiles] and write the patched APK with [dexFiles], as [get]
+     * followed by [app.morphe.patcher.apk.ApkUtils.applyTo] would.
+     *
+     * @param outputApk The file to write the patched APK to.
+     * @param dexFiles The patched DEX files, compressed in the background.
+     * @param timings Where the steps of writing the APK are measured.
+     */
+    internal fun writeApk(outputApk: File, dexFiles: CompressedDexFiles, timings: PhaseTimings) {
+        if (config.resourceMode == ResourceMode.FULL) logger.info("Compiling modified resources")
+        resourceCoder.writeApk(outputApk, config.patchedFiles, config.resourceMode, omitEntry, dexFiles, timings)
     }
 
     /**

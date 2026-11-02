@@ -128,6 +128,48 @@ internal object AaptMacroProcessorTest {
         assertEquals(addedResources.size, 1, "Expected no extracted files when no aapt namespace")
     }
 
+    @Test
+    fun `process leaves values files alone and still extracts from drawables`() {
+        val resDir = tempDir.resolve("res_${System.nanoTime()}")
+        val aaptXml = { root: String ->
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<$root xmlns:aapt=\"http://schemas.android.com/aapt\"\n" +
+                "        xmlns:android=\"http://schemas.android.com/apk/res/android\">\n" +
+                "    <path>\n" +
+                "        <aapt:attr name=\"android:fillColor\">\n" +
+                "            <gradient android:startColor=\"#FF0000\"/>\n" +
+                "        </aapt:attr>\n" +
+                "    </path>\n" +
+                "</$root>"
+        }
+        val valuesFiles = listOf("values/colors.xml", "values-night-v31/colors.xml").map { path ->
+            resDir.resolve(path).also {
+                it.parentFile.mkdirs()
+                it.writeText(aaptXml("resources"), Charsets.UTF_8)
+            }
+        }
+        val valuesBytes = valuesFiles.map { it.readBytes() }
+        val drawable = resDir.resolve("drawable/test_icon.xml").also {
+            it.parentFile.mkdirs()
+            it.writeText(aaptXml("vector"), Charsets.UTF_8)
+        }
+
+        val modified = (valuesFiles + drawable).toMutableSet()
+        AaptMacroProcessor(
+            get = { path -> resDir.resolve(path.removePrefix("res/")).also { it.parentFile.mkdirs() } },
+            modifiedResResources = modified,
+        ).process()
+
+        valuesFiles.zip(valuesBytes).forEach { (file, bytes) ->
+            assertTrue(file.readBytes().contentEquals(bytes), "Expected $file to be left byte-identical")
+        }
+        val extracted = modified - valuesFiles.toSet() - drawable
+        assertEquals(listOf(resDir.resolve("drawable/\$test_icon__0.xml")), extracted.toList())
+        assertEquals(listOf("\$test_icon__0.xml", "test_icon.xml"), resDir.resolve("drawable").list()!!.sorted())
+        assertFalse(drawable.readText(Charsets.UTF_8).contains("aapt:attr"))
+        assertContains(drawable.readText(Charsets.UTF_8), "@drawable/\$test_icon__0")
+    }
+
     // ==================== UTF-8 encoding tests ====================
 
     @Test

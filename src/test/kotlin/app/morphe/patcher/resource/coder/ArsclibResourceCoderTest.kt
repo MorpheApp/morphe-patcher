@@ -2224,7 +2224,7 @@ internal class ArsclibResourceCoderTest {
         }
 
         val legacyCoder = ArsclibResourceCoder(tempDir.resolve("working").apply { mkdirs() }, apk)
-        val metadata = assertDoesNotThrow { legacyCoder.getPackageMetadata() }
+        val metadata = legacyCoder.use { assertDoesNotThrow { it.getPackageMetadata() } }
 
         assertEquals("com.test.legacy", metadata.packageName)
         assertEquals("3.1.0", metadata.versionName)
