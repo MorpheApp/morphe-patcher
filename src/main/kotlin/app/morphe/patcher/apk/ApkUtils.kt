@@ -112,7 +112,8 @@ object ApkUtils {
      * 2. Delete resources staged for deletion.
      * 3. Write raw resources. This comes after the deletion so that an entry a patch deleted and
      *    then recreated ends up with the recreated content rather than removed.
-     * 4. Write patched dex files.
+     * 4. Write patched dex files. A dex file the input APK stores uncompressed, as an app that loads its
+     *    code from the APK must, is stored uncompressed.
      * 5. Realign the APK.
      *
      * Without a compiled resource APK, [apkFile] must be a copy of the input APK so that
@@ -175,7 +176,7 @@ object ApkUtils {
             timings.measure("addDex") {
                 try {
                     dexFiles.forEach { dexFile ->
-                        targetApkZFile.add(dexFile.name, dexFile.stream)
+                        targetApkZFile.add(dexFile.name, dexFile.stream, dexFile.name !in storedDexFileNames)
                     }
                 } finally {
                     dexFiles.forEach { dexFile ->

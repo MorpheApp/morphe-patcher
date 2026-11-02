@@ -217,7 +217,7 @@ internal class WriteApkTest {
     }
 
     @Test
-    fun `a dex file the input stores is stored, while applyTo compresses it`() {
+    fun `a dex file the input stores is stored as applyTo stores it`() {
         val input = inputApk {
             addStored("classes.dex", dexOf("La;", "Lb;"))
         }
@@ -225,13 +225,9 @@ internal class WriteApkTest {
 
         val (applied, written) = patchBothWays(input, Config(bytecodeMode = BytecodeMode.FULL), patches)
 
-        val appliedEntries = entriesOf(applied)
-        val writtenEntries = entriesOf(written)
-        assertEquals(ZipEntry.DEFLATED, appliedEntries.getValue("classes.dex").method)
-        assertEquals(ZipEntry.STORED, writtenEntries.getValue("classes.dex").method)
-        assertEquals(appliedEntries.getValue("classes.dex").crc, writtenEntries.getValue("classes.dex").crc)
-        assertEquals(appliedEntries - "classes.dex", writtenEntries - "classes.dex")
-        assertAligned(written)
+        val entries = assertSameApk(applied, written)
+        assertEquals(ZipEntry.STORED, entries.getValue("classes.dex").method)
+        assertSigns(applied)
         assertSigns(written)
     }
 

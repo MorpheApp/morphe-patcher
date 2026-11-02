@@ -21,6 +21,18 @@ import java.util.zip.ZipFile
 internal var overlapDexCompression = true
 
 /**
+ * The names of [dexFileNames] that [inputApk] stores uncompressed, as an app that loads its code from the APK
+ * must store its DEX files. An input the platform reader cannot read has none.
+ */
+internal fun dexFilesStoredIn(inputApk: File, dexFileNames: Collection<String>): Set<String> = try {
+    ZipFile(inputApk).use { zip ->
+        dexFileNames.filterTo(HashSet()) { name -> zip.getEntry(name)?.method == ZipEntry.STORED }
+    }
+} catch (_: Exception) {
+    emptySet()
+}
+
+/**
  * Compresses the patched DEX files into the temporary archive [archive] on a background thread, and the
  * patched APK copies the compressed entries as they are. If [overlap] is true, the thread is started at
  * once, so that the resources are encoded meanwhile. Otherwise, it is started by [await], so that nothing
@@ -28,8 +40,8 @@ internal var overlapDexCompression = true
  *
  * The DEX files are compressed in parallel as [ApkUtils.applyTo] compresses them, with
  * [ApkUtils.zFileOptions], so an entry that does not shrink is stored. A DEX file the input APK stores
- * uncompressed, as an app that loads its code from the APK must, is stored as well, which
- * [ApkUtils.applyTo] does not do: it compresses every DEX file it adds.
+ * uncompressed, as an app that loads its code from the APK must, is stored as well, as [ApkUtils.applyTo]
+ * stores it.
  *
  * The streams of [dexFiles] are closed once they are read, or by [close] if they never are.
  *
@@ -61,7 +73,7 @@ internal class CompressedDexFiles(
     private fun compress() {
         try {
             timings.measure("dexCompress") {
-                val storedInInput = storedInInput()
+                val storedInInput = dexFilesStoredIn(inputApk, dexFiles.map { it.name })
                 archive.absoluteFile.parentFile?.mkdirs()
                 // Opening an existing file would add to what an earlier run left there.
                 archive.delete()
@@ -77,20 +89,6 @@ internal class CompressedDexFiles(
         } finally {
             closeStreams()
         }
-    }
-
-    /**
-     * The names of the patched DEX files the input APK stores uncompressed. An input the platform
-     * reader cannot read has its DEX files compressed.
-     */
-    private fun storedInInput(): Set<String> = try {
-        ZipFile(inputApk).use { zip ->
-            dexFiles.mapNotNullTo(HashSet()) { dexFile ->
-                dexFile.name.takeIf { zip.getEntry(it)?.method == ZipEntry.STORED }
-            }
-        }
-    } catch (_: Exception) {
-        emptySet()
     }
 
     private fun closeStreams() = dexFiles.forEach { dexFile -> runCatching { dexFile.stream.close() } }

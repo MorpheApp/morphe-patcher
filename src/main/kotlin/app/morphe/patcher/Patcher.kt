@@ -10,6 +10,7 @@ package app.morphe.patcher
 
 import app.morphe.patcher.apk.ApkUtils
 import app.morphe.patcher.apk.CompressedDexFiles
+import app.morphe.patcher.apk.dexFilesStoredIn
 import app.morphe.patcher.apk.overlapDexCompression
 import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.logging.PhaseTimings
@@ -199,7 +200,9 @@ class Patcher(private val config: PatcherConfig) : Closeable {
     fun get(): PatcherResult {
         val (dexFiles, dexFilesComplete) = compileDexFiles()
         val resFiles = context.resourceContext.get()
-        return PatcherResult(dexFiles, resFiles, dexFilesComplete)
+        // The output base of applyTo may lack the DEX entries it replaces, so the input tells how to store them.
+        val storedDexFileNames = dexFilesStoredIn(config.apkFile, dexFiles.map { it.name })
+        return PatcherResult(dexFiles, resFiles, dexFilesComplete, storedDexFileNames)
     }
 
     /**
@@ -209,8 +212,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
      * The APK holds what [ApkUtils.applyTo] would write and is aligned the same way, but it is not signed,
      * so sign it with [ApkUtils.signApk] before it is installed, which can sign it in place. The DEX files
      * are compressed while the resources are encoded. A DEX file the input APK stores uncompressed, as an
-     * app that loads its code from the APK must, is stored uncompressed, while [ApkUtils.applyTo]
-     * compresses it.
+     * app that loads its code from the APK must, is stored uncompressed, as [ApkUtils.applyTo] stores it.
      *
      * Like [get], this ends patching: the patcher cannot be used afterward, other than to be closed.
      *
