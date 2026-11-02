@@ -70,7 +70,7 @@ internal class PublicXmlIds(val manager: PublicXmlManager) : PublicIds {
  * The ids of a type are looked up the first time it is asked for, as a patch touches only a few
  * types and a large app has tens of thousands of resources.
  *
- * @param packageBlock The package, which must [mirror].
+ * @param packageBlock The package, which must [mirrors].
  * @param timings The timings the lookups are measured into, as `tableIds`, if any.
  */
 internal class TablePublicIds(
@@ -202,7 +202,7 @@ internal class TablePublicIds(
     }
 
     /**
-     * Lets go of the resource table, which the encoder goes on to change. The lookups built so far
+     * Releases the resource table, which the encoder goes on to change. The lookups built so far
      * stay, while a type not looked up yet can no longer be.
      */
     fun releaseTable() {

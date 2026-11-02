@@ -219,7 +219,6 @@ class Patcher(private val config: PatcherConfig) : Closeable {
      * @param outputApk The file to write the patched APK to, replacing it if it exists.
      * @throws IllegalArgumentException If [outputApk] is the input APK, which is read while it is written.
      */
-    @OptIn(InternalApi::class)
     fun writeApk(outputApk: File) {
         require(outputApk.canonicalFile != config.apkFile.canonicalFile) {
             "The patched APK cannot be written over the input APK: $outputApk"

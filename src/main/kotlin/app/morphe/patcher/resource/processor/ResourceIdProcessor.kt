@@ -39,7 +39,7 @@ internal class ResourceIdProcessor(
         logger.info("Generating new resource IDs")
 
         // New ids are numbered in the order resources are seen here, so every listing is sorted.
-        // Directory listing order is not stable on every file system (Android's f2fs for one),
+        // Directory listing order is not stable on every file system (Android's `f2fs` for one),
         // and an unsorted walk gives the same resource a different id from run to run.
         val resDirectories = (listFiles(get("res")) ?: throw PatchException("Resource directory not found"))
             .filter { it.isDirectory }
@@ -188,7 +188,7 @@ internal class ResourceIdProcessor(
     }
 
     /**
-     * If [file] starts with a UTF-16 byte order mark, or with a null byte, which UTF-16 text without one has.
+     * If this file starts with a UTF-16 byte order mark, or with a null byte, which UTF-16 text without one has.
      */
     private fun File.isUtf16(): Boolean {
         val head = ByteArray(2)

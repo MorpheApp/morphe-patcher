@@ -65,7 +65,7 @@ internal class IncrementalResourceEncoderTest {
         /** Every resource is decoded up front, and the changed ones are encoded into the input table. */
         INCREMENTAL,
 
-        /** Every resource is decoded up front, and the table is rebuilt from every values file. */
+        /** Every resource is decoded up front, and the table is rebuilt from all values files. */
         FULL_REBUILD,
 
         /** Resources are decoded as they are requested, and the changed ones are encoded into the input table. */
@@ -102,7 +102,7 @@ internal class IncrementalResourceEncoderTest {
     private fun File.edit(transform: (String) -> String) = writeText(transform(readText()))
 
     private fun crcOf(apk: File, entry: String): Long? = ZipFile(apk).use { zip ->
-        zip.getEntry(entry)?.let { zip.getInputStream(it).use { input -> CRC32().also { it.update(input.readBytes()) }.value } }
+        zip.getEntry(entry)?.let { zip.getInputStream(it).use { input -> CRC32().also { crc -> crc.update(input.readBytes()) }.value } }
     }
 
     private fun PackageBlock.string(qualifiers: String, name: String) =
@@ -131,7 +131,7 @@ internal class IncrementalResourceEncoderTest {
         coder.getFile("res/values/arrays.xml", null, true).edit {
             it.replace(Regex("<item>.*</item>", RegexOption.DOT_MATCHES_ALL), "<item>uno</item><item>dos</item><item>tres</item>")
         }
-        // A colour is added next to one defined by a file.
+        // A color is added next to one defined by a file.
         coder.getFile("res/values/colors.xml", null, true).edit {
             it.replace("</resources>", """<color name="added_color">#ff00ff00</color></resources>""")
         }

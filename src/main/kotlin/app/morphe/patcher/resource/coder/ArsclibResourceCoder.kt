@@ -848,7 +848,7 @@ internal class ArsclibResourceCoder(
 
             timings.measure("definedIds") { publicIds.idsToDeclare() }
         }
-        // The encoder changes the table, so nothing may look it up any more.
+        // The encoder changes the table, so nothing may look it up anymore.
         tablePublicIds?.releaseTable()
 
         // A package whose ids come from the table has no public.xml, while every other package is
@@ -1293,13 +1293,12 @@ internal class ArsclibResourceCoder(
     private fun File.differsFrom(snapshot: FileSnapshot?): Boolean {
         if (snapshot == null) return true
         val attributes = Files.readAttributes(toPath(), BasicFileAttributes::class.java)
-        if (attributes.creationTime() != snapshot.creationTime ||
+        return attributes.creationTime() != snapshot.creationTime ||
             attributes.lastModifiedTime() != snapshot.lastModified ||
             attributes.size() != snapshot.size ||
-            attributes.fileKey() != snapshot.fileKey
-        ) return true
-        // Every attribute matching does not rule out an edit within one tick of the timestamp clock.
-        return snapshot.checksum != null && crc32() != snapshot.checksum
+            attributes.fileKey() != snapshot.fileKey ||
+            // Every attribute matching does not rule out an edit within one tick of the timestamp clock.
+            (snapshot.checksum != null && crc32() != snapshot.checksum)
     }
 
     private fun File.crc32(): Long {
@@ -1690,7 +1689,7 @@ internal class ArsclibResourceCoder(
      * was decoded is decoded as well, and what the patch wrote is merged into it.
      *
      * @param checksums Whether to record the checksum of each decoded file in its snapshot, so that an edit
-     * that keeps the size within the timestamp tick of the decode is noticed.
+     * that keeps the size within the timestamp tick of the decoding is noticed.
      */
     private fun decodeOnRequest(decodablePackage: DecodablePackage, paths: Collection<String>, checksums: Boolean = true) {
         val decoder = onRequestDecoder ?: return

@@ -61,7 +61,7 @@ internal class DecodablePackage(val name: String, val id: Int, val directory: Fi
     /** The resource files of the package, mapped to the name of the archive entry they decode from. */
     internal val resourceFiles = HashMap<String, String>()
 
-    /** The values files of the package, mapped to the type and configuration they hold. */
+    /** The `values` files of the package, mapped to the type and configuration they hold. */
     internal val valuesFiles = HashMap<String, ValuesFile>()
 
     internal var hasOverlayables = false
@@ -292,7 +292,7 @@ internal class OnRequestDecoder(
         val packageBlock = manifestBlock.packageBlock ?: module.tableBlock.let { tableBlock ->
             tableBlock.pickOne(manifestBlock.guessCurrentPackageId()) ?: tableBlock.pickOne()
         }
-        if (packageBlock != null && manifestBlock.packageBlock == null) manifestBlock.setPackageBlock(packageBlock)
+        if (packageBlock != null && manifestBlock.packageBlock == null) manifestBlock.packageBlock = packageBlock
 
         workingDir.resolve(AndroidManifestBlock.FILE_NAME).createOutputStream().use { output ->
             val serializer = XMLFactory.newSerializer(output, manifestBlock.encoding)
@@ -314,13 +314,13 @@ internal class OnRequestDecoder(
         paths.mapNotNull { path ->
             val file = decodablePackage.directory.resolve(path)
             try {
-                when {
-                    path == PUBLIC_XML -> decodePublicXml(packageBlock, file)
-                    path == OVERLAYABLE_XML -> decodeOverlayables(packageBlock, file)
-                    path in decodablePackage.valuesFiles ->
+                when (path) {
+                    PUBLIC_XML -> decodePublicXml(packageBlock, file)
+                    OVERLAYABLE_XML -> decodeOverlayables(packageBlock, file)
+                    in decodablePackage.valuesFiles ->
                         decodeValues(packageBlock, decodablePackage.valuesFiles.getValue(path), file)
 
-                    path in decodablePackage.resourceFiles ->
+                    in decodablePackage.resourceFiles ->
                         decodeResourceFile(state, decodablePackage.resourceFiles.getValue(path), file)
 
                     else -> throw PatchException("$path is not a resource of ${decodablePackage.name}")
@@ -380,7 +380,7 @@ internal class OnRequestDecoder(
             if (resFile.isBinaryXml) {
                 val document = ResXmlDocument()
                 source.openStream().use { document.readBytes(it) }
-                document.setPackageBlock(resFile.pickOne().packageBlock)
+                document.packageBlock = resFile.pickOne().packageBlock
 
                 val serializer = XMLFactory.newSerializer(output, document.encoding)
                 document.serialize(serializer)

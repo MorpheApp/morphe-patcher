@@ -183,13 +183,13 @@ internal class ApkUtilsTest {
             assertEquals(ZipEntry.DEFLATED, zip.getEntry("classes2.dex").method)
         }
         assertContentEquals(dex, readZip(targetApk)["classes.dex"])
-        assertEquals(0L, dataOffsetOf(targetApk, "classes.dex") % 4, "classes.dex is aligned to 4")
+        assertEquals(0L, dexDataOffsetOf(targetApk) % 4, "classes.dex is aligned to 4")
     }
 
-    /** The offset of the data of the entry [name] of [apk], after its local header. */
-    private fun dataOffsetOf(apk: File, name: String): Long {
+    /** The offset of the data of the `classes.dex` entry of [apk], after its local header. */
+    private fun dexDataOffsetOf(apk: File): Long {
         val bytes = apk.readBytes()
-        val nameBytes = name.toByteArray()
+        val nameBytes = "classes.dex".toByteArray()
         val headerAt = (0..bytes.size - 30 - nameBytes.size).first { i ->
             bytes[i] == 0x50.toByte() && bytes[i + 1] == 0x4b.toByte() &&
                 bytes[i + 2] == 3.toByte() && bytes[i + 3] == 4.toByte() &&
@@ -355,7 +355,7 @@ internal class ApkUtilsTest {
         val library = ByteArray(5000) { it.toByte() }
         val targetApk = temporaryDirectory.resolve("target.apk")
         ZipOutputStream(targetApk.outputStream()).use { output ->
-            output.putNextEntry(ZipEntry("assets/pad.txt").apply { setTime(0) })
+            output.putNextEntry(ZipEntry("assets/pad.txt").apply { time = 0 })
             output.write("padding to move the next entry off any boundary".toByteArray())
             output.closeEntry()
             output.putNextEntry(

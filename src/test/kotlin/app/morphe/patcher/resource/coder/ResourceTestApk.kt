@@ -69,7 +69,7 @@ internal object ResourceTestApk {
         table.refresh()
 
         fun binaryXml(xml: String) = ResXmlDocument().apply {
-            setPackageBlock(pkg)
+            packageBlock = pkg
             parse(XMLFactory.newPullParser(xml))
             refreshFull()
         }.bytes
@@ -86,12 +86,12 @@ internal object ResourceTestApk {
 
         val manifest = AndroidManifestBlock().apply {
             setPackageName(packageName)
-            setVersionCode(1)
-            setVersionName("1.0")
+            versionCode = 1
+            versionName = "1.0"
             setMinSdkVersion(26)
             setTargetSdkVersion(34)
-            setCompileSdkVersion(34)
-            setPlatformBuildVersionCode(34)
+            compileSdkVersion = 34
+            platformBuildVersionCode = 34
             getOrCreateApplicationElement()
             refreshFull()
         }

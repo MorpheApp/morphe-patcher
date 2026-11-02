@@ -242,7 +242,7 @@ internal class WriteApkTest {
             add("lib/x86_64/libfoo.so", "compressed library ".repeat(100))
         }
 
-        val (applied, written) = patchBothWays(input, Config(setOf(CpuArchitecture.ARM64_V8A)), { emptySet() })
+        val (applied, written) = patchBothWays(input, Config(setOf(CpuArchitecture.ARM64_V8A))) { emptySet() }
 
         val entries = assertSameApk(applied, written)
         assertEquals(setOf("lib/arm64-v8a/libfoo.so"), entries.keys.filter { it.startsWith("lib/") }.toSet())
@@ -311,7 +311,7 @@ internal class WriteApkTest {
         val overlapping = tempDir.resolve("overlapping.apk")
         patcher(input, "overlapping", config, patches()).use { it.writeApk(overlapping) }
         val deferred = tempDir.resolve("deferred.apk")
-        withOverlap(false) { patcher(input, "deferred", config, patches()).use { it.writeApk(deferred) } }
+        withoutOverlap { patcher(input, "deferred", config, patches()).use { it.writeApk(deferred) } }
 
         assertTrue(overlapDexCompression, "the switch is restored")
         assertFalse(tempDir.resolve("deferred/patched/dex.zip").exists(), "the temporary DEX archive is deleted")
@@ -390,9 +390,9 @@ internal class WriteApkTest {
         }
     }
 
-    private fun <T> withOverlap(overlap: Boolean, block: () -> T): T {
+    private fun <T> withoutOverlap(block: () -> T): T {
         val previous = overlapDexCompression
-        overlapDexCompression = overlap
+        overlapDexCompression = false
         try {
             return block()
         } finally {

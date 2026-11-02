@@ -48,7 +48,7 @@ class ResourcePatchContext internal constructor(
 
     /**
      * The resource ids of the APK being patched, read from its resource table on first use.
-     * Also reachable without a context through [app.morphe.patcher.resource.resourceId] and
+     * It is also reachable without a context through [app.morphe.patcher.resource.resourceId] and
      * [app.morphe.patcher.resource.hasResourceId], which is what [app.morphe.patcher.resourceLiteral] uses.
      */
     val resourceIds: ResourceIds = ResourceIds { resourceCoder.resourceIds() }.also { ResourceIds.current = it }
@@ -213,7 +213,7 @@ class ResourcePatchContext internal constructor(
      * The name is either a decoded resource path such as `res/drawable/icon.png`, or any other
      * entry of the APK being patched as returned by [listApkEntries], such as
      * `lib/x86/libfoo.so` or `assets/data.bin`. Archive entries are excluded from the rebuilt APK
-     * whether or not they were staged to the working directory, so this works for native
+     * staged to the working directory or not, so this works for native
      * libraries too. A directory name, such as `lib/x86/`, deletes everything below it. Deleting a
      * name that matches nothing is a no-op. A file deleted and then recreated with [get] keeps the
      * recreated content. The manifest and `resources.arsc` cannot be deleted.

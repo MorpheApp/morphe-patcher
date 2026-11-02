@@ -168,7 +168,7 @@ internal interface ResourceCoder : Closeable {
     /**
      * Delete a decoded resource from the working directory, tracked for deletion in the final APK,
      * or exclude any other archive entry (as named by [listApkEntries]) from the rebuilt APK,
-     * whether or not it was staged to the working directory.
+     * staged to the working directory or not.
      *
      * @param path The path of the decoded resource relative to the package directory, or the archive entry name.
      * @param packageName The package name of the resources bundle a decoded resource should be deleted from. Defaults to the package name of the application. The package name should be the original package name before any patches are applied.

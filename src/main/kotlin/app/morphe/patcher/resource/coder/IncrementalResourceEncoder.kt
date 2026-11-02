@@ -42,8 +42,8 @@ import kotlin.time.measureTime
  * rebuilding that table from every decoded values file.
  *
  * The table an app ships is the authority for everything a patch left alone. Only the values
- * files a patch touched are re-encoded, each replacing the entries of its type in its
- * configuration, or only adding to them if the file was never decoded, and only new or changed
+ * files a patch touched are re-encoded. Each replaces the entries of its type in its
+ * configuration, or only adds to them if the file was never decoded. Only new or changed
  * files under `res/` are added to the archive. The rest of the archive is the input APK, which
  * [module] already holds.
  *
@@ -309,7 +309,7 @@ internal class IncrementalResourceEncoder(
                 }
                 if (definedIds.size == entries.size()) return@forEach
 
-                val pairs = entries.getOffsetReferenceList()
+                val pairs = entries.offsetReferenceList
                 pairs.clearChildes()
                 pairs.setSize(definedIds.size)
                 definedIds.forEachIndexed { index, id -> pairs.get(index).idx = id }
@@ -421,8 +421,8 @@ internal class IncrementalResourceEncoder(
         val current = value.valueAsString ?: return false
 
         // Text without an escape or quoting encodes to itself.
-        if (text == current && text[0] != '"' && text.indexOf('\\') < 0) return true
-        return current == XmlSanitizer.unEscapeUnQuote(StyleDocument.copyInner(element).getXml(false))
+        return (text == current && text[0] != '"' && text.indexOf('\\') < 0) ||
+            current == XmlSanitizer.unEscapeUnQuote(StyleDocument.copyInner(element).getXml(false))
     }
 
     /**
@@ -443,7 +443,7 @@ internal class IncrementalResourceEncoder(
      */
     private fun Entry.empty() {
         val name = name
-        setNull(true)
+        isNull = true
         // An emptied entry drops its name with its value; hold it so the name still resolves.
         if (name != null) setName(name, true)
     }

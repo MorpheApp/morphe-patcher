@@ -42,7 +42,7 @@ internal object AaptMacroProcessorTest {
         // Verify the aapt:attr was replaced with a reference
         val resultText = sourceFile.readText(Charsets.UTF_8)
         assertTrue(
-            resultText.contains("@drawable/\$test_icon__0"),
+            resultText.contains($$"@drawable/$test_icon__0"),
             "Expected drawable reference, got: $resultText",
         )
 
@@ -100,8 +100,8 @@ internal object AaptMacroProcessorTest {
         )
 
         val resultText = sourceFile.readText(Charsets.UTF_8)
-        assertContains(resultText, "\$test_icon__0")
-        assertContains(resultText, "\$test_icon__1")
+        assertContains(resultText, $$"$test_icon__0")
+        assertContains(resultText, $$"$test_icon__1")
 
         // Verify all aapt:attr elements were removed from the source
         assertFalse(
@@ -125,7 +125,7 @@ internal object AaptMacroProcessorTest {
         setupAndProcess(xmlContent, addedResources)
 
         // No files should have been extracted
-        assertEquals(addedResources.size, 1, "Expected no extracted files when no aapt namespace")
+        assertEquals(1, addedResources.size, "Expected no extracted files when no aapt namespace")
     }
 
     @Test
@@ -164,10 +164,10 @@ internal object AaptMacroProcessorTest {
             assertTrue(file.readBytes().contentEquals(bytes), "Expected $file to be left byte-identical")
         }
         val extracted = modified - valuesFiles.toSet() - drawable
-        assertEquals(listOf(resDir.resolve("drawable/\$test_icon__0.xml")), extracted.toList())
-        assertEquals(listOf("\$test_icon__0.xml", "test_icon.xml"), resDir.resolve("drawable").list()!!.sorted())
+        assertEquals(listOf(resDir.resolve($$"drawable/$test_icon__0.xml")), extracted.toList())
+        assertEquals(listOf($$"$test_icon__0.xml", "test_icon.xml"), resDir.resolve("drawable").list()!!.sorted())
         assertFalse(drawable.readText(Charsets.UTF_8).contains("aapt:attr"))
-        assertContains(drawable.readText(Charsets.UTF_8), "@drawable/\$test_icon__0")
+        assertContains(drawable.readText(Charsets.UTF_8), $$"@drawable/$test_icon__0")
     }
 
     // ==================== UTF-8 encoding tests ====================
