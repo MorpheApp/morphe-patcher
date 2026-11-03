@@ -1,3 +1,10 @@
+# [2.2.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.6...v2.2.0-dev.7) (2026-11-03)
+
+
+### Features
+
+* Name unnamed patches by the property that holds them ([f8d156d](https://github.com/MorpheApp/morphe-patcher/commit/f8d156d67f0863d111a126dced6d213cac14305f))
+
 # [2.2.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.5...v2.2.0-dev.6) (2026-11-03)
 
 
