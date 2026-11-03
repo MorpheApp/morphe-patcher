@@ -7,6 +7,7 @@ package app.morphe.patcher.resource.coder
 
 import app.morphe.patcher.logging.PhaseTimings
 import app.morphe.patcher.logging.measure
+import app.morphe.patcher.logging.toLogString
 import app.morphe.patcher.patch.PatchException
 import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkUtil
@@ -213,7 +214,7 @@ internal class IncrementalResourceEncoder(
                             "resource files and ${configurations.size} configurations of patches for $packageName"
                 )
             }
-            logger.fine { "Resource table update timings for $packageName: ids=$registered, values=$values" }
+            logger.fine { "Resource table update timings for $packageName: ids=${registered.toLogString()}, values=${values.toLogString()}" }
         }
 
         // Empties the entries of a deleted file and drops its archive entry.

@@ -6,6 +6,7 @@
 package app.morphe.patcher.logging
 
 import java.util.logging.Logger
+import kotlin.time.Duration.Companion.nanoseconds
 
 /**
  * Whether [PhaseTimings] writes its lines to the log. Only for development, so it is off for releases.
@@ -63,7 +64,7 @@ internal class PhaseTimings(private val logger: Logger, private val name: String
     }
 
     /**
-     * Writes the steps and counters as one line, such as `Timings compile: encode=12ms write=340ms`.
+     * Writes the steps and counters as one line, such as `Timings compile: encode=12ms write=1.34s`.
      * Does nothing unless [LOG_PHASE_TIMINGS] is set.
      */
     @Synchronized
@@ -72,7 +73,7 @@ internal class PhaseTimings(private val logger: Logger, private val name: String
 
         logger.info(
             values.entries.joinToString(" ", prefix = "Timings $name: ") { (label, value) ->
-                if (value.isCounter) "$label=${value.amount}" else "$label=${value.amount / 1_000_000}ms"
+                if (value.isCounter) "$label=${value.amount}" else "$label=${value.amount.nanoseconds.toLogString()}"
             },
         )
     }

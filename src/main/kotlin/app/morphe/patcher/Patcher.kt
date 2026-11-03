@@ -14,6 +14,7 @@ import app.morphe.patcher.apk.dexFilesStoredIn
 import app.morphe.patcher.apk.overlapDexCompression
 import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.logging.PhaseTimings
+import app.morphe.patcher.logging.toLogString
 import app.morphe.patcher.patch.BytecodePatch
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.PatchException
@@ -29,6 +30,7 @@ import java.util.Collections
 import java.util.IdentityHashMap
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
+import kotlin.time.Duration.Companion.nanoseconds
 
 /**
  * A Patcher.
@@ -130,7 +132,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
                     val executeNanos = System.nanoTime() - startNanos - indexBuildNanos
                     if (executeNanos > SLOW_PATCH_NANOS) {
                         logger.info(
-                            "Patch took ${TimeUnit.NANOSECONDS.toMillis(executeNanos)} ms to execute: $this"
+                            "Patch took ${executeNanos.nanoseconds.toLogString()} to execute: $this"
                         )
                     }
                 } else {
