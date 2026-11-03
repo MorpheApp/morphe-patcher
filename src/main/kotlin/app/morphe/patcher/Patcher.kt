@@ -130,7 +130,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
                     val executeNanos = System.nanoTime() - startNanos - indexBuildNanos
                     if (executeNanos > SLOW_PATCH_NANOS) {
                         logger.info(
-                            "Patch took ${TimeUnit.NANOSECONDS.toMillis(executeNanos)} ms to execute: $logName"
+                            "Patch took ${TimeUnit.NANOSECONDS.toMillis(executeNanos)} ms to execute: $this"
                         )
                     }
                 } else {
