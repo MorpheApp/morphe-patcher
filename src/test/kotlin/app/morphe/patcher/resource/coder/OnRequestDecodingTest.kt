@@ -14,15 +14,13 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
-import java.util.logging.Handler
-import java.util.logging.LogRecord
-import java.util.logging.Logger
 import java.util.zip.ZipFile
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 internal class OnRequestDecodingTest {
@@ -63,36 +61,18 @@ internal class OnRequestDecodingTest {
 
     @Test
     fun `the input APK is opened once and its table is parsed by cataloging only`() {
-        val lines = mutableListOf<String>()
-        val handler = object : Handler() {
-            override fun publish(record: LogRecord) {
-                record.message?.takeIf { it.startsWith("Timings ") }?.let(lines::add)
-            }
+        val coder = coder("working")
+        assertEquals("com.test.app", coder.getPackageMetadata().packageName)
 
-            override fun flush() = Unit
-            override fun close() = Unit
-        }
-        val logger = Logger.getLogger(ArsclibResourceCoder::class.java.name)
-        logger.addHandler(handler)
-        try {
-            val coder = coder("working")
-            assertEquals("com.test.app", coder.getPackageMetadata().packageName)
+        val inputModule = ArsclibResourceCoder::class.java.getDeclaredField("inputModule")
+            .apply { isAccessible = true }
+        val module = assertNotNull(inputModule.get(coder) as ApkModule?, "the module read for the package is kept")
+        assertNull(module.loadedTableBlock, "reading the package does not parse the resource table")
 
-            val inputModule = ArsclibResourceCoder::class.java.getDeclaredField("inputModule")
-                .apply { isAccessible = true }
-            val module = assertNotNull(inputModule.get(coder) as ApkModule?, "the module read for the package is kept")
-            assertNull(module.loadedTableBlock, "reading the package does not parse the resource table")
+        coder.decodeResources(true)
 
-            coder.decodeResources(true)
-        } finally {
-            logger.removeHandler(handler)
-        }
-
-        val startup = lines.single { it.startsWith("Timings startup:") }
-        assertTrue("loadApk=" in startup && "manifest=" in startup, startup)
-        val catalog = lines.single { it.startsWith("Timings catalog:") }
-        assertFalse("loadApk=" in catalog, "cataloging reuses the module the package was read from: $catalog")
-        assertTrue("table=" in catalog, catalog)
+        assertSame(module, inputModule.get(coder), "cataloging reuses the module the package was read from")
+        assertNotNull(module.loadedTableBlock, "cataloging parses the resource table")
     }
 
     @Test
