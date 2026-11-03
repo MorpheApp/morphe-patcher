@@ -1,3 +1,10 @@
+# [2.2.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.4...v2.2.0-dev.5) (2026-11-03)
+
+
+### Features
+
+* Report the patch about to run ([75d482d](https://github.com/MorpheApp/morphe-patcher/commit/75d482d0f4a2bd2379963de1c30e4e1b64f8ff54))
+
 # [2.2.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.3...v2.2.0-dev.4) (2026-11-02)
 
 
