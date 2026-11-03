@@ -1,3 +1,10 @@
+# [2.2.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.5...v2.2.0-dev.6) (2026-11-03)
+
+
+### Features
+
+* Name unnamed patches by the class that declares them ([c1b5367](https://github.com/MorpheApp/morphe-patcher/commit/c1b5367dc99e34a011a4438b434060982e63b70c))
+
 # [2.2.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.4...v2.2.0-dev.5) (2026-11-03)
 
 
