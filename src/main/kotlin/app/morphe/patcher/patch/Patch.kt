@@ -145,11 +145,16 @@ sealed class Patch<C : PatchContext<*>>(
     fun execute(context: C) = executeBlock(context)
 
     /**
-     * The name of the patch, or if it has no name the class name of its execution block.
-     * Patches are declared with a DSL, so an unnamed patch has no other way to be identified.
+     * The name of the patch, or if it has no name the class that declares its execution block, or
+     * its finalizing block for a patch that only finalizes. Patches are declared with a DSL, so an
+     * unnamed patch has no other way to be identified. The suffix a compiled lambda gets
+     * (`$$Lambda/0x...` on the JVM, `$$ExternalSyntheticLambda0` from D8) differs between runs and
+     * VMs, so only the declaring class is kept, which names the file.
      */
     internal val logName: String
-        get() = name ?: executeBlock.javaClass.name
+        get() = name ?: (if (executeBlock === NoExecuteBlock) finalizeBlock else executeBlock)
+            ?.javaClass?.name?.substringBefore("$$")?.trimEnd('-')
+            ?: "${javaClass.simpleName}@${System.identityHashCode(this)}"
 
     /**
      * Calls the finalizing block of the patch.
@@ -168,8 +173,7 @@ sealed class Patch<C : PatchContext<*>>(
         finalizeBlock?.invoke(context)
     }
 
-    override fun toString() = name ?: 
-        "Patch@${System.identityHashCode(this)}"
+    override fun toString() = logName
 }
 
 internal fun Patch<*>.anyRecursively(
@@ -297,8 +301,6 @@ class BytecodePatch internal constructor(
     }
 
     override fun finalize(context: PatcherContext) = finalize(context.bytecodeContext)
-
-    override fun toString() = name ?: "Bytecode${super.toString()}"
 }
 
 /**
@@ -366,8 +368,6 @@ class RawResourcePatch internal constructor(
     override fun execute(context: PatcherContext) = execute(context.resourceContext)
 
     override fun finalize(context: PatcherContext) = finalize(context.resourceContext)
-
-    override fun toString() = name ?: "RawResource${super.toString()}"
 }
 
 /**
@@ -435,8 +435,14 @@ class ResourcePatch internal constructor(
     override fun execute(context: PatcherContext) = execute(context.resourceContext)
 
     override fun finalize(context: PatcherContext) = finalize(context.resourceContext)
+}
 
-    override fun toString() = name ?: "Resource${super.toString()}"
+/**
+ * The execution block of a patch built without one. A single instance, so that [Patch.logName]
+ * can tell it apart from a block the patch declares.
+ */
+internal object NoExecuteBlock : (Any?) -> Unit {
+    override fun invoke(context: Any?) = Unit
 }
 
 /**
@@ -465,7 +471,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
     protected var dependencies = mutableSetOf<Patch<*>>()
     protected val options = mutableSetOf<Option<*>>()
 
-    protected var executeBlock: ((C) -> Unit) = { }
+    protected var executeBlock: ((C) -> Unit) = NoExecuteBlock
     protected var finalizeBlock: ((C) -> Unit)? = null
     protected var availability: AvailabilityResolver? = null
     protected var category: String? = null
