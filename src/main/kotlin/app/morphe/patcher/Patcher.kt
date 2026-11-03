@@ -89,9 +89,12 @@ class Patcher(private val config: PatcherConfig) : Closeable {
     /**
      * Execute added patches.
      *
+     * @param onPatchExecuting Called on the thread that runs a patch, right before it executes or
+     *                         finalizes, dependencies included. The flow reports a patch only once
+     *                         it is done, which leaves a caller blind to one that never is.
      * @return A flow of [PatchResult]s.
      */
-    operator fun invoke() = flow {
+    operator fun invoke(onPatchExecuting: (Patch<*>) -> Unit = {}) = flow {
         fun Patch<*>.execute(
             executedPatches: LinkedHashMap<Patch<*>, PatchResult>,
         ): PatchResult {
@@ -116,6 +119,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             }
 
             // Execute the patch. Dependencies already executed above, so they are not included in the time.
+            onPatchExecuting(this)
             return try {
                 if (config.validate) {
                     val patchClasses = context.bytecodeContext.patchClasses
@@ -169,6 +173,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         succeededPatchesWithFinalizeBlock.asReversed().forEach { executionResult ->
             val patch = executionResult.patch
 
+            onPatchExecuting(patch)
             val result =
                 try {
                     patch.finalize(context)
