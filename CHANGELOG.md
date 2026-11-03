@@ -1,3 +1,10 @@
+# [2.2.0-dev.8](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.7...v2.2.0-dev.8) (2026-11-03)
+
+
+### Bug Fixes
+
+* Show log timings in the unit that suits them ([2913b71](https://github.com/MorpheApp/morphe-patcher/commit/2913b71bbb618bbc97c98510f0d3a1324d0e95be))
+
 # [2.2.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.6...v2.2.0-dev.7) (2026-11-03)
 
 
