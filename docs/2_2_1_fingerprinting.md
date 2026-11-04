@@ -454,14 +454,30 @@ in the same order the strings are declared.
 
 ### 🔗 Using the match of another fingerprint
 
-An instruction filter can use the match of another fingerprint. `string`, `literal`, `newInstance`, `instanceOf` and
-`checkCast` filters accept a lambda, which is evaluated when the fingerprint is matched. The lambda of `newInstance`,
-`instanceOf` and `checkCast` returns a class or a type:
+An instruction filter can use the match of another fingerprint with a lambda, which is evaluated when the fingerprint
+is matched. A lambda for a type can return a class or a type:
+
+| Filter                             | Values that accept a lambda                                        |
+|------------------------------------|--------------------------------------------------------------------|
+| `string`                           | The string.                                                        |
+| `literal`                          | The literal.                                                       |
+| `newInstance`, `instanceOf`, `checkCast` | The type.                                                    |
+| `methodCall`                       | The `reference`, or one of `definingClass`, `parameters` and `returnType`. |
+| `fieldAccess`                      | The `reference`, or `definingClass`, `type` or both.               |
 
 ```kt
 object SearchBoxFingerprint : Fingerprint(
     filters = listOf(
         newInstance(type = { SearchBoxHintFingerprint.originalClassDef }),
+    ),
+)
+```
+
+```kt
+object SearchBoxListenerFingerprint : Fingerprint(
+    filters = listOf(
+        fieldAccess(definingClass = "this", type = { SearchBoxHintFingerprint.originalClassDef }),
+        methodCall(reference = { SearchBoxUpdateFingerprint.originalMethod }),
     ),
 )
 ```

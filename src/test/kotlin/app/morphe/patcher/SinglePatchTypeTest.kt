@@ -45,6 +45,9 @@ import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethodImplementation
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction10x
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction21c
+import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction35c
+import com.android.tools.smali.dexlib2.immutable.reference.ImmutableFieldReference
+import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableTypeReference
 import com.android.tools.smali.dexlib2.writer.io.FileDataStore
 import com.android.tools.smali.dexlib2.writer.pool.DexPool
@@ -468,6 +471,22 @@ internal class SinglePatchTypeTest {
     }
 
     @Test
+    fun `method call and field access filters can use another fingerprint`() {
+        val otherFingerprint = Fingerprint(definingClass = OTHER_CLASS)
+        val fingerprint = Fingerprint(
+            filters = listOf(
+                fieldAccess(definingClass = { otherFingerprint.originalClassDef }, type = { otherFingerprint.originalClassDef }),
+                methodCall(reference = { otherFingerprint.originalMethod }),
+            ),
+        )
+        var matchedClass: String? = null
+
+        patched(patch("Filter") { execute { matchedClass = fingerprint.originalClassDef.type } })
+
+        assertEquals(MAIN_CLASS, matchedClass)
+    }
+
+    @Test
     fun `helpers need no context and can be declared anywhere`() {
         fun helper(): String = classDefBy(MAIN_CLASS).type
 
@@ -538,6 +557,13 @@ internal class SinglePatchTypeTest {
                         1,
                         listOf(
                             ImmutableInstruction21c(Opcode.NEW_INSTANCE, 0, ImmutableTypeReference(OTHER_CLASS)),
+                            ImmutableInstruction21c(
+                                Opcode.SGET_OBJECT, 0, ImmutableFieldReference(OTHER_CLASS, "field", OTHER_CLASS),
+                            ),
+                            ImmutableInstruction35c(
+                                Opcode.INVOKE_STATIC, 0, 0, 0, 0, 0, 0,
+                                ImmutableMethodReference(OTHER_CLASS, "other", null, "V"),
+                            ),
                             ImmutableInstruction10x(Opcode.RETURN_VOID),
                         ),
                         null,

@@ -21,6 +21,9 @@ object SearchBoxFingerprint : Fingerprint(
 )
 ```
 
+`methodCall` and `fieldAccess` filters also accept lambdas, and a lambda for a type can return a class. See
+[Fingerprinting](2_2_1_fingerprinting.md) for details.
+
 Patch bundles that are already built keep working. Code that uses the old API still compiles, but with a
 deprecation warning, and will stop compiling in a future release.
 

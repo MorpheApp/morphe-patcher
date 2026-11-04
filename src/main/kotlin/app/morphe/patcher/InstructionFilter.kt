@@ -671,19 +671,54 @@ fun resourceLiteral(
 
 
 class MethodCallFilter internal constructor(
-    val definingClass: String? = null,
-    val name: String? = null,
-    val parameters: List<String>? = null,
-    val returnType: String? = null,
+    private val evaluateValues: () -> Values,
     opcodes: List<Opcode>? = null,
     location: InstructionLocation
 ) : OpcodesFilter(opcodes, location) {
 
-    private val definingClassComparison = StringComparisonType.typeDeclarationToComparison(definingClass)
+    internal constructor(
+        definingClass: String? = null,
+        name: String? = null,
+        parameters: List<String>? = null,
+        returnType: String? = null,
+        opcodes: List<Opcode>? = null,
+        location: InstructionLocation,
+    ) : this({ Values(definingClass, name, parameters, returnType) }, opcodes, location) {
+        // Values known up front are checked when the filter is declared.
+        evaluatedValues = evaluateValues()
+    }
 
-    private val returnTypeComparison = StringComparisonType.typeDeclarationToComparison(returnType)
+    /**
+     * What a matching method call has. Evaluated when first needed, as these can come from the match
+     * of another fingerprint.
+     */
+    internal class Values(
+        val definingClass: String?,
+        val name: String?,
+        val parameters: List<String>?,
+        val returnType: String?,
+    ) {
+        val definingClassComparison = StringComparisonType.typeDeclarationToComparison(definingClass)
+        val returnTypeComparison = StringComparisonType.typeDeclarationToComparison(returnType)
+        val parameterTypeComparison = StringComparisonType.typeDeclarationToComparison(parameters)
+    }
 
-    private val parameterTypeComparison = StringComparisonType.typeDeclarationToComparison(parameters)
+    private var evaluatedValues: Values? = null
+
+    private val values: Values
+        get() = evaluatedValues ?: evaluateValues().also { evaluatedValues = it }
+
+    val definingClass: String?
+        get() = values.definingClass
+
+    val name: String?
+        get() = values.name
+
+    val parameters: List<String>?
+        get() = values.parameters
+
+    val returnType: String?
+        get() = values.returnType
 
     override fun matches(
         enclosingMethod: Method,
@@ -697,12 +732,13 @@ class MethodCallFilter internal constructor(
             ?: return false
 
         // Store local to avoid duplicate field access and Kotlin intrinsic null check calls.
-        val nameLocal = name
+        val values = values
+        val nameLocal = values.name
         if (nameLocal != null && reference.name != nameLocal) {
             return false
         }
 
-        val definingClassLocal = definingClass
+        val definingClassLocal = values.definingClass
         if (definingClassLocal != null) {
             val referenceClass = reference.definingClass
 
@@ -714,21 +750,21 @@ class MethodCallFilter internal constructor(
                 if (referenceClass != enclosingMethod.definingClass) {
                     return false
                 }
-            } else if (!definingClassComparison.compare(referenceClass, definingClassLocal)) {
+            } else if (!values.definingClassComparison.compare(referenceClass, definingClassLocal)) {
                 return false
             }
         }
 
-        val returnTypeLocal = returnType
-        if (returnTypeLocal != null && !returnTypeComparison.compare(reference.returnType, returnTypeLocal)) {
+        val returnTypeLocal = values.returnType
+        if (returnTypeLocal != null && !values.returnTypeComparison.compare(reference.returnType, returnTypeLocal)) {
             return false
         }
 
-        val parametersLocal = parameters
+        val parametersLocal = values.parameters
         if (parametersLocal != null && !parametersMatch(
                 reference.parameterTypes,
                 parametersLocal,
-                parameterTypeComparison
+                values.parameterTypeComparison
             )
         ) {
             return false
@@ -898,6 +934,195 @@ fun methodCall(
 )
 
 /**
+ * Matches a method call, such as:
+ * `invoke-virtual {v3, v4}, La;->b(I)V`
+ *
+ * @param reference Exact method reference to match, which is evaluated when the fingerprint is matched,
+ *   so it can come from the match of another fingerprint.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+@OverloadResolutionByLambdaReturnType
+fun methodCall(
+    reference: () -> MethodReference,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = MethodCallFilter(
+    {
+        val method = reference()
+        MethodCallFilter.Values(
+            method.definingClass,
+            method.name,
+            method.parameterTypes.map { it.toString() },
+            method.returnType,
+        )
+    },
+    null,
+    location,
+)
+
+/**
+ * Matches a method call, such as:
+ * `invoke-virtual {v3, v4}, La;->b(I)V`
+ *
+ * Values given by a lambda are evaluated when the fingerprint is matched, so they can come from the match of
+ * another fingerprint. A lambda for a type can return a class or a type.
+ *
+ * @param definingClass Defining class of the method call. Type declaration follow the semantics described in [StringComparisonType].
+ * @param name Full name of the method. Compares using [StringComparisonType.EQUALS].
+ * @param parameters Parameters of the method call. Parameter type semantics follows the syntax described in [StringComparisonType].
+ * @param returnType Return type. Type declaration follow the semantics described in [StringComparisonType].
+ * @param opcodes Opcode types to match. By default this matches any method call opcode: `Opcode.INVOKE_*`.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+@OverloadResolutionByLambdaReturnType
+fun methodCall(
+    definingClass: () -> CharSequence,
+    name: String? = null,
+    parameters: List<String>? = null,
+    returnType: String? = null,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = MethodCallFilter(
+    { MethodCallFilter.Values(definingClass().toString(), name, parameters, returnType) },
+    opcodes,
+    location,
+)
+
+/**
+ * Matches a method call, such as:
+ * `invoke-virtual {v3, v4}, La;->b(I)V`
+ *
+ * Values given by a lambda are evaluated when the fingerprint is matched, so they can come from the match of
+ * another fingerprint. A lambda for a type can return a class or a type.
+ *
+ * @param definingClass Defining class of the method call. Type declaration follow the semantics described in [StringComparisonType].
+ * @param name Full name of the method. Compares using [StringComparisonType.EQUALS].
+ * @param parameters Parameters of the method call. Parameter type semantics follows the syntax described in [StringComparisonType].
+ * @param returnType Return type. Type declaration follow the semantics described in [StringComparisonType].
+ * @param opcodes Opcode types to match. By default this matches any method call opcode: `Opcode.INVOKE_*`.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun methodCall(
+    definingClass: String? = null,
+    name: String? = null,
+    parameters: () -> List<CharSequence>,
+    returnType: String? = null,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = MethodCallFilter(
+    { MethodCallFilter.Values(definingClass, name, parameters().map { it.toString() }, returnType) },
+    opcodes,
+    location,
+)
+
+/**
+ * Matches a method call, such as:
+ * `invoke-virtual {v3, v4}, La;->b(I)V`
+ *
+ * Values given by a lambda are evaluated when the fingerprint is matched, so they can come from the match of
+ * another fingerprint. A lambda for a type can return a class or a type.
+ *
+ * @param definingClass Defining class of the method call. Type declaration follow the semantics described in [StringComparisonType].
+ * @param name Full name of the method. Compares using [StringComparisonType.EQUALS].
+ * @param parameters Parameters of the method call. Parameter type semantics follows the syntax described in [StringComparisonType].
+ * @param returnType Return type. Type declaration follow the semantics described in [StringComparisonType].
+ * @param opcodes Opcode types to match. By default this matches any method call opcode: `Opcode.INVOKE_*`.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun methodCall(
+    definingClass: String? = null,
+    name: String? = null,
+    parameters: List<String>? = null,
+    returnType: () -> CharSequence,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = MethodCallFilter(
+    { MethodCallFilter.Values(definingClass, name, parameters, returnType().toString()) },
+    opcodes,
+    location,
+)
+
+/**
+ * Matches a method call, such as:
+ * `invoke-virtual {v3, v4}, La;->b(I)V`
+ *
+ * Values given by a lambda are evaluated when the fingerprint is matched, so they can come from the match of
+ * another fingerprint. A lambda for a type can return a class or a type.
+ *
+ * @param definingClass Defining class of the method call. Type declaration follow the semantics described in [StringComparisonType].
+ * @param name Full name of the method. Compares using [StringComparisonType.EQUALS].
+ * @param parameters Parameters of the method call. Parameter type semantics follows the syntax described in [StringComparisonType].
+ * @param returnType Return type. Type declaration follow the semantics described in [StringComparisonType].
+ * @param opcode Single opcode to match.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun methodCall(
+    definingClass: () -> CharSequence,
+    name: String? = null,
+    parameters: List<String>? = null,
+    returnType: String? = null,
+    opcode: Opcode,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = MethodCallFilter(
+    { MethodCallFilter.Values(definingClass().toString(), name, parameters, returnType) },
+    listOf(opcode),
+    location,
+)
+
+/**
+ * Matches a method call, such as:
+ * `invoke-virtual {v3, v4}, La;->b(I)V`
+ *
+ * Values given by a lambda are evaluated when the fingerprint is matched, so they can come from the match of
+ * another fingerprint. A lambda for a type can return a class or a type.
+ *
+ * @param definingClass Defining class of the method call. Type declaration follow the semantics described in [StringComparisonType].
+ * @param name Full name of the method. Compares using [StringComparisonType.EQUALS].
+ * @param parameters Parameters of the method call. Parameter type semantics follows the syntax described in [StringComparisonType].
+ * @param returnType Return type. Type declaration follow the semantics described in [StringComparisonType].
+ * @param opcode Single opcode to match.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun methodCall(
+    definingClass: String? = null,
+    name: String? = null,
+    parameters: () -> List<CharSequence>,
+    returnType: String? = null,
+    opcode: Opcode,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = MethodCallFilter(
+    { MethodCallFilter.Values(definingClass, name, parameters().map { it.toString() }, returnType) },
+    listOf(opcode),
+    location,
+)
+
+/**
+ * Matches a method call, such as:
+ * `invoke-virtual {v3, v4}, La;->b(I)V`
+ *
+ * Values given by a lambda are evaluated when the fingerprint is matched, so they can come from the match of
+ * another fingerprint. A lambda for a type can return a class or a type.
+ *
+ * @param definingClass Defining class of the method call. Type declaration follow the semantics described in [StringComparisonType].
+ * @param name Full name of the method. Compares using [StringComparisonType.EQUALS].
+ * @param parameters Parameters of the method call. Parameter type semantics follows the syntax described in [StringComparisonType].
+ * @param returnType Return type. Type declaration follow the semantics described in [StringComparisonType].
+ * @param opcode Single opcode to match.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun methodCall(
+    definingClass: String? = null,
+    name: String? = null,
+    parameters: List<String>? = null,
+    returnType: () -> CharSequence,
+    opcode: Opcode,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = MethodCallFilter(
+    { MethodCallFilter.Values(definingClass, name, parameters, returnType().toString()) },
+    listOf(opcode),
+    location,
+)
+
+/**
  * Method call for a copy pasted SMALI style method signature. e.g.:
  * `Landroid/view/View;->inflate(Landroid/content/Context;ILandroid/view/ViewGroup;)Landroid/view/View;`
  *
@@ -934,16 +1159,48 @@ fun methodCall(
 
 
 class FieldAccessFilter internal constructor(
-    val definingClass: String? = null,
-    val name: String? = null,
-    val type: String? = null,
+    private val evaluateValues: () -> Values,
     opcodes: List<Opcode>? = null,
     location: InstructionLocation
 ) : OpcodesFilter(opcodes, location) {
 
-    private val definingClassComparison = StringComparisonType.typeDeclarationToComparison(definingClass)
+    internal constructor(
+        definingClass: String? = null,
+        name: String? = null,
+        type: String? = null,
+        opcodes: List<Opcode>? = null,
+        location: InstructionLocation,
+    ) : this({ Values(definingClass, name, type) }, opcodes, location) {
+        // Values known up front are checked when the filter is declared.
+        evaluatedValues = evaluateValues()
+    }
 
-    private val typeComparison = StringComparisonType.typeDeclarationToComparison(type)
+    /**
+     * What a matching field access has. Evaluated when first needed, as these can come from the match
+     * of another fingerprint.
+     */
+    internal class Values(
+        val definingClass: String?,
+        val name: String?,
+        val type: String?,
+    ) {
+        val definingClassComparison = StringComparisonType.typeDeclarationToComparison(definingClass)
+        val typeComparison = StringComparisonType.typeDeclarationToComparison(type)
+    }
+
+    private var evaluatedValues: Values? = null
+
+    private val values: Values
+        get() = evaluatedValues ?: evaluateValues().also { evaluatedValues = it }
+
+    val definingClass: String?
+        get() = values.definingClass
+
+    val name: String?
+        get() = values.name
+
+    val type: String?
+        get() = values.type
 
     override fun matches(
         enclosingMethod: Method,
@@ -956,12 +1213,13 @@ class FieldAccessFilter internal constructor(
         val reference = (instruction as? ReferenceInstruction)?.reference as? FieldReference
                 ?: return false
 
-        val nameLocal = name
+        val values = values
+        val nameLocal = values.name
         if (nameLocal != null && reference.name != nameLocal) {
             return false
         }
 
-        val definingClassLocal = definingClass
+        val definingClassLocal = values.definingClass
         if (definingClassLocal != null) {
             val referenceClass = reference.definingClass
 
@@ -969,13 +1227,13 @@ class FieldAccessFilter internal constructor(
                 if (referenceClass != enclosingMethod.definingClass) {
                     return false
                 }
-            } else if (!definingClassComparison.compare(referenceClass, definingClassLocal)) {
+            } else if (!values.definingClassComparison.compare(referenceClass, definingClassLocal)) {
                 return false
             }
         }
 
-        val typeLocal = type
-        if (typeLocal != null && !typeComparison.compare(reference.type, typeLocal)) {
+        val typeLocal = values.type
+        if (typeLocal != null && !values.typeComparison.compare(reference.type, typeLocal)) {
             return false
         }
 
@@ -1100,6 +1358,210 @@ fun fieldAccess(
     type = reference.type,
     opcodes = opcodes,
     location = location
+)
+
+/**
+ * Matches a field call, such as:
+ * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
+ *
+ * @param reference Exact reference to match, which is evaluated when the fingerprint is matched,
+ *   so it can come from the match of another fingerprint.
+ * @param opcodes List of all possible opcodes to match. Defaults to matching all get/put opcodes.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+@OverloadResolutionByLambdaReturnType
+fun fieldAccess(
+    reference: () -> FieldReference,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = FieldAccessFilter(
+    {
+        val field = reference()
+        FieldAccessFilter.Values(field.definingClass, field.name, field.type)
+    },
+    opcodes,
+    location,
+)
+
+/**
+ * Matches a field call, such as:
+ * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
+ *
+ * Values given by a lambda are evaluated when the fingerprint is matched, so they can come from the match of
+ * another fingerprint. A lambda for a type can return a class or a type.
+ *
+ * @param definingClass Defining class of the field call. For fields of the same class, use 'this' as the defining class.
+ *   Otherwise the type declaration follow the semantics described in [StringComparisonType].
+ * @param name Full name of the field. Compares using [StringComparisonType.EQUALS].
+ * @param type Class type of field. Type declaration follow the semantics described in [StringComparisonType].
+ * @param opcodes List of all possible opcodes to match. Defaults to matching all get/put opcodes.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+@OverloadResolutionByLambdaReturnType
+fun fieldAccess(
+    definingClass: () -> CharSequence,
+    name: String? = null,
+    type: String? = null,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = FieldAccessFilter(
+    { FieldAccessFilter.Values(definingClass().toString(), name, type) },
+    opcodes,
+    location,
+)
+
+/**
+ * Matches a field call, such as:
+ * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
+ *
+ * Values given by a lambda are evaluated when the fingerprint is matched, so they can come from the match of
+ * another fingerprint. A lambda for a type can return a class or a type.
+ *
+ * @param definingClass Defining class of the field call. For fields of the same class, use 'this' as the defining class.
+ *   Otherwise, the type declaration follow the semantics described in [StringComparisonType].
+ * @param name Full name of the field. Compares using [StringComparisonType.EQUALS].
+ * @param type Class type of field. Type declaration follow the semantics described in [StringComparisonType].
+ * @param opcodes List of all possible opcodes to match. Defaults to matching all get/put opcodes.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun fieldAccess(
+    definingClass: String? = null,
+    name: String? = null,
+    type: () -> CharSequence,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = FieldAccessFilter(
+    { FieldAccessFilter.Values(definingClass, name, type().toString()) },
+    opcodes,
+    location,
+)
+
+/**
+ * Matches a field call, such as:
+ * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
+ *
+ * Values given by a lambda are evaluated when the fingerprint is matched, so they can come from the match of
+ * another fingerprint. A lambda for a type can return a class or a type.
+ *
+ * @param definingClass Defining class of the field call. For fields of the same class, use 'this' as the defining class.
+ *   Otherwise the type declaration follow the semantics described in [StringComparisonType].
+ * @param name Full name of the field. Compares using [StringComparisonType.EQUALS].
+ * @param type Class type of field. Type declaration follow the semantics described in [StringComparisonType].
+ * @param opcodes List of all possible opcodes to match. Defaults to matching all get/put opcodes.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun fieldAccess(
+    definingClass: () -> CharSequence,
+    name: String? = null,
+    type: () -> CharSequence,
+    opcodes: List<Opcode>? = null,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = FieldAccessFilter(
+    { FieldAccessFilter.Values(definingClass().toString(), name, type().toString()) },
+    opcodes,
+    location,
+)
+
+/**
+ * Matches a field call, such as:
+ * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
+ *
+ * @param reference Exact reference to match, which is evaluated when the fingerprint is matched,
+ *   so it can come from the match of another fingerprint.
+ * @param opcode Single opcode to match.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+@OverloadResolutionByLambdaReturnType
+fun fieldAccess(
+    reference: () -> FieldReference,
+    opcode: Opcode,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = FieldAccessFilter(
+    {
+        val field = reference()
+        FieldAccessFilter.Values(field.definingClass, field.name, field.type)
+    },
+    listOf(opcode),
+    location,
+)
+
+/**
+ * Matches a field call, such as:
+ * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
+ *
+ * Values given by a lambda are evaluated when the fingerprint is matched, so they can come from the match of
+ * another fingerprint. A lambda for a type can return a class or a type.
+ *
+ * @param definingClass Defining class of the field call. For fields of the same class, use 'this' as the defining class.
+ *   Otherwise, the type declaration follow the semantics described in [StringComparisonType].
+ * @param name Full name of the field. Compares using [StringComparisonType.EQUALS].
+ * @param type Class type of field. Type declaration follow the semantics described in [StringComparisonType].
+ * @param opcode Single opcode to match.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+@OverloadResolutionByLambdaReturnType
+fun fieldAccess(
+    definingClass: () -> CharSequence,
+    name: String? = null,
+    type: String? = null,
+    opcode: Opcode,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = FieldAccessFilter(
+    { FieldAccessFilter.Values(definingClass().toString(), name, type) },
+    listOf(opcode),
+    location,
+)
+
+/**
+ * Matches a field call, such as:
+ * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
+ *
+ * Values given by a lambda are evaluated when the fingerprint is matched, so they can come from the match of
+ * another fingerprint. A lambda for a type can return a class or a type.
+ *
+ * @param definingClass Defining class of the field call. For fields of the same class, use 'this' as the defining class.
+ *   Otherwise, the type declaration follow the semantics described in [StringComparisonType].
+ * @param name Full name of the field. Compares using [StringComparisonType.EQUALS].
+ * @param type Class type of field. Type declaration follow the semantics described in [StringComparisonType].
+ * @param opcode Single opcode to match.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun fieldAccess(
+    definingClass: String? = null,
+    name: String? = null,
+    type: () -> CharSequence,
+    opcode: Opcode,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = FieldAccessFilter(
+    { FieldAccessFilter.Values(definingClass, name, type().toString()) },
+    listOf(opcode),
+    location,
+)
+
+/**
+ * Matches a field call, such as:
+ * `iget-object v0, p0, Lahhh;->g:Landroid/view/View;`
+ *
+ * Values given by a lambda are evaluated when the fingerprint is matched, so they can come from the match of
+ * another fingerprint. A lambda for a type can return a class or a type.
+ *
+ * @param definingClass Defining class of the field call. For fields of the same class, use 'this' as the defining class.
+ *   Otherwise, the type declaration follow the semantics described in [StringComparisonType].
+ * @param name Full name of the field. Compares using [StringComparisonType.EQUALS].
+ * @param type Class type of field. Type declaration follow the semantics described in [StringComparisonType].
+ * @param opcode Single opcode to match.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+fun fieldAccess(
+    definingClass: () -> CharSequence,
+    name: String? = null,
+    type: () -> CharSequence,
+    opcode: Opcode,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = FieldAccessFilter(
+    { FieldAccessFilter.Values(definingClass().toString(), name, type().toString()) },
+    listOf(opcode),
+    location,
 )
 
 /**
