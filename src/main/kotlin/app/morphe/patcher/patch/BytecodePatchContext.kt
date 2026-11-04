@@ -210,7 +210,7 @@ class BytecodePatchContext internal constructor(
      *
      * @param patch The [Patch] to merge the extension of.
      */
-    internal fun mergeExtension(patch: Patch<*>) {
+    internal fun mergeExtension(patch: Patch) {
         patch.extensionStreamProviders.forEach { provider ->
             provider.get().forEach { supplier ->
                 mergeExtensionStream(supplier.get())

@@ -25,12 +25,12 @@ class PatcherContext internal constructor(config: PatcherConfig): Closeable {
     /**
      * The set of [Patch]es.
      */
-    internal val executablePatches = mutableSetOf<Patch<*>>()
+    internal val executablePatches = mutableSetOf<Patch>()
 
     /**
      * The set of all [Patch]es and their dependencies.
      */
-    internal val allPatches = mutableSetOf<Patch<*>>()
+    internal val allPatches = mutableSetOf<Patch>()
 
     /**
      * The context for patches containing the current state of the resources.

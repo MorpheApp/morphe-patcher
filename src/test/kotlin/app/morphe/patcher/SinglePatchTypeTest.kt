@@ -109,7 +109,7 @@ internal class SinglePatchTypeTest {
      * otherwise count as built for the oldest version, which decodes every resource up front.
      */
     private fun patched(
-        vararg patches: Patch<*>,
+        vararg patches: Patch,
         targetPatcherVersion: String? = "2.2.0",
         validate: Boolean = false,
     ): Patched {

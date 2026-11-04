@@ -33,7 +33,6 @@ typealias Package = Pair<PackageName, Set<VersionName>?>
 /**
  * A patch. Patches are declared with [patch].
  *
- * @param C Only used by the deprecated patch types, which are executed with a [PatchContext].
  * @param name The name of the patch.
  *   If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
@@ -57,17 +56,17 @@ typealias Package = Pair<PackageName, Set<VersionName>?>
  *
  * @constructor Create a new patch.
  */
-open class Patch<C : PatchContext<*>> internal constructor(
+open class Patch internal constructor(
     val name: String?,
     val description: String?,
     val default: Boolean,
-    val dependencies: Set<Patch<*>>,
+    val dependencies: Set<Patch>,
     val compatibility: List<Compatibility>?,
     options: Set<Option<*>>,
-    private val executeBlock: (C) -> Unit,
+    private val executeBlock: (PatchContext<*>) -> Unit,
     // Must be internal and nullable, so that Patcher.invoke can check,
     // if a patch has a finalizing block in order to not emit it twice.
-    internal var finalizeBlock: ((C) -> Unit)?,
+    internal var finalizeBlock: ((PatchContext<*>) -> Unit)?,
     // Additive fields. Trailing position with a default keeps binary compatibility for existing
     // pre-compiled patch bundles: they call the previous constructor arity, and Kotlin generates
     // an overload that fills these in as null.
@@ -81,11 +80,11 @@ open class Patch<C : PatchContext<*>> internal constructor(
         name: String?,
         description: String?,
         use: Boolean,
-        dependencies: Set<Patch<*>>,
+        dependencies: Set<Patch>,
         compatiblePackages: Set<Pair<String, Set<String>?>>,
         options: Set<Option<*>>,
-        executeBlock: (C) -> Unit,
-        finalizeBlock: ((C) -> Unit)?,
+        executeBlock: (PatchContext<*>) -> Unit,
+        finalizeBlock: ((PatchContext<*>) -> Unit)?,
     ) : this(
         name = name,
         description = description,
@@ -149,8 +148,7 @@ open class Patch<C : PatchContext<*>> internal constructor(
      */
     internal open fun execute(context: PatcherContext) {
         context.bytecodeContext.mergeExtension(this)
-        @Suppress("UNCHECKED_CAST")
-        execute(NoPatchContext as C)
+        execute(NoPatchContext)
     }
 
     /**
@@ -159,7 +157,7 @@ open class Patch<C : PatchContext<*>> internal constructor(
      * @param context The [PatchContext] to execute the patch with.
      */
     @Deprecated("Patches are executed by Patcher.")
-    fun execute(context: C) = executeBlock(context)
+    fun execute(context: PatchContext<*>) = executeBlock(context)
 
     /**
      * Calls the finalizing block of the patch.
@@ -168,8 +166,7 @@ open class Patch<C : PatchContext<*>> internal constructor(
      * @param context The [PatcherContext] to get the [PatchContext] from to finalize the patch with.
      */
     internal open fun finalize(context: PatcherContext) {
-        @Suppress("UNCHECKED_CAST")
-        finalize(NoPatchContext as C)
+        finalize(NoPatchContext)
     }
 
     /**
@@ -178,7 +175,7 @@ open class Patch<C : PatchContext<*>> internal constructor(
      * @param context The [PatchContext] to finalize the patch with.
      */
     @Deprecated("Patches are finalized by Patcher.")
-    fun finalize(context: C) {
+    fun finalize(context: PatchContext<*>) {
         finalizeBlock?.invoke(context)
     }
 
@@ -191,6 +188,12 @@ open class Patch<C : PatchContext<*>> internal constructor(
         ?: (if (executeBlock === NoExecuteBlock) finalizeBlock else executeBlock)?.declaredClass?.sourceName
         ?: "${javaClass.simpleName}@${System.identityHashCode(this)}"
 }
+
+/**
+ * This block as [Patch] stores it. A patch only calls its blocks with the context they were declared for.
+ */
+@Suppress("UNCHECKED_CAST")
+private fun <C : PatchContext<*>> ((C) -> Unit).forAnyContext() = this as (PatchContext<*>) -> Unit
 
 /**
  * The class of a block as the patch declares it.
@@ -209,25 +212,25 @@ internal val Class<*>.sourceName get() = name.substringAfterLast('.').substringB
 /**
  * Whether the patch can use bytecode. Only the deprecated resource patch types cannot.
  */
-internal val Patch<*>.usesBytecode
+internal val Patch.usesBytecode
     get() = this !is ResourcePatch && this !is RawResourcePatch
 
 /**
  * Whether the patch can use decoded resources. Only [BytecodePatch] and [RawResourcePatch] cannot.
  */
-internal val Patch<*>.usesDecodedResources
+internal val Patch.usesDecodedResources
     get() = this !is BytecodePatch && this !is RawResourcePatch
 
 /**
  * Whether what the patch uses is decoded when it first needs it. The deprecated patch types declare what
  * they use, so that is decoded before patches execute.
  */
-internal val Patch<*>.decodesOnFirstUse
+internal val Patch.decodesOnFirstUse
     get() = usesBytecode && usesDecodedResources
 
-internal fun Patch<*>.anyRecursively(
-    visited: MutableSet<Patch<*>> = mutableSetOf(),
-    predicate: (Patch<*>) -> Boolean,
+internal fun Patch.anyRecursively(
+    visited: MutableSet<Patch> = mutableSetOf(),
+    predicate: (Patch) -> Boolean,
 ): Boolean {
     if (this in visited) return false
 
@@ -238,9 +241,9 @@ internal fun Patch<*>.anyRecursively(
     return dependencies.any { it.anyRecursively(visited, predicate) }
 }
 
-internal fun Iterable<Patch<*>>.forEachRecursively(
-    visited: MutableSet<Patch<*>> = mutableSetOf(),
-    action: (Patch<*>) -> Unit,
+internal fun Iterable<Patch>.forEachRecursively(
+    visited: MutableSet<Patch> = mutableSetOf(),
+    action: (Patch) -> Unit,
 ): Unit = forEach {
     if (it in visited) return@forEach
 
@@ -278,22 +281,22 @@ class BytecodePatch internal constructor(
     description: String?,
     default: Boolean,
     compatibility: List<Compatibility>?,
-    dependencies: Set<Patch<*>>,
+    dependencies: Set<Patch>,
     options: Set<Option<*>>,
     extensionStreamProviders: List<Supplier<out Iterable<Supplier<InputStream>>>>,
     executeBlock: (BytecodePatchContext) -> Unit,
     finalizeBlock: ((BytecodePatchContext) -> Unit)?,
     availability: AvailabilityResolver? = null,
     category: String? = null,
-) : Patch<BytecodePatchContext>(
+) : Patch(
     name,
     description,
     default,
     dependencies,
     compatibility,
     options,
-    executeBlock,
-    finalizeBlock,
+    executeBlock.forAnyContext(),
+    finalizeBlock?.forAnyContext(),
     availability,
     category,
     extensionStreamProviders,
@@ -305,7 +308,7 @@ class BytecodePatch internal constructor(
         description: String?,
         default: Boolean,
         compatibility: List<Compatibility>?,
-        dependencies: Set<Patch<*>>,
+        dependencies: Set<Patch>,
         options: Set<Option<*>>,
         extensionInputStream: Supplier<InputStream>?,
         executeBlock: (BytecodePatchContext) -> Unit,
@@ -328,7 +331,7 @@ class BytecodePatch internal constructor(
         description: String?,
         use: Boolean = true,
         compatiblePackages: Set<Pair<String, Set<String>?>>?,
-        dependencies: Set<Patch<*>>,
+        dependencies: Set<Patch>,
         options: Set<Option<*>>,
         extensionInputStream: Supplier<InputStream>?,
         executeBlock: (BytecodePatchContext) -> Unit,
@@ -383,21 +386,21 @@ class RawResourcePatch internal constructor(
     description: String?,
     default: Boolean,
     compatibility: List<Compatibility>?,
-    dependencies: Set<Patch<*>>,
+    dependencies: Set<Patch>,
     options: Set<Option<*>>,
     executeBlock: (ResourcePatchContext) -> Unit,
     finalizeBlock: ((ResourcePatchContext) -> Unit)?,
     availability: AvailabilityResolver? = null,
     category: String? = null,
-) : Patch<ResourcePatchContext>(
+) : Patch(
     name,
     description,
     default,
     dependencies,
     compatibility,
     options,
-    executeBlock,
-    finalizeBlock,
+    executeBlock.forAnyContext(),
+    finalizeBlock?.forAnyContext(),
     availability,
     category,
 ) {
@@ -408,7 +411,7 @@ class RawResourcePatch internal constructor(
         description: String?,
         use: Boolean,
         compatiblePackages: Set<Pair<String, Set<String>?>>?,
-        dependencies: Set<Patch<*>>,
+        dependencies: Set<Patch>,
         options: Set<Option<*>>,
         executeBlock: (ResourcePatchContext) -> Unit,
         finalizeBlock: ((ResourcePatchContext) -> Unit)?,
@@ -454,21 +457,21 @@ class ResourcePatch internal constructor(
     description: String?,
     default: Boolean,
     compatibility: List<Compatibility>?,
-    dependencies: Set<Patch<*>>,
+    dependencies: Set<Patch>,
     options: Set<Option<*>>,
     executeBlock: (ResourcePatchContext) -> Unit,
     finalizeBlock: ((ResourcePatchContext) -> Unit)?,
     availability: AvailabilityResolver? = null,
     category: String? = null,
-) : Patch<ResourcePatchContext>(
+) : Patch(
     name,
     description,
     default,
     dependencies,
     compatibility,
     options,
-    executeBlock,
-    finalizeBlock,
+    executeBlock.forAnyContext(),
+    finalizeBlock?.forAnyContext(),
     availability,
     category,
 ) {
@@ -479,7 +482,7 @@ class ResourcePatch internal constructor(
         description: String?,
         use: Boolean,
         compatiblePackages: Set<Pair<String, Set<String>?>>?,
-        dependencies: Set<Patch<*>>,
+        dependencies: Set<Patch>,
         options: Set<Option<*>>,
         executeBlock: (ResourcePatchContext) -> Unit,
         finalizeBlock: ((ResourcePatchContext) -> Unit)?,
@@ -530,7 +533,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
     protected val default: Boolean,
 ) {
     protected var compatibility: MutableList<Compatibility>? = null
-    protected var dependencies = mutableSetOf<Patch<*>>()
+    protected var dependencies = mutableSetOf<Patch>()
     protected val options = mutableSetOf<Option<*>>()
 
     protected var executeBlock: ((C) -> Unit) = NoExecuteBlock
@@ -656,7 +659,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      *
      * @param patches The patches the patch depends on.
      */
-    fun dependsOn(vararg patches: Patch<*>) {
+    fun dependsOn(vararg patches: Patch) {
         dependencies += patches
     }
 
@@ -729,7 +732,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      *
      * @return The built patch.
      */
-    internal abstract fun build(): Patch<C>
+    internal abstract fun build(): Patch
 }
 
 /**
@@ -1084,8 +1087,8 @@ class PatchDefinition internal constructor(
         dependencies,
         compatibility,
         options,
-        executeBlock,
-        finalizeBlock,
+        executeBlock.forAnyContext(),
+        finalizeBlock?.forAnyContext(),
         availability,
         category,
         buildExtensionStreamProviders(),
@@ -1124,7 +1127,7 @@ fun patch(
     description: String? = null,
     default: Boolean = true,
     block: PatchDefinition.() -> Unit = {},
-): Patch<*> = PatchDefinition(name, description, default).buildPatch(block)
+): Patch = PatchDefinition(name, description, default).buildPatch(block)
 
 /**
  * An exception thrown when patching.
@@ -1143,7 +1146,7 @@ class PatchException(errorMessage: String?, cause: Throwable?) : Exception(error
  * @param patch The [Patch] that was executed.
  * @param exception The [PatchException] thrown, if any.
  */
-class PatchResult internal constructor(val patch: Patch<*>, val exception: PatchException? = null)
+class PatchResult internal constructor(val patch: Patch, val exception: PatchException? = null)
 
 /**
  * A loader for patches.
@@ -1155,8 +1158,8 @@ class PatchResult internal constructor(val patch: Patch<*>, val exception: Patch
  */
 @Suppress("JavaDefaultMethodsNotOverriddenByDelegation")
 sealed class PatchLoader(
-    val byPatchesFile: Map<File, Set<Patch<*>>>,
-) : Set<Patch<*>> by byPatchesFile.values.flatten().toSet() {
+    val byPatchesFile: Map<File, Set<Patch>>,
+) : Set<Patch> by byPatchesFile.values.flatten().toSet() {
     /**
      * @param patchesFiles A set of JAR or DEX files to load the patches from.
      * @param getBinaryClassNames A function that returns the binary names of all classes accessible by the class loader.
@@ -1244,7 +1247,7 @@ sealed class PatchLoader(
             get() = fields.filter { field ->
                 field.type.isPatch && field.canAccess()
             }.map { field ->
-                field.get(null) as Patch<*>
+                field.get(null) as Patch
             }
 
         /**
@@ -1254,7 +1257,7 @@ sealed class PatchLoader(
             get() = methods.filter { method ->
                 method.returnType.isPatch && method.parameterCount == 0 && method.canAccess()
             }.map { method ->
-                method.invoke(null) as Patch<*>
+                method.invoke(null) as Patch
             }
 
         /**
@@ -1266,7 +1269,7 @@ sealed class PatchLoader(
             if (!field.type.isPatch || !Modifier.isStatic(field.modifiers)) return@forEach
 
             field.isAccessible = true
-            val patch = field.get(null) as? Patch<*> ?: return@forEach
+            val patch = field.get(null) as? Patch ?: return@forEach
             if (patch.name == null && patch.declaredAs == null) patch.declaredAs = "$sourceName.${field.name}"
         }
 
@@ -1374,8 +1377,8 @@ sealed class PatchLoader(
          * [PatcherBehavior.STRICT_UNIVERSAL_PATCH_DEFAULT] applies to them.
          * Otherwise, they are warned about and load with default false.
          */
-        private fun checkUniversalPatchDefaults(patches: Collection<Patch<*>>) {
-            val misdeclared = mutableSetOf<Patch<*>>()
+        private fun checkUniversalPatchDefaults(patches: Collection<Patch>) {
+            val misdeclared = mutableSetOf<Patch>()
             patches.forEachRecursively { if (it.declaredUniversalWithDefault) misdeclared += it }
             if (misdeclared.isEmpty()) return
 
@@ -1402,7 +1405,7 @@ sealed class PatchLoader(
          * Dependencies are built with the patch that depends on them, unless they are loaded from
          * a bundle themselves. Otherwise, they would count as built for an unknown version.
          */
-        private fun Patch<*>.assignBundleToDependencies(bundle: PatchBundleInfo) {
+        private fun Patch.assignBundleToDependencies(bundle: PatchBundleInfo) {
             dependencies.forEach { dependency ->
                 if (dependency.name == null || dependency.bundle == null) {
                     if (dependency.bundle == bundle) return@forEach

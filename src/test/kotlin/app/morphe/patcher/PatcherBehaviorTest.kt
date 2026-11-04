@@ -42,10 +42,10 @@ internal class PatcherBehaviorTest {
     private fun bundle(name: String, patcherVersion: String?) =
         PatchBundleInfo(File("$name.mpp"), name, "1.0.0", patcherVersion)
 
-    private fun <P : Patch<*>> P.from(bundle: PatchBundleInfo) = apply { this.bundle = bundle }
+    private fun <P : Patch> P.from(bundle: PatchBundleInfo) = apply { this.bundle = bundle }
 
     private fun resolve(
-        patches: List<Patch<*>>,
+        patches: List<Patch>,
         configured: String? = null,
         adoption: Adoption = onRequest.adoption,
     ) = resolvePatcherBehaviors(configured, patches, logger, listOf(onRequest)) { adoption }
@@ -177,7 +177,7 @@ internal class PatcherBehaviorTest {
     @Test
     fun `exact fingerprint strings apply to patches built for an unknown version`() {
         val exactStrings = PatcherBehavior.EXACT_FINGERPRINT_STRINGS
-        fun resolve(vararg patches: Patch<*>) =
+        fun resolve(vararg patches: Patch) =
             resolvePatcherBehaviors(null, patches.toList(), logger, listOf(exactStrings))
 
         assertEquals(setOf(exactStrings), resolve(bytecodePatch("Patch") {}), "not loaded from a bundle")
@@ -236,7 +236,7 @@ internal class PatcherBehaviorTest {
         val strict = PatcherBehavior.STRICT_UNIVERSAL_PATCH_DEFAULT
         assertEquals(Adoption.EVERY_BUNDLE, strict.adoption)
 
-        fun resolve(vararg patches: Patch<*>) = resolvePatcherBehaviors(null, patches.toList(), logger, listOf(strict))
+        fun resolve(vararg patches: Patch) = resolvePatcherBehaviors(null, patches.toList(), logger, listOf(strict))
         val newVersion = strict.since.toString()
         val universal = bytecodePatch("Universal") {}
         val compatible = bytecodePatch("Compatible", default = false) {}

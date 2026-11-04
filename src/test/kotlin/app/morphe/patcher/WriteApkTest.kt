@@ -261,7 +261,7 @@ internal class WriteApkTest {
             },
         )
         assertTrue(generalPurposeFlags(input).getValue("assets/kept.txt").first and 8 != 0, "precondition")
-        val patches: () -> Set<Patch<*>> = {
+        val patches: () -> Set<Patch> = {
             when (resourceMode) {
                 "NONE" -> setOf(bytecodePatch("Change a class") { execute { mutableClassDefBy("La;") } })
                 "RAW_ONLY" -> setOf(rawResourcePatch("Delete") { execute { delete("assets/delete.txt") } })
@@ -400,7 +400,7 @@ internal class WriteApkTest {
         }
     }
 
-    private fun patcher(input: File, name: String, config: Config, patches: Set<Patch<*>>): Patcher {
+    private fun patcher(input: File, name: String, config: Config, patches: Set<Patch>): Patcher {
         return Patcher(
             PatcherConfig(
                 input,
@@ -419,7 +419,7 @@ internal class WriteApkTest {
      *
      * @return The APK of each.
      */
-    private fun patchBothWays(input: File, config: Config, patches: () -> Set<Patch<*>>): Pair<File, File> {
+    private fun patchBothWays(input: File, config: Config, patches: () -> Set<Patch>): Pair<File, File> {
         val applied = tempDir.resolve("applied.apk")
         val result = patcher(input, "a", config, patches()).use { it.get() }
         // The compiled resource APK is the base when there is one, which applyTo copies.

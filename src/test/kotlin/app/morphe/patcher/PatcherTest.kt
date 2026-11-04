@@ -148,7 +148,7 @@ internal object PatcherTest {
     fun `handles execution of patches correctly when exceptions occur`() {
         val executed = mutableListOf<String>()
 
-        infix fun Patch<*>.produces(equals: List<String>) {
+        infix fun Patch.produces(equals: List<String>) {
             val patches = setOf(this)
 
             patches()
@@ -2521,14 +2521,14 @@ internal object PatcherTest {
         }
     }
 
-    private operator fun Set<Patch<*>>.invoke(): List<PatchResult> {
+    private operator fun Set<Patch>.invoke(): List<PatchResult> {
         every { patcher.context.executablePatches } returns toMutableSet()
         every { with(patcher.context.bytecodeContext) { mergeExtension(any()) } } just runs
 
         return runBlocking { patcher().toList() }
     }
 
-    private operator fun Patch<*>.invoke() = setOf(this)().first()
+    private operator fun Patch.invoke() = setOf(this)().first()
 
     /**
      * Compares raw fingerprint strings as patches built for a version older than 2.0.0 expect.

@@ -53,14 +53,14 @@ class Patcher(private val config: PatcherConfig) : Closeable {
      *
      * @param patches The patches to add.
      */
-    operator fun plusAssign(patches: Set<Patch<*>>) {
+    operator fun plusAssign(patches: Set<Patch>) {
         // Add all patches to the executablePatches set.
         context.executablePatches += patches
 
         // Add all patches and their dependencies to the allPatches set.
         patches.forEach { patch ->
-            fun Patch<*>.addRecursively() =
-                also(context.allPatches::add).dependencies.forEach(Patch<*>::addRecursively)
+            fun Patch.addRecursively() =
+                also(context.allPatches::add).dependencies.forEach(Patch::addRecursively)
 
             patch.addRecursively()
         }
@@ -108,9 +108,9 @@ class Patcher(private val config: PatcherConfig) : Closeable {
      *                         it is done, which leaves a caller blind to one that never is.
      * @return A flow of [PatchResult]s.
      */
-    operator fun invoke(onPatchExecuting: (Patch<*>) -> Unit = {}) = flow {
-        fun Patch<*>.execute(
-            executedPatches: LinkedHashMap<Patch<*>, PatchResult>,
+    operator fun invoke(onPatchExecuting: (Patch) -> Unit = {}) = flow {
+        fun Patch.execute(
+            executedPatches: LinkedHashMap<Patch, PatchResult>,
         ): PatchResult {
             // If the patch was executed before or failed, return it's the result.
             executedPatches[this]?.let { patchResult ->
@@ -176,7 +176,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
 
         logger.info("Executing patches")
 
-        val executedPatches = LinkedHashMap<Patch<*>, PatchResult>()
+        val executedPatches = LinkedHashMap<Patch, PatchResult>()
 
         context.executablePatches.sortedBy { it.name }.forEach { patch ->
             val patchResult = patch.execute(executedPatches)

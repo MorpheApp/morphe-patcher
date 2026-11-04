@@ -77,7 +77,7 @@ internal object PatchLoaderTest {
     /**
      * Calls the private PatchLoader.Companion.loadPatches function with the test patches.
      */
-    private fun loadPatches(patchesFile: File): Set<Patch<*>> {
+    private fun loadPatches(patchesFile: File): Set<Patch> {
         // Get instance of private PatchLoader.Companion class.
         val patchLoaderCompanionObject = getPrivateFieldByType(
             PatchLoader::class.java,
@@ -89,7 +89,7 @@ internal object PatchLoaderTest {
         val loadPatchesFunction = getPrivateFunctionByName(
             patchLoaderCompanionObject,
             LOAD_PATCHES_FUNCTION_NAME,
-        ) as KFunction<Map<File, Set<Patch<*>>>>
+        ) as KFunction<Map<File, Set<Patch>>>
 
         // Call private PatchLoader.Companion.loadPatches function.
         return loadPatchesFunction.call(

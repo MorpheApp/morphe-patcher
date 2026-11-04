@@ -31,7 +31,7 @@ internal enum class PatcherBehavior(
     since: String,
     val adoption: Adoption,
     val description: String,
-    private val affectsPatch: (Patch<*>) -> Boolean,
+    private val affectsPatch: (Patch) -> Boolean,
     private val appliesToUnknownVersion: Boolean = false,
 ) {
     /**
@@ -95,7 +95,7 @@ internal enum class PatcherBehavior(
      */
     fun appliesTo(version: PatcherVersion?) = if (version == null) appliesToUnknownVersion else version >= since
 
-    fun affects(patch: Patch<*>) = affectsPatch(patch)
+    fun affects(patch: Patch) = affectsPatch(patch)
 
     /**
      * Which patch bundles must be built for [since] or newer for a behavior to apply. Only bundles with
@@ -131,7 +131,7 @@ internal enum class PatcherBehavior(
  */
 internal fun resolvePatcherBehaviors(
     configured: String?,
-    patches: Collection<Patch<*>>,
+    patches: Collection<Patch>,
     logger: Logger,
     candidates: Collection<PatcherBehavior> = PatcherBehavior.entries,
     adoption: (PatcherBehavior) -> PatcherBehavior.Adoption = PatcherBehavior::adoption,

@@ -64,7 +64,8 @@ fun readStrings() = resourceFile("res/values/strings.xml").readText()
 | Before | After |
 |---|---|
 | `bytecodePatch`, `resourcePatch`, `rawResourcePatch` | `patch` |
-| `BytecodePatch`, `ResourcePatch`, `RawResourcePatch` | `Patch<*>` |
+| `BytecodePatch`, `ResourcePatch`, `RawResourcePatch` | `Patch` |
+| `Patch<*>` | `Patch` |
 | `BytecodePatchBuilder`, `ResourcePatchBuilder`, `RawResourcePatchBuilder` | `PatchDefinition` |
 | `BytecodePatchContext.() -> Unit`, `ResourcePatchContext.() -> Unit` | `() -> Unit` |
 | `fun BytecodePatchContext.helper()`, `context(_: BytecodePatchContext) fun helper()` | `fun helper()` |
