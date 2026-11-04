@@ -670,7 +670,7 @@ The following functions and properties can be accessed in a fingerprint:
   If no match is found, an exception is raised.
 - `instructionMatchesOrNull`: The matches of the declared `filters`, or null.
 - `stringMatches` and `stringMatchesOrNull`: The matches of the unordered `strings` declaration.
-- `clearMatch()`: Clears the match, so the fingerprint matches again the next time it is used.
+- `clearMatch()`: Clears the match and the values its filters evaluated from lambdas, so the fingerprint matches again the next time it is used.
 - `patchException()`: A `PatchException` for this fingerprint failing to match, to throw from custom code.
 - `originalClassDef`: The immutable class definition the fingerprint matches to. If no match is found, an exception is raised.
 - `originalClassDefOrNull`: The immutable class definition the fingerprint matches to, or null.

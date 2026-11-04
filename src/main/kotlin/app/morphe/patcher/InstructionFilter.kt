@@ -26,6 +26,7 @@ import com.android.tools.smali.dexlib2.iface.reference.TypeReference
 import java.util.EnumSet
 import kotlin.experimental.ExperimentalTypeInference
 import kotlin.reflect.KClass
+import kotlin.reflect.KProperty
 
 /**
  * Simple interface to control where an [InstructionFilter] can match,
@@ -413,6 +414,37 @@ fun interface InstructionFilter {
     ): Boolean
 }
 
+/**
+ * Clears the values this filter evaluated from lambdas, so they are evaluated again when next needed.
+ * These values can come from the match of another fingerprint or from the app being patched.
+ */
+internal fun InstructionFilter.clearEvaluatedValues() {
+    when (this) {
+        is AnyInstruction -> filters.forEach { filter -> filter.clearEvaluatedValues() }
+        is CheckCastFilter -> clearValues()
+        is FieldAccessFilter -> clearValues()
+        is InstanceOfFilter -> clearValues()
+        is LiteralFilter -> clearValues()
+        is MethodCallFilter -> clearValues()
+        is NewInstanceFilter -> clearValues()
+        is StringFilter -> clearValues()
+    }
+}
+
+/**
+ * Evaluates a value when first needed and stores it until [clear] is called.
+ */
+internal class ClearableLazy<T>(private val evaluate: () -> T) {
+    @Volatile
+    private var lazyValue = lazy(evaluate)
+
+    operator fun getValue(thisRef: Any?, property: KProperty<*>): T = lazyValue.value
+
+    fun clear() {
+        lazyValue = lazy(evaluate)
+    }
+}
+
 
 
 class AnyInstruction internal constructor(
@@ -548,11 +580,13 @@ class LiteralFilter internal constructor(
     location: InstructionLocation
 ) : OpcodesFilter(opcodes, location) {
 
+    private val literalValueLazy = ClearableLazy(literalOrNull)
+
     /**
      * Store the lambda value instead of calling it more than once.
      * `null` means the literal does not exist in this app, and the filter never matches.
      */
-    internal val literalValue: Long? by lazy(literalOrNull)
+    internal val literalValue: Long? by literalValueLazy
 
     /**
      * The literal this filter matches.
@@ -560,6 +594,8 @@ class LiteralFilter internal constructor(
      * @throws IllegalStateException If the literal does not exist in this app.
      */
     val literal: () -> Long = { literalValue ?: error("Literal does not exist in this app") }
+
+    internal fun clearValues() = literalValueLazy.clear()
 
     override fun matches(
         enclosingMethod: Method,
@@ -707,6 +743,10 @@ class MethodCallFilter internal constructor(
 
     private val values: Values
         get() = evaluatedValues ?: evaluateValues().also { evaluatedValues = it }
+
+    internal fun clearValues() {
+        evaluatedValues = null
+    }
 
     val definingClass: String?
         get() = values.definingClass
@@ -1193,6 +1233,10 @@ class FieldAccessFilter internal constructor(
     private val values: Values
         get() = evaluatedValues ?: evaluateValues().also { evaluatedValues = it }
 
+    internal fun clearValues() {
+        evaluatedValues = null
+    }
+
     val definingClass: String?
         get() = values.definingClass
 
@@ -1611,10 +1655,14 @@ class StringFilter internal constructor(
     val comparison: StringComparisonType
         get() = declaredComparison ?: Fingerprint.rawStringComparison
 
+    private val stringValueLazy = ClearableLazy(string)
+
     /**
      * Store the lambda value instead of calling it more than once.
      */
-    internal val stringValue: String by lazy (string)
+    internal val stringValue: String by stringValueLazy
+
+    internal fun clearValues() = stringValueLazy.clear()
 
     override fun matches(
         enclosingMethod: Method,
@@ -1691,16 +1739,22 @@ class NewInstanceFilter internal constructor (
     location: InstructionLocation
 ) : OpcodesFilter(listOf(Opcode.NEW_INSTANCE, Opcode.NEW_ARRAY), location) {
 
+    private val typeValueLazy = ClearableLazy(type)
+
     /**
      * Store the lambda value instead of calling it more than once.
      */
-    internal val typeValue: String by lazy {
-        val typeValue = type()
-        typeValue
+    internal val typeValue: String by typeValueLazy
+
+    private val comparisonLazy = ClearableLazy {
+        StringComparisonType.typeDeclarationToComparison(typeValue)
     }
 
-    val comparison by lazy {
-        StringComparisonType.typeDeclarationToComparison(typeValue)
+    val comparison by comparisonLazy
+
+    internal fun clearValues() {
+        typeValueLazy.clear()
+        comparisonLazy.clear()
     }
 
     override fun matches(
@@ -1795,16 +1849,22 @@ class InstanceOfFilter internal constructor(
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
 ) : OpcodeFilter(Opcode.INSTANCE_OF, location) {
 
+    private val typeValueLazy = ClearableLazy(type)
+
     /**
      * Store the lambda value instead of calling it more than once.
      */
-    internal val typeValue: String by lazy {
-        val typeValue = type()
-        typeValue
+    internal val typeValue: String by typeValueLazy
+
+    private val comparisonLazy = ClearableLazy {
+        StringComparisonType.typeDeclarationToComparison(typeValue)
     }
 
-    val comparison by lazy {
-        StringComparisonType.typeDeclarationToComparison(typeValue)
+    val comparison by comparisonLazy
+
+    internal fun clearValues() {
+        typeValueLazy.clear()
+        comparisonLazy.clear()
     }
 
     override fun matches(
@@ -1895,16 +1955,22 @@ class CheckCastFilter internal constructor(
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
 ) : OpcodeFilter(Opcode.CHECK_CAST, location) {
 
+    private val typeValueLazy = ClearableLazy(type)
+
     /**
      * Store the lambda value instead of calling it more than once.
      */
-    internal val typeValue: String by lazy {
-        val typeValue = type()
-        typeValue
+    internal val typeValue: String by typeValueLazy
+
+    private val comparisonLazy = ClearableLazy {
+        StringComparisonType.typeDeclarationToComparison(typeValue)
     }
 
-    val comparison by lazy {
-        StringComparisonType.typeDeclarationToComparison(typeValue)
+    val comparison by comparisonLazy
+
+    internal fun clearValues() {
+        typeValueLazy.clear()
+        comparisonLazy.clear()
     }
 
     override fun matches(

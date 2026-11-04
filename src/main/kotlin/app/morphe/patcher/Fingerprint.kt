@@ -358,8 +358,13 @@ open class Fingerprint private constructor(
             strings?.map { string -> StringFilter({ string }, null, InstructionLocation.MatchAfterAnywhere()) }
 
         fun clearFingerprints() {
-            fingerprintList.forEach { it.get()?.clearMatch() }
-            fingerprintList.clear()
+            // Fingerprints declared as objects are used again if the same patches are applied again,
+            // so only references to fingerprints that no longer exist are removed.
+            fingerprintList.removeAll { reference ->
+                val fingerprint = reference.get()
+                fingerprint?.clearMatch()
+                fingerprint == null
+            }
         }
     }
 
@@ -433,13 +438,15 @@ open class Fingerprint private constructor(
     private var _matchOrNull: Match? = null
 
     /**
-     * Clears the current match, forcing this fingerprint to resolve again.
+     * Clears the current match and the values its filters evaluated from lambdas,
+     * forcing this fingerprint to resolve again.
      * This method should only be used if this fingerprint is re-used after it's modified,
      * and the prior match indexes are no longer correct.
      */
-    // TODO: On next major version bump change this to return the fingerprint.
     fun clearMatch() {
         _matchOrNull = null
+        filters?.forEach { filter -> filter.clearEvaluatedValues() }
+        stringFilters?.forEach { filter -> filter.clearEvaluatedValues() }
         classFingerprint?.clearMatch()
     }
 
