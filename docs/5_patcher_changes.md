@@ -16,7 +16,7 @@ For example, an instruction filter can now depend on the match of another finger
 ```kt
 object SearchBoxFingerprint : Fingerprint(
     filters = listOf(
-        newInstance(type = { SearchBoxHintFingerprint.originalClassDef.type }),
+        newInstance(type = { SearchBoxHintFingerprint.originalClassDef }),
     ),
 )
 ```

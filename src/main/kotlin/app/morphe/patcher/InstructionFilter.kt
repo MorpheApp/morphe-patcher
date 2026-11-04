@@ -3,6 +3,7 @@
  * https://github.com/MorpheApp/morphe-patcher
  */
 
+@file:OptIn(ExperimentalTypeInference::class)
 @file:Suppress("unused", "DEPRECATION_ERROR")
 
 package app.morphe.patcher
@@ -13,6 +14,7 @@ import app.morphe.patcher.resource.ResourceType
 import app.morphe.patcher.resource.hasResourceId
 import app.morphe.patcher.resource.resourceId
 import com.android.tools.smali.dexlib2.Opcode
+import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
@@ -22,6 +24,7 @@ import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import com.android.tools.smali.dexlib2.iface.reference.TypeReference
 import java.util.EnumSet
+import kotlin.experimental.ExperimentalTypeInference
 import kotlin.reflect.KClass
 
 /**
@@ -1268,10 +1271,24 @@ fun newInstance(
  * @param type Class type semantics as described in [StringComparisonType].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
+@OverloadResolutionByLambdaReturnType
 fun newInstance(
     type: () -> String,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
 ) = NewInstanceFilter(type, location)
+
+/**
+ * Opcode type [Opcode.NEW_INSTANCE] or [Opcode.NEW_ARRAY] of a class, such as the class of another fingerprint.
+ *
+ * @param type The class, which is evaluated when the fingerprint is matched.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+@OverloadResolutionByLambdaReturnType
+@JvmName("newInstanceOfClass")
+fun newInstance(
+    type: () -> ClassDef,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = NewInstanceFilter({ type().type }, location)
 
 /**
  * Opcode type [Opcode.NEW_INSTANCE] or [Opcode.NEW_ARRAY] with a non obfuscated class type.
@@ -1358,10 +1375,24 @@ fun instanceOf(
  * @param type Class type semantics as described in [StringComparisonType].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
+@OverloadResolutionByLambdaReturnType
 fun instanceOf(
     type: () -> String,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
 ) = InstanceOfFilter(type, location)
+
+/**
+ * Opcode type [Opcode.INSTANCE_OF] of a class, such as the class of another fingerprint.
+ *
+ * @param type The class, which is evaluated when the fingerprint is matched.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+@OverloadResolutionByLambdaReturnType
+@JvmName("instanceOfClass")
+fun instanceOf(
+    type: () -> ClassDef,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = InstanceOfFilter({ type().type }, location)
 
 /**
  * Opcode type [Opcode.INSTANCE_OF] with a non obfuscated class type.
@@ -1444,10 +1475,24 @@ fun checkCast(
  * @param type Class type semantics as described in [StringComparisonType].
  * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
  */
+@OverloadResolutionByLambdaReturnType
 fun checkCast(
     type: () -> String,
     location: InstructionLocation = InstructionLocation.MatchAfterAnywhere()
 ) = CheckCastFilter(type, location)
+
+/**
+ * Opcode type [Opcode.CHECK_CAST] of a class, such as the class of another fingerprint.
+ *
+ * @param type The class, which is evaluated when the fingerprint is matched.
+ * @param location Where this filter is allowed to match. Default is anywhere after the previous instruction.
+ */
+@OverloadResolutionByLambdaReturnType
+@JvmName("checkCastToClass")
+fun checkCast(
+    type: () -> ClassDef,
+    location: InstructionLocation = InstructionLocation.MatchAfterAnywhere(),
+) = CheckCastFilter({ type().type }, location)
 
 /**
  * Opcode type [Opcode.CHECK_CAST] with a non obfuscated class type using the provided string comparison type.

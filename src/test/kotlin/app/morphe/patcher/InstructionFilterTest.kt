@@ -19,6 +19,7 @@ import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction31c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction31i
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction35c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction3rc
+import com.android.tools.smali.dexlib2.immutable.ImmutableClassDef
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableFieldReference
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
@@ -31,6 +32,37 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 internal object InstructionFilterTest {
+    @Test
+    fun `type filters accept a lambda returning a class or a type`() {
+        val classDef = ImmutableClassDef("Lcom/test/Target;", 0, null, null, null, null, null, null)
+
+        assertEquals("Lcom/test/Target;", newInstance(type = { classDef }).typeValue)
+        assertEquals("Lcom/test/Target;", instanceOf(type = { classDef }).typeValue)
+        assertEquals("Lcom/test/Target;", checkCast(type = { classDef }).typeValue)
+
+        assertEquals("Lcom/test/Type;", newInstance(type = { "Lcom/test/Type;" }).typeValue)
+        assertEquals("Lcom/test/Type;", instanceOf(type = { "Lcom/test/Type;" }).typeValue)
+        assertEquals("Lcom/test/Type;", checkCast(type = { "Lcom/test/Type;" }).typeValue)
+
+        val location = InstructionLocation.MatchAfterImmediately()
+        assertEquals(location, newInstance({ classDef }, location).location)
+        assertEquals(location, instanceOf({ classDef }, location).location)
+        assertEquals(location, checkCast({ classDef }, location).location)
+    }
+
+    @Test
+    fun `a class is only evaluated when it is needed`() {
+        var evaluated = false
+        val filter = newInstance(type = {
+            evaluated = true
+            ImmutableClassDef("Lcom/test/Target;", 0, null, null, null, null, null, null)
+        })
+
+        assertFalse(evaluated)
+        assertEquals("Lcom/test/Target;", filter.typeValue)
+        assertTrue(evaluated)
+    }
+
 
     // Helper to create a test method
     private fun createTestMethod(

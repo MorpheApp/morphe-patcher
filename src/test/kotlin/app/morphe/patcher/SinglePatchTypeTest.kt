@@ -459,7 +459,7 @@ internal class SinglePatchTypeTest {
     @Test
     fun `a filter can use another fingerprint without a context`() {
         val otherFingerprint = Fingerprint(definingClass = OTHER_CLASS)
-        val fingerprint = Fingerprint(filters = listOf(newInstance(type = { otherFingerprint.originalClassDef.type })))
+        val fingerprint = Fingerprint(filters = listOf(newInstance(type = { otherFingerprint.originalClassDef })))
         var matchedClass: String? = null
 
         patched(patch("Filter") { execute { matchedClass = fingerprint.originalClassDef.type } })
