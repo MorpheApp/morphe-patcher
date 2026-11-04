@@ -1,3 +1,59 @@
+# [2.2.0-dev.8](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.7...v2.2.0-dev.8) (2026-11-03)
+
+
+### Bug Fixes
+
+* Show log timings in the unit that suits them ([2913b71](https://github.com/MorpheApp/morphe-patcher/commit/2913b71bbb618bbc97c98510f0d3a1324d0e95be))
+
+# [2.2.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.6...v2.2.0-dev.7) (2026-11-03)
+
+
+### Features
+
+* Name unnamed patches by the property that holds them ([f8d156d](https://github.com/MorpheApp/morphe-patcher/commit/f8d156d67f0863d111a126dced6d213cac14305f))
+
+# [2.2.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.5...v2.2.0-dev.6) (2026-11-03)
+
+
+### Features
+
+* Name unnamed patches by the class that declares them ([c1b5367](https://github.com/MorpheApp/morphe-patcher/commit/c1b5367dc99e34a011a4438b434060982e63b70c))
+
+# [2.2.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.4...v2.2.0-dev.5) (2026-11-03)
+
+
+### Features
+
+* Report the patch about to run ([75d482d](https://github.com/MorpheApp/morphe-patcher/commit/75d482d0f4a2bd2379963de1c30e4e1b64f8ff54))
+
+# [2.2.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.3...v2.2.0-dev.4) (2026-11-02)
+
+
+### Bug Fixes
+
+* Change internal logging to default off ([13bf14c](https://github.com/MorpheApp/morphe-patcher/commit/13bf14c3536b25958522d046ae8beef711edf738))
+
+# [2.2.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.2...v2.2.0-dev.3) (2026-11-02)
+
+
+### Features
+
+* Write the patched APK in one pass and compile resources faster ([#274](https://github.com/MorpheApp/morphe-patcher/issues/274)) ([f283217](https://github.com/MorpheApp/morphe-patcher/commit/f2832173018bc3f53942caeffe43062cffb417c9))
+
+# [2.2.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0-dev.1...v2.2.0-dev.2) (2026-11-01)
+
+
+### Features
+
+* Write PKCS12 keystores that OpenSSL 3 reads ([3e6929a](https://github.com/MorpheApp/morphe-patcher/commit/3e6929ac309dfb307a3a256b87eda06b346c4db3))
+
+# [2.2.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.1.0...v2.2.0-dev.1) (2026-11-01)
+
+
+### Features
+
+* Write keystores as PKCS12 and export them with a password ([21d6b4f](https://github.com/MorpheApp/morphe-patcher/commit/21d6b4ffdced71e44ad274719a82cd77a7f5be62))
+
 # [2.1.0](https://github.com/MorpheApp/morphe-patcher/compare/v2.0.1...v2.1.0) (2026-10-30)
 
 

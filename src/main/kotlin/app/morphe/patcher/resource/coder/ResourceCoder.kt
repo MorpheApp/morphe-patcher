@@ -6,6 +6,8 @@
 package app.morphe.patcher.resource.coder
 
 import app.morphe.patcher.PackageMetadata
+import app.morphe.patcher.apk.CompressedDexFiles
+import app.morphe.patcher.logging.PhaseTimings
 import app.morphe.patcher.resource.ResourceMode
 import java.io.Closeable
 import java.io.File
@@ -95,6 +97,29 @@ internal interface ResourceCoder : Closeable {
     fun encodeResources(outputDir: File, omitEntry: (String) -> Boolean = { false }): File
 
     /**
+     * Write the patched APK: the input APK with the resources from the working directory, encoded as
+     * [encodeResources] encodes them in [ResourceMode.FULL], the other files [getOtherResourceFiles]
+     * returns, without the files [getDeletedFiles] returns and the entries [omitEntry] matches, and with
+     * [dexFiles]. This is what [app.morphe.patcher.apk.ApkUtils.applyTo] makes of the result of
+     * [encodeResources] and the input APK, written in one pass. The APK is aligned, but not signed.
+     *
+     * @param outputApk The file to write the patched APK to.
+     * @param outputDir The output directory for patched files, which temporary files are written to.
+     * @param resourceMode The resource mode that is being used.
+     * @param omitEntry Whether to leave out an archive entry, as the patched APK replaces or deletes it.
+     * @param dexFiles The patched DEX files, which are waited for once the resources are encoded.
+     * @param timings Where the steps of writing the APK are measured.
+     */
+    fun writeApk(
+        outputApk: File,
+        outputDir: File,
+        resourceMode: ResourceMode,
+        omitEntry: (String) -> Boolean,
+        dexFiles: CompressedDexFiles,
+        timings: PhaseTimings,
+    )
+
+    /**
      * Get other resource files.
      *
      * @param outputDir a File object representing the output directory for patched files.
@@ -143,7 +168,7 @@ internal interface ResourceCoder : Closeable {
     /**
      * Delete a decoded resource from the working directory, tracked for deletion in the final APK,
      * or exclude any other archive entry (as named by [listApkEntries]) from the rebuilt APK,
-     * whether or not it was staged to the working directory.
+     * staged to the working directory or not.
      *
      * @param path The path of the decoded resource relative to the package directory, or the archive entry name.
      * @param packageName The package name of the resources bundle a decoded resource should be deleted from. Defaults to the package name of the application. The package name should be the original package name before any patches are applied.

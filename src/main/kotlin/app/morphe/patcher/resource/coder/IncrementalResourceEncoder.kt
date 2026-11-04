@@ -5,6 +5,9 @@
 
 package app.morphe.patcher.resource.coder
 
+import app.morphe.patcher.logging.PhaseTimings
+import app.morphe.patcher.logging.measure
+import app.morphe.patcher.logging.toLogString
 import app.morphe.patcher.patch.PatchException
 import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkUtil
@@ -40,8 +43,8 @@ import kotlin.time.measureTime
  * rebuilding that table from every decoded values file.
  *
  * The table an app ships is the authority for everything a patch left alone. Only the values
- * files a patch touched are re-encoded, each replacing the entries of its type in its
- * configuration, or only adding to them if the file was never decoded, and only new or changed
+ * files a patch touched are re-encoded. Each replaces the entries of its type in its
+ * configuration, or only adds to them if the file was never decoded. Only new or changed
  * files under `res/` are added to the archive. The rest of the archive is the input APK, which
  * [module] already holds.
  *
@@ -53,6 +56,7 @@ import kotlin.time.measureTime
  * @param originalNameOf The archive entry name a decoded path stands for, or null if it is not an alias.
  * @param isAddition Whether a values file was written by a patch without being decoded. Such a file
  * only adds resources to its configuration or replaces them, as it never held the others.
+ * @param timings The timings the steps of encoding are measured into, if any.
  */
 internal class IncrementalResourceEncoder(
     private val module: ApkModule,
@@ -62,6 +66,7 @@ internal class IncrementalResourceEncoder(
     private val isNewFile: (File) -> Boolean,
     private val originalNameOf: (String) -> String?,
     private val isAddition: (File) -> Boolean = { false },
+    private val timings: PhaseTimings? = null,
 ) {
     private val logger = Logger.getLogger(IncrementalResourceEncoder::class.java.name)
 
@@ -75,10 +80,13 @@ internal class IncrementalResourceEncoder(
      * from their configuration. Patches strip translations this way.
      * @param patchedConfigurations Values directories of resource configurations patches added,
      * which are encoded sparse.
-     * @param publicIds Every resource id of the package as `public.xml` now declares them, which
-     * includes ids patches declared there themselves.
+     * @param publicIds The resource ids to declare in the table, by type and name: every id of
+     * `public.xml`, which includes ids patches declared there themselves, or only the ids given to
+     * new resources when the ids were read from the table.
      * @param originalPackageName The package name of the app as decoded.
      * @param newPackageName The package name the manifest now declares.
+     * @param packagesToEncode The names of the packages of [packageDirectories] to encode. The others
+     * are left as the table has them.
      */
     fun encode(
         modifiedResources: Set<File>,
@@ -88,6 +96,7 @@ internal class IncrementalResourceEncoder(
         publicIds: Map<Pair<String, String>, Int>,
         originalPackageName: String,
         newPackageName: String,
+        packagesToEncode: Set<String>,
     ) {
         val tableBlock = module.tableBlock ?: throw PatchException("The APK has no resource table")
 
@@ -113,14 +122,14 @@ internal class IncrementalResourceEncoder(
         if (uncompressedFiles.isFile) module.uncompressedFiles.fromJson(uncompressedFiles)
 
         packageDirectories.forEach { (packageName, packageDirectory) ->
+            if (packageName !in packagesToEncode) return@forEach
             val resDirectory = packageDirectory.resolve("res")
-            if (!resDirectory.resolve("values/public.xml").isFile) return@forEach
 
             val packageBlock = tableBlock.firstOrNull { it.name == packageName }
                 ?: tableBlock.pickOne()
                 ?: throw PatchException("No resource package for $packageName in the table")
 
-            val registered = measureTime { packageBlock.declareIds(publicIds) }
+            val registered = measureTime { timings.measure("declareIds") { packageBlock.declareIds(publicIds) } }
             if (packageName == originalPackageName && packageBlock.name != newPackageName) {
                 packageBlock.name = newPackageName
             }
@@ -141,52 +150,62 @@ internal class IncrementalResourceEncoder(
             var encoded = 0
             var declared = 0
             val values = measureTime {
-                // Attributes first: styles and enums are encoded against attribute names.
-                val (attrs, others) = appValuesFiles.partition { it.name == "attrs.xml" }
-                (attrs + others).forEach { valuesFile ->
-                    val typeBlock = packageBlock.getOrCreateTypeBlock(
-                        XmlEncodeUtil.getQualifiersFromValuesXml(valuesFile),
-                        XmlEncodeUtil.getTypeFromValuesXml(valuesFile),
-                    )
-                    val counts = encodeValuesFile(
-                        valuesFile,
-                        typeBlock,
-                        valuesCoder,
-                        isDefinedByFile,
-                        isAddition(valuesFile),
-                    )
-                    encoded += counts.first
-                    declared += counts.second
-                }
-
-                deletedValuesFiles.filter { it.startsWith(resDirectory) }.forEach { valuesFile ->
-                    val typeBlock = packageBlock.getSpecTypePair(XmlEncodeUtil.getTypeFromValuesXml(valuesFile))
-                        ?.getTypeBlock(ResConfig.parse(XmlEncodeUtil.getQualifiersFromValuesXml(valuesFile)))
-                        ?: return@forEach
-                    typeBlock.listEntries(true).forEach { if (!isDefinedByFile(it)) it.empty() }
-                }
-
-                if (overlayable in modifiedResources && overlayable.isFile) {
-                    if (isAddition(overlayable)) {
-                        // Adds to the overlayables the app declares, which the file never held.
-                        packageBlock.overlayableList.parseAddition(overlayable)
-                    } else {
-                        packageBlock.overlayableList.clearChildes()
-                        packageBlock.overlayableList.parse(XMLFactory.newPullParser(overlayable))
+                timings.measure("values") {
+                    // Attributes first: styles and enums are encoded against attribute names.
+                    val (attrs, others) = appValuesFiles.partition { it.name == "attrs.xml" }
+                    (attrs + others).forEach { valuesFile ->
+                        val typeBlock = packageBlock.getOrCreateTypeBlock(
+                            XmlEncodeUtil.getQualifiersFromValuesXml(valuesFile),
+                            XmlEncodeUtil.getTypeFromValuesXml(valuesFile),
+                        )
+                        val counts = encodeValuesFile(
+                            valuesFile,
+                            typeBlock,
+                            valuesCoder,
+                            isDefinedByFile,
+                            isAddition(valuesFile),
+                        )
+                        encoded += counts.first
+                        declared += counts.second
                     }
                 }
 
-                configurations.forEach { valuesDirectory ->
-                    valuesDirectory.listFiles { file: File -> file.isFile && file.extension == "xml" }
-                        .orEmpty().sortedBy { it.name }.forEach { valuesFile ->
-                            val typeBlock = packageBlock.patchedTypeBlock(valuesFile, useSparseEntries)
-                            valuesCoder.encode(XMLFactory.newPullParser(valuesFile), typeBlock)
+                timings.measure("deletedValues") {
+                    deletedValuesFiles.filter { it.startsWith(resDirectory) }.forEach { valuesFile ->
+                        val typeBlock = packageBlock.getSpecTypePair(XmlEncodeUtil.getTypeFromValuesXml(valuesFile))
+                            ?.getTypeBlock(ResConfig.parse(XmlEncodeUtil.getQualifiersFromValuesXml(valuesFile)))
+                            ?: return@forEach
+                        typeBlock.listEntries(true).forEach { if (!isDefinedByFile(it)) it.empty() }
+                    }
+                }
+
+                timings.measure("overlayable") {
+                    if (overlayable in modifiedResources && overlayable.isFile) {
+                        if (isAddition(overlayable)) {
+                            // Adds to the overlayables the app declares, which the file never held.
+                            packageBlock.overlayableList.parseAddition(overlayable)
+                        } else {
+                            packageBlock.overlayableList.clearChildes()
+                            packageBlock.overlayableList.parse(XMLFactory.newPullParser(overlayable))
                         }
+                    }
+                }
+
+                timings.measure("configurations") {
+                    configurations.forEach { valuesDirectory ->
+                        valuesDirectory.listFiles { file: File -> file.isFile && file.extension == "xml" }
+                            .orEmpty().sortedBy { it.name }.forEach { valuesFile ->
+                                val typeBlock = packageBlock.patchedTypeBlock(valuesFile, useSparseEntries)
+                                valuesCoder.encode(XMLFactory.newPullParser(valuesFile), typeBlock)
+                            }
+                    }
                 }
             }
 
-            resFiles.forEach { file -> addResFile(packageBlock, file) }
-            packageBlock.sortTypes()
+            timings.measure("resFiles") {
+                resFiles.forEach { file -> addResFile(packageBlock, file) }
+                packageBlock.sortTypes()
+            }
 
             // Most packages of a split or multi package table are untouched, so only log the ones that changed.
             if (appValuesFiles.isNotEmpty() || resFiles.isNotEmpty() || configurations.isNotEmpty()) {
@@ -195,34 +214,36 @@ internal class IncrementalResourceEncoder(
                             "resource files and ${configurations.size} configurations of patches for $packageName"
                 )
             }
-            logger.fine { "Resource table update timings for $packageName: ids=$registered, values=$values" }
+            logger.fine { "Resource table update timings for $packageName: ids=${registered.toLogString()}, values=${values.toLogString()}" }
         }
 
         // Empties the entries of a deleted file and drops its archive entry.
-        deletedEntries.forEach { module.removeResFile(it, true) }
+        timings.measure("deletedEntries") { deletedEntries.forEach { module.removeResFile(it, true) } }
 
-        tableBlock.forEach { it.compactSparseTypeBlocks() }
+        timings.measure("compactSparse") { tableBlock.forEach { it.compactSparseTypeBlocks() } }
 
-        val manifest = workingDir.resolve(AndroidManifestBlock.FILE_NAME)
-        if (manifest.isFile) {
-            val packageBlock = tableBlock.firstOrNull { it.name == newPackageName } ?: tableBlock.pickOne()
-            module.add(
-                XMLEncodeSource(packageBlock, XMLFileParserSource(AndroidManifestBlock.FILE_NAME, manifest)).also {
-                    it.method = Archive.STORED
-                    it.sort = 0
-                }
-            )
-            encodedEntries += AndroidManifestBlock.FILE_NAME
+        timings.measure("manifest") {
+            val manifest = workingDir.resolve(AndroidManifestBlock.FILE_NAME)
+            if (manifest.isFile) {
+                val packageBlock = tableBlock.firstOrNull { it.name == newPackageName } ?: tableBlock.pickOne()
+                module.add(
+                    XMLEncodeSource(packageBlock, XMLFileParserSource(AndroidManifestBlock.FILE_NAME, manifest)).also {
+                        it.method = Archive.STORED
+                        it.sort = 0
+                    }
+                )
+                encodedEntries += AndroidManifestBlock.FILE_NAME
+            }
         }
 
         // The table starts as the input's, so the strings of emptied entries, such as a removed
         // locale's, would stay in the pool unreferenced. They are emptied rather than removed,
         // which would move every string after them. A styled one keeps its text for its spans.
-        tableBlock.stringPool.listUnused().forEach { if (!it.hasStyle()) it.set("") }
+        timings.measure("stringPool") { tableBlock.stringPool.listUnused().forEach { if (!it.hasStyle()) it.set("") } }
 
         // Written without this, the table's styled strings came out misaligned, although the
         // archive refreshes the table again when it writes it.
-        tableBlock.refresh()
+        timings.measure("refresh") { tableBlock.refresh() }
         encodedEntries += "resources.arsc"
     }
 
@@ -289,7 +310,7 @@ internal class IncrementalResourceEncoder(
                 }
                 if (definedIds.size == entries.size()) return@forEach
 
-                val pairs = entries.getOffsetReferenceList()
+                val pairs = entries.offsetReferenceList
                 pairs.clearChildes()
                 pairs.setSize(definedIds.size)
                 definedIds.forEachIndexed { index, id -> pairs.get(index).idx = id }
@@ -401,8 +422,8 @@ internal class IncrementalResourceEncoder(
         val current = value.valueAsString ?: return false
 
         // Text without an escape or quoting encodes to itself.
-        if (text == current && text[0] != '"' && text.indexOf('\\') < 0) return true
-        return current == XmlSanitizer.unEscapeUnQuote(StyleDocument.copyInner(element).getXml(false))
+        return (text == current && text[0] != '"' && text.indexOf('\\') < 0) ||
+            current == XmlSanitizer.unEscapeUnQuote(StyleDocument.copyInner(element).getXml(false))
     }
 
     /**
@@ -423,7 +444,7 @@ internal class IncrementalResourceEncoder(
      */
     private fun Entry.empty() {
         val name = name
-        setNull(true)
+        isNull = true
         // An emptied entry drops its name with its value; hold it so the name still resolves.
         if (name != null) setName(name, true)
     }

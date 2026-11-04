@@ -54,7 +54,7 @@ internal class ArsclibResourceCoderTest {
     // ==================== Reflection helpers ====================
 
     /**
-     * Set up a fake package directory structure under workingDir with a res folder.
+     * Set up a fake package directory structure under `workingDir` with a `res` folder.
      */
     private fun setupPackageDir(packageName: String = "com.test.app"): File {
         val pkgDir = workingDir.resolve("resources").resolve("0").also { it.mkdirs() }
@@ -586,7 +586,7 @@ internal class ArsclibResourceCoderTest {
     fun `detectFileChanges only scans res subdirectory of package directories`() {
         val pkgDir = setupPackageDir()
 
-        // Create a file outside of the res folder (e.g. package.json level).
+        // Create a file outside the res folder (e.g. package.json level).
         val nonResFile = pkgDir.resolve("some_other_file.txt")
         nonResFile.writeText("not a resource")
 
@@ -771,7 +771,7 @@ internal class ArsclibResourceCoderTest {
         // Create all excluded files
         val publicXml = valuesDir.resolve("public.xml").also { it.writeText("<resources/>") }
         val idsXml = valuesDir.resolve("ids.xml").also { it.writeText("<resources/>") }
-        val manifestXml = pkgDir.resolve("AndroidManifest.xml").also { it.writeText("<manifest/>") }
+        pkgDir.resolve("AndroidManifest.xml").writeText("<manifest/>")
 
         // Also create a non-excluded file
         val stringsXml = valuesDir.resolve("strings.xml").also { it.writeText("<resources/>") }
@@ -1007,7 +1007,7 @@ internal class ArsclibResourceCoderTest {
         val pkgDir = setupPackageDir()
         val resDir = pkgDir.resolve("res")
         val drawableDir = resDir.resolve("drawable-mdpi").also { it.mkdirs() }
-        val aliasFile = drawableDir.resolve("drawable_0x7f080695.png").also { it.writeText("PNG") }
+        drawableDir.resolve("drawable_0x7f080695.png").writeText("PNG")
 
         coder.fileSnapshotCache = mutableMapOf()
         coder.pathMap = PathMap("""[
@@ -1386,7 +1386,7 @@ internal class ArsclibResourceCoderTest {
 
     /**
      * Helper to create a real APK on disk containing native lib entries for each architecture.
-     * Used to exercise the ResourceMode.NONE strip path, which reads lib paths directly from the APK.
+     * Used to exercise the `ResourceMode.NONE` strip path, which reads lib paths directly from the APK.
      */
     private fun createApkWithLibs(
         tempDir: File,
@@ -1839,7 +1839,7 @@ internal class ArsclibResourceCoderTest {
     /**
      * Patches can delete files via ResourceCoder.deleteFile(path).
      * Those deletions need to make it into the output APK the same way strip-libs deletions do,
-     * i.e via getDeletedFiles() being populated by detectFileChanges()
+     * i.e. via getDeletedFiles() being populated by detectFileChanges()
      * noticing the file is no longer present from the snapshot.
      */
 
@@ -1954,7 +1954,7 @@ internal class ArsclibResourceCoderTest {
 
     /**
      * Regression test for the bug where PatcherResult.applyTo silently skipped all
-     * native-lib deletions when invoked after the enclosing Patcher.use block exited.
+     * native-lib deletions when invoked after the enclosing `Patcher.use` block exited.
      * Root cause: getDeletedFiles() used to return the internal mutable deletedFiles field by reference.
      * close() clears that field. Callers holding the returned Set (via PatcherResult.PatchedResources.deleteResources)
      * saw an empty set after close(), so applyTo had nothing to delete.
@@ -1990,7 +1990,7 @@ internal class ArsclibResourceCoderTest {
 
     // ==================== getDeletedFiles ResourceMode.NONE strip-from-apk tests ====================
     /**
-     * When no resource patches are provided the coder runs with ResourceMode.NONE, so stripNativeLibraries()
+     * When no resource patches are provided the coder runs with `ResourceMode.NONE`, so stripNativeLibraries()
      * never runs against the working directory. getDeletedFiles(NONE) instead reads native lib entries
      * directly from the original APK and reports the ones whose architecture isn't kept.
      */
@@ -2207,7 +2207,7 @@ internal class ArsclibResourceCoderTest {
         ApkModule().use { module ->
             val manifest = com.reandroid.arsc.chunk.xml.AndroidManifestBlock()
             manifest.packageName = "com.test.legacy"
-            manifest.setVersionCode(310)
+            manifest.versionCode = 310
             manifest.versionName = "3.1.0"
             manifest.setMinSdkVersion(7)
             module.setManifest(manifest)
@@ -2224,7 +2224,7 @@ internal class ArsclibResourceCoderTest {
         }
 
         val legacyCoder = ArsclibResourceCoder(tempDir.resolve("working").apply { mkdirs() }, apk)
-        val metadata = assertDoesNotThrow { legacyCoder.getPackageMetadata() }
+        val metadata = legacyCoder.use { assertDoesNotThrow { it.getPackageMetadata() } }
 
         assertEquals("com.test.legacy", metadata.packageName)
         assertEquals("3.1.0", metadata.versionName)

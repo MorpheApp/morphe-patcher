@@ -20,6 +20,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 internal class OnRequestDecodingTest {
@@ -57,6 +58,22 @@ internal class OnRequestDecodingTest {
 
     private fun PackageBlock.string(qualifiers: String, name: String) =
         getEntry(qualifiers, "string", name)?.takeUnless { it.isNull }?.resValue?.valueAsString
+
+    @Test
+    fun `the input APK is opened once and its table is parsed by cataloging only`() {
+        val coder = coder("working")
+        assertEquals("com.test.app", coder.getPackageMetadata().packageName)
+
+        val inputModule = ArsclibResourceCoder::class.java.getDeclaredField("inputModule")
+            .apply { isAccessible = true }
+        val module = assertNotNull(inputModule.get(coder) as ApkModule?, "the module read for the package is kept")
+        assertNull(module.loadedTableBlock, "reading the package does not parse the resource table")
+
+        coder.decodeResources(true)
+
+        assertSame(module, inputModule.get(coder), "cataloging reuses the module the package was read from")
+        assertNotNull(module.loadedTableBlock, "cataloging parses the resource table")
+    }
 
     @Test
     fun `only the manifest is decoded up front`() {

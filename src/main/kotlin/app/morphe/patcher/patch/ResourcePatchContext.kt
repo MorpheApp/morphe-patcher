@@ -13,12 +13,15 @@ import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.PatcherBehavior
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherResult
+import app.morphe.patcher.apk.CompressedDexFiles
+import app.morphe.patcher.logging.PhaseTimings
 import app.morphe.patcher.resource.ResourceIds
 import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.resource.coder.ArsclibResourceCoder
 import app.morphe.patcher.resource.coder.ResourceCoder
 import app.morphe.patcher.util.Document
 import java.io.Closeable
+import java.io.File
 import java.io.InputStream
 import java.util.logging.Logger
 
@@ -45,7 +48,7 @@ class ResourcePatchContext internal constructor(
 
     /**
      * The resource ids of the APK being patched, read from its resource table on first use.
-     * Also reachable without a context through [app.morphe.patcher.resource.resourceId] and
+     * It is also reachable without a context through [app.morphe.patcher.resource.resourceId] and
      * [app.morphe.patcher.resource.hasResourceId], which is what [app.morphe.patcher.resourceLiteral] uses.
      */
     val resourceIds: ResourceIds = ResourceIds { resourceCoder.resourceIds() }.also { ResourceIds.current = it }
@@ -117,6 +120,19 @@ class ResourcePatchContext internal constructor(
             resourceCoder.getUncompressedFiles(config.resourceMode),
             resourceCoder.getDeletedFiles(config.resourceMode),
         )
+    }
+
+    /**
+     * Compile resources in [PatcherConfig.apkFiles] and write the patched APK with [dexFiles], as [get]
+     * followed by [app.morphe.patcher.apk.ApkUtils.applyTo] would.
+     *
+     * @param outputApk The file to write the patched APK to.
+     * @param dexFiles The patched DEX files, compressed in the background.
+     * @param timings Where the steps of writing the APK are measured.
+     */
+    internal fun writeApk(outputApk: File, dexFiles: CompressedDexFiles, timings: PhaseTimings) {
+        if (config.resourceMode == ResourceMode.FULL) logger.info("Compiling modified resources")
+        resourceCoder.writeApk(outputApk, config.patchedFiles, config.resourceMode, omitEntry, dexFiles, timings)
     }
 
     /**
@@ -197,7 +213,7 @@ class ResourcePatchContext internal constructor(
      * The name is either a decoded resource path such as `res/drawable/icon.png`, or any other
      * entry of the APK being patched as returned by [listApkEntries], such as
      * `lib/x86/libfoo.so` or `assets/data.bin`. Archive entries are excluded from the rebuilt APK
-     * whether or not they were staged to the working directory, so this works for native
+     * staged to the working directory or not, so this works for native
      * libraries too. A directory name, such as `lib/x86/`, deletes everything below it. Deleting a
      * name that matches nothing is a no-op. A file deleted and then recreated with [get] keeps the
      * recreated content. The manifest and `resources.arsc` cannot be deleted.

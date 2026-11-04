@@ -109,6 +109,15 @@ internal object PatchLoaderTest {
     }
 
     @Test
+    fun `unnamed patches go by the property that holds them`() {
+        loadPatches(File("patchesFile"))
+
+        assertEquals("Public", publicPatch.toString())
+        assertEquals("PatchLoaderTest.publicUnnamedPatch", publicUnnamedPatch.toString())
+        assertEquals("PatchLoaderTest.privateUnnamedDependency", privateUnnamedDependency.toString())
+    }
+
+    @Test
     fun `loaded patches remember the bundle they were loaded from`(@TempDir tempDir: File) {
         val patchesFile = tempDir.resolve("patches.mpp")
         val manifest = Manifest().apply {

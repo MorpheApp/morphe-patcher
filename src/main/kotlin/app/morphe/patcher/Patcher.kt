@@ -9,7 +9,12 @@
 package app.morphe.patcher
 
 import app.morphe.patcher.apk.ApkUtils
+import app.morphe.patcher.apk.CompressedDexFiles
+import app.morphe.patcher.apk.dexFilesStoredIn
+import app.morphe.patcher.apk.overlapDexCompression
 import app.morphe.patcher.dex.BytecodeMode
+import app.morphe.patcher.logging.PhaseTimings
+import app.morphe.patcher.logging.toLogString
 import app.morphe.patcher.patch.BytecodePatch
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.PatchException
@@ -20,10 +25,12 @@ import app.morphe.patcher.patch.anyRecursively
 import app.morphe.patcher.resource.ResourceMode
 import kotlinx.coroutines.flow.flow
 import java.io.Closeable
+import java.io.File
 import java.util.Collections
 import java.util.IdentityHashMap
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
+import kotlin.time.Duration.Companion.nanoseconds
 
 /**
  * A Patcher.
@@ -84,9 +91,12 @@ class Patcher(private val config: PatcherConfig) : Closeable {
     /**
      * Execute added patches.
      *
+     * @param onPatchExecuting Called on the thread that runs a patch, right before it executes or
+     *                         finalizes, dependencies included. The flow reports a patch only once
+     *                         it is done, which leaves a caller blind to one that never is.
      * @return A flow of [PatchResult]s.
      */
-    operator fun invoke() = flow {
+    operator fun invoke(onPatchExecuting: (Patch<*>) -> Unit = {}) = flow {
         fun Patch<*>.execute(
             executedPatches: LinkedHashMap<Patch<*>, PatchResult>,
         ): PatchResult {
@@ -111,6 +121,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             }
 
             // Execute the patch. Dependencies already executed above, so they are not included in the time.
+            onPatchExecuting(this)
             return try {
                 if (config.validate) {
                     val patchClasses = context.bytecodeContext.patchClasses
@@ -121,7 +132,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
                     val executeNanos = System.nanoTime() - startNanos - indexBuildNanos
                     if (executeNanos > SLOW_PATCH_NANOS) {
                         logger.info(
-                            "Patch took ${TimeUnit.NANOSECONDS.toMillis(executeNanos)} ms to execute: $logName"
+                            "Patch took ${executeNanos.nanoseconds.toLogString()} to execute: $this"
                         )
                     }
                 } else {
@@ -164,6 +175,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         succeededPatchesWithFinalizeBlock.asReversed().forEach { executionResult ->
             val patch = executionResult.patch
 
+            onPatchExecuting(patch)
             val result =
                 try {
                     patch.finalize(context)
@@ -193,6 +205,54 @@ class Patcher(private val config: PatcherConfig) : Closeable {
      */
     @OptIn(InternalApi::class)
     fun get(): PatcherResult {
+        val (dexFiles, dexFilesComplete) = compileDexFiles()
+        val resFiles = context.resourceContext.get()
+        // The output base of applyTo may lack the DEX entries it replaces, so the input tells how to store them.
+        val storedDexFileNames = dexFilesStoredIn(config.apkFile, dexFiles.map { it.name })
+        return PatcherResult(dexFiles, resFiles, dexFilesComplete, storedDexFileNames)
+    }
+
+    /**
+     * Compiles the patched files and writes the patched APK in one pass, instead of [get] followed by
+     * [ApkUtils.applyTo] on a copy of the input APK.
+     *
+     * The APK holds what [ApkUtils.applyTo] would write and is aligned the same way, but it is not signed,
+     * so sign it with [ApkUtils.signApk] before it is installed, which can sign it in place. The DEX files
+     * are compressed while the resources are encoded. A DEX file the input APK stores uncompressed, as an
+     * app that loads its code from the APK must, is stored uncompressed, as [ApkUtils.applyTo] stores it.
+     *
+     * Like [get], this ends patching: the patcher cannot be used afterward, other than to be closed.
+     *
+     * @param outputApk The file to write the patched APK to, replacing it if it exists.
+     * @throws IllegalArgumentException If [outputApk] is the input APK, which is read while it is written.
+     */
+    fun writeApk(outputApk: File) {
+        require(outputApk.canonicalFile != config.apkFile.canonicalFile) {
+            "The patched APK cannot be written over the input APK: $outputApk"
+        }
+
+        val timings = PhaseTimings(logger, "writeApk")
+        val (dexFiles, _) = compileDexFiles()
+        config.patchedFiles.mkdirs()
+        CompressedDexFiles(
+            dexFiles,
+            config.patchedFiles.resolve("dex.zip"),
+            config.apkFile,
+            timings,
+            overlapDexCompression,
+        ).use { compressedDexFiles ->
+            context.resourceContext.writeApk(outputApk, compressedDexFiles, timings)
+        }
+        timings.log()
+    }
+
+    /**
+     * Ends patching and writes the patched DEX files, which is how [get] and [writeApk] begin.
+     *
+     * @return The patched DEX files, and whether they replace every DEX file of the input APK.
+     */
+    @OptIn(InternalApi::class)
+    private fun compileDexFiles(): Pair<Set<PatcherResult.PatchedDexFile>, Boolean> {
         Fingerprint.clearFingerprints()
         context.allPatches.clear()
         context.executablePatches.clear()
@@ -204,8 +264,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         val dexFilesComplete = config.bytecodeMode != BytecodeMode.STRIP_FAST || context.bytecodeContext.dexFilesComplete
         val dexFileNames = dexFiles.mapTo(HashSet()) { it.name }
         context.resourceContext.omitEntry = { name -> ApkUtils.isReplacedOnApply(name, dexFileNames, dexFilesComplete) }
-        val resFiles = context.resourceContext.get()
-        return PatcherResult(dexFiles, resFiles, dexFilesComplete)
+        return dexFiles to dexFilesComplete
     }
 
     private companion object {

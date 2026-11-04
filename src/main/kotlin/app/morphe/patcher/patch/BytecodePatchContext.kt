@@ -651,6 +651,15 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         val total = patchClasses.classMap.size
         val mutable = patchClasses.classMap.values.count { it.classDef is MutableClass }
         logger.info("Changed $mutable of $total classes to mutable")
+
+        // A patch that calls mutableClassDefBy on every class from classDefForEach
+        // uses far more memory than needed and can run out of memory on device.
+        if (validate && mutable * 2 > total) {
+            logger.warning(
+                "More than half of all classes were changed to mutable ($mutable of $total). " +
+                    "A patch may be calling mutableClassDefBy for every class instead of only the classes it changes"
+            )
+        }
     }
 
     private fun dexIndex(dexFile: File) = dexFile.name.removePrefix("classes").removeSuffix(".dex").toIntOrNull() ?: 1

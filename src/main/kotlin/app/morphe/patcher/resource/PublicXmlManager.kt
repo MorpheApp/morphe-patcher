@@ -20,6 +20,9 @@ class PublicXmlManager(
     private lateinit var packageName: String
     private lateinit var packageId: String
 
+    /** The highest type id of the ids of the package, which a type new to it is given the next one of. */
+    private var highestTypeId = 0
+
     init {
         if (!publicDocPath.exists()) {
             throw IllegalArgumentException("File does not exist at path: ${publicDocPath.absolutePath}")
@@ -53,6 +56,7 @@ class PublicXmlManager(
                                 )
                             }
 
+                            highestTypeId = maxOf(highestTypeId, typeIdOf(id))
                             if (id > resourceIds.getOrElse(typeString) { 0 }) {
                                 resourceIds[typeString] = id
                             }
@@ -89,7 +93,12 @@ class PublicXmlManager(
 
         logger.fine { "Adding @$type/$name to public.xml" }
 
-        val resourceId = resourceIds.getOrElse(type) { 0 } + 1
+        // A type without ids yet is new to the package, and is given the type id after the highest one.
+        val resourceId = resourceIds[type]?.plus(1) ?: run {
+            val typeId = newTypeId(highestTypeId, type, packageName)
+            highestTypeId = typeId
+            firstIdOf(parsePackageId(packageId), typeId)
+        }
         resourceIds[type] = resourceId
         definedIdsByType.getOrPut(type) { mutableMapOf() }[name] = resourceId
     }

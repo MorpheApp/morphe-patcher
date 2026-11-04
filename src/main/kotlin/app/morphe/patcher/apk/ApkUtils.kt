@@ -7,9 +7,8 @@ package app.morphe.patcher.apk
 
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.ApkSigner.newApkSigner
-import app.morphe.patcher.apk.ApkSigner.newKeyStore
 import app.morphe.patcher.apk.ApkSigner.newPrivateKeyCertificatePair
-import app.morphe.patcher.apk.ApkUtils.applyTo
+import app.morphe.patcher.logging.PhaseTimings
 import com.android.apksig.ApkVerifier
 import com.android.apksig.apk.ApkFormatException
 import com.android.tools.build.apkzlib.zip.AlignmentRules
@@ -21,11 +20,14 @@ import com.android.tools.build.apkzlib.zip.ZFileOptions
 import com.android.tools.build.apkzlib.zip.compress.DeflateExecutionCompressor
 import com.reandroid.apk.ApkModule
 import com.reandroid.archive.writer.ZipAligner
+import java.io.Closeable
 import java.io.File
 import java.io.IOException
+import java.io.OutputStream
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.security.KeyStore
 import java.security.NoSuchAlgorithmException
 import java.security.cert.X509Certificate
 import java.util.Date
@@ -58,7 +60,11 @@ object ApkUtils {
     // v1 signature files, which the signer would otherwise leave stale beside its own signature.
     private val v1SignatureEntryName = Regex("""META-INF/(?:MANIFEST\.MF|[^/]+\.(?:SF|RSA|DSA|EC)|SIG-[^/]*)""", RegexOption.IGNORE_CASE)
 
-    private val zFileOptions =
+    /**
+     * The options every archive is written with: aligned as [writeAlignedApk] aligns, and compressed in
+     * parallel at [COMPRESSION_LEVEL]. An entry that does not shrink is stored.
+     */
+    internal val zFileOptions =
         ZFileOptions().setAlignmentRule(
             AlignmentRules.compose(
                 AlignmentRules.constantForSuffix(LIBRARY_EXTENSION, LIBRARY_ALIGNMENT),
@@ -106,7 +112,8 @@ object ApkUtils {
      * 2. Delete resources staged for deletion.
      * 3. Write raw resources. This comes after the deletion so that an entry a patch deleted and
      *    then recreated ends up with the recreated content rather than removed.
-     * 4. Write patched dex files.
+     * 4. Write patched dex files. A dex file the input APK stores uncompressed, as an app that loads its
+     *    code from the APK must, is stored uncompressed.
      * 5. Realign the APK.
      *
      * Without a compiled resource APK, [apkFile] must be a copy of the input APK so that
@@ -117,61 +124,77 @@ object ApkUtils {
      * @param apkFile A copy of the patched APK, to apply the patched files to.
      */
     fun PatcherResult.applyTo(apkFile: File) {
+        val timings = PhaseTimings(logger, "applyTo")
+
         resources.resourcesApk?.let { resourcesApk ->
             logger.info("Using compiled resource APK as output base")
 
             if (resourcesApk.canonicalFile != apkFile.canonicalFile) {
-                copyApk(resourcesApk, apkFile)
+                timings.measure("copyBase") { copyApk(resourcesApk, apkFile) }
             }
         }
 
-        ZFile.openReadWrite(apkFile, zFileOptions).use { targetApkZFile ->
-            rewriteDataDescriptorEntries(targetApkZFile)
-            // Entries are compressed in the background and cannot be deleted or moved until done.
-            targetApkZFile.finishAllBackgroundTasks()
+        val targetApkZFile = timings.measure("open") { ZFile.openReadWrite(apkFile, zFileOptions) }
+        // Closing writes the archive, so it is measured on its own, while it is closed as use closes it.
+        Closeable { timings.measure("close") { targetApkZFile.close() } }.use {
+            timings.measure("dataDescriptors") {
+                rewriteDataDescriptorEntries(targetApkZFile)
+                // Entries are compressed in the background and cannot be deleted or moved until done.
+                targetApkZFile.finishAllBackgroundTasks()
+            }
 
             val replacesAllDexFiles = dexFilesComplete && dexFiles.isNotEmpty()
-            targetApkZFile.entries().filter { entry ->
-                val name = entry.centralDirectoryHeader.name
-                name.matches(v1SignatureEntryName) || replacesAllDexFiles && name.matches(dexEntryName)
-            }.forEach(StoredEntry::delete)
+            timings.measure("deleteSigDex") {
+                targetApkZFile.entries().filter { entry ->
+                    val name = entry.centralDirectoryHeader.name
+                    name.matches(v1SignatureEntryName) || replacesAllDexFiles && name.matches(dexEntryName)
+                }.forEach(StoredEntry::delete)
+            }
 
             resources.let { resources ->
                 // Delete resources that were staged for deletion, before adding the raw resources:
                 // everything in otherResources is the newest version of its entry by construction.
                 if (resources.deleteResources.isNotEmpty()) {
-                    targetApkZFile.entries().filter { entry ->
-                        entry.centralDirectoryHeader.name in resources.deleteResources
-                    }.forEach(StoredEntry::delete)
+                    timings.measure("deleteResources") {
+                        targetApkZFile.entries().filter { entry ->
+                            entry.centralDirectoryHeader.name in resources.deleteResources
+                        }.forEach(StoredEntry::delete)
+                    }
                 }
 
                 // Add resources not compiled by AAPT.
                 resources.otherResources?.let { otherResources ->
-                    targetApkZFile.addAllRecursively(otherResources) { file ->
-                        file.relativeTo(otherResources).invariantSeparatorsPath !in resources.doNotCompress
+                    timings.measure("otherFiles") {
+                        targetApkZFile.addAllRecursively(otherResources) { file ->
+                            file.relativeTo(otherResources).invariantSeparatorsPath !in resources.doNotCompress
+                        }
                     }
                 }
             }
 
             // Run this after resource updates to ensure our dex files don't get overwritten.
-            try {
-                dexFiles.forEach { dexFile ->
-                    targetApkZFile.add(dexFile.name, dexFile.stream)
-                }
-            } finally {
-                dexFiles.forEach { dexFile ->
-                    runCatching { dexFile.stream.close() }
+            timings.measure("addDex") {
+                try {
+                    dexFiles.forEach { dexFile ->
+                        targetApkZFile.add(dexFile.name, dexFile.stream, dexFile.name !in storedDexFileNames)
+                    }
+                } finally {
+                    dexFiles.forEach { dexFile ->
+                        runCatching { dexFile.stream.close() }
+                    }
                 }
             }
 
-            targetApkZFile.finishAllBackgroundTasks()
+            timings.measure("finishTasks") { targetApkZFile.finishAllBackgroundTasks() }
 
             logger.info("Aligning APK")
 
-            targetApkZFile.realign()
+            timings.measure("realign") { targetApkZFile.realign() }
 
             logger.fine("Writing changes")
         }
+
+        timings.log()
     }
 
     /**
@@ -216,15 +239,11 @@ object ApkUtils {
         val stagingFile = File(keyStoreFile.absoluteFile.parentFile, "${keyStoreFile.name}.tmp")
         try {
             stagingFile.outputStream().use { stream ->
-                newKeyStore(
-                    setOf(
-                        ApkSigner.KeyStoreEntry(
-                            keyStoreDetails.alias,
-                            keyStoreDetails.password,
-                            privateKeyCertificatePair,
-                        ),
-                    ),
-                ).store(stream, keyStoreDetails.keyStorePassword?.toCharArray())
+                ApkSigner.writeKeyStore(
+                    stream,
+                    keyStoreDetails.storePassword,
+                    mapOf(keyStoreDetails.alias to privateKeyCertificatePair),
+                )
             }
             try {
                 Files.move(
@@ -251,11 +270,35 @@ object ApkUtils {
     internal fun readPrivateKeyCertificatePairFromKeyStore(
         keyStoreDetails: KeyStoreDetails,
     ) = ApkSigner.readPrivateKeyCertificatePair(
-        keyStoreDetails.keyStore.inputStream().use { stream ->
-            ApkSigner.readKeyStore(stream, keyStoreDetails.keyStorePassword)
-        },
+        readKeyStore(keyStoreDetails),
         keyStoreDetails.alias,
         keyStoreDetails.password,
+    )
+
+    /**
+     * Reads the keystore in [keyStoreDetails], whichever [ApkSigner.KeyStoreType] it is.
+     *
+     * @throws IllegalArgumentException If the keystore format is not recognized or its password is invalid.
+     */
+    fun readKeyStore(keyStoreDetails: KeyStoreDetails): KeyStore {
+        val data = keyStoreDetails.keyStore.readBytes()
+        val type = ApkSigner.keyStoreType(data)
+        // A BKS keystore Morphe wrote has no password of its own
+        val password = if (type == ApkSigner.KeyStoreType.BKS) keyStoreDetails.keyStorePassword
+        else keyStoreDetails.storePassword
+        return ApkSigner.readKeyStore(data, type, password)
+    }
+
+    /**
+     * Writes the signing key in [keyStoreDetails] to [outputStream] as a PKCS12 keystore that
+     * opens with the key's password alone, the form other signing tools expect.
+     *
+     * @throws IllegalArgumentException If the keystore cannot be read or holds no such key.
+     */
+    fun exportKeyStore(keyStoreDetails: KeyStoreDetails, outputStream: OutputStream) = ApkSigner.writeKeyStore(
+        outputStream,
+        keyStoreDetails.password,
+        mapOf(keyStoreDetails.alias to readPrivateKeyCertificatePairFromKeyStore(keyStoreDetails)),
     )
 
     /**
@@ -326,7 +369,8 @@ object ApkUtils {
      * Details for a keystore.
      *
      * @param keyStore The file to save the keystore to.
-     * @param keyStorePassword The password for the keystore.
+     * @param keyStorePassword The password for the keystore. Null means the one of the signing key,
+     *   which a PKCS12 keystore shares by convention, or none for a BKS keystore Morphe wrote before.
      * @param alias The alias of the key store entry to use for signing.
      * @param password The password for recovering the signing key.
      */
@@ -335,7 +379,9 @@ object ApkUtils {
         val keyStorePassword: String? = null,
         val alias: String,
         val password: String,
-    )
+    ) {
+        internal val storePassword get() = keyStorePassword ?: password
+    }
 
     /**
      * Details for a private key and certificate pair.

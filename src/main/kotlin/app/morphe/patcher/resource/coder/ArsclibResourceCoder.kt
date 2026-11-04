@@ -10,11 +10,17 @@ import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.ApkUtils
 import app.morphe.patcher.apk.ApkUtils.writeAlignedApk
+import app.morphe.patcher.apk.CompressedDexFiles
+import app.morphe.patcher.logging.PhaseTimings
+import app.morphe.patcher.logging.measure
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.PathMap
 import app.morphe.patcher.resource.PathPatterns
+import app.morphe.patcher.resource.PublicIds
+import app.morphe.patcher.resource.PublicXmlIds
 import app.morphe.patcher.resource.PublicXmlManager
+import app.morphe.patcher.resource.TablePublicIds
 import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.resource.UncompressedFiles
 import app.morphe.patcher.resource.processor.AaptMacroProcessor
@@ -31,16 +37,18 @@ import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
 import com.reandroid.apk.ApkUtil
+import com.reandroid.archive.Archive
+import com.reandroid.archive.ArchiveFile
+import com.reandroid.archive.FileInputSource
 import com.reandroid.archive.InputSource
 import com.reandroid.archive.block.ApkSignatureBlock
 import com.reandroid.arsc.chunk.PackageBlock
-import com.reandroid.arsc.coder.CoderSetting
-import com.reandroid.arsc.coder.xml.AaptXmlStringDecoder
 import com.reandroid.arsc.coder.xml.XmlCoder
 import com.reandroid.arsc.value.ResConfig
 import com.reandroid.json.JSONObject
 import com.reandroid.xml.XMLFactory
 import org.w3c.dom.Element
+import java.io.Closeable
 import java.io.File
 import java.io.InputStream
 import java.nio.file.Files
@@ -48,6 +56,7 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.FileTime
 import java.util.logging.Level
+import java.util.zip.CRC32
 import java.util.logging.Logger
 import com.android.tools.build.apkzlib.zip.ZFile
 import kotlin.time.Duration
@@ -148,12 +157,17 @@ internal class ArsclibResourceCoder(
      * Snapshot of file metadata and identity captured after decoding resources.
      * High-resolution timestamps and file keys improve same-size change detection when the filesystem exposes
      * distinguishable metadata, without rereading every decoded resource payload.
+     *
+     * @param checksum The CRC32 of the content, recorded for files decoded on request. A patch typically
+     * edits such a file right after it was decoded, within one tick of the file system's timestamp clock,
+     * so an edit that keeps the size leaves every other attribute as it was.
      */
     internal class FileSnapshot(
         val creationTime: FileTime,
         val lastModified: FileTime,
         val size: Long,
         val fileKey: Any?,
+        val checksum: Long? = null,
     )
     internal var fileSnapshotCache: MutableMap<String, FileSnapshot> = mutableMapOf()
 
@@ -220,6 +234,16 @@ internal class ArsclibResourceCoder(
      */
     internal var onRequestDecoder: OnRequestDecoder? = null
         private set
+
+    /**
+     * Whether the public ids of a package are read from its resource table when resources are
+     * decoded on request, instead of from the `public.xml` decoded from that table. Tests turn this
+     * off to compare against the file.
+     */
+    internal var publicIdsFromTable = true
+
+    /** Makes the incremental encoder fail after it changed the table, for tests of the fallback. */
+    internal var failIncrementalForTest = false
 
     /**
      * Entries patches can request in a raw resource mode that extracts them on request, or null if
@@ -344,18 +368,31 @@ internal class ArsclibResourceCoder(
      */
     private var originalExtractNativeLibs: Boolean? = null
 
-    private val packageInfo by lazy {
-        ApkModule.loadApkFile(apkFile).use { module ->
-            val manifest = module.androidManifest
-            originalExtractNativeLibs = manifest.isExtractNativeLibs
-            PackageInfo(
-                manifest.packageName,
-                manifest.versionName,
-                manifest.versionCode.toString(),
-                module.androidFrameworkVersion,
-                module.apkSignatureBlock
-            )
+    /** Read once from the module the input APK is first loaded into. */
+    private var packageInfoOrNull: PackageInfo? = null
+
+    private val packageInfo: PackageInfo
+        @Synchronized get() {
+            packageInfoOrNull?.let { return it }
+            // The module loaded to read the manifest is kept as the input module, so the APK is opened once.
+            // Reading the manifest does not parse the resource table, which is parsed when first accessed.
+            val timings = PhaseTimings(logger, "startup")
+            val module = inputModule ?: loadInputModule(timings, timings)
+            // Only an APK without a manifest has none yet, and reading it fails as it always did.
+            return (packageInfoOrNull ?: readPackageInfo(module, timings)).also { timings.log() }
         }
+
+    private fun readPackageInfo(module: ApkModule, timings: PhaseTimings) = timings.measure("manifest") {
+        val manifest = module.androidManifest
+        originalExtractNativeLibs = manifest.isExtractNativeLibs
+        PackageInfo(
+            manifest.packageName,
+            manifest.versionName,
+            manifest.versionCode.toString(),
+            // Read before the preferred framework is set, which this would return.
+            module.androidFrameworkVersion,
+            module.apkSignatureBlock
+        ).also { packageInfoOrNull = it }
     }
 
     /**
@@ -366,18 +403,46 @@ internal class ArsclibResourceCoder(
      */
     private var inputModule: ApkModule? = null
 
+    /** The timings of cataloging the resources to decode on request, while they are being cataloged. */
+    private var catalogTimings: PhaseTimings? = null
+
+    /**
+     * Loads the input APK and keeps it as [inputModule]. The package info is read from the first
+     * module loaded, before anything changes it.
+     *
+     * @param timings The timings the load is measured in.
+     * @param startupTimings The timings reading the package info is measured in, which the caller logs,
+     * or null to measure it in timings of its own, logged here.
+     */
     @Synchronized
-    private fun inputModule(): ApkModule = (inputModule ?: ApkModule.loadApkFile(apkFile).also {
-        if (it.hasAndroidManifest()) {
-            packageInfo.frameworkVersion?.let { version -> it.setPreferredFramework(version) }
+    private fun loadInputModule(timings: PhaseTimings?, startupTimings: PhaseTimings?): ApkModule {
+        val module = timings.measure("loadApk") { ApkModule.loadApkFile(apkFile) }
+        try {
+            if (module.hasAndroidManifest()) {
+                val info = packageInfoOrNull ?: if (startupTimings != null) {
+                    readPackageInfo(module, startupTimings)
+                } else {
+                    PhaseTimings(logger, "startup").let { own -> readPackageInfo(module, own).also { own.log() } }
+                }
+                info.frameworkVersion?.let { version ->
+                    catalogTimings.measure("framework") { module.setPreferredFramework(version) }
+                }
+            }
+        } catch (throwable: Throwable) {
+            module.close()
+            throw throwable
         }
-        inputModule = it
-    }).also { module ->
+        inputModule = module
+        return module
+    }
+
+    @Synchronized
+    private fun inputModule(): ApkModule = (inputModule ?: loadInputModule(catalogTimings, null)).also { module ->
         // Names that are not valid resource names are renamed, as the decoder of every resource does.
         // The incremental encoder gives the output those same names from public.xml, so encoding into a
         // table that already has them changes nothing.
         if (validateResourceNames && validatedModule !== module) {
-            ApkModuleXmlDecoder(module).validateResourceNames()
+            catalogTimings.measure("validateNames") { ApkModuleXmlDecoder(module).validateResourceNames() }
             validatedModule = module
         }
     }
@@ -456,59 +521,69 @@ internal class ArsclibResourceCoder(
     }
 
     override fun decodeResources(onRequest: Boolean): PackageMetadata {
-        // A full rebuild of the resource table needs every values file, so it decodes everything.
-        if (onRequest && !fullResourceEncode && prepareDecodingOnRequest()) return getPackageMetadata()
-
-        // The decoder renames the resource files of the table it works on to the paths it writes
-        // them under, so the module is not the one the encoder builds the output from.
-        ApkModule.loadApkFile(apkFile).use { apkModule ->
-            val xmlDecoder = object : ApkModuleXmlDecoder(apkModule) {
-                override fun extractRootFiles(mainDirectory: File) {
-                    var skipped = 0
-                    apkModule.inputSources.forEach { source ->
-                        if (!stagesRootEntry(source.alias)) {
-                            addDecodedPath(source.alias)
-                            skipped++
-                        }
-                    }
-                    if (skipped != 0) logger.info("Leaving $skipped native library files in the input APK")
-                    super.extractRootFiles(mainDirectory)
-                }
-            }.also {
-                it.setKeepResPath(false)
-            }
-
-            xmlDecoder.setDexDecoder { _, _ -> }
-            xmlDecoder.dexProfileDecoder = null
-            xmlDecoder.decode(workingDir)
-
-            // Update ARSCLib package metadata so the resources will be accessible under the correct package name.
-            workingDir.resolve("resources").listFiles { it.isDirectory }?.forEach { dir ->
-                val packageJson = JSONObject(dir.resolve("package.json"))
-                val packageName = packageJson.getString("package_name")
-                packageDirectories[packageName] = dir
-            }
+        val timings = PhaseTimings(logger, "catalog")
+        catalogTimings = timings
+        try {
+            // A full rebuild of the resource table needs every values file, so it decodes everything.
+            if (onRequest && !fullResourceEncode && prepareDecodingOnRequest(timings)) return getPackageMetadata()
+        } finally {
+            catalogTimings = null
         }
 
-        StringsXmlSanitizeProcessor(
-            { path, pkg -> getFile(path, pkg) },
-            packageDirectories,
-        ).process()
+        timings.measure("decodeAll") {
+            // The decoder renames the resource files of the table it works on to the paths it writes
+            // them under, so the module is not the one the encoder builds the output from.
+            ApkModule.loadApkFile(apkFile).use { apkModule ->
+                val xmlDecoder = object : ApkModuleXmlDecoder(apkModule) {
+                    override fun extractRootFiles(mainDirectory: File) {
+                        var skipped = 0
+                        apkModule.inputSources.forEach { source ->
+                            if (!stagesRootEntry(source.alias)) {
+                                addDecodedPath(source.alias)
+                                skipped++
+                            }
+                        }
+                        if (skipped != 0) logger.info("Leaving $skipped native library files in the input APK")
+                        super.extractRootFiles(mainDirectory)
+                    }
+                }.also {
+                    it.setKeepResPath(false)
+                }
 
-        StringsXmlEscapeProcessor(
-            { path, pkg -> getFile(path, pkg) },
-            packageDirectories,
-        ).process()
+                xmlDecoder.setDexDecoder { _, _ -> }
+                xmlDecoder.dexProfileDecoder = null
+                // Decoded as in a new process, whatever setting an earlier run of this one left.
+                XmlCoderSettings.withSetting(XmlCoderSettings.decoding()) { xmlDecoder.decode(workingDir) }
 
-        // Build a snapshot of all file metadata after decoding, so we can detect
-        // which files are added or modified when it's time to encode.
-        // Native libraries are not staged here, and patches also add files of their own, so
-        // make sure the directory exists for both.
-        otherResourcesRootDirectory.mkdirs()
+                // Update ARSCLib package metadata so the resources will be accessible under the correct package name.
+                workingDir.resolve("resources").listFiles { it.isDirectory }?.forEach { dir ->
+                    val packageJson = JSONObject(dir.resolve("package.json"))
+                    val packageName = packageJson.getString("package_name")
+                    packageDirectories[packageName] = dir
+                }
+            }
 
-        fileSnapshotCache = buildFileSnapshot()
-        pathMap = readPathMap()
-        decodedUpFront = listDecodedUpFront(includeResources = true)
+            StringsXmlSanitizeProcessor(
+                { path, pkg -> getFile(path, pkg) },
+                packageDirectories,
+            ).process()
+
+            StringsXmlEscapeProcessor(
+                { path, pkg -> getFile(path, pkg) },
+                packageDirectories,
+            ).process()
+
+            // Build a snapshot of all file metadata after decoding, so we can detect
+            // which files are added or modified when it's time to encode.
+            // Native libraries are not staged here, and patches also add files of their own, so
+            // make sure the directory exists for both.
+            otherResourcesRootDirectory.mkdirs()
+
+            fileSnapshotCache = buildFileSnapshot()
+            pathMap = readPathMap()
+            decodedUpFront = listDecodedUpFront(includeResources = true)
+        }
+        timings.log()
 
         return getPackageMetadata()
     }
@@ -520,30 +595,36 @@ internal class ArsclibResourceCoder(
      * @return False if the APK lacks a manifest or a resource table, which only the decoder of every
      * resource handles.
      */
-    private fun prepareDecodingOnRequest(): Boolean {
+    private fun prepareDecodingOnRequest(timings: PhaseTimings): Boolean {
         val module = inputModule()
-        if (!module.hasAndroidManifest() || !module.hasTableBlock() || module.tableBlock.size() == 0) {
+        // The resource table is parsed when it is first accessed.
+        val undecodable = timings.measure("table") {
+            !module.hasAndroidManifest() || !module.hasTableBlock() || module.tableBlock.size() == 0
+        }
+        if (undecodable) {
             logger.info("Decoding all resources, the APK has no manifest or resource table to decode on request")
             return false
         }
 
         validateResourceNames = true
         holdInputModule = true
-        val decoder = OnRequestDecoder(workingDir, ::inputModule)
+        val decoder = OnRequestDecoder(workingDir, ::inputModule, timings)
 
-        decoder.writePackageInfo()
-        decoder.writeUncompressedFiles()
-        decoder.decodeManifest()
+        timings.measure("packageJson") { decoder.writePackageInfo() }
+        timings.measure("uncompressedJson") { decoder.writeUncompressedFiles() }
+        timings.measure("manifest") { decoder.decodeManifest() }
 
-        decoder.packages.values.forEach { decodablePackage ->
-            packageDirectories[decodablePackage.name] = decodablePackage.directory
-            // The directories exist as when every resource is decoded, so a patch can check for one or
-            // write a file into one without decoding anything first.
-            decodablePackage.directory.resolve("res").mkdirs()
-            decodablePackage.paths.mapNotNullTo(HashSet()) { it.substringBeforeLast('/', "").ifEmpty { null } }
-                .forEach { decodablePackage.directory.resolve(it).mkdirs() }
+        timings.measure("mkdirs") {
+            decoder.packages.values.forEach { decodablePackage ->
+                packageDirectories[decodablePackage.name] = decodablePackage.directory
+                // The directories exist as when every resource is decoded, so a patch can check for one or
+                // write a file into one without decoding anything first.
+                decodablePackage.directory.resolve("res").mkdirs()
+                decodablePackage.paths.mapNotNullTo(HashSet()) { it.substringBeforeLast('/', "").ifEmpty { null } }
+                    .forEach { decodablePackage.directory.resolve(it).mkdirs() }
+            }
+            otherResourcesRootDirectory.mkdirs()
         }
-        otherResourcesRootDirectory.mkdirs()
 
         fileSnapshotCache = mutableMapOf()
         pathMap = decoder.pathMap
@@ -551,6 +632,7 @@ internal class ArsclibResourceCoder(
 
         logger.info("Decoding resources on request, ${decoder.size} files can be decoded")
         releaseInputModuleUnlessRetainable()
+        timings.log()
         return true
     }
 
@@ -672,23 +754,43 @@ internal class ArsclibResourceCoder(
         }
     }
 
-    override fun encodeResources(outputDir: File, omitEntry: (String) -> Boolean): File {
-        val outputApk = outputDir.resolve("resources.apk")
+    override fun encodeResources(outputDir: File, omitEntry: (String) -> Boolean): File =
+        encodeResources(outputDir, omitEntry, null)
 
-        stripNativeLibraries()
+    /**
+     * Encodes the resources into the module the APK is written from, and hands it to [writeModule], or
+     * writes it to `resources.apk` in [outputDir] if that is null.
+     *
+     * @param writeModule Writes the finished module, which stays open until it returns.
+     * @return The resource APK, which is only written if [writeModule] is null.
+     */
+    private fun encodeResources(
+        outputDir: File,
+        omitEntry: (String) -> Boolean,
+        writeModule: ((ApkModule) -> Unit)?,
+    ): File {
+        val outputApk = outputDir.resolve("resources.apk")
+        val write = writeModule ?: { module -> module.writeAlignedApk(outputApk) }
+
+        val timings = PhaseTimings(logger, "compile")
+
+        timings.measure("stripLibs") { stripNativeLibraries() }
 
         // TODO: We could potentially remove unused resource splits here as well
 
         // Detect which files were added or modified since decoding.
-        detectFileChanges()
+        timings.measure("detectChanges") { detectFileChanges() }
 
-        routeNativeLibrariesIfCompressionChanged()
-        relocateChangedRootFiles()
-        prepareBookkeepingFiles()
+        timings.measure("nativeLibs") { routeNativeLibrariesIfCompressionChanged() }
+        timings.measure("relocateRoot") { relocateChangedRootFiles() }
+        val tablePackages = packagesWithPublicIdsFromTable()
+        timings.measure("bookkeeping") { prepareBookkeepingFiles(tablePackages) }
 
-        val newPackageName = Document(getFile("AndroidManifest.xml")).use { manifest ->
-            val manifestNode = manifest.getElementsByTagName("manifest").item(0) as Element
-            manifestNode.getAttribute("package")
+        val newPackageName = timings.measure("packageName") {
+            Document(getFile("AndroidManifest.xml")).use { manifest ->
+                val manifestNode = manifest.getElementsByTagName("manifest").item(0) as Element
+                manifestNode.getAttribute("package")
+            }
         }
         val originalPackageName = packageInfo.packageName
         val packageRenamed = originalPackageName != newPackageName
@@ -707,69 +809,127 @@ internal class ArsclibResourceCoder(
         )
         val changedFiles = modifiedResResources.toList()
 
-        val publicIds = PublicXmlManager(getFile("res/values/public.xml", null, false)).use { publicXmlManager ->
-            unescaper.process(if (incremental) changedFiles else unescaper.stringsFiles())
+        // The ids of the app's package come from its table unless its public.xml was decoded or
+        // written, in which case they come from the file as when every resource is decoded.
+        val tablePublicIds = tablePackages.firstOrNull { it.name == originalPackageName }?.let { decodablePackage ->
+            timings.measure("tableIds") { TablePublicIds(onRequestDecoder!!.packageBlockOf(decodablePackage), timings) }
+        }
+        val publicXmlManager = timings.measure("publicXmlRead") {
+            if (tablePublicIds != null) null else PublicXmlManager(getFile("res/values/public.xml", null, false))
+        }
+        val publicIds: PublicIds = tablePublicIds ?: PublicXmlIds(publicXmlManager!!)
+        // Closing writes public.xml, so it is measured on its own, while it is closed as use closes it.
+        val idsToDeclare = Closeable { timings.measure("publicXmlWrite") { publicXmlManager?.close() } }.use {
+            timings.measure("unescape") {
+                unescaper.process(if (incremental) changedFiles else unescaper.stringsFiles())
+            }
 
-            renamer.renameDeclarations(publicXmlManager)
-            modifiedResResources += renamer.process(if (incremental) changedFiles else renamer.resourceXmlFiles())
+            timings.measure("renameDecl") { renamer.renameDeclarations(publicIds) }
+            timings.measure("rename") {
+                modifiedResResources += renamer.process(if (incremental) changedFiles else renamer.resourceXmlFiles())
+            }
 
             // Post process all aapt:attr macros in XML files.
-            AaptMacroProcessor(
-                { path -> getFile(path, null, false) },
-                modifiedResResources
-            ).process()
+            timings.measure("aaptMacro") {
+                AaptMacroProcessor(
+                    { path -> getFile(path, null, false) },
+                    modifiedResResources
+                ).process()
+            }
 
             // Process all XMLs to ensure we have IDs generated for each one.
-            ResourceIdProcessor(
-                { path -> getFile(path, null, false) },
-                publicXmlManager,
-                modifiedResResources
-            ).process()
+            timings.measure("resourceIds") {
+                ResourceIdProcessor(
+                    { path -> getFile(path, null, false) },
+                    publicIds,
+                    modifiedResResources
+                ).process()
+            }
 
-            publicXmlManager.getDefinedIds()
+            timings.measure("definedIds") { publicIds.idsToDeclare() }
         }
+        // The encoder changes the table, so nothing may look it up anymore.
+        tablePublicIds?.releaseTable()
+
+        // A package whose ids come from the table has no public.xml, while every other package is
+        // encoded only if it has one, as when every resource is decoded.
+        val tablePackageNames = tablePackages.mapTo(mutableSetOf()) { it.name }
+        val packagesToEncode = packageDirectories.filter { (name, directory) ->
+            name in tablePackageNames || directory.resolve(PUBLIC_XML).isFile
+        }.keys.toSet()
 
         logger.info("Writing resource APK")
-        XmlCoder.getInstance().setting = CoderSetting().also {
-            it.stringDecoder = AaptXmlStringDecoder()
-        }
+        // The coder is shared by the process, so its setting is installed only while encoding.
+        return XmlCoderSettings.withSetting(XmlCoderSettings.encoding()) {
+            fun fallBack(cause: Throwable) {
+                logger.log(
+                    Level.WARNING,
+                    "Encoding the changed resources into the resource table failed, rebuilding the table: $cause",
+                    cause
+                )
+                // The rebuild reads every values file, so whatever was not decoded on request is decoded now.
+                // No patch edits what is decoded now, so the files are not read back for a checksum.
+                onRequestDecoder?.packages?.values?.forEach { decodeOnRequest(it, it.paths.toList(), checksums = false) }
 
-        fun fallBack(cause: Throwable) {
-            logger.log(
-                Level.WARNING,
-                "Encoding the changed resources into the resource table failed, rebuilding the table: $cause",
-                cause
-            )
-            // The rebuild reads every values file, so whatever was not decoded on request is decoded now.
-            onRequestDecoder?.packages?.values?.forEach { decodeOnRequest(it, it.paths.toList()) }
+                // The rebuild reads the ids from public.xml, which was decoded from the table just now,
+                // so the ids given to new resources are given again, in the same order.
+                tablePublicIds?.let { ids ->
+                    val publicXml = getFile("res/values/public.xml", null, false)
+                    if (!publicXml.isFile) throw PatchException("public.xml of $originalPackageName was not decoded", cause)
+                    PublicXmlManager(publicXml).use { ids.replayOn(PublicXmlIds(it)) }
+                }
 
-            // Finish the processing the incremental path limited to the changed files.
-            unescaper.process(unescaper.stringsFiles() - changedFiles.toSet())
-            modifiedResResources += renamer.process()
-        }
-
-        if (incremental) {
-            try {
-                return encodeResourcesIncrementally(outputApk, publicIds, originalPackageName, newPackageName, omitEntry)
-            } catch (exception: Exception) {
-                fallBack(exception)
-            } catch (error: LinkageError) {
-                // A host may run this against an ARSCLib that lacks something this path calls.
-                fallBack(error)
+                // Finish the processing the incremental path limited to the changed files.
+                unescaper.process(unescaper.stringsFiles() - changedFiles.toSet())
+                modifiedResResources += renamer.process()
             }
-        }
 
-        return encodeResourcesFully(outputApk, packageRenamed, omitEntry)
+            if (incremental) {
+                try {
+                    return encodeResourcesIncrementally(
+                        outputApk, idsToDeclare, originalPackageName, newPackageName, packagesToEncode, omitEntry, write, timings,
+                    ).also { timings.log() }
+                } catch (failure: DexFilesFailure) {
+                    // Not a failure of encoding the resources, which rebuilding the table would not help.
+                    throw failure
+                } catch (exception: Exception) {
+                    fallBack(exception)
+                } catch (error: LinkageError) {
+                    // A host may run this against an ARSCLib that lacks something this path calls.
+                    fallBack(error)
+                }
+            }
+
+            encodeResourcesFully(outputApk, packageRenamed, omitEntry, write, timings).also { timings.log() }
+        }
+    }
+
+    /**
+     * The packages whose public ids are read from the resource table instead of from `public.xml`:
+     * when resources are decoded on request, those whose `public.xml` was neither decoded nor
+     * written by a patch, and whose file a [PublicXmlManager] could read.
+     */
+    private fun packagesWithPublicIdsFromTable(): List<DecodablePackage> {
+        val decoder = onRequestDecoder ?: return emptyList()
+        if (!publicIdsFromTable) return emptyList()
+        return decoder.packages.values.filter { decodablePackage ->
+            val publicXml = decodablePackage.directory.resolve(PUBLIC_XML)
+            !publicXml.exists() && pathKey(publicXml) !in fileSnapshotCache &&
+                    TablePublicIds.mirrors(decoder.packageBlockOf(decodablePackage))
+        }
     }
 
     /**
      * Makes sure the files the encoder reads to find resource ids exist. Decoding every resource writes
      * them, while decoding on request writes them only now: `public.xml` of every package from the
-     * resource table, and `ids.xml` empty, as only the ids patches declare in it matter.
+     * resource table, unless its ids are read from the table, and `ids.xml` empty, as only the ids
+     * patches declare in it matter.
+     *
+     * @param tablePackages The packages whose ids are read from the table.
      */
-    private fun prepareBookkeepingFiles() {
+    private fun prepareBookkeepingFiles(tablePackages: List<DecodablePackage>) {
         onRequestDecoder?.let { decoder ->
-            decoder.packages.values.forEach { decodeOnRequest(it, listOf(PUBLIC_XML)) }
+            decoder.packages.values.forEach { if (it !in tablePackages) decodeOnRequest(it, listOf(PUBLIC_XML)) }
             logger.info("Decoded $decodedOnRequestCount of ${decoder.size} files on request")
         }
 
@@ -789,7 +949,10 @@ internal class ArsclibResourceCoder(
         publicIds: Map<Pair<String, String>, Int>,
         originalPackageName: String,
         newPackageName: String,
+        packagesToEncode: Set<String>,
         omitEntry: (String) -> Boolean,
+        write: (ApkModule) -> Unit,
+        timings: PhaseTimings,
     ): File {
         takeInputModule().use { module ->
             val encoder = IncrementalResourceEncoder(
@@ -804,26 +967,34 @@ internal class ArsclibResourceCoder(
                 originalNameOf = pathMap::getOriginalName,
                 // A values file that was not decoded never held the resources it leaves out.
                 isAddition = { file -> fileSnapshotCache[pathKey(file)] == null },
+                timings = timings,
             )
 
             val scanDuration = measureTime {
-                encoder.encode(
-                    modifiedResResources,
-                    deletedResourceFiles,
-                    deletedValuesFiles,
-                    packageDirectories.values.flatMap(::patchedConfigurationDirectories),
-                    publicIds,
-                    originalPackageName,
-                    newPackageName,
-                )
+                timings.measure("encode") {
+                    encoder.encode(
+                        modifiedResResources,
+                        deletedResourceFiles,
+                        deletedValuesFiles,
+                        packageDirectories.values.flatMap(::patchedConfigurationDirectories),
+                        publicIds,
+                        originalPackageName,
+                        newPackageName,
+                        packagesToEncode,
+                    )
+                }
+                if (failIncrementalForTest) throw IllegalStateException("The incremental encoder fails for a test")
             }.roundToTenths()
 
-            // A rename needs no rebuild here: compiled resources reference the package by id.
-            val droppedEntries = changedArchiveEntries(packageRenamed = false)
-                .filter { it !in encoder.encodedEntries }
-                .count { module.zipEntryMap.remove(it) != null }
-            val omittedEntries = module.omitEntries(omitEntry)
-            module.zipEntryMap.autoSortApkFiles()
+            val (droppedEntries, omittedEntries) = timings.measure("dropOmit") {
+                // A rename needs no rebuild here: compiled resources reference the package by id.
+                val droppedEntries = changedArchiveEntries(packageRenamed = false)
+                    .filter { it !in encoder.encodedEntries }
+                    .count { module.zipEntryMap.remove(it) != null }
+                val omittedEntries = module.omitEntries(omitEntry)
+                module.zipEntryMap.autoSortApkFiles()
+                droppedEntries to omittedEntries
+            }
 
             logger.info(
                 "Reusing ${module.zipEntryMap.listInputSources().size - encoder.encodedEntries.size} " +
@@ -832,7 +1003,7 @@ internal class ArsclibResourceCoder(
             )
 
             val writeDuration = measureTime {
-                module.writeAlignedApk(outputApk)
+                timings.measure("write") { write(module) }
             }.roundToTenths()
 
             logger.info("Resource APK scan: $scanDuration write: $writeDuration")
@@ -844,7 +1015,13 @@ internal class ArsclibResourceCoder(
     /**
      * Rebuilds the resource table from every decoded values file.
      */
-    private fun encodeResourcesFully(outputApk: File, packageRenamed: Boolean, omitEntry: (String) -> Boolean): File {
+    private fun encodeResourcesFully(
+        outputApk: File,
+        packageRenamed: Boolean,
+        omitEntry: (String) -> Boolean,
+        write: (ApkModule) -> Unit,
+        timings: PhaseTimings,
+    ): File {
         val patchedConfigurations = stashPatchedConfigurations()
 
         try {
@@ -853,8 +1030,10 @@ internal class ArsclibResourceCoder(
                 packageInfo.frameworkVersion?.let { loadedModule.setPreferredFramework(it) }
 
                 val scanDuration = measureTime {
-                    encoder.scanDirectory(workingDir)
-                    loadedModule.encodePatchedConfigurations(patchedConfigurations)
+                    timings.measure("scan") {
+                        encoder.scanDirectory(workingDir)
+                        loadedModule.encodePatchedConfigurations(patchedConfigurations)
+                    }
                 }.roundToTenths()
 
                 ApkModule.loadApkFile(apkFile).use { originalModule ->
@@ -869,7 +1048,7 @@ internal class ArsclibResourceCoder(
                     )
 
                     val writeDuration = measureTime {
-                        loadedModule.writeAlignedApk(outputApk)
+                        timings.measure("write") { write(loadedModule) }
                     }.roundToTenths()
 
                     logger.info("Resource APK scan: $scanDuration write: $writeDuration")
@@ -1099,13 +1278,15 @@ internal class ArsclibResourceCoder(
         return if (separator > 0) resourceDirectory.name.substring(separator) else ""
     }
 
-    private fun File.snapshot(): FileSnapshot {
+    /** @param withChecksum Whether to also record the CRC32 of the content, which reads the whole file. */
+    private fun File.snapshot(withChecksum: Boolean = false): FileSnapshot {
         val attributes = Files.readAttributes(toPath(), BasicFileAttributes::class.java)
         return FileSnapshot(
             attributes.creationTime(),
             attributes.lastModifiedTime(),
             attributes.size(),
             attributes.fileKey(),
+            if (withChecksum) crc32() else null,
         )
     }
 
@@ -1113,9 +1294,24 @@ internal class ArsclibResourceCoder(
         if (snapshot == null) return true
         val attributes = Files.readAttributes(toPath(), BasicFileAttributes::class.java)
         return attributes.creationTime() != snapshot.creationTime ||
-                attributes.lastModifiedTime() != snapshot.lastModified ||
-                attributes.size() != snapshot.size ||
-                attributes.fileKey() != snapshot.fileKey
+            attributes.lastModifiedTime() != snapshot.lastModified ||
+            attributes.size() != snapshot.size ||
+            attributes.fileKey() != snapshot.fileKey ||
+            // Every attribute matching does not rule out an edit within one tick of the timestamp clock.
+            (snapshot.checksum != null && crc32() != snapshot.checksum)
+    }
+
+    private fun File.crc32(): Long {
+        val crc = CRC32()
+        inputStream().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                crc.update(buffer, 0, read)
+            }
+        }
+        return crc.value
     }
 
     override fun getOtherResourceFiles(outputDir: File, resourceMode: ResourceMode): File? {
@@ -1124,19 +1320,49 @@ internal class ArsclibResourceCoder(
         val otherResourcesDir = outputDir.resolve("other")
         otherResourcesDir.mkdirs()
 
-        val otherFiles = mutableMapOf<File, File>()
+        val otherFiles = collectOtherResourceFiles(resourceMode).mapValuesTo(LinkedHashMap()) { (_, archiveName) ->
+            otherResourcesDir.resolve(archiveName)
+        }
+
+        // In RAW_ONLY mode, AndroidManifest.xml is not decoded and is named AndroidManifest.xml.bin.
+        // It is moved to where the manifest is, outside the other files, so it does not reach the APK.
+        if (resourceMode == ResourceMode.RAW_ONLY) {
+            val binaryManifest = workingDir.resolve("AndroidManifest.xml.bin")
+            if (binaryManifest.exists()) {
+                otherFiles[binaryManifest] = workingDir.resolve("AndroidManifest.xml")
+            }
+        }
+
+        return if (otherFiles.isNotEmpty()) {
+            logger.info("Moving ${otherFiles.size} resource files")
+            otherFiles.forEach { (src, dest) ->
+                src.safelyMoveTo(dest)
+            }
+            otherResourcesDir
+        } else {
+            null
+        }
+    }
+
+    /**
+     * The files that are not encoded into the resource APK but added to the patched APK as they are,
+     * mapped to their archive entry names. [getOtherResourceFiles] moves them to its directory, and
+     * [writeApk] adds them from where they are. In [ResourceMode.RAW_ONLY], this detects which files
+     * patches changed, which [getDeletedFiles] relies on.
+     */
+    private fun collectOtherResourceFiles(resourceMode: ResourceMode): Map<File, String> {
+        if (resourceMode == ResourceMode.NONE) return emptyMap()
+
+        val otherFiles = LinkedHashMap<File, String>()
         packageDirectories.values.forEach { packageDirectory ->
             packageDirectory.listFiles()?.filter {
                 // Include any files that were copied to the resources folder root.
                 // This is the equivalent of copying to the APK root when using apktool.
                 // TODO: This is kind of bad. We should treat the resources folder as a read-only view and have all
                 //  modified/added files end up somewhere else.
-
-                // In RAW_ONLY mode, AndroidManifest.xml is not decoded and is named AndroidManifest.xml.bin.
-                // We only want to include the manifest in this mode.
                 it.isFile && it.name != "package.json" && it.name != "AndroidManifest.xml"
             }?.forEach {
-                otherFiles[it] = otherResourcesDir.resolve(it.name)
+                otherFiles[it] = it.name
             }
         }
 
@@ -1150,13 +1376,7 @@ internal class ArsclibResourceCoder(
             modifiedResResources.forEach {
                 val path = it.absoluteFile.invariantSeparatorsPath.replace(workingDirPath, "")
                 val subPath = path.substringAfter("/resources/").substringAfter("/")
-                val unaliasedPath = pathMap.getOriginalName(subPath) ?: subPath
-                otherFiles[it] = otherResourcesDir.resolve(unaliasedPath)
-            }
-
-            val binaryManifest = workingDir.resolve("AndroidManifest.xml.bin")
-            if (binaryManifest.exists()) {
-                otherFiles[binaryManifest] = workingDir.resolve("AndroidManifest.xml")
+                otherFiles[it] = pathMap.getOriginalName(subPath) ?: subPath
             }
         }
 
@@ -1165,24 +1385,148 @@ internal class ArsclibResourceCoder(
         // Root files a patch changed: relocated ones in FULL mode, and any still staged
         // under root/ in either mode.
         relocatedRootFiles.forEach { (key, apkPath) ->
-            otherFiles[File(key)] = otherResourcesDir.resolve(apkPath)
+            otherFiles[File(key)] = apkPath
         }
         modifiedBinaryResources.forEach {
             val path = it.absoluteFile.invariantSeparatorsPath.replace(workingDirPath, "")
             val subPath = path.substringAfter("/root/")
-            val unaliasedPath = pathMap.getOriginalName(subPath) ?: subPath
-            otherFiles[it] = otherResourcesDir.resolve(unaliasedPath)
+            otherFiles[it] = pathMap.getOriginalName(subPath) ?: subPath
         }
 
-        return if (otherFiles.isNotEmpty()) {
-            logger.info("Moving ${otherFiles.size} resource files")
-            otherFiles.forEach { (src, dest) ->
-                src.safelyMoveTo(dest)
+        return otherFiles
+    }
+
+    override fun writeApk(
+        outputApk: File,
+        outputDir: File,
+        resourceMode: ResourceMode,
+        omitEntry: (String) -> Boolean,
+        dexFiles: CompressedDexFiles,
+        timings: PhaseTimings,
+    ) {
+        try {
+            if (resourceMode == ResourceMode.FULL) {
+                encodeResources(outputDir, omitEntry) { module ->
+                    finishApk(module, outputApk, outputDir, resourceMode, omitEntry, dexFiles, timings)
+                }
+            } else {
+                // A module of its own, whose table and manifest are not parsed, so that resources.arsc and
+                // AndroidManifest.xml are copied as they are, as every other entry of the input APK. Its
+                // entries keep how the input APK compresses them, as in the copy applyTo patches.
+                timings.measure("loadApk") { ApkModule.loadApkFile(apkFile) }.use { module ->
+                    finishApk(module, outputApk, outputDir, resourceMode, omitEntry, dexFiles, timings)
+                }
             }
-            otherResourcesDir
-        } else {
-            null
+        } catch (failure: DexFilesFailure) {
+            outputApk.delete()
+            throw failure.cause
+        } catch (throwable: Throwable) {
+            outputApk.delete()
+            throw throwable
         }
+    }
+
+    /** Carries what compressing the DEX files failed with past the fallback of the incremental encoder. */
+    private class DexFilesFailure(override val cause: Throwable) : RuntimeException(cause)
+
+    /**
+     * Makes [module] the patched APK, as [ApkUtils.applyTo] makes it of the resource APK or of a copy of
+     * the input APK, and writes it to [outputApk].
+     *
+     * An entry of [module] that comes from an archive is copied as it is, as long as it is compressed the
+     * way [ApkModule.getUncompressedFiles] says. The entries added here are compressed as
+     * [ApkUtils.applyTo] compresses them, at the same level into a temporary archive, so that an entry that
+     * does not shrink is stored, and they are copied from it.
+     */
+    private fun finishApk(
+        module: ApkModule,
+        outputApk: File,
+        outputDir: File,
+        resourceMode: ResourceMode,
+        omitEntry: (String) -> Boolean,
+        dexFiles: CompressedDexFiles,
+        timings: PhaseTimings,
+    ) {
+        val zipEntryMap = module.zipEntryMap
+        val uncompressedFiles = module.uncompressedFiles
+        val otherFilesArchive = outputDir.resolve("other-files.zip")
+        // Archives whose entries are copied, open until the APK is written.
+        val archives = mutableListOf<ArchiveFile>()
+
+        // Adds an entry, replacing the one of its name, compressed as it is.
+        fun addAsCompressed(source: InputSource) {
+            zipEntryMap.add(source)
+            if (source.method == Archive.STORED) {
+                uncompressedFiles.addPath(source.alias)
+            } else {
+                uncompressedFiles.removePath(source.alias)
+            }
+        }
+
+        try {
+            // The resource APK leaves these out already.
+            timings.measure("omit") { module.omitEntries(omitEntry) }
+
+            // Collected before the deleted files are, which this detects in raw mode.
+            val otherFiles = timings.measure("collect") { collectOtherResourceFiles(resourceMode) }
+
+            timings.measure("deletes") {
+                getDeletedFiles(resourceMode).forEach { name -> zipEntryMap.remove(name) }
+            }
+
+            // After the deletions, so that an entry a patch deleted and then recreated has the recreated
+            // content. A later file of the same name replaces an earlier one, as it does when they are moved.
+            timings.measure("otherFiles") {
+                val doNotCompress = getUncompressedFiles(resourceMode)
+                val filesByName = LinkedHashMap<String, File>()
+                otherFiles.forEach { (file, name) -> if (file.isFile) filesByName[name] = file }
+                val (stored, compressed) = filesByName.entries.partition { (name, _) -> name in doNotCompress }
+
+                stored.forEach { (name, file) ->
+                    addAsCompressed(FileInputSource(file, name).apply { method = Archive.STORED })
+                }
+                if (compressed.isNotEmpty()) {
+                    val archive = compressIntoArchive(otherFilesArchive) { zFile ->
+                        compressed.forEach { (name, file) -> file.inputStream().use { zFile.add(name, it) } }
+                    }.also(archives::add)
+                    archive.createZipEntryMap().listInputSources().forEach(::addAsCompressed)
+                }
+                timings.count("otherFileCount", filesByName.size.toLong())
+            }
+
+            // Last, as applyTo adds them, so that no other file replaces a DEX file.
+            val dexArchiveFile = try {
+                dexFiles.await()
+            } catch (throwable: Throwable) {
+                throw DexFilesFailure(throwable)
+            }
+            timings.measure("addDex") {
+                dexArchiveFile?.let { file ->
+                    val archive = ArchiveFile(file).also(archives::add)
+                    archive.createZipEntryMap().listInputSources().forEach(::addAsCompressed)
+                }
+            }
+
+            // The signature block of the input APK no longer matches, and signing replaces it anyway.
+            module.apkSignatureBlock = null
+            timings.measure("sort") { zipEntryMap.autoSortApkFiles() }
+            timings.measure("write") { module.writeAlignedApk(outputApk) }
+        } finally {
+            archives.forEach { archive -> runCatching { archive.close() } }
+            otherFilesArchive.delete()
+        }
+    }
+
+    /**
+     * Writes an archive with [ApkUtils.zFileOptions], as [ApkUtils.applyTo] writes the patched APK, and
+     * opens it to copy its entries.
+     */
+    private fun compressIntoArchive(file: File, add: (ZFile) -> Unit): ArchiveFile {
+        file.absoluteFile.parentFile?.mkdirs()
+        // Opening an existing file would add to what an earlier run left there.
+        file.delete()
+        ZFile.openReadWrite(file, ApkUtils.zFileOptions).use(add)
+        return ArchiveFile(file)
     }
 
     override fun getUncompressedFiles(resourceMode: ResourceMode): Set<String> {
@@ -1343,8 +1687,11 @@ internal class ArsclibResourceCoder(
      * Decodes files of a package that are not decoded yet, which are files that are neither in the snapshot,
      * as decoded or deleted files are, nor in the working directory. A values file a patch wrote before it
      * was decoded is decoded as well, and what the patch wrote is merged into it.
+     *
+     * @param checksums Whether to record the checksum of each decoded file in its snapshot, so that an edit
+     * that keeps the size within the timestamp tick of the decoding is noticed.
      */
-    private fun decodeOnRequest(decodablePackage: DecodablePackage, paths: Collection<String>) {
+    private fun decodeOnRequest(decodablePackage: DecodablePackage, paths: Collection<String>, checksums: Boolean = true) {
         val decoder = onRequestDecoder ?: return
         val pending = paths.filter { path ->
             val file = decodablePackage.directory.resolve(path)
@@ -1379,7 +1726,7 @@ internal class ArsclibResourceCoder(
             StringsXmlEscapeProcessor({ path, pkg -> getFile(path, pkg, false) }, packageDirectories)
                 .process(stringsFiles, log = false)
         }
-        decoded.forEach { fileSnapshotCache[pathKey(it)] = it.snapshot() }
+        decoded.forEach { fileSnapshotCache[pathKey(it)] = it.snapshot(withChecksum = checksums) }
 
         written.forEach { (file, held) ->
             if (file.isFile) {

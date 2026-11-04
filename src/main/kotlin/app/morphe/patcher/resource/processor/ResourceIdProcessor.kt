@@ -6,6 +6,8 @@
 package app.morphe.patcher.resource.processor
 
 import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.resource.PublicIds
+import app.morphe.patcher.resource.PublicXmlIds
 import app.morphe.patcher.resource.PublicXmlManager
 import app.morphe.patcher.resource.fileResourceTypes
 import app.morphe.patcher.resource.forEachAttribute
@@ -20,17 +22,24 @@ import java.util.logging.Logger
 
 internal class ResourceIdProcessor(
     internal val get: (path: String) -> File,
-    internal val publicIdManager: PublicXmlManager,
+    internal val publicIdManager: PublicIds,
     internal val modifiedResResources: Set<File>,
     private val listFiles: (directory: File) -> Array<File>? = File::listFiles,
 ) {
+    constructor(
+        get: (path: String) -> File,
+        publicIdManager: PublicXmlManager,
+        modifiedResResources: Set<File>,
+        listFiles: (directory: File) -> Array<File>? = File::listFiles,
+    ) : this(get, PublicXmlIds(publicIdManager), modifiedResResources, listFiles)
+
     private val logger = Logger.getLogger(ResourceIdProcessor::class.java.name)
 
     fun process() {
         logger.info("Generating new resource IDs")
 
         // New ids are numbered in the order resources are seen here, so every listing is sorted.
-        // Directory listing order is not stable on every file system (Android's f2fs for one),
+        // Directory listing order is not stable on every file system (Android's `f2fs` for one),
         // and an unsorted walk gives the same resource a different id from run to run.
         val resDirectories = (listFiles(get("res")) ?: throw PatchException("Resource directory not found"))
             .filter { it.isDirectory }
@@ -179,7 +188,7 @@ internal class ResourceIdProcessor(
     }
 
     /**
-     * If [file] starts with a UTF-16 byte order mark, or with a null byte, which UTF-16 text without one has.
+     * If this file starts with a UTF-16 byte order mark, or with a null byte, which UTF-16 text without one has.
      */
     private fun File.isUtf16(): Boolean {
         val head = ByteArray(2)

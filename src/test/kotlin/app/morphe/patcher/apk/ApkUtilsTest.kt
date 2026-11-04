@@ -160,6 +160,47 @@ internal class ApkUtilsTest {
     }
 
     @Test
+    fun `a dex file the input stores is stored and aligned`() {
+        // The resource APK leaves out the DEX files it replaces, so only the result tells how to store them.
+        val resourcesApk = temporaryDirectory.resolve("resources.apk").also { apk ->
+            writeZip(apk, mapOf("resources.arsc" to "table".toByteArray(), "assets/odd.txt" to "x".toByteArray()))
+        }
+        val dex = ByteArray(4096) { (it % 3).toByte() }
+        val result = PatcherResult(
+            setOf(
+                PatcherResult.PatchedDexFile("classes.dex", ByteArrayInputStream(dex)),
+                PatcherResult.PatchedDexFile("classes2.dex", ByteArrayInputStream(dex)),
+            ),
+            PatcherResult.PatchedResources(resourcesApk, null, emptySet(), emptySet()),
+            storedDexFileNames = setOf("classes.dex"),
+        )
+        val targetApk = temporaryDirectory.resolve("target.apk")
+
+        result.applyTo(targetApk)
+
+        ZipFile(targetApk).use { zip ->
+            assertEquals(ZipEntry.STORED, zip.getEntry("classes.dex").method)
+            assertEquals(ZipEntry.DEFLATED, zip.getEntry("classes2.dex").method)
+        }
+        assertContentEquals(dex, readZip(targetApk)["classes.dex"])
+        assertEquals(0L, dexDataOffsetOf(targetApk) % 4, "classes.dex is aligned to 4")
+    }
+
+    /** The offset of the data of the `classes.dex` entry of [apk], after its local header. */
+    private fun dexDataOffsetOf(apk: File): Long {
+        val bytes = apk.readBytes()
+        val nameBytes = "classes.dex".toByteArray()
+        val headerAt = (0..bytes.size - 30 - nameBytes.size).first { i ->
+            bytes[i] == 0x50.toByte() && bytes[i + 1] == 0x4b.toByte() &&
+                bytes[i + 2] == 3.toByte() && bytes[i + 3] == 4.toByte() &&
+                (bytes[i + 26].toInt() and 0xff) == nameBytes.size &&
+                bytes.copyOfRange(i + 30, i + 30 + nameBytes.size).contentEquals(nameBytes)
+        }
+        fun u16(at: Int) = (bytes[at].toInt() and 0xff) or ((bytes[at + 1].toInt() and 0xff) shl 8)
+        return (headerAt + 30 + u16(headerAt + 26) + u16(headerAt + 28)).toLong()
+    }
+
+    @Test
     fun `an entry deleted and then recreated keeps the recreated content`() {
         val targetApk = temporaryDirectory.resolve("target.apk").also { apk ->
             writeZip(apk, mapOf("assets/data.bin" to "original".toByteArray()))
@@ -314,7 +355,7 @@ internal class ApkUtilsTest {
         val library = ByteArray(5000) { it.toByte() }
         val targetApk = temporaryDirectory.resolve("target.apk")
         ZipOutputStream(targetApk.outputStream()).use { output ->
-            output.putNextEntry(ZipEntry("assets/pad.txt").apply { setTime(0) })
+            output.putNextEntry(ZipEntry("assets/pad.txt").apply { time = 0 })
             output.write("padding to move the next entry off any boundary".toByteArray())
             output.closeEntry()
             output.putNextEntry(

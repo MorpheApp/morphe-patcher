@@ -12,7 +12,6 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.lang.reflect.Member
-import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.net.URLClassLoader
 import java.nio.ByteBuffer
@@ -130,6 +129,12 @@ sealed class Patch<C : PatchContext<*>>(
     internal var declaredAt: StackTraceElement? = null
 
     /**
+     * The property that holds the patch, such as `SettingsPatch.settingsResourcePatch`, or null if
+     * [PatchLoader] found none. Only known for unnamed patches, which have no name to go by.
+     */
+    internal var declaredAs: String? = null
+
+    /**
      * Calls the execution block of the patch.
      * This function is called by [Patcher.invoke].
      *
@@ -143,13 +148,6 @@ sealed class Patch<C : PatchContext<*>>(
      * @param context The [PatchContext] to execute the patch with.
      */
     fun execute(context: C) = executeBlock(context)
-
-    /**
-     * The name of the patch, or if it has no name the class name of its execution block.
-     * Patches are declared with a DSL, so an unnamed patch has no other way to be identified.
-     */
-    internal val logName: String
-        get() = name ?: executeBlock.javaClass.name
 
     /**
      * Calls the finalizing block of the patch.
@@ -168,9 +166,23 @@ sealed class Patch<C : PatchContext<*>>(
         finalizeBlock?.invoke(context)
     }
 
-    override fun toString() = name ?: 
-        "Patch@${System.identityHashCode(this)}"
+    /**
+     * The name of the patch. Patches are declared with a DSL, so an unnamed patch goes by the
+     * property it was loaded from, see [declaredAs]. Failing that, it goes by the file that declares
+     * its execution block, or its finalizing block if it only finalizes.
+     */
+    override fun toString() = name ?: declaredAs
+        ?: (if (executeBlock === NoExecuteBlock) finalizeBlock else executeBlock)?.javaClass?.sourceName
+        ?: "${javaClass.simpleName}@${System.identityHashCode(this)}"
 }
+
+/**
+ * The file a class of a patch bundle is compiled from, such as `SettingsPatch` for
+ * `app.morphe.patches.SettingsPatchKt` and its lambdas. Only the file is kept, as the suffix a
+ * compiled lambda gets (`$$Lambda/0x...` on the JVM, `$$ExternalSyntheticLambda0` from D8) differs
+ * between runs and VMs.
+ */
+internal val Class<*>.sourceName get() = name.substringAfterLast('.').substringBefore('$').removeSuffix("Kt")
 
 internal fun Patch<*>.anyRecursively(
     visited: MutableSet<Patch<*>> = mutableSetOf(),
@@ -297,8 +309,6 @@ class BytecodePatch internal constructor(
     }
 
     override fun finalize(context: PatcherContext) = finalize(context.bytecodeContext)
-
-    override fun toString() = name ?: "Bytecode${super.toString()}"
 }
 
 /**
@@ -366,8 +376,6 @@ class RawResourcePatch internal constructor(
     override fun execute(context: PatcherContext) = execute(context.resourceContext)
 
     override fun finalize(context: PatcherContext) = finalize(context.resourceContext)
-
-    override fun toString() = name ?: "RawResource${super.toString()}"
 }
 
 /**
@@ -435,8 +443,14 @@ class ResourcePatch internal constructor(
     override fun execute(context: PatcherContext) = execute(context.resourceContext)
 
     override fun finalize(context: PatcherContext) = finalize(context.resourceContext)
+}
 
-    override fun toString() = name ?: "Resource${super.toString()}"
+/**
+ * The execution block of a patch built without one. A single instance, so that [Patch.toString]
+ * can tell it apart from a block the patch declares.
+ */
+internal object NoExecuteBlock : (Any?) -> Unit {
+    override fun invoke(context: Any?) = Unit
 }
 
 /**
@@ -465,7 +479,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
     protected var dependencies = mutableSetOf<Patch<*>>()
     protected val options = mutableSetOf<Option<*>>()
 
-    protected var executeBlock: ((C) -> Unit) = { }
+    protected var executeBlock: ((C) -> Unit) = NoExecuteBlock
     protected var finalizeBlock: ((C) -> Unit)? = null
     protected var availability: AvailabilityResolver? = null
     protected var category: String? = null
@@ -1001,6 +1015,19 @@ sealed class PatchLoader(
             }
 
         /**
+         * Names the unnamed patches that static fields of the class hold after the property, see
+         * [Patch.declaredAs]. Private fields too, as that is how most dependencies are declared. Only
+         * for a class that is initialized already, which reading a field of it would otherwise do.
+         */
+        private fun Class<*>.nameUnnamedPatches() = declaredFields.forEach { field ->
+            if (!field.type.isPatch || !Modifier.isStatic(field.modifiers)) return@forEach
+
+            field.isAccessible = true
+            val patch = field.get(null) as? Patch<*> ?: return@forEach
+            if (patch.name == null && patch.declaredAs == null) patch.declaredAs = "$sourceName.${field.name}"
+        }
+
+        /**
          * Loads unnamed patches declared as public static fields
          * or returned by public static and non-parametrized methods.
          * Each patch remembers the patch bundle it was loaded from, see [Patch.bundle],
@@ -1026,8 +1053,10 @@ sealed class PatchLoader(
                         // just in case.
                         null
                     }
-                }.flatMap {
-                    it.patchFields + it.patchMethods
+                }.flatMap { patchClass ->
+                    (patchClass.patchFields + patchClass.patchMethods).also { patches ->
+                        if (patches.isNotEmpty()) patchClass.nameUnnamedPatches()
+                    }
                 }.filter {
                     it.name != null
                 }.onEach {
@@ -1100,7 +1129,7 @@ sealed class PatchLoader(
         /**
          * Fails if universal patches are declared with default true and
          * [PatcherBehavior.STRICT_UNIVERSAL_PATCH_DEFAULT] applies to them.
-         * Otherwise they are warned about and load with default false.
+         * Otherwise, they are warned about and load with default false.
          */
         private fun checkUniversalPatchDefaults(patches: Collection<Patch<*>>) {
             val misdeclared = mutableSetOf<Patch<*>>()
@@ -1128,7 +1157,7 @@ sealed class PatchLoader(
 
         /**
          * Dependencies are built with the patch that depends on them, unless they are loaded from
-         * a bundle themselves. Otherwise they would count as built for an unknown version.
+         * a bundle themselves. Otherwise, they would count as built for an unknown version.
          */
         private fun Patch<*>.assignBundleToDependencies(bundle: PatchBundleInfo) {
             dependencies.forEach { dependency ->
@@ -1140,11 +1169,7 @@ sealed class PatchLoader(
             }
         }
 
-        private fun Member.canAccess(): Boolean {
-            if (this is Method && parameterCount != 0) return false
-
-            return Modifier.isStatic(modifiers) && Modifier.isPublic(modifiers)
-        }
+        private fun Member.canAccess() = Modifier.isStatic(modifiers) && Modifier.isPublic(modifiers)
     }
 }
 

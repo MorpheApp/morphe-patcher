@@ -12,6 +12,7 @@ package app.morphe.patcher
 
 import app.morphe.patcher.Fingerprint.Companion.SLOW_MATCH_NANOS
 import app.morphe.patcher.extensions.InstructionExtensions.instructionsOrNull
+import app.morphe.patcher.logging.toLogString
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.util.PatchClasses
@@ -33,6 +34,7 @@ import java.lang.ref.WeakReference
 import java.util.BitSet
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
+import kotlin.time.Duration.Companion.nanoseconds
 
 /**
  * @param classFingerprint Fingerprint that finds the class this fingerprint resolves against.
@@ -690,7 +692,7 @@ open class Fingerprint private constructor(
 
         if (matchNanos > SLOW_MATCH_NANOS) {
             logger.info(
-                "Fingerprint took ${TimeUnit.NANOSECONDS.toMillis(matchNanos)} ms to resolve: $this"
+                "Fingerprint took ${matchNanos.nanoseconds.toLogString()} to resolve: $this"
             )
         }
 
@@ -1691,7 +1693,7 @@ private class FilterFailures(filterCount: Int, private val instructionCount: Int
     fun add(filterIndex: Int, location: InstructionLocation, previousIndex: Int) {
         val failedIndex = unboundedFailures[filterIndex]
         when {
-            location.searchesAllAfter() -> if (failedIndex < 0 || previousIndex < failedIndex) {
+            location.searchesAllAfter() -> if (failedIndex !in 0..previousIndex) {
                 unboundedFailures[filterIndex] = previousIndex
             }
             location.searchesAllBefore() -> if (previousIndex > failedIndex) {
@@ -1705,7 +1707,7 @@ private class FilterFailures(filterCount: Int, private val instructionCount: Int
     fun contains(filterIndex: Int, location: InstructionLocation, previousIndex: Int): Boolean {
         val failedIndex = unboundedFailures[filterIndex]
         return when {
-            location.searchesAllAfter() -> failedIndex >= 0 && previousIndex >= failedIndex
+            location.searchesAllAfter() -> failedIndex in 0..previousIndex
             location.searchesAllBefore() -> failedIndex >= 0 && previousIndex <= failedIndex
             else -> boundedFailures?.get(filterIndex * instructionCount + previousIndex) == true
         }
@@ -1730,8 +1732,8 @@ class Match internal constructor(
 ) {
     // The matched class and method are intentionally not stored, and are instead looked up
     // from the patch context each time they are accessed. Patches can replace classes and
-    // methods (making a class mutable, merging extension classes, replacing methods),
-    // and holding onto the matched objects would leave this match with stale references
+    // methods (making a class mutable, merging extension classes, replacing methods).
+    // Holding onto the matched objects would leave this match with stale references
     // that no longer correspond to what the app is actually being compiled with.
     // Not storing them also allows the old replaced objects to be garbage collected.
 

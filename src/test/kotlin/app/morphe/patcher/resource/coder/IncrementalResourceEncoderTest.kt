@@ -11,11 +11,14 @@ import com.reandroid.arsc.chunk.xml.ResXmlDocument
 import com.reandroid.arsc.value.ResConfig
 import com.reandroid.arsc.value.ValueType
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.logging.Handler
 import java.util.logging.Level
 import java.util.logging.LogRecord
@@ -46,8 +49,14 @@ internal class IncrementalResourceEncoderTest {
     }
     private val coderLogger = Logger.getLogger(ArsclibResourceCoder::class.java.name).also { it.addHandler(handler) }
 
+    /** Closed after each test, as an open coder keeps the input APK open, which Windows cannot delete. */
+    private val coders = mutableListOf<ArsclibResourceCoder>()
+
     @AfterEach
-    fun tearDown() = coderLogger.removeHandler(handler)
+    fun tearDown() {
+        coderLogger.removeHandler(handler)
+        coders.forEach(ArsclibResourceCoder::close)
+    }
 
     /**
      * How resources are decoded and encoded.
@@ -56,7 +65,7 @@ internal class IncrementalResourceEncoderTest {
         /** Every resource is decoded up front, and the changed ones are encoded into the input table. */
         INCREMENTAL,
 
-        /** Every resource is decoded up front, and the table is rebuilt from every values file. */
+        /** Every resource is decoded up front, and the table is rebuilt from all values files. */
         FULL_REBUILD,
 
         /** Resources are decoded as they are requested, and the changed ones are encoded into the input table. */
@@ -70,7 +79,7 @@ internal class IncrementalResourceEncoderTest {
             tempDir.resolve("working").apply { mkdirs() },
             apk,
             fullResourceEncode = mode == Mode.FULL_REBUILD,
-        )
+        ).also(coders::add)
         coder.decodeResources(onRequest = mode == Mode.ON_REQUEST)
         return apk to coder
     }
@@ -93,7 +102,7 @@ internal class IncrementalResourceEncoderTest {
     private fun File.edit(transform: (String) -> String) = writeText(transform(readText()))
 
     private fun crcOf(apk: File, entry: String): Long? = ZipFile(apk).use { zip ->
-        zip.getEntry(entry)?.let { zip.getInputStream(it).use { input -> CRC32().also { it.update(input.readBytes()) }.value } }
+        zip.getEntry(entry)?.let { zip.getInputStream(it).use { input -> CRC32().also { crc -> crc.update(input.readBytes()) }.value } }
     }
 
     private fun PackageBlock.string(qualifiers: String, name: String) =
@@ -122,7 +131,7 @@ internal class IncrementalResourceEncoderTest {
         coder.getFile("res/values/arrays.xml", null, true).edit {
             it.replace(Regex("<item>.*</item>", RegexOption.DOT_MATCHES_ALL), "<item>uno</item><item>dos</item><item>tres</item>")
         }
-        // A colour is added next to one defined by a file.
+        // A color is added next to one defined by a file.
         coder.getFile("res/values/colors.xml", null, true).edit {
             it.replace("</resources>", """<color name="added_color">#ff00ff00</color></resources>""")
         }
@@ -380,6 +389,173 @@ internal class IncrementalResourceEncoderTest {
             assertNotNull(overlayable)
             assertEquals(1, pkg.overlayableList.size())
         }
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Mode::class)
+    fun `values of a type new to the app get ids of a new type`(mode: Mode, @TempDir tempDir: File) {
+        val (_, coder) = decode(mode, tempDir)
+        // The app has types 0x01 to 0x08 and neither of these.
+        coder.getFile("res/values/bools.xml", null, true)
+            .writeText("""<?xml version="1.0" encoding="utf-8"?><resources><bool name="enabled">true</bool></resources>""")
+        coder.getFile("res/values/dimens.xml", null, true).writeText(
+            """<?xml version="1.0" encoding="utf-8"?>""" +
+                    """<resources><dimen name="gap">8dp</dimen><dimen name="margin">16dp</dimen></resources>"""
+        )
+
+        val output = encode(coder, mode, tempDir)
+
+        ApkModule.loadApkFile(output).use { module ->
+            val pkg = module.tableBlock.pickOne()
+            // New types get the type ids after the highest one of the app, in the order they are created in.
+            val expected = mapOf(
+                Triple("bool", "enabled", ValueType.BOOLEAN) to 0x7f090000,
+                Triple("dimen", "gap", ValueType.DIMENSION) to 0x7f0a0000,
+                Triple("dimen", "margin", ValueType.DIMENSION) to 0x7f0a0001,
+            )
+            expected.forEach { (resource, id) ->
+                val (type, name, valueType) = resource
+                val entry = assertNotNull(pkg.getEntry("", type, name), "@$type/$name")
+                assertEquals(id, entry.resourceId, "id of @$type/$name")
+                assertEquals(type, pkg.typeNameOf((id shr 16) and 0xff))
+                val resolved = assertNotNull(module.tableBlock.getResource(id), "0x${id.toString(16)} resolves")
+                assertEquals(name, resolved.name)
+                assertEquals(valueType, entry.resValue.valueType)
+            }
+            assertEquals("Hello", pkg.string("", "hello"), "the types the app has are kept")
+        }
+    }
+
+    /**
+     * Decodes on request in [directory], makes the changes patches make that need new ids, and
+     * encodes.
+     */
+    private fun encodeWithNewIds(
+        directory: File,
+        configure: ArsclibResourceCoder.() -> Unit,
+    ): File {
+        val (_, coder) = decode(Mode.ON_REQUEST, directory.apply { mkdirs() })
+        coder.configure()
+
+        coder.getFile("res/values/strings.xml", null, true).edit {
+            it.replace("</resources>", """<string name="added">Added</string><string name="added_too">Too</string></resources>""")
+        }
+        coder.getFile("res/values/colors.xml", null, true).edit {
+            it.replace("</resources>", """<color name="added_color">#ff00ff00</color></resources>""")
+        }
+        coder.getFile("res/drawable/new_icon.png", null, true).writeBytes("PNG new".toByteArray())
+        coder.getFile("res/layout/main.xml", null, true).edit {
+            it.replace("/>", """><View android:id="@+id/new_view"/><View android:id="@+id/other_view"/></LinearLayout>""")
+        }
+
+        return coder.encodeResources(directory.resolve("out").apply { mkdirs() }) { false }
+            .also { coder.close() }
+    }
+
+    private fun bytesOf(apk: File, entry: String): ByteArray = ZipFile(apk).use { zip ->
+        zip.getInputStream(zip.getEntry(entry)).use { it.readBytes() }
+    }
+
+    private fun idsOf(apk: File, vararg resources: Pair<String, String>) = ApkModule.loadApkFile(apk).use { module ->
+        val pkg = module.tableBlock.pickOne()
+        resources.associateWith { (type, name) -> pkg.getEntry("", type, name)?.resourceId }
+    }
+
+    @Test
+    fun `ids read from the table encode the same table as ids read from public xml`(@TempDir tempDir: File) {
+        val fromTable = encodeWithNewIds(tempDir.resolve("table")) { publicIdsFromTable = true }
+        val fromFile = encodeWithNewIds(tempDir.resolve("file")) { publicIdsFromTable = false }
+        assertTrue(warnings.isEmpty(), "The incremental encoder fell back: ${warnings.map { it.message }}")
+        fun publicXmls(name: String) = tempDir.resolve(name).walkTopDown().count { it.name == "public.xml" }
+        assertEquals(0, publicXmls("table"), "the ids were read from the table, so public.xml was not decoded")
+        assertEquals(1, publicXmls("file"))
+
+        assertContentEquals(bytesOf(fromFile, "resources.arsc"), bytesOf(fromTable, "resources.arsc"))
+        assertContentEquals(bytesOf(fromFile, "AndroidManifest.xml"), bytesOf(fromTable, "AndroidManifest.xml"))
+        assertContentEquals(bytesOf(fromFile, "res/layout/main.xml"), bytesOf(fromTable, "res/layout/main.xml"))
+    }
+
+    @Test
+    fun `the rebuild after the incremental encoder failed gives new resources the same ids`(@TempDir tempDir: File) {
+        val resources = arrayOf(
+            "string" to "added",
+            "string" to "added_too",
+            "color" to "added_color",
+            "drawable" to "new_icon",
+            "id" to "new_view",
+            "id" to "other_view",
+        )
+        val expected = idsOf(encodeWithNewIds(tempDir.resolve("incremental")) {}, *resources)
+        assertTrue(warnings.isEmpty(), "The incremental encoder fell back: ${warnings.map { it.message }}")
+        assertTrue(expected.values.all { it != null }, "every new resource has an id: $expected")
+
+        val rebuilt = encodeWithNewIds(tempDir.resolve("rebuilt")) { failIncrementalForTest = true }
+        assertTrue(warnings.any { it.message.orEmpty().contains("rebuilding the table") }, "The incremental encoder did not fall back")
+
+        assertEquals(expected, idsOf(rebuilt, *resources))
+        ApkModule.loadApkFile(rebuilt).use { module ->
+            val pkg = module.tableBlock.pickOne()
+            assertEquals("Added", pkg.string("", "added"))
+            assertEquals("Hello", pkg.string("", "hello"))
+        }
+    }
+
+    /**
+     * Rewrites this file with [transform] applied, keeping its size, and puts its timestamps back to what
+     * they were, as an edit within one tick of the file system's timestamp clock leaves them.
+     */
+    private fun File.editKeepingMetadata(transform: (String) -> String) {
+        val path = toPath()
+        val before = Files.readAttributes(path, BasicFileAttributes::class.java)
+        val text = readText()
+        val edited = transform(text)
+        assertTrue(edited != text && edited.length == text.length, "the edit changes the content and keeps the size")
+        writeText(edited)
+        Files.setLastModifiedTime(path, before.lastModifiedTime())
+        // Not every file system lets the creation time be set, but rewriting a file in place keeps it anyway.
+        runCatching { Files.setAttribute(path, "creationTime", before.creationTime()) }
+        val after = Files.readAttributes(path, BasicFileAttributes::class.java)
+        assertEquals(before.size(), after.size())
+        assertEquals(before.lastModifiedTime(), after.lastModifiedTime())
+    }
+
+    @Test
+    fun `an edit of a file decoded on request that keeps its size and timestamps is encoded`(@TempDir tempDir: File) {
+        val (_, coder) = decode(Mode.ON_REQUEST, tempDir)
+
+        coder.getFile("res/values/strings.xml", null, true).editKeepingMetadata { it.replace(">Hello<", ">Howdy<") }
+
+        val output = encode(coder, Mode.ON_REQUEST, tempDir)
+        ApkModule.loadApkFile(output).use { module ->
+            assertEquals("Howdy", module.tableBlock.pickOne().string("", "hello"))
+        }
+    }
+
+    @Test
+    fun `a file decoded on request that is left alone is not reported as changed`(@TempDir tempDir: File) {
+        val (_, coder) = decode(Mode.ON_REQUEST, tempDir)
+        val strings = coder.getFile("res/values/strings.xml", null, true)
+        assertTrue(strings.isFile)
+
+        coder.detectFileChanges()
+
+        assertTrue(coder.modifiedResResources.isEmpty(), "unchanged: ${coder.modifiedResResources}")
+    }
+
+    /**
+     * Every file is decoded before any patch runs here, so an edit does not fall within the timestamp tick
+     * of the decode in practice, and no checksum is recorded for the thousands of files decoded up front.
+     * An edit that does keep every attribute therefore stays unnoticed, as it always has.
+     */
+    @Test
+    fun `an edit of a file decoded up front that keeps its size and timestamps is not noticed`(@TempDir tempDir: File) {
+        val (_, coder) = decode(Mode.INCREMENTAL, tempDir)
+        val strings = coder.getFile("res/values/strings.xml", null, true)
+
+        strings.editKeepingMetadata { it.replace(">Hello<", ">Howdy<") }
+        coder.detectFileChanges()
+
+        assertTrue(coder.modifiedResResources.isEmpty(), "only metadata is compared for files decoded up front")
     }
 
     private fun PackageBlock.dump(): List<String> = buildList {

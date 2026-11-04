@@ -11,6 +11,7 @@ import app.morphe.patcher.resource.postOrderTraverse
 import app.morphe.patcher.resource.utf8Writer
 import app.morphe.patcher.util.Document
 import app.morphe.patcher.util.XmlWriter
+import com.reandroid.apk.ApkUtil
 import org.w3c.dom.Element
 import org.xmlpull.v1.XmlPullParser
 import java.io.File
@@ -39,9 +40,13 @@ internal class AaptMacroProcessor(
         // (This will require refactoring of the code that handles public.xml id generation.)
         val newlyCreatedFiles = mutableSetOf<File>()
         modifiedResResources
-            .filter { it.exists() && it.extension == "xml" }
+            // aapt2 inlines aapt:attr only in files compiled as file resources, never in values files,
+            // which are most of what patches modify, so those are not opened.
+            .filter { it.extension == "xml" && !it.isValuesFile() && it.exists() }
             .forEach { newlyCreatedFiles += processDocument(it) }
     }
+
+    private fun File.isValuesFile() = parentFile?.let { ApkUtil.isValuesDirectoryName(it.name, true) } == true
 
     private fun processDocument(file: File): Set<File> {
         val newlyCreatedFiles = mutableSetOf<File>()

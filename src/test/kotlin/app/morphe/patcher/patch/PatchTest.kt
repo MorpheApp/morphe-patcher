@@ -4,6 +4,7 @@ package app.morphe.patcher.patch
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 internal object PatchTest {
     @Test
@@ -47,5 +48,12 @@ internal object PatchTest {
         }
 
         assertEquals(2, patch.options.size)
+    }
+
+    @Test
+    fun `unnamed patches not loaded from a property go by the file that declares their blocks`() {
+        assertEquals("PatchTest", bytecodePatch { execute { } }.toString())
+        assertEquals("PatchTest", resourcePatch { finalize { } }.toString())
+        assertTrue(bytecodePatch { }.toString().startsWith("BytecodePatch@"))
     }
 }
