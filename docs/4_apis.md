@@ -2,11 +2,15 @@
 
 A handful of APIs are available to make patch development easier and more efficient.
 
+Functions that work on the APK being patched, such as `classDefBy` and `document`, are in the
+`app.morphe.patcher.patch` package. They can be called while an APK is being patched, but not when a patch or
+a fingerprint is declared.
+
 ## 📙 Overview
 
 1. 🔍 Find immutable classes with `classDefBy(String)`
 2. 🔄️️ Change immutable classes to mutable with `mutableClassDefBy(String)` and `mutableClassDefBy(ClassDef)`
-3. 💾 Read and write resource files with `get(String, Boolean)` and `delete(String)`
+3. 💾 Read and write resource files with `resourceFile(String, Boolean)` and `deleteResource(String)`
 4. 📃 Read and write DOM files using `document(String)` and  `document(InputStream)`
 5. 📜 List the entries of the APK being patched with `listApkEntries(String)`
 6. 🗂️ Decode resources when they are needed with `decode(String...)` and `listDecodableFiles(String)`
@@ -77,37 +81,37 @@ execute {
 }
 ```
 
-#### 💾 `get(String, Boolean)` and `delete(String)`
+#### 💾 `resourceFile(String, Boolean)` and `deleteResource(String)`
 
-The `get(String, Boolean)` function returns a `File` object that can be used to read and write resource files.
+The `resourceFile(String, Boolean)` function returns a `File` object that can be used to read and write resource files.
 
 ```kt
 execute {
-    val file = get("res/values/strings.xml")
+    val file = resourceFile("res/values/strings.xml")
     val content = file.readText()
     file.writeText(content)
 }
 ```
 
-When resources are decoded on request, as `decode(String...)` below describes, `get` decodes the file
+When resources are decoded on request, as `decode(String...)` below describes, `resourceFile` decodes the file
 first if it is not decoded yet. Pass `false` as the second argument to get the file without decoding it,
 to replace or add a file. A values file written this way, such as
 `res/values-de/strings.xml`, adds its resources to those of the APK and replaces the ones of the same name,
 but removes none.
 
-The `delete` function can mark files for deletion when the APK is rebuilt. It accepts decoded
+The `deleteResource` function can mark files for deletion when the APK is rebuilt. It accepts decoded
 resource paths as well as any other entry of the APK as returned by `listApkEntries(String)`,
 including native libraries, which are never staged to the working directory. A directory name
 such as `lib/x86/` deletes everything below it. The manifest and `resources.arsc` cannot be deleted.
 
 ```kt
 execute {
-    delete("res/values/strings.xml")
+    deleteResource("res/values/strings.xml")
 
     // Keep only one architecture.
     listApkEntries("lib/")
         .filterNot { it.startsWith("lib/arm64-v8a/") }
-        .forEach(::delete)
+        .forEach { deleteResource(it) }
 }
 ```
 
@@ -142,7 +146,7 @@ execute {
 The `listApkEntries` function lists the entries of the APK being patched, without staging them
 to the working directory. Use it to discover what an APK contains, rather than walking the
 working directory: not every entry is staged there, and native libraries in particular are left
-in the archive. Names are archive names, so they can be passed straight to `get(String, Boolean)`.
+in the archive. Names are archive names, so they can be passed straight to `resourceFile(String, Boolean)`.
 An optional prefix restricts the listing.
 
 ```kt
@@ -156,11 +160,10 @@ changed or deleted.
 
 #### 🗂️ `decode(String...)` and `listDecodableFiles(String)`
 
-Resources are decoded when patches need them, instead of all of them before any patch executes.
-Decoding a large app takes much of the time patching does, while patches read only a few of its files.
+Resources are decoded when patches need them:
 
-- The manifest is always decoded.
-- A file a patch reads by its path, with `get(String, Boolean)` or `document(String)`, is decoded then.
+- The manifest is decoded when a patch first uses a resource.
+- A file a patch reads by its path, with `resourceFile(String, Boolean)` or `document(String)`, is decoded then.
 - A directory only holds the files decoded or added so far. A patch that lists or walks a directory must
   first decode what it looks for with `decode`.
 

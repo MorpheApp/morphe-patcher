@@ -452,6 +452,21 @@ String filters declared in `strings` match in any order and cannot declare an `I
 The indices of strings declared this way are not in `instructionMatches`, but instead in `stringMatches`,
 in the same order the strings are declared.
 
+### 🔗 Using the match of another fingerprint
+
+An instruction filter can use the match of another fingerprint. `string`, `literal`, `newInstance` and `checkCast`
+filters accept a lambda, which is evaluated when the fingerprint is matched:
+
+```kt
+object SearchBoxFingerprint : Fingerprint(
+    filters = listOf(
+        newInstance(type = { SearchBoxHintFingerprint.originalClassDef.type }),
+    ),
+)
+```
+
+Fingerprints cannot be matched when they are declared, so the other fingerprint must be used inside the lambda.
+
 ### 🧩 Pure opcode matching
 
 If a method cannot be uniquely identified using the built-in filters, but a fixed pattern of
@@ -535,7 +550,7 @@ This makes it useful to share fingerprints between multiple patches, and the fin
 the first usage of it.
 
 ```kt
-val mainActivityPatch1 = bytecodePatch {
+val mainActivityPatch1 = patch {
     execute {
         mainActivityOnCreateFingerprint.method.apply {
             // Modifications made here.
@@ -543,7 +558,7 @@ val mainActivityPatch1 = bytecodePatch {
     }
 }
 
-val mainActivityPatch2 = bytecodePatch {
+val mainActivityPatch2 = patch {
     execute {
         mainActivityOnCreateFingerprint.method.apply {
             // More modifications made here.
@@ -592,7 +607,7 @@ Fingerprints can be declared as local variables (and not classes as above),
 which is useful if a fingerprint requires information found with prior fingerprints.
 
 ```kotlin
-val complexPatch = bytecodePatch(name = "Complex patch") {
+val complexPatch = patch(name = "Complex patch") {
     execute {
         val showAdFingerprint = Fingerprint(
             returnType = "Z",

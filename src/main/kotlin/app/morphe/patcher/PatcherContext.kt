@@ -6,6 +6,8 @@
  * https://github.com/LisoUseInAIKyrios/revanced-patcher
  */
 
+@file:Suppress("DEPRECATION")
+
 package app.morphe.patcher
 
 import app.morphe.patcher.patch.BytecodePatchContext
@@ -50,8 +52,22 @@ class PatcherContext internal constructor(config: PatcherConfig): Closeable {
      */
     internal val bytecodeContext = BytecodePatchContext(config, packageMetadata)
 
+    init {
+        current = this
+    }
+
     override fun close() {
         bytecodeContext.close()
         resourceContext.close()
+        if (current === this) current = null
+    }
+
+    internal companion object {
+        /**
+         * The context of the APK being patched, for the global functions of patches such as
+         * [app.morphe.patcher.patch.classDefBy]. Only one APK is ever patched at a time.
+         */
+        @Volatile
+        internal var current: PatcherContext? = null
     }
 }

@@ -6,7 +6,7 @@
  * https://github.com/LisoUseInAIKyrios/revanced-patcher
  */
 
-@file:Suppress("DEPRECATION_ERROR")
+@file:Suppress("DEPRECATION_ERROR", "DEPRECATION", "OVERRIDE_DEPRECATION")
 
 package app.morphe.patcher.patch
 
@@ -38,11 +38,19 @@ import java.util.logging.Logger
 /**
  * A context for patches containing the current state of the bytecode.
  *
+ * Patches do not need a context any more, since only one APK is ever patched at a time. Use the global
+ * functions instead, such as [app.morphe.patcher.patch.classDefBy], which work on the state this class
+ * still holds. Existing patch bundles are executed with this class, so it cannot be removed.
+ *
  * @param config The [PatcherConfig] used to create this context.
  */
 @Suppress("MemberVisibilityCanBePrivate", "unused")
-class BytecodePatchContext internal constructor(private val config: PatcherConfig, val packageMetadata: PackageMetadata) :
-    PatchContext<Set<PatcherResult.PatchedDexFile>>,
+@Deprecated("Patches do not need a context. Use the global functions, such as classDefBy().")
+class BytecodePatchContext internal constructor(
+    private val config: PatcherConfig,
+    @Deprecated("Use the global property.", ReplaceWith("packageMetadata", "app.morphe.patcher.patch.packageMetadata"))
+    val packageMetadata: PackageMetadata,
+) : PatchContext<Set<PatcherResult.PatchedDexFile>>,
     Closeable {
     private val logger = Logger.getLogger(this::class.java.name)
 
@@ -103,16 +111,54 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      */
     internal var dexFilesComplete = false
 
+    private var classes = PatchClasses(emptySet())
+
     /**
      * All classes for the target app and any extension classes.
      */
-    internal var patchClasses: PatchClasses = PatchClasses(emptySet())
+    internal var patchClasses: PatchClasses
+        get() {
+            if (decodeOnFirstUse) decodeDexFilesOnFirstUse()
+            return classes
+        }
+        set(value) {
+            classes = value
+        }
+
+    /**
+     * Whether the DEX files are decoded when they are first needed, instead of before patches execute.
+     */
+    @Volatile
+    internal var decodeOnFirstUse = false
+
+    /**
+     * Time spent decoding the DEX files when they were first needed.
+     */
+    private var decodeNanos = 0L
+
+    /**
+     * Total time spent on what is not the work of a patch or a fingerprint that happens to need it first,
+     * which is decoding the DEX files and building the instruction indexes.
+     */
+    internal val preparationNanos
+        get() = decodeNanos + classes.indexBuildNanos
 
     /**
      * The directory where DEX files are written during compilation.
      */
     private val dexOutputDir = config.patchedFiles.resolve("dex")
     private val dexWorkingDir = config.patchedFiles.resolve("originalDex")
+
+    @Synchronized
+    private fun decodeDexFilesOnFirstUse() {
+        if (!decodeOnFirstUse) return
+
+        val startNanos = System.nanoTime()
+        decodeDexFiles()
+        config.bytecodeMode = config.useBytecodeMode
+        decodeOnFirstUse = false
+        decodeNanos += System.nanoTime() - startNanos
+    }
 
     internal fun decodeDexFiles() {
         // Extract original DEX files from the APK to disk for later in-place editing.
@@ -159,13 +205,13 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     }
 
     /**
-     * Merge the extension of [bytecodePatch] into the [BytecodePatchContext].
+     * Merge the extension of [patch] into the [BytecodePatchContext].
      * If no extension is present, the function will return early.
      *
-     * @param bytecodePatch The [BytecodePatch] to merge the extension of.
+     * @param patch The [Patch] to merge the extension of.
      */
-    internal fun mergeExtension(bytecodePatch: BytecodePatch) {
-        bytecodePatch.extensionStreamProviders.forEach { provider ->
+    internal fun mergeExtension(patch: Patch<*>) {
+        patch.extensionStreamProviders.forEach { provider ->
             provider.get().forEach { supplier ->
                 mergeExtensionStream(supplier.get())
             }
@@ -216,6 +262,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @return An immutable instance of the class type.
      * @see mutableClassDefBy
      */
+    @Deprecated("Use the global function.", ReplaceWith("classDefBy(classType)", "app.morphe.patcher.patch.classDefBy"))
     fun classDefBy(classType: String) = patchClasses.classBy(classType)
 
     /**
@@ -225,6 +272,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @return An immutable instance of the class type.
      * @see mutableClassDefBy
      */
+    @Deprecated("Use the global function.", ReplaceWith("classDefBy(predicate)", "app.morphe.patcher.patch.classDefBy"))
     fun classDefBy(predicate: (ClassDef) -> Boolean) = patchClasses.classBy(predicate)
 
     /**
@@ -234,6 +282,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @return An immutable instance of the class type.
      * @see mutableClassDefBy
      */
+    @Deprecated("Use the global function.", ReplaceWith("classDefByOrNull(classType)", "app.morphe.patcher.patch.classDefByOrNull"))
     fun classDefByOrNull(classType: String) = patchClasses.classByOrNull(classType)
 
     /**
@@ -242,6 +291,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @param predicate A predicate to match the class.
      * @return An immutable instance of the class type.
      */
+    @Deprecated("Use the global function.", ReplaceWith("classDefByOrNull(predicate)", "app.morphe.patcher.patch.classDefByOrNull"))
     fun classDefByOrNull(predicate: (ClassDef) -> Boolean) = patchClasses.classByOrNull(predicate)
 
     /**
@@ -255,6 +305,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @param classType The full classname.
      * @return A mutable version of the class type.
      */
+    @Deprecated("Use the global function.", ReplaceWith("mutableClassDefBy(classType)", "app.morphe.patcher.patch.mutableClassDefBy"))
     fun mutableClassDefBy(classType: String) = patchClasses.mutableClassBy(classType)
 
     /**
@@ -266,6 +317,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @param classDef An immutable class.
      * @return A mutable version of the class definition.
      */
+    @Deprecated("Use the global function.", ReplaceWith("mutableClassDefBy(classDef)", "app.morphe.patcher.patch.mutableClassDefBy"))
     fun mutableClassDefBy(classDef: ClassDef) = patchClasses.mutableClassBy(classDef)
 
     /**
@@ -279,6 +331,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @param predicate A predicate to match the class.
      * @return A mutable class that matches the predicate.
      */
+    @Deprecated("Use the global function.", ReplaceWith("mutableClassDefBy(predicate)", "app.morphe.patcher.patch.mutableClassDefBy"))
     fun mutableClassDefBy(predicate: (ClassDef) -> Boolean) = patchClasses.mutableClassBy(predicate)
 
     /**
@@ -293,6 +346,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @param classType The full classname.
      * @return A mutable version of the class type.
      */
+    @Deprecated("Use the global function.", ReplaceWith("mutableClassDefByOrNull(classType)", "app.morphe.patcher.patch.mutableClassDefByOrNull"))
     fun mutableClassDefByOrNull(classType: String) = patchClasses.mutableClassByOrNull(classType)
 
     /**
@@ -306,11 +360,13 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @param predicate A predicate to match the class.
      * @return A mutable class that matches the predicate.
      */
+    @Deprecated("Use the global function.", ReplaceWith("mutableClassDefByOrNull(predicate)", "app.morphe.patcher.patch.mutableClassDefByOrNull"))
     fun mutableClassDefByOrNull(predicate: (ClassDef) -> Boolean) = patchClasses.mutableClassByOrNull(predicate)
 
     /**
      * Iterate over all classes in the target app and all extension code.
      */
+    @Deprecated("Use the global function.", ReplaceWith("classDefForEach(action)", "app.morphe.patcher.patch.classDefForEach"))
     fun classDefForEach(action: (ClassDef) -> Unit) {
         patchClasses.forEach(action)
     }
@@ -318,6 +374,10 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     /**
      * @return All classes that contain the string parameter.
      */
+    @Deprecated(
+        "Use the global function.",
+        ReplaceWith("classDefByStrings(literalString, comparison)", "app.morphe.patcher.patch.classDefByStrings"),
+    )
     fun classDefByStrings(
         literalString: String,
         comparison: StringComparisonType = StringComparisonType.EQUALS
@@ -343,6 +403,10 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     /**
      * @return All classes that contain at least 1 string.
      */
+    @Deprecated(
+        "Use the global function.",
+        ReplaceWith("getAllClassesWithStrings()", "app.morphe.patcher.patch.getAllClassesWithStrings"),
+    )
     fun getAllClassesWithStrings(): List<ClassDef> {
         return patchClasses.getAllClassesWithStrings().map { it.classDef }
     }
@@ -383,6 +447,9 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      */
     @InternalApi
     override fun get(): Set<PatcherResult.PatchedDexFile> {
+        // Patching ended, so nothing needs the DEX files that were not decoded.
+        decodeOnFirstUse = false
+
         logger.info("Compiling patched dex files (mode: ${config.bytecodeMode})")
 
         return when (config.bytecodeMode) {
@@ -667,8 +734,9 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     internal fun getDexName(index: Int): String = if (index == 0) "classes.dex" else "classes${index + 1}.dex"
 
     override fun close() {
+        decodeOnFirstUse = false
         releaseAllDexMappings()
         extensionDexFiles.clear()
-        patchClasses.close()
+        classes.close()
     }
 }

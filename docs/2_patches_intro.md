@@ -5,52 +5,34 @@ Learn the basic concepts of Morphe Patcher and how to create patches.
 ## 📙 Fundamentals
 
 A patch is a piece of code that modifies an Android application (APK).  
-There are multiple types of patches, each targeting different parts of the APK:
-
-- A `BytecodePatch` modifies the Dalvik VM bytecode.
-- A `ResourcePatch` modifies decoded resources.
-- A `RawResourcePatch` modifies arbitrary files.
+Patches are declared with the `patch` function, and a patch can modify any part of the APK:
+the Dalvik VM bytecode, the decoded resources and any other file.
 
 Each patch can declare dependencies on other patches. Morphe Patcher ensures these dependencies are 
 executed first, allowing patches to work together in a modular way.
 
 The `execute` function is the entry point for a patch. It is called by Morphe Patcher when the patch is executed.
-The `execute` function receives an instance of a context object that provides access to the APK.
-The patch can use this context to modify the APK.
 
-Each type of context provides different APIs to modify the APK. For example, the `BytecodePatchContext` provides APIs
-to modify the Dalvik VM bytecode, while the `ResourcePatchContext` provides APIs to modify resources.
+Patches modify the APK with global functions, such as `mutableClassDefBy` for classes and `document` for
+resources, and with fingerprints. These can be used while an APK is being patched, such as in the `execute`
+block of a patch, in a function that a patch calls, or in an instruction filter of a fingerprint.
 
-The difference between `ResourcePatch` and `RawResourcePatch` is that Morphe Patcher will decode the resources
-if it is supplied a `ResourcePatch` for execution or if any patch depends on a `ResourcePatch`
-and will not decode the resources before executing `RawResourcePatch`.
-Both `ResourcePatch` and `RawResourcePatch` can modify arbitrary files in the APK,
-whereas only `ResourcePatch` can modify decoded resources. The choice of which type to use depends on the use case.
-Decoding and building resources takes time and memory,
-so if the patch does not need to modify decoded resources, it is better to use `RawResourcePatch` or `BytecodePatch`.
-Only the manifest is decoded up front, and every other resource when a patch requests it,
-see [Advanced APIs](4_apis.md).
+Morphe Patcher decodes what patches use when they first need it:
 
-Example of patches:
+- The DEX files are decoded when a patch first uses a class or a fingerprint.
+- The manifest and the resource table are decoded when a patch first uses a resource, and every other
+  resource when a patch requests it, see [Advanced APIs](4_apis.md).
+- Other files of the APK, such as `assets/data.bin` and native libraries, are extracted when a patch requests
+  them.
+
+Anything that no patch uses is copied to the patched APK as it is.
+
+Example of a patch:
 
 ```kt
 @Suppress("unused")
-val bytecodePatch = bytecodePatch {
+val examplePatch = patch {
     execute { 
-        // More about this on the next page of the documentation.
-    }
-}
-
-@Suppress("unused")
-val rawResourcePatch = rawResourcePatch {
-    execute {
-        // More about this on the next page of the documentation.
-    }
-}
-
-@Suppress("unused")
-val resourcePatch = resourcePatch {
-    execute {
         // More about this on the next page of the documentation.
     }
 }

@@ -17,6 +17,7 @@ import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.PatchResult
 import app.morphe.patcher.patch.bytecodePatch
+import app.morphe.patcher.patch.patch
 import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.util.PatchClasses
 import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
@@ -44,6 +45,7 @@ import io.mockk.unmockkObject
 import io.mockk.verify
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
@@ -75,6 +77,7 @@ internal object PatcherTest {
                     every { resourceMode } returns ResourceMode.NONE
                     every { bytecodeMode } returns BytecodeMode.NONE
                     every { validate } returns false
+                    every { initializeTemporaryFilesDirectories() } just runs
                 },
             )
             setPrivateField(
@@ -97,7 +100,15 @@ internal object PatcherTest {
                 context.bytecodeContext.patchClasses.mutableClassBy(firstArg<String>())
             }
             every { this@mockk() } answers { callOriginal() }
+            every { context.bytecodeContext.decodeOnFirstUse = any() } just runs
+            every { context.resourceContext.decodeOnFirstUse = any() } just runs
         }
+        PatcherContext.current = patcher.context
+    }
+
+    @AfterEach
+    fun tearDown() {
+        PatcherContext.current = null
     }
 
 
@@ -241,6 +252,11 @@ internal object PatcherTest {
         assertNotNull(direct)
         direct.assertTrimmed()
         direct.assertEndsAtPatchCall("execute")
+
+        val declared = patch { execute { throw PatchException("Declared") } }().exception
+        assertNotNull(declared)
+        declared.assertTrimmed()
+        declared.assertEndsAtPatchCall("execute")
 
         // The wrapper has no frames of the patch.
         val wrapped = bytecodePatch { execute { fail() } }().exception
@@ -2507,7 +2523,7 @@ internal object PatcherTest {
 
     private operator fun Set<Patch<*>>.invoke(): List<PatchResult> {
         every { patcher.context.executablePatches } returns toMutableSet()
-        every { with(patcher.context.bytecodeContext) { mergeExtension(any<BytecodePatch>()) } } just runs
+        every { with(patcher.context.bytecodeContext) { mergeExtension(any()) } } just runs
 
         return runBlocking { patcher().toList() }
     }

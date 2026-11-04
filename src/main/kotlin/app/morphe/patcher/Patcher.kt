@@ -6,6 +6,8 @@
  * https://github.com/LisoUseInAIKyrios/revanced-patcher
  */
 
+@file:Suppress("DEPRECATION")
+
 package app.morphe.patcher
 
 import app.morphe.patcher.apk.ApkUtils
@@ -22,6 +24,7 @@ import app.morphe.patcher.patch.PatchResult
 import app.morphe.patcher.patch.RawResourcePatch
 import app.morphe.patcher.patch.ResourcePatch
 import app.morphe.patcher.patch.anyRecursively
+import app.morphe.patcher.patch.decodesOnFirstUse
 import app.morphe.patcher.resource.ResourceMode
 import kotlinx.coroutines.flow.flow
 import java.io.Closeable
@@ -63,10 +66,19 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         }
 
         context.allPatches.let { allPatches ->
+            // The deprecated patch types declare what they use, which is decoded before patches execute.
+            // What other patches use is decoded when they first need it, and these can need decoded
+            // resources even if the resources of a raw resource patch were extracted.
+            val anyRawResourcePatch = allPatches.any { patch -> patch.anyRecursively { it is RawResourcePatch } }
+            val anyDecodesOnFirstUse = allPatches.any { patch -> patch.anyRecursively { it.decodesOnFirstUse } }
+
             // Check, if what kind of resource mode is required.
-            config.resourceMode = if (allPatches.any { patch -> patch.anyRecursively { it is ResourcePatch } }) {
+            config.resourceMode = if (
+                allPatches.any { patch -> patch.anyRecursively { it is ResourcePatch } } ||
+                (anyRawResourcePatch && anyDecodesOnFirstUse)
+            ) {
                 ResourceMode.FULL
-            } else if (allPatches.any { patch -> patch.anyRecursively { it is RawResourcePatch } }) {
+            } else if (anyRawResourcePatch) {
                 ResourceMode.RAW_ONLY
             } else {
                 ResourceMode.NONE
@@ -124,12 +136,12 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             onPatchExecuting(this)
             return try {
                 if (config.validate) {
-                    val patchClasses = context.bytecodeContext.patchClasses
-                    val indexStartNanos = patchClasses.indexBuildNanos
+                    fun preparationNanos() = context.bytecodeContext.preparationNanos + context.resourceContext.decodeNanos
+
+                    val preparationStartNanos = preparationNanos()
                     val startNanos = System.nanoTime()
                     execute(context)
-                    val indexBuildNanos = patchClasses.indexBuildNanos - indexStartNanos
-                    val executeNanos = System.nanoTime() - startNanos - indexBuildNanos
+                    val executeNanos = System.nanoTime() - startNanos - (preparationNanos() - preparationStartNanos)
                     if (executeNanos > SLOW_PATCH_NANOS) {
                         logger.info(
                             "Patch took ${executeNanos.nanoseconds.toLogString()} to execute: $this"
@@ -145,14 +157,21 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             }.also { executedPatches[this] = it }
         }
 
+        // Resources can be decoded after the DEX files, so this cannot be left to decoding them.
+        config.initializeTemporaryFilesDirectories()
+
         // Prevent decoding the app manifest twice if it is not needed.
         if (config.resourceMode != ResourceMode.NONE) {
             context.resourceContext.decodeResources(config.resourceMode)
             context.resourceContext.finishDecoding()
+        } else {
+            context.resourceContext.decodeOnFirstUse = true
         }
 
         if (config.bytecodeMode != BytecodeMode.NONE) {
             context.bytecodeContext.decodeDexFiles()
+        } else {
+            context.bytecodeContext.decodeOnFirstUse = true
         }
 
         logger.info("Executing patches")

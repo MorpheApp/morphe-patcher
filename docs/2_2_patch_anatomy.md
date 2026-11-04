@@ -28,7 +28,7 @@ val COMPATIBILITY_XYZ = Compatibility(
   )
 )
 
-val disableAdsPatch = bytecodePatch(
+val disableAdsPatch = patch(
     name = "Disable ads",
     description = "Disable ads in the app.",
     default = true
@@ -90,7 +90,7 @@ Multiple types are already built into Morphe Patcher and are supported by any ap
 To define an option, use the available `option` functions:
 
 ```kt
-val patch = bytecodePatch(name = "Patch", default = true) {
+val patch = patch(name = "Patch", default = true) {
     // Add an inbuilt option and delegate it to a property.
     val value by stringOption(name = "Inbuilt option")
 
@@ -124,7 +124,7 @@ Options can be declared outside a patch and added to a patch manually:
 ```kt
 val option = stringOption(name = "Option")
 
-bytecodePatch(name = "Patch") {
+patch(name = "Patch") {
     val value by option()
 }
 ```
@@ -151,7 +151,7 @@ After compiling the above code as a DEX file, you can add the DEX file as a reso
 and use it in a patch:
 
 ```kt
-val complexPatch = bytecodePatch(name = "Complex patch", default = true) {
+val complexPatch = patch(name = "Complex patch", default = true) {
     extendWith("complex-patch.mpe")
 
     execute {
@@ -160,13 +160,13 @@ val complexPatch = bytecodePatch(name = "Complex patch", default = true) {
 }
 ```
 
-Morphe Patcher merges the classes from the extension into `context.classes` before executing the patch.
+Morphe Patcher merges the classes from the extension into the app before executing the patch.
 When the patch is executed, it can reference the classes and methods from the extension.
 
 #### Adding a variable number of extensions
 
 Sometimes the extensions to merge are not known when the patch is defined — for example, when they
-are derived by a resource patch that the bytecode patch depends on. Because `extendWith` is evaluated
+are derived by a patch that this patch depends on. Because `extendWith` is evaluated
 when the patch is built, looping over a not-yet-populated list has no effect.
 
 Use `extendWithAll` to register a provider that is evaluated at patch time instead. Because a patch's
@@ -176,14 +176,14 @@ dependencies are executed first, the provider sees whatever the dependency produ
 // Shared between the dependency and the patch.
 internal val derivedExtensions = mutableListOf<Supplier<InputStream>>()
 
-val prepareExtensionsPatch = resourcePatch {
+val prepareExtensionsPatch = patch {
     execute {
         // Derive a variable number of DEX files and expose them.
         derivedExtensions += Supplier { openDerivedDexStream() }
     }
 }
 
-val complexPatch = bytecodePatch(name = "Complex patch", default = true) {
+val complexPatch = patch(name = "Complex patch", default = true) {
     dependsOn(prepareExtensionsPatch)
 
     // Evaluated at patch time, after the dependency has run and populated the list.
@@ -213,9 +213,9 @@ A simple real-world example would be a patch that opens a resource file of the a
 Other patches that depend on this patch can write to the file, and the finalization block can close the file.
 
 ```kt
-val patch = bytecodePatch(name = "Patch", default = true) {
+val patch = patch(name = "Patch", default = true) {
     dependsOn(
-        bytecodePatch(name = "Dependency") {
+        patch(name = "Dependency") {
             execute {
                 print("1")
             }
