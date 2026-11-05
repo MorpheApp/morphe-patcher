@@ -11,7 +11,7 @@ a fingerprint is declared.
 1. 🔍 Find immutable classes with `classDefBy(String)`
 2. 🔄️️ Change immutable classes to mutable with `mutableClassDefBy(String)` and `mutableClassDefBy(ClassDef)`
 3. 💾 Read and write resource files with `resourceFile(String, Boolean)` and `deleteResource(String)`
-4. 📃 Read and write DOM files using `document(String)` and  `document(InputStream)`
+4. 📃 Read and write DOM files using `document(String)` and  `document(InputStream)`, or edit XML files without decoding them with `resourceXml(String)` and `readXml(InputStream)`
 5. 📜 List the entries of the APK being patched with `listApkEntries(String)`
 6. 🗂️ Decode resources when they are needed with `decode(String...)` and `listDecodableFiles(String)`
 7. 🧮 Find free registers to use in injected code with `findFreeRegister(Int, Int...)` and `getFreeRegisterProvider(Int, Int, Int...)`
@@ -141,6 +141,61 @@ execute {
 }
 ```
 
+#### 📃 `resourceXml(String)`, `resourceXmlOrNull(String)` and `readXml(InputStream)`
+
+`resourceXml` opens an XML file of the APK as a document, without decoding it to text first:
+
+- A compiled XML file, such as a layout, a file of `res/xml` or the manifest, is edited in its binary form.
+- A values file, such as `res/values-de/strings.xml`, is edited in the resource table it is generated from.
+  Only the resources a patch looks up with `resource(String)` are decoded, unless the patch lists the children
+  of the root, which decodes all of them.
+- A file a patch added, or one that was already decoded, is read and written as text.
+
+This is much faster than `document`, which decodes the file to text, parses it and writes it back, after which
+the text is encoded again. Close the document when done, which `use` does, to keep the changes. Attributes are
+read and set as they are written in XML, such as `@string/title` or `match_parent`. Setting an attribute Android
+does not know fails right away. A reference to a resource a patch adds, such as `@drawable/morphe_icon` or
+`@+id/morphe_button`, is resolved when the APK is written.
+
+```kt
+execute {
+    resourceXml("res/layout/player.xml").use { layout ->
+        val button = layout.elementByAttribute("android:id", "@id/play_button")
+        button.setAttribute("android:visibility", "gone")
+
+        // Adds an element before the button.
+        button.parent!!.insertChild(button.index, "ImageView") {
+            setAttribute("android:id", "@+id/morphe_button")
+            setAttribute("android:src", "@drawable/morphe_icon")
+        }
+    }
+
+    // Only this string is decoded, not the thousands of others of the file.
+    resourceXml("res/values/strings.xml").use { strings ->
+        strings.resource("app_name").text = "Morphe"
+    }
+
+    // Adds or replaces resources, without reading the file at all.
+    resourceXml("res/values-night/colors.xml", copy = false).use { colors ->
+        colors.root.appendChild("color") {
+            setAttribute("name", "morphe_background")
+            text = "#FF000000"
+        }
+    }
+
+    // Copies elements of XML bundled with the patches.
+    readXml(inputStream).use { source ->
+        resourceXml("res/xml/preferences.xml").use { preferences ->
+            source.root.children.forEach { preferences.root.appendCopy(it) }
+        }
+    }
+}
+```
+
+`resourceXmlOrNull` returns null instead of failing when the APK has no such file. `resourceFile`, `document` and
+`decode` can be used on the same files: reading a file this way writes out what a document changed first, and
+from then on the file is read as text.
+
 #### 📜 `listApkEntries(String)`
 
 The `listApkEntries` function lists the entries of the APK being patched, without staging them
@@ -162,8 +217,8 @@ changed or deleted.
 
 Resources are decoded when patches need them:
 
-- The manifest is decoded when a patch first uses a resource.
-- A file a patch reads by its path, with `resourceFile(String, Boolean)` or `document(String)`, is decoded then.
+- A file a patch reads by its path, with `resourceFile(String, Boolean)` or `document(String)`, is decoded then,
+  the manifest included.
 - A directory only holds the files decoded or added so far. A patch that lists or walks a directory must
   first decode what it looks for with `decode`.
 

@@ -14,7 +14,9 @@ import app.morphe.patcher.StringComparisonType
 import app.morphe.patcher.resource.ResourceIds
 import app.morphe.patcher.resource.hasResourceId
 import app.morphe.patcher.resource.resourceId
+import app.morphe.patcher.resource.xml.TextXmlDocument
 import app.morphe.patcher.util.Document
+import app.morphe.patcher.xml.ResourceXml
 import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import com.android.tools.smali.dexlib2.iface.ClassDef
 import java.io.File
@@ -246,6 +248,66 @@ fun document(path: String): Document = currentResources.document(path)
  * @param packageName The package whose resource to read.
  */
 fun document(path: String, packageName: String): Document = currentResources.document(path, packageName)
+
+/**
+ * Open an XML file of the APK being patched, such as `res/layout/main.xml`, `res/values/strings.xml` or
+ * `AndroidManifest.xml`, to read or change it. Close it when done, which [use] does, to keep the changes.
+ *
+ * Unlike [document], the file is not decoded to text: a compiled XML file is edited in its binary form, and
+ * a values file is edited in the resource table it is generated from, decoding only the resources a patch
+ * looks up. A file that was decoded already, or that a patch added, is read and written as text.
+ *
+ * ```kt
+ * resourceXml("res/values/strings.xml").use { strings ->
+ *     strings.resource("app_name").text = "Morphe"
+ * }
+ * ```
+ *
+ * @param path The path of the file.
+ * @param copy False to open a values file only to add or replace resources, without reading the resources
+ * it has. A resource added this way replaces the one of the same name, and none is removed. Such a document
+ * starts out empty, and can be opened for a configuration the APK does not have, such as
+ * `res/values-night/styles.xml`.
+ * @param packageName The package whose resource to open. Defaults to the package name of the APK.
+ * @throws PatchException If the APK has no such file.
+ * @see resourceXmlOrNull
+ */
+fun resourceXml(path: String, copy: Boolean = true, packageName: String? = null): ResourceXml =
+    currentResources.xml(path, copy, packageName) ?: throw PatchException("Could not find the XML file $path")
+
+/**
+ * Open an XML file of the APK being patched as [resourceXml] does, or get null if the APK has no such file.
+ *
+ * @param path The path of the file.
+ * @param packageName The package whose resource to open. Defaults to the package name of the APK.
+ */
+fun resourceXmlOrNull(path: String, packageName: String? = null): ResourceXml? =
+    currentResources.xml(path, true, packageName)
+
+/**
+ * Read XML text from a stream, usually a file bundled with patches, to copy elements from it into a
+ * file of the APK with [app.morphe.patcher.xml.XmlElement.appendCopy] or
+ * [app.morphe.patcher.xml.XmlElement.insertCopy].
+ *
+ * This is not a file of the APK, and it is unrelated to [resourceXml]: values stay exactly as the text
+ * writes them, nothing is looked up in the resource table, and compiled XML cannot be read. The document
+ * can be changed, but it is never written anywhere. To only read a file of the APK, open it with
+ * [resourceXml] and leave it unchanged.
+ *
+ * ```kt
+ * // Adds the buttons a patch bundles to a layout of the app.
+ * val stream = inputStreamFromBundledResource("buttons", "layout/buttons.xml")!!
+ * stream.use { readXml(it) }.use { buttons ->
+ *     resourceXml("res/layout/player.xml").use { layout ->
+ *         val container = layout.elementByAttribute("android:id", "@id/controls")
+ *         buttons.root.children.forEach { container.appendCopy(it) }
+ *     }
+ * }
+ * ```
+ *
+ * @param inputStream The XML text, which is read but not closed.
+ */
+fun readXml(inputStream: InputStream): ResourceXml = TextXmlDocument.read(inputStream)
 
 /**
  * Get a file of the APK being patched.

@@ -32,8 +32,13 @@ import app.morphe.patcher.resource.processor.ResourceIdProcessor
 import app.morphe.patcher.resource.processor.StringsXmlEscapeProcessor
 import app.morphe.patcher.resource.processor.StringsXmlSanitizeProcessor
 import app.morphe.patcher.resource.processor.StringsXmlUnEscapeProcessor
+import app.morphe.patcher.resource.xml.MANIFEST_PATH
+import app.morphe.patcher.resource.xml.ResourceXmlHost
+import app.morphe.patcher.resource.xml.ResourceXmlStore
+import app.morphe.patcher.resource.xml.XmlValueException
 import app.morphe.patcher.runTask
 import app.morphe.patcher.util.Document
+import app.morphe.patcher.xml.ResourceXml
 import app.morphe.patcher.util.FileUtils.safelyDelete
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import com.reandroid.apk.ApkModule
@@ -75,7 +80,7 @@ import kotlin.time.measureTime
  * above 999. A patch that adds a resource configuration the app must never select on its own uses
  * a code of this range for one of the two.
  */
-private val PATCH_MOBILE_CODES = 1000..9999
+internal val PATCH_MOBILE_CODES = 1000..9999
 
 /**
  * Set to `true` to rebuild the resource table from every decoded values file instead of encoding
@@ -312,6 +317,60 @@ internal class ArsclibResourceCoder(
     private var validatedModule: ApkModule? = null
 
     /**
+     * Whether the manifest was decoded to text. When resources are decoded on request, it is decoded only
+     * once something reads it as a file, and patches otherwise edit it in its binary form.
+     */
+    @Volatile
+    private var manifestDecoded = false
+
+    /**
+     * The XML files patches opened as documents: compiled files and values files they changed are held
+     * there until the APK is written, instead of being decoded to text.
+     */
+    internal val xmlStore = ResourceXmlStore(object : ResourceXmlHost {
+        override val onRequestDecoder get() = this@ArsclibResourceCoder.onRequestDecoder
+        override val packageName get() = packageInfo.packageName
+        override fun aliasOf(path: String) = this@ArsclibResourceCoder.aliasOf(path)
+        override fun file(path: String, packageName: String, copy: Boolean) = getFile(path, packageName, copy)
+        override fun decodedManifest(): File {
+            ensureManifestDecoded()
+            return workingDir.resolve(MANIFEST_PATH)
+        }
+        override val manifestFile get() = workingDir.resolve(MANIFEST_PATH)
+        override val manifestDecoded get() = this@ArsclibResourceCoder.manifestDecoded
+        override fun onManifestWritten() {
+            this@ArsclibResourceCoder.manifestDecoded = true
+        }
+        override fun isDeleted(file: File) = !file.exists() && pathKey(file) in fileSnapshotCache
+        override fun markChanged(file: File) {
+            fileSnapshotCache[pathKey(file)] = UNDECODED_SNAPSHOT
+        }
+        override fun decodeValues(decodablePackage: DecodablePackage, paths: List<String>) =
+            decodeOnRequest(decodablePackage, paths)
+        override fun onDocumentsClosed() = releaseInputModuleUnlessRetainable()
+    })
+
+    /**
+     * Opens an XML file of the APK as a document, see [ResourceXmlStore.open].
+     */
+    override fun openXml(path: String, packageName: String?, copy: Boolean): ResourceXml? =
+        xmlStore.open(path, packageName, copy)
+
+    /**
+     * Decodes the manifest to text, if resources are decoded on request and it is not decoded yet. A
+     * manifest a patch changed in its binary form is written out instead.
+     */
+    private fun ensureManifestDecoded() {
+        val decoder = onRequestDecoder ?: return
+        // The lock of the store, which reads the manifest under it.
+        synchronized(xmlStore) {
+            if (manifestDecoded) return
+            if (!xmlStore.writeOutManifest()) decoder.decodeManifest()
+            manifestDecoded = true
+        }
+    }
+
+    /**
      * Recursively scan the working directory and build a map of file paths to their metadata.
      */
     internal fun buildFileSnapshot(): MutableMap<String, FileSnapshot> {
@@ -501,7 +560,7 @@ internal class ArsclibResourceCoder(
      */
     @Synchronized
     private fun releaseInputModuleUnlessRetainable() {
-        if (holdInputModule || Runtime.getRuntime().maxMemory() >= RETAINED_TABLE_MIN_HEAP) return
+        if (holdInputModule || xmlStore.hasOpenDocuments || Runtime.getRuntime().maxMemory() >= RETAINED_TABLE_MIN_HEAP) return
         inputModule?.close()
         inputModule = null
         // Closing keeps the parsed table, so no reference to the module may remain for it to be freed.
@@ -676,7 +735,7 @@ internal class ArsclibResourceCoder(
 
         timings.measure("packageJson") { decoder.writePackageInfo() }
         timings.measure("uncompressedJson") { decoder.writeUncompressedFiles() }
-        timings.measure("manifest") { decoder.decodeManifest() }
+        // The manifest is decoded once something reads it as a file, see ensureManifestDecoded.
 
         timings.measure("mkdirs") {
             decoder.packages.values.forEach { decodablePackage ->
@@ -770,10 +829,8 @@ internal class ArsclibResourceCoder(
         // Absent means the platform default (true since API 23), so treat it as a value rather
         // than skipping: adding or removing the attribute is exactly the interesting case.
         val original = originalExtractNativeLibs ?: true
-        val current = Document(getFile("AndroidManifest.xml")).use { manifest ->
-            val node = manifest.getElementsByTagName("application").item(0) as? Element
-                ?: return@use null
-            node.getAttribute("android:extractNativeLibs").takeIf { it.isNotEmpty() }?.toBooleanStrictOrNull()
+        val current = xmlStore.readManifest { manifest ->
+            manifest.elements("application").firstOrNull()?.attribute("android:extractNativeLibs")?.toBooleanStrictOrNull()
         } ?: true
         if (current == original) return
 
@@ -863,10 +920,7 @@ internal class ArsclibResourceCoder(
         compiling.finished(CompilingStage.PREPARING)
 
         val newPackageName = timings.measure("packageName") {
-            Document(getFile("AndroidManifest.xml")).use { manifest ->
-                val manifestNode = manifest.getElementsByTagName("manifest").item(0) as Element
-                manifestNode.getAttribute("package")
-            }
+            xmlStore.readManifest { manifest -> manifest.root.attribute("package").orEmpty() }
         }
         val originalPackageName = packageInfo.packageName
         val packageRenamed = originalPackageName != newPackageName
@@ -922,7 +976,8 @@ internal class ArsclibResourceCoder(
                 ResourceIdProcessor(
                     { path -> getFile(path, null, false) },
                     publicIds,
-                    modifiedResResources
+                    modifiedResResources,
+                    heldDeclarations = heldDeclarations(originalPackageName),
                 ).process { done, total -> compiling.report(CompilingStage.GENERATING_IDS, done.toLong(), total.toLong()) }
             }
 
@@ -948,6 +1003,9 @@ internal class ArsclibResourceCoder(
                     "Encoding the changed resources into the resource table failed, rebuilding the table: $cause",
                     cause
                 )
+                // The rebuild reads decoded files only, so what patches changed as documents is written out.
+                modifiedResResources += xmlStore.writeOutAll()
+                ensureManifestDecoded()
                 // The rebuild reads every values file, so whatever was not decoded on request is decoded now.
                 // No patch edits what is decoded now, so the files are not read back for a checksum.
                 onRequestDecoder?.packages?.values?.forEach { decodeOnRequest(it, it.paths.toList(), checksums = false) }
@@ -974,6 +1032,9 @@ internal class ArsclibResourceCoder(
                 } catch (failure: DexFilesFailure) {
                     // Not a failure of encoding the resources, which rebuilding the table would not help.
                     throw failure
+                } catch (failure: XmlValueException) {
+                    // A value no resource table can resolve, which rebuilding the table would not help either.
+                    throw PatchException(failure.message, failure.cause)
                 } catch (exception: Exception) {
                     fallBack(exception)
                 } catch (error: LinkageError) {
@@ -982,8 +1043,31 @@ internal class ArsclibResourceCoder(
                 }
             }
 
+            modifiedResResources += xmlStore.writeOutAll()
+            ensureManifestDecoded()
             encodeResourcesFully(outputApk, packageRenamed, omitEntry, write, timings).also { timings.log() }
         }
+    }
+
+    /**
+     * The resources and ids the documents patches changed declare, which get public ids along with those
+     * of the changed files of [packageName].
+     */
+    private fun heldDeclarations(packageName: String): List<ResourceIdProcessor.HeldDeclarations> {
+        val directory = packageDirectories[packageName] ?: return emptyList()
+        val values = xmlStore.changedValues().filter { it.packageName == packageName }.map { edits ->
+            ResourceIdProcessor.HeldDeclarations(
+                directory.resolve(edits.path),
+                edits.elements.values.map {
+                    ResourceIdProcessor.declaredType(it.tag, it.attributes["type"]) to it.attributes["name"]
+                },
+                emptyList(),
+            )
+        }
+        val files = xmlStore.changedResourceFiles().filter { it.packageName == packageName }.map { state ->
+            ResourceIdProcessor.HeldDeclarations(directory.resolve(state.path), emptyList(), state.declaredIds())
+        }
+        return values + files
     }
 
     /**
@@ -1064,15 +1148,20 @@ internal class ArsclibResourceCoder(
                         originalPackageName,
                         newPackageName,
                         packagesToEncode,
-                    ) { done, total -> compiling.report(CompilingStage.ENCODING, done.toLong(), total.toLong()) }
+                        onProgress = { done, total -> compiling.report(CompilingStage.ENCODING, done.toLong(), total.toLong()) },
+                        heldValues = xmlStore.changedValues(),
+                        heldFiles = xmlStore.changedResourceFiles(),
+                        heldManifest = if (manifestDecoded) null else xmlStore.changedManifest(),
+                    )
                 }
                 if (failIncrementalForTest) throw IllegalStateException("The incremental encoder fails for a test")
             }.roundToTenths()
 
             val (droppedEntries, omittedEntries) = timings.measure("dropOmit") {
                 // A rename needs no rebuild here: compiled resources reference the package by id.
+                // A manifest no patch changed is not encoded, and stays as the input APK has it.
                 val droppedEntries = changedArchiveEntries(packageRenamed = false)
-                    .filter { it !in encoder.encodedEntries }
+                    .filter { it !in encoder.encodedEntries && it != MANIFEST_PATH }
                     .count { module.zipEntryMap.remove(it) != null }
                 val omittedEntries = module.omitEntries(omitEntry)
                 module.zipEntryMap.autoSortApkFiles()
@@ -1691,10 +1780,13 @@ internal class ArsclibResourceCoder(
             // Only resource paths are package scoped, so do not read the manifest for the rest.
             val pkgName = packageName ?: packageInfo.packageName
             val file = packageDirectories[pkgName]?.resolve(aliasedPath) ?: throw PatchException("Package $pkgName not found")
+            // What a patch changed of the file as a document is written out, so that the file holds it.
+            xmlStore.writeOut(aliasedPath, pkgName)
             if (copy) onRequestDecoder?.packages?.get(pkgName)?.let { decodeOnRequest(it, listOf(aliasedPath)) }
             file
-        } else if (aliasedPath == "AndroidManifest.xml") {
+        } else if (aliasedPath == MANIFEST_PATH) {
             // TODO: Doesn't handle modifications to binary AndroidManifest.xml, but then again neither does apktool in raw mode.
+            ensureManifestDecoded()
             workingDir.resolve(aliasedPath)
         } else {
             otherResourcesRootDirectory.resolve(aliasedPath).also { file ->
@@ -1754,6 +1846,8 @@ internal class ArsclibResourceCoder(
 
         onRequestDecoder?.let { decoder ->
             val decodablePackage = decoder.packages[pkgName] ?: throw PatchException("Package $pkgName not found")
+            if (matcher.matches(MANIFEST_PATH)) ensureManifestDecoded()
+            xmlStore.writeOutMatching(pkgName, matcher::matches)
             decodeOnRequest(decodablePackage, decodablePackage.matchingPaths(matcher).toList())
             extractRootEntriesOnRequest(decoder.rootEntries.filter(matcher::matches))
         }
@@ -2034,6 +2128,7 @@ internal class ArsclibResourceCoder(
             val packageDirectory = packageDirectories[pkgName] ?: throw PatchException("Package $pkgName not found")
             val file = resolveInside(packageDirectory, alias)
                 ?: throw PatchException("Refusing to delete \"$path\": it escapes the working directory")
+            xmlStore.forget(alias, pkgName)
             Files.deleteIfExists(file.toPath())
 
             // A resource that was never decoded has no copy whose removal the snapshot diff would notice,

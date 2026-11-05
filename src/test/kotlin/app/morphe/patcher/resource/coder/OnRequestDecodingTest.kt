@@ -76,10 +76,11 @@ internal class OnRequestDecodingTest {
     }
 
     @Test
-    fun `only the manifest is decoded up front`() {
+    fun `nothing is decoded up front and the manifest is decoded when it is read`() {
         val coder = decodedCoder()
 
-        assertTrue(coder.workingDir.resolve("AndroidManifest.xml").isFile)
+        assertFalse(coder.workingDir.resolve("AndroidManifest.xml").exists())
+        assertTrue(coder.getFile("AndroidManifest.xml").isFile)
         assertTrue(coder.packageDirectory.resolve("res").files().isEmpty())
         assertTrue(
             coder.packageDirectory.resolve("res/drawable-xxhdpi").isDirectory,
