@@ -115,7 +115,7 @@ execute {
 }
 ```
 
-#### 📃 `resourceXml(String)`, `resourceXmlOrNull(String)` and `readXml(InputStream)`
+#### 📃 Read and write DOM files using `document(String)` and `document(InputStream)`, or edit XML files without decoding them with `resourceXml(String)` and `readXml(InputStream)`
 
 `resourceXml` is the preferred way to read and edit XML files of the APK. It edits compiled XML and the resource
 table directly, without decoding the file to text, so it is much faster than `document`. Close the document to keep
@@ -161,8 +161,6 @@ execute {
     }
 }
 ```
-
-#### 📃 `document(String)`  and  `document(InputStream)`
 
 The `document` function decodes a file to text and edits it as a DOM. It is much slower than `resourceXml`,
 so use `resourceXml` when possible. Both can be used on the same file: `document` first writes out what a
