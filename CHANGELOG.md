@@ -1,3 +1,10 @@
+# [2.3.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.3.0-dev.1...v2.3.0-dev.2) (2026-11-05)
+
+
+### Features
+
+* Report progress of the work besides executing patches ([2564834](https://github.com/MorpheApp/morphe-patcher/commit/2564834b0c5d9181c2e209dcfe1589447260dc15))
+
 # [2.3.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0...v2.3.0-dev.1) (2026-11-05)
 
 
