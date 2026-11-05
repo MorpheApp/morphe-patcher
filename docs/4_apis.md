@@ -115,47 +115,17 @@ execute {
 }
 ```
 
-#### 📃 `document(String)`  and  `document(InputStream)`
-
-The `document` function is used to read and write DOM files.
-
-```kt
-execute {
-    document("res/values/strings.xml").use { document ->
-        val element = document.createElement("string").apply {
-            textContent = "Hello, World!"
-        }
-        document.documentElement.appendChild(element)
-    }
-}
-```
-
-You can also read documents from an `InputStream`:
-
-```kt
-execute {
-    val inputStream = classLoader.getResourceAsStream("some.xml")
-    document(inputStream).use { document ->
-        // ...
-    }
-}
-```
-
 #### 📃 `resourceXml(String)`, `resourceXmlOrNull(String)` and `readXml(InputStream)`
 
-`resourceXml` opens an XML file of the APK as a document, without decoding it to text first:
+`resourceXml` is the preferred way to read and edit XML files of the APK. It edits compiled XML and the resource
+table directly, without decoding the file to text, so it is much faster than `document`. Close the document to keep
+the changes, which `use` does.
 
-- A compiled XML file, such as a layout, a file of `res/xml` or the manifest, is edited in its binary form.
-- A values file, such as `res/values-de/strings.xml`, is edited in the resource table it is generated from.
-  Only the resources a patch looks up with `resource(String)` are decoded, unless the patch lists the children
-  of the root, which decodes all of them.
-- A file a patch added, or one that was already decoded, is read and written as text.
-
-This is much faster than `document`, which decodes the file to text, parses it and writes it back, after which
-the text is encoded again. Close the document when done, which `use` does, to keep the changes. Attributes are
-read and set as they are written in XML, such as `@string/title` or `match_parent`. Setting an attribute Android
-does not know fails right away. A reference to a resource a patch adds, such as `@drawable/morphe_icon` or
-`@+id/morphe_button`, is resolved when the APK is written.
+- Attributes are read and set as written in XML, such as `@string/title` or `match_parent`.
+- A reference to a resource a patch adds, such as `@+id/morphe_button`, is resolved when the APK is written.
+- `resource(String)` looks up one resource of a values file without decoding the rest of it.
+- `resourceXmlOrNull` returns null when the APK has no such file.
+- `readXml` reads XML bundled with the patches, to copy elements from it.
 
 ```kt
 execute {
@@ -192,9 +162,33 @@ execute {
 }
 ```
 
-`resourceXmlOrNull` returns null instead of failing when the APK has no such file. `resourceFile`, `document` and
-`decode` can be used on the same files: reading a file this way writes out what a document changed first, and
-from then on the file is read as text.
+#### 📃 `document(String)`  and  `document(InputStream)`
+
+The `document` function decodes a file to text and edits it as a DOM. It is much slower than `resourceXml`,
+so use `resourceXml` when possible. Both can be used on the same file: `document` first writes out what a
+`resourceXml` document changed.
+
+```kt
+execute {
+    document("res/values/strings.xml").use { document ->
+        val element = document.createElement("string").apply {
+            textContent = "Hello, World!"
+        }
+        document.documentElement.appendChild(element)
+    }
+}
+```
+
+You can also read documents from an `InputStream`:
+
+```kt
+execute {
+    val inputStream = classLoader.getResourceAsStream("some.xml")
+    document(inputStream).use { document ->
+        // ...
+    }
+}
+```
 
 #### 📜 `listApkEntries(String)`
 
