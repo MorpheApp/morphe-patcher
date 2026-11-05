@@ -11,6 +11,8 @@ import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.PathMap
 import app.morphe.patcher.resource.PathPatterns
 import app.morphe.patcher.resource.writeJson
+import app.morphe.patcher.resource.xml.BinaryXmlState
+import app.morphe.patcher.resource.xml.ValuesTable
 import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ResFile
 import com.reandroid.apk.UncompressedFiles
@@ -26,6 +28,9 @@ import com.reandroid.arsc.container.SpecTypePair
 import com.reandroid.arsc.value.Entry
 import com.reandroid.arsc.value.ResConfig
 import com.reandroid.utils.io.IOUtil
+import com.reandroid.xml.DocumentSerializer
+import com.reandroid.xml.XMLDocument
+import com.reandroid.xml.XMLElement
 import com.reandroid.xml.XMLFactory
 import com.reandroid.xml.XmlIndentingSerializer
 import com.reandroid.xml.XmlSerializerWrapper
@@ -333,6 +338,106 @@ internal class OnRequestDecoder(
             file.takeIf { it.isFile }
         }
     }
+
+    /**
+     * The package of the resource table the manifest refers to, as [decodeManifest] decodes it with.
+     */
+    private fun manifestPackageBlock(module: ApkModule): PackageBlock? {
+        val manifestBlock = module.androidManifest
+        return manifestBlock.packageBlock ?: module.tableBlock.let { tableBlock ->
+            tableBlock.pickOne(manifestBlock.guessCurrentPackageId()) ?: tableBlock.pickOne()
+        }
+    }
+
+    /**
+     * Reads the manifest of the APK in its binary form, bound to the package it refers to.
+     */
+    @Synchronized
+    fun manifestXml(): BinaryXmlState {
+        val module = currentState().module
+        val manifestBlock = AndroidManifestBlock()
+        val source = module.zipEntryMap.getInputSource(AndroidManifestBlock.FILE_NAME)
+        if (source != null) {
+            source.openStream().use { manifestBlock.readBytes(it) }
+        } else {
+            manifestBlock.readBytes(module.androidManifest.bytes.inputStream())
+        }
+        val packageBlock = manifestPackageBlock(module)
+        manifestBlock.packageBlock = packageBlock
+        return BinaryXmlState(
+            AndroidManifestBlock.FILE_NAME,
+            AndroidManifestBlock.FILE_NAME,
+            packageBlock?.name.orEmpty(),
+            manifestBlock,
+        )
+    }
+
+    /**
+     * The package of the current resource table the manifest refers to, to bind a manifest read before to.
+     */
+    @Synchronized
+    fun manifestPackageBlock(): PackageBlock? = manifestPackageBlock(currentState().module)
+
+    /**
+     * Reads a resource file of a package in its binary form, bound to its package.
+     *
+     * @param path A path of [DecodablePackage.resourceFiles].
+     * @return The file, or null if it is not compiled XML.
+     */
+    @Synchronized
+    fun binaryXml(decodablePackage: DecodablePackage, path: String): BinaryXmlState? {
+        val archiveName = decodablePackage.resourceFiles[path] ?: return null
+        val state = currentState()
+        val resFile = state.resourceFiles[archiveName] ?: return null
+        if (!resFile.isBinaryXml) return null
+
+        val document = ResXmlDocument()
+        resFile.inputSource.openStream().use { document.readBytes(it) }
+        document.packageBlock = state.module.packageBlock(decodablePackage)
+        return BinaryXmlState(path, archiveName, decodablePackage.name, document)
+    }
+
+    /**
+     * The resources of a values file of a package in the resource table, decoded as [decode] decodes them
+     * into the file.
+     */
+    fun valuesTable(decodablePackage: DecodablePackage, valuesFile: DecodablePackage.ValuesFile): ValuesTable =
+        object : ValuesTable {
+            private fun locate(): Pair<SpecTypePair, ResConfig>? {
+                val packageBlock = currentState().module.packageBlock(decodablePackage)
+                val specTypePair = packageBlock.getSpecTypePair(valuesFile.type) ?: return null
+                val resConfig = specTypePair.listResConfig().firstOrNull { it.qualifiers == valuesFile.qualifiers }
+                    ?: return null
+                return specTypePair to resConfig
+            }
+
+            override fun names(): List<String> = synchronized(this@OnRequestDecoder) {
+                val (specTypePair, resConfig) = locate() ?: return emptyList()
+                val names = mutableListOf<String>()
+                val resources = specTypePair.resources
+                while (resources.hasNext()) {
+                    val resourceEntry = resources.next()
+                    val entry = resourceEntry.get(resConfig) ?: continue
+                    if ((entry.isComplex || !entry.isNull) && !isFileEntry.test(entry)) {
+                        resourceEntry.name?.let(names::add)
+                    }
+                }
+                names
+            }
+
+            override fun decode(names: Collection<String>?): List<XMLElement> = synchronized(this@OnRequestDecoder) {
+                withDecodeSetting {
+                    val (specTypePair, resConfig) = locate() ?: return emptyList()
+                    val document = XMLDocument()
+                    val serializer = ArchiveNameAliasingSerializer(DocumentSerializer(document))
+                    serializer.startTag(null, PackageBlock.TAG_resources)
+                    val resources = names?.mapNotNull { specTypePair.getResource(it) }?.iterator() ?: specTypePair.resources
+                    XmlCoder.getInstance().VALUES_XML.decode(serializer, resources, resConfig, isFileEntry)
+                    serializer.endTag(null, PackageBlock.TAG_resources)
+                    document.documentElement?.childElementList.orEmpty()
+                }
+            }
+        }
 
     private fun decodePublicXml(packageBlock: PackageBlock, file: File) {
         file.parentFile.mkdirs()

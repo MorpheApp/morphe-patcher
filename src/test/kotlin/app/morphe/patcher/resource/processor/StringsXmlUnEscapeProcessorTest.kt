@@ -89,6 +89,12 @@ internal object StringsXmlUnEscapeProcessorTest {
     }
 
     @Test
+    fun `process keeps escaped double quotes around a string value`() {
+        val result = processAndRead("""<resources><string name="t">\"hello world\"</string></resources>""")
+        assertContains(result, "\"hello world\"")
+    }
+
+    @Test
     fun `process does not unescape text outside string tags`() {
         val result = processAndRead("""<resources><other name="t">it\'s</other></resources>""")
         // Text outside <string> should not be unescaped

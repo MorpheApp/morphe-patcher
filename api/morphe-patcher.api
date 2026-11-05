@@ -1183,8 +1183,13 @@ public final class app/morphe/patcher/patch/PatchFunctionsKt {
 	public static final fun mutableClassDefBy (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public static final fun mutableClassDefByOrNull (Ljava/lang/String;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public static final fun mutableClassDefByOrNull (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
+	public static final fun readXml (Ljava/io/InputStream;)Lapp/morphe/patcher/xml/ResourceXml;
 	public static final fun resourceFile (Ljava/lang/String;Z)Ljava/io/File;
 	public static synthetic fun resourceFile$default (Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
+	public static final fun resourceXml (Ljava/lang/String;ZLjava/lang/String;)Lapp/morphe/patcher/xml/ResourceXml;
+	public static synthetic fun resourceXml$default (Ljava/lang/String;ZLjava/lang/String;ILjava/lang/Object;)Lapp/morphe/patcher/xml/ResourceXml;
+	public static final fun resourceXmlOrNull (Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/ResourceXml;
+	public static synthetic fun resourceXmlOrNull$default (Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lapp/morphe/patcher/xml/ResourceXml;
 }
 
 public final class app/morphe/patcher/patch/PatchKt {
@@ -1949,5 +1954,67 @@ public final class app/morphe/patcher/util/smali/InlineSmaliCompilerKt {
 	public static synthetic fun toInstruction$default (Ljava/lang/String;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;ILjava/lang/Object;)Lcom/android/tools/smali/dexlib2/builder/BuilderInstruction;
 	public static final fun toInstructions (Ljava/lang/String;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;)Ljava/util/List;
 	public static synthetic fun toInstructions$default (Ljava/lang/String;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;ILjava/lang/Object;)Ljava/util/List;
+}
+
+public abstract interface class app/morphe/patcher/xml/ResourceXml : java/io/Closeable {
+	public fun elementByAttribute (Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public fun elementByAttributeOrNull (Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public fun elements (Ljava/lang/String;)Lkotlin/sequences/Sequence;
+	public static synthetic fun elements$default (Lapp/morphe/patcher/xml/ResourceXml;Ljava/lang/String;ILjava/lang/Object;)Lkotlin/sequences/Sequence;
+	public abstract fun getRoot ()Lapp/morphe/patcher/xml/XmlElement;
+	public fun resource (Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public fun resourceOrNull (Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+}
+
+public final class app/morphe/patcher/xml/ResourceXml$DefaultImpls {
+	public static fun elementByAttribute (Lapp/morphe/patcher/xml/ResourceXml;Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public static fun elementByAttributeOrNull (Lapp/morphe/patcher/xml/ResourceXml;Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public static fun elements (Lapp/morphe/patcher/xml/ResourceXml;Ljava/lang/String;)Lkotlin/sequences/Sequence;
+	public static synthetic fun elements$default (Lapp/morphe/patcher/xml/ResourceXml;Ljava/lang/String;ILjava/lang/Object;)Lkotlin/sequences/Sequence;
+	public static fun resource (Lapp/morphe/patcher/xml/ResourceXml;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public static fun resourceOrNull (Lapp/morphe/patcher/xml/ResourceXml;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+}
+
+public abstract interface class app/morphe/patcher/xml/XmlElement {
+	public fun appendChild (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/xml/XmlElement;
+	public static synthetic fun appendChild$default (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/xml/XmlElement;
+	public fun appendCopy (Lapp/morphe/patcher/xml/XmlElement;)Lapp/morphe/patcher/xml/XmlElement;
+	public abstract fun attribute (Ljava/lang/String;)Ljava/lang/String;
+	public fun children (Ljava/lang/String;)Ljava/util/List;
+	public fun copyAttributesFrom (Lapp/morphe/patcher/xml/XmlElement;)V
+	public abstract fun elementByAttribute (Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public fun elementByAttributeOrNull (Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public fun elements (Ljava/lang/String;)Lkotlin/sequences/Sequence;
+	public static synthetic fun elements$default (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;ILjava/lang/Object;)Lkotlin/sequences/Sequence;
+	public abstract fun getAttributeNames ()Ljava/util/List;
+	public abstract fun getChildren ()Ljava/util/List;
+	public fun getIndex ()I
+	public abstract fun getParent ()Lapp/morphe/patcher/xml/XmlElement;
+	public abstract fun getTag ()Ljava/lang/String;
+	public abstract fun getText ()Ljava/lang/String;
+	public fun hasAttribute (Ljava/lang/String;)Z
+	public abstract fun insertChild (ILjava/lang/String;Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/xml/XmlElement;
+	public static synthetic fun insertChild$default (Lapp/morphe/patcher/xml/XmlElement;ILjava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/xml/XmlElement;
+	public abstract fun insertCopy (ILapp/morphe/patcher/xml/XmlElement;)Lapp/morphe/patcher/xml/XmlElement;
+	public abstract fun remove ()V
+	public abstract fun removeAttribute (Ljava/lang/String;)V
+	public abstract fun removeChildren ()V
+	public abstract fun setAttribute (Ljava/lang/String;Ljava/lang/String;)V
+	public abstract fun setTag (Ljava/lang/String;)V
+	public abstract fun setText (Ljava/lang/String;)V
+}
+
+public final class app/morphe/patcher/xml/XmlElement$DefaultImpls {
+	public static fun appendChild (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/xml/XmlElement;
+	public static synthetic fun appendChild$default (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/xml/XmlElement;
+	public static fun appendCopy (Lapp/morphe/patcher/xml/XmlElement;Lapp/morphe/patcher/xml/XmlElement;)Lapp/morphe/patcher/xml/XmlElement;
+	public static fun children (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;)Ljava/util/List;
+	public static fun copyAttributesFrom (Lapp/morphe/patcher/xml/XmlElement;Lapp/morphe/patcher/xml/XmlElement;)V
+	public static fun elementByAttributeOrNull (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public static fun elements (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;)Lkotlin/sequences/Sequence;
+	public static synthetic fun elements$default (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;ILjava/lang/Object;)Lkotlin/sequences/Sequence;
+	public static fun getIndex (Lapp/morphe/patcher/xml/XmlElement;)I
+	public static fun hasAttribute (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;)Z
+	public static synthetic fun insertChild$default (Lapp/morphe/patcher/xml/XmlElement;ILjava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/xml/XmlElement;
 }
 

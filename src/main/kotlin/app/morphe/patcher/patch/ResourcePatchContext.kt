@@ -23,6 +23,7 @@ import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.resource.coder.ArsclibResourceCoder
 import app.morphe.patcher.resource.coder.ResourceCoder
 import app.morphe.patcher.util.Document
+import app.morphe.patcher.xml.ResourceXml
 import java.io.Closeable
 import java.io.File
 import java.io.InputStream
@@ -32,8 +33,8 @@ import java.util.logging.Logger
 /**
  * A context for patches containing the current state of resources.
  *
- * Resources are decoded when patches request them, instead of all before patches execute. The manifest
- * is always decoded. A file a patch reads by its path with [get] or [document] is decoded then, and
+ * Resources are decoded when patches request them, instead of all before patches execute. A file a patch
+ * reads by its path with [get] or [document] is decoded then, the manifest included, and
  * [decode] decodes every file matching a pattern, which a patch that lists a directory must call first,
  * since a directory only holds the files decoded so far.
  * [listDecodableFiles] lists what can be decoded without decoding it.
@@ -99,6 +100,16 @@ class ResourcePatchContext internal constructor(
     fun document(path: String, packageName: String): Document {
         decodeOnFirstUseIfNeededFor(path)
         return Document(resourceCoder.getFile(path, packageName))
+    }
+
+    /**
+     * Opens an XML file of the APK as a document.
+     *
+     * @see app.morphe.patcher.patch.resourceXml
+     */
+    internal fun xml(path: String, copy: Boolean, packageName: String?): ResourceXml? {
+        decodeOnFirstUseIfNeededFor(path)
+        return resourceCoder.openXml(path, packageName, copy)
     }
 
     /**

@@ -11,7 +11,7 @@ a fingerprint is declared.
 1. 🔍 Find immutable classes with `classDefBy(String)`
 2. 🔄️️ Change immutable classes to mutable with `mutableClassDefBy(String)` and `mutableClassDefBy(ClassDef)`
 3. 💾 Read and write resource files with `resourceFile(String, Boolean)` and `deleteResource(String)`
-4. 📃 Read and write DOM files using `document(String)` and  `document(InputStream)`
+4. 📃 Read and write DOM files using `document(String)` and  `document(InputStream)`, or edit XML files without decoding them with `resourceXml(String)` and `readXml(InputStream)`
 5. 📜 List the entries of the APK being patched with `listApkEntries(String)`
 6. 🗂️ Decode resources when they are needed with `decode(String...)` and `listDecodableFiles(String)`
 7. 🧮 Find free registers to use in injected code with `findFreeRegister(Int, Int...)` and `getFreeRegisterProvider(Int, Int, Int...)`
@@ -115,9 +115,56 @@ execute {
 }
 ```
 
-#### 📃 `document(String)`  and  `document(InputStream)`
+#### 📃 Read and write DOM files using `document(String)` and `document(InputStream)`, or edit XML files without decoding them with `resourceXml(String)` and `readXml(InputStream)`
 
-The `document` function is used to read and write DOM files.
+`resourceXml` is the preferred way to read and edit XML files of the APK. It edits compiled XML and the resource
+table directly, without decoding the file to text, so it is much faster than `document`. Close the document to keep
+the changes, which `use` does.
+
+- Attributes are read and set as written in XML, such as `@string/title` or `match_parent`.
+- A reference to a resource a patch adds, such as `@+id/morphe_button`, is resolved when the APK is written.
+- `resource(String)` looks up one resource of a values file without decoding the rest of it.
+- `resourceXmlOrNull` returns null when the APK has no such file.
+- `readXml` reads XML bundled with the patches, to copy elements from it.
+
+```kt
+execute {
+    resourceXml("res/layout/player.xml").use { layout ->
+        val button = layout.elementByAttribute("android:id", "@id/play_button")
+        button.setAttribute("android:visibility", "gone")
+
+        // Adds an element before the button.
+        button.parent!!.insertChild(button.index, "ImageView") {
+            setAttribute("android:id", "@+id/morphe_button")
+            setAttribute("android:src", "@drawable/morphe_icon")
+        }
+    }
+
+    // Only this string is decoded, not the thousands of others of the file.
+    resourceXml("res/values/strings.xml").use { strings ->
+        strings.resource("app_name").text = "Morphe"
+    }
+
+    // Adds or replaces resources, without reading the file at all.
+    resourceXml("res/values-night/colors.xml", copy = false).use { colors ->
+        colors.root.appendChild("color") {
+            setAttribute("name", "morphe_background")
+            text = "#FF000000"
+        }
+    }
+
+    // Copies elements of XML bundled with the patches.
+    readXml(inputStream).use { source ->
+        resourceXml("res/xml/preferences.xml").use { preferences ->
+            source.root.children.forEach { preferences.root.appendCopy(it) }
+        }
+    }
+}
+```
+
+The `document` function decodes a file to text and edits it as a DOM. It is much slower than `resourceXml`,
+so use `resourceXml` when possible. Both can be used on the same file: `document` first writes out what a
+`resourceXml` document changed.
 
 ```kt
 execute {
@@ -162,8 +209,8 @@ changed or deleted.
 
 Resources are decoded when patches need them:
 
-- The manifest is decoded when a patch first uses a resource.
-- A file a patch reads by its path, with `resourceFile(String, Boolean)` or `document(String)`, is decoded then.
+- A file a patch reads by its path, with `resourceFile(String, Boolean)` or `document(String)`, is decoded then,
+  the manifest included.
 - A directory only holds the files decoded or added so far. A patch that lists or walks a directory must
   first decode what it looks for with `decode`.
 
