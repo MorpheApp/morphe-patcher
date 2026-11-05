@@ -32,13 +32,16 @@ import app.morphe.patcher.resource.processor.ResourceIdProcessor
 import app.morphe.patcher.resource.processor.StringsXmlEscapeProcessor
 import app.morphe.patcher.resource.processor.StringsXmlSanitizeProcessor
 import app.morphe.patcher.resource.processor.StringsXmlUnEscapeProcessor
+import app.morphe.patcher.resource.utf8Writer
 import app.morphe.patcher.resource.xml.MANIFEST_PATH
 import app.morphe.patcher.resource.xml.ResourceXmlHost
 import app.morphe.patcher.resource.xml.ResourceXmlStore
+import app.morphe.patcher.resource.xml.TextXmlDocument
 import app.morphe.patcher.resource.xml.XmlValueException
+import app.morphe.patcher.resource.xml.writeDocument
 import app.morphe.patcher.runTask
-import app.morphe.patcher.util.Document
 import app.morphe.patcher.xml.ResourceXml
+import app.morphe.patcher.xml.XmlElement
 import app.morphe.patcher.util.FileUtils.safelyDelete
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import com.reandroid.apk.ApkModule
@@ -59,7 +62,6 @@ import com.reandroid.arsc.io.ReadProgress
 import com.reandroid.arsc.value.ResConfig
 import com.reandroid.json.JSONObject
 import com.reandroid.xml.XMLFactory
-import org.w3c.dom.Element
 import java.io.Closeable
 import java.io.File
 import java.io.InputStream
@@ -1932,19 +1934,18 @@ internal class ArsclibResourceCoder(
      */
     private fun mergeValues(decoded: File, written: File) {
         // <item type="string" name="x"> declares the same resource as <string name="x">.
-        fun Element.resourceKey() = "${getAttribute("type").ifEmpty { tagName }}/${getAttribute("name")}"
-        fun org.w3c.dom.Node.childElements() =
-            (0 until childNodes.length).mapNotNull { childNodes.item(it) as? Element }
+        fun XmlElement.resourceKey() = "${attribute("type").orEmpty().ifEmpty { tag }}/${attribute("name").orEmpty()}"
 
-        val writtenElements = written.inputStream().use { input ->
-            Document(input).documentElement?.childElements().orEmpty()
-        }
-
-        Document(decoded).use { document ->
-            val resources = document.documentElement
-            val replaced = writtenElements.mapTo(HashSet()) { it.resourceKey() }
-            resources.childElements().filter { it.resourceKey() in replaced }.forEach { resources.removeChild(it) }
-            writtenElements.forEach { resources.appendChild(document.importNode(it, true)) }
+        val document = decoded.inputStream().buffered().use { TextXmlDocument.read(it) }
+        document.use {
+            written.inputStream().buffered().use { TextXmlDocument.read(it) }.use { writtenXml ->
+                val resources = document.root
+                val writtenElements = writtenXml.root.children
+                val replaced = writtenElements.mapTo(HashSet()) { it.resourceKey() }
+                resources.children.filter { it.resourceKey() in replaced }.forEach { it.remove() }
+                writtenElements.forEach { resources.appendCopy(it) }
+            }
+            decoded.utf8Writer().use { document.root.writeDocument(it) }
         }
     }
 
