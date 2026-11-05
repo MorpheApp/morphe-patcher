@@ -1,7 +1,8 @@
-@file:Suppress("MemberVisibilityCanBePrivate", "unused", "DEPRECATION_ERROR")
+@file:Suppress("MemberVisibilityCanBePrivate", "unused", "DEPRECATION_ERROR", "DEPRECATION", "OVERRIDE_DEPRECATION")
 
 package app.morphe.patcher.patch
 
+import app.morphe.patcher.InternalApi
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherBehavior
 import app.morphe.patcher.PatcherContext
@@ -30,9 +31,8 @@ typealias VersionName = String
 typealias Package = Pair<PackageName, Set<VersionName>?>
 
 /**
- * A patch.
+ * A patch. Patches are declared with [patch].
  *
- * @param C The [PatchContext] to execute and finalize the patch with.
  * @param name The name of the patch.
  *   If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
@@ -48,37 +48,43 @@ typealias Package = Pair<PackageName, Set<VersionName>?>
  *   [InstallerType] and [ApkArchitecture]. When null, callers should fall back to [default].
  * @param category Optional group this patch belongs to, used by callers to section their patch
  *   list. Free-form, so a bundle picks its own taxonomy. Null leaves the patch ungrouped.
+ * @param extensionStreamProviders Providers of extension input streams, evaluated when the patch is
+ *   executed. Each provider yields the extension input streams (precompiled DEX files) to merge into the
+ *   patched app before this patch runs. A single extension added with `extendWith` is stored as a provider
+ *   yielding one stream, while `extendWithAll` allows a variable number of extensions whose count is not
+ *   known until patch time.
  *
  * @constructor Create a new patch.
  */
-sealed class Patch<C : PatchContext<*>>(
+open class Patch internal constructor(
     val name: String?,
     val description: String?,
     val default: Boolean,
-    val dependencies: Set<Patch<*>>,
+    val dependencies: Set<Patch>,
     val compatibility: List<Compatibility>?,
     options: Set<Option<*>>,
-    private val executeBlock: (C) -> Unit,
+    private val executeBlock: (PatchContext<*>) -> Unit,
     // Must be internal and nullable, so that Patcher.invoke can check,
     // if a patch has a finalizing block in order to not emit it twice.
-    internal var finalizeBlock: ((C) -> Unit)?,
+    internal var finalizeBlock: ((PatchContext<*>) -> Unit)?,
     // Additive fields. Trailing position with a default keeps binary compatibility for existing
     // pre-compiled patch bundles: they call the previous constructor arity, and Kotlin generates
     // an overload that fills these in as null.
     val availability: AvailabilityResolver? = null,
     val category: String? = null,
+    internal val extensionStreamProviders: List<Supplier<out Iterable<Supplier<InputStream>>>> = emptyList(),
 ) {
 
     @Deprecated("Use constructor with Compatibility object", level = DeprecationLevel.HIDDEN)
-    constructor(
+    internal constructor(
         name: String?,
         description: String?,
         use: Boolean,
-        dependencies: Set<Patch<*>>,
+        dependencies: Set<Patch>,
         compatiblePackages: Set<Pair<String, Set<String>?>>,
         options: Set<Option<*>>,
-        executeBlock: (C) -> Unit,
-        finalizeBlock: ((C) -> Unit)?,
+        executeBlock: (PatchContext<*>) -> Unit,
+        finalizeBlock: ((PatchContext<*>) -> Unit)?,
     ) : this(
         name = name,
         description = description,
@@ -140,14 +146,18 @@ sealed class Patch<C : PatchContext<*>>(
      *
      * @param context The [PatcherContext] to get the [PatchContext] from to execute the patch with.
      */
-    internal abstract fun execute(context: PatcherContext)
+    internal open fun execute(context: PatcherContext) {
+        context.bytecodeContext.mergeExtension(this)
+        execute(NoPatchContext)
+    }
 
     /**
      * Calls the execution block of the patch.
      *
      * @param context The [PatchContext] to execute the patch with.
      */
-    fun execute(context: C) = executeBlock(context)
+    @Deprecated("Patches are executed by Patcher.")
+    fun execute(context: PatchContext<*>) = executeBlock(context)
 
     /**
      * Calls the finalizing block of the patch.
@@ -155,14 +165,17 @@ sealed class Patch<C : PatchContext<*>>(
      *
      * @param context The [PatcherContext] to get the [PatchContext] from to finalize the patch with.
      */
-    internal abstract fun finalize(context: PatcherContext)
+    internal open fun finalize(context: PatcherContext) {
+        finalize(NoPatchContext)
+    }
 
     /**
      * Calls the finalizing block of the patch.
      *
      * @param context The [PatchContext] to finalize the patch with.
      */
-    fun finalize(context: C) {
+    @Deprecated("Patches are finalized by Patcher.")
+    fun finalize(context: PatchContext<*>) {
         finalizeBlock?.invoke(context)
     }
 
@@ -172,9 +185,21 @@ sealed class Patch<C : PatchContext<*>>(
      * its execution block, or its finalizing block if it only finalizes.
      */
     override fun toString() = name ?: declaredAs
-        ?: (if (executeBlock === NoExecuteBlock) finalizeBlock else executeBlock)?.javaClass?.sourceName
+        ?: (if (executeBlock === NoExecuteBlock) finalizeBlock else executeBlock)?.declaredClass?.sourceName
         ?: "${javaClass.simpleName}@${System.identityHashCode(this)}"
 }
+
+/**
+ * This block as [Patch] stores it. A patch only calls its blocks with the context they were declared for.
+ */
+@Suppress("UNCHECKED_CAST")
+private fun <C : PatchContext<*>> ((C) -> Unit).forAnyContext() = this as (PatchContext<*>) -> Unit
+
+/**
+ * The class of a block as the patch declares it.
+ */
+private val Function<*>.declaredClass
+    get() = ((this as? ContextFreeBlock)?.block ?: this).javaClass
 
 /**
  * The file a class of a patch bundle is compiled from, such as `SettingsPatch` for
@@ -184,9 +209,28 @@ sealed class Patch<C : PatchContext<*>>(
  */
 internal val Class<*>.sourceName get() = name.substringAfterLast('.').substringBefore('$').removeSuffix("Kt")
 
-internal fun Patch<*>.anyRecursively(
-    visited: MutableSet<Patch<*>> = mutableSetOf(),
-    predicate: (Patch<*>) -> Boolean,
+/**
+ * Whether the patch can use bytecode. Only the deprecated resource patch types cannot.
+ */
+internal val Patch.usesBytecode
+    get() = this !is ResourcePatch && this !is RawResourcePatch
+
+/**
+ * Whether the patch can use decoded resources. Only [BytecodePatch] and [RawResourcePatch] cannot.
+ */
+internal val Patch.usesDecodedResources
+    get() = this !is BytecodePatch && this !is RawResourcePatch
+
+/**
+ * Whether what the patch uses is decoded when it first needs it. The deprecated patch types declare what
+ * they use, so that is decoded before patches execute.
+ */
+internal val Patch.decodesOnFirstUse
+    get() = usesBytecode && usesDecodedResources
+
+internal fun Patch.anyRecursively(
+    visited: MutableSet<Patch> = mutableSetOf(),
+    predicate: (Patch) -> Boolean,
 ): Boolean {
     if (this in visited) return false
 
@@ -197,9 +241,9 @@ internal fun Patch<*>.anyRecursively(
     return dependencies.any { it.anyRecursively(visited, predicate) }
 }
 
-internal fun Iterable<Patch<*>>.forEachRecursively(
-    visited: MutableSet<Patch<*>> = mutableSetOf(),
-    action: (Patch<*>) -> Unit,
+internal fun Iterable<Patch>.forEachRecursively(
+    visited: MutableSet<Patch> = mutableSetOf(),
+    action: (Patch) -> Unit,
 ): Unit = forEach {
     if (it in visited) return@forEach
 
@@ -211,6 +255,9 @@ internal fun Iterable<Patch<*>>.forEachRecursively(
 
 /**
  * A bytecode patch.
+ *
+ * Patches are now all declared with [patch], which can use both bytecode and resources.
+ * This class is kept for existing patch bundles, which refer to it.
  *
  * @param name The name of the patch.
  * @param description The description of the patch.
@@ -228,29 +275,31 @@ internal fun Iterable<Patch<*>>.forEachRecursively(
  * @param finalizeBlock The finalizing block of the patch. Called after all patches have
  *   been executed, in reverse order of execution.
  */
+@Deprecated("Use Patch, which is declared with patch().")
 class BytecodePatch internal constructor(
     name: String?,
     description: String?,
     default: Boolean,
     compatibility: List<Compatibility>?,
-    dependencies: Set<Patch<*>>,
+    dependencies: Set<Patch>,
     options: Set<Option<*>>,
-    internal val extensionStreamProviders: List<Supplier<out Iterable<Supplier<InputStream>>>>,
+    extensionStreamProviders: List<Supplier<out Iterable<Supplier<InputStream>>>>,
     executeBlock: (BytecodePatchContext) -> Unit,
     finalizeBlock: ((BytecodePatchContext) -> Unit)?,
     availability: AvailabilityResolver? = null,
     category: String? = null,
-) : Patch<BytecodePatchContext>(
+) : Patch(
     name,
     description,
     default,
     dependencies,
     compatibility,
     options,
-    executeBlock,
-    finalizeBlock,
+    executeBlock.forAnyContext(),
+    finalizeBlock?.forAnyContext(),
     availability,
     category,
+    extensionStreamProviders,
 ) {
 
     @Deprecated("Use constructor with extensionInputStreams parameter", level = DeprecationLevel.HIDDEN)
@@ -259,7 +308,7 @@ class BytecodePatch internal constructor(
         description: String?,
         default: Boolean,
         compatibility: List<Compatibility>?,
-        dependencies: Set<Patch<*>>,
+        dependencies: Set<Patch>,
         options: Set<Option<*>>,
         extensionInputStream: Supplier<InputStream>?,
         executeBlock: (BytecodePatchContext) -> Unit,
@@ -282,7 +331,7 @@ class BytecodePatch internal constructor(
         description: String?,
         use: Boolean = true,
         compatiblePackages: Set<Pair<String, Set<String>?>>?,
-        dependencies: Set<Patch<*>>,
+        dependencies: Set<Patch>,
         options: Set<Option<*>>,
         extensionInputStream: Supplier<InputStream>?,
         executeBlock: (BytecodePatchContext) -> Unit,
@@ -314,6 +363,9 @@ class BytecodePatch internal constructor(
 /**
  * A raw resource patch.
  *
+ * Patches are now all declared with [patch], which can use both bytecode and resources.
+ * This class is kept for existing patch bundles, which refer to it.
+ *
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
@@ -328,26 +380,27 @@ class BytecodePatch internal constructor(
  *
  * @constructor Create a new raw resource patch.
  */
+@Deprecated("Use Patch, which is declared with patch().")
 class RawResourcePatch internal constructor(
     name: String?,
     description: String?,
     default: Boolean,
     compatibility: List<Compatibility>?,
-    dependencies: Set<Patch<*>>,
+    dependencies: Set<Patch>,
     options: Set<Option<*>>,
     executeBlock: (ResourcePatchContext) -> Unit,
     finalizeBlock: ((ResourcePatchContext) -> Unit)?,
     availability: AvailabilityResolver? = null,
     category: String? = null,
-) : Patch<ResourcePatchContext>(
+) : Patch(
     name,
     description,
     default,
     dependencies,
     compatibility,
     options,
-    executeBlock,
-    finalizeBlock,
+    executeBlock.forAnyContext(),
+    finalizeBlock?.forAnyContext(),
     availability,
     category,
 ) {
@@ -358,7 +411,7 @@ class RawResourcePatch internal constructor(
         description: String?,
         use: Boolean,
         compatiblePackages: Set<Pair<String, Set<String>?>>?,
-        dependencies: Set<Patch<*>>,
+        dependencies: Set<Patch>,
         options: Set<Option<*>>,
         executeBlock: (ResourcePatchContext) -> Unit,
         finalizeBlock: ((ResourcePatchContext) -> Unit)?,
@@ -381,6 +434,9 @@ class RawResourcePatch internal constructor(
 /**
  * A resource patch.
  *
+ * Patches are now all declared with [patch], which can use both bytecode and resources.
+ * This class is kept for existing patch bundles, which refer to it.
+ *
  * @param name The name of the patch.
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
@@ -395,26 +451,27 @@ class RawResourcePatch internal constructor(
  *
  * @constructor Create a new resource patch.
  */
+@Deprecated("Use Patch, which is declared with patch().")
 class ResourcePatch internal constructor(
     name: String?,
     description: String?,
     default: Boolean,
     compatibility: List<Compatibility>?,
-    dependencies: Set<Patch<*>>,
+    dependencies: Set<Patch>,
     options: Set<Option<*>>,
     executeBlock: (ResourcePatchContext) -> Unit,
     finalizeBlock: ((ResourcePatchContext) -> Unit)?,
     availability: AvailabilityResolver? = null,
     category: String? = null,
-) : Patch<ResourcePatchContext>(
+) : Patch(
     name,
     description,
     default,
     dependencies,
     compatibility,
     options,
-    executeBlock,
-    finalizeBlock,
+    executeBlock.forAnyContext(),
+    finalizeBlock?.forAnyContext(),
     availability,
     category,
 ) {
@@ -425,7 +482,7 @@ class ResourcePatch internal constructor(
         description: String?,
         use: Boolean,
         compatiblePackages: Set<Pair<String, Set<String>?>>?,
-        dependencies: Set<Patch<*>>,
+        dependencies: Set<Patch>,
         options: Set<Option<*>>,
         executeBlock: (ResourcePatchContext) -> Unit,
         finalizeBlock: ((ResourcePatchContext) -> Unit)?,
@@ -454,7 +511,7 @@ internal object NoExecuteBlock : (Any?) -> Unit {
 }
 
 /**
- * A [Patch] builder.
+ * The base of [Patch] builders. Patches are declared with [patch], which is built by [PatchDefinition].
  *
  * @param C The [PatchContext] to execute and finalize the patch with.
  * @param name The name of the patch.
@@ -476,13 +533,35 @@ sealed class PatchBuilder<C : PatchContext<*>>(
     protected val default: Boolean,
 ) {
     protected var compatibility: MutableList<Compatibility>? = null
-    protected var dependencies = mutableSetOf<Patch<*>>()
+    protected var dependencies = mutableSetOf<Patch>()
     protected val options = mutableSetOf<Option<*>>()
 
     protected var executeBlock: ((C) -> Unit) = NoExecuteBlock
     protected var finalizeBlock: ((C) -> Unit)? = null
     protected var availability: AvailabilityResolver? = null
     protected var category: String? = null
+
+    /**
+     * Extension input streams. Each is a precompiled DEX file that is merged into the patched app
+     * before this patch runs.
+     */
+    internal val extensionInputStreams: MutableList<Supplier<InputStream>> = mutableListOf()
+
+    /**
+     * Providers of extension input streams, evaluated at patch time. Use these when the number of
+     * extensions to merge is not known until then, for example when the extensions are derived by
+     * a dependency patch that has already executed.
+     */
+    internal val extensionStreamProviders: MutableList<Supplier<out Iterable<Supplier<InputStream>>>> = mutableListOf()
+
+    /**
+     * All extensions as providers. Each eager extension becomes a provider yielding a single stream,
+     * merged before the patch-time providers.
+     */
+    internal fun buildExtensionStreamProviders(): List<Supplier<out Iterable<Supplier<InputStream>>>> = buildList {
+        extensionInputStreams.forEach { extension -> add(Supplier { listOf(extension) }) }
+        addAll(extensionStreamProviders)
+    }
 
     @Deprecated(
         message = "Use 'default' instead of 'use'",
@@ -580,25 +659,31 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      *
      * @param patches The patches the patch depends on.
      */
-    fun dependsOn(vararg patches: Patch<*>) {
+    fun dependsOn(vararg patches: Patch) {
         dependencies += patches
     }
 
     /**
      * Set the execution block of the patch.
      *
+     * Hidden so that [PatchDefinition] only has its own function. The deprecated builders override this.
+     *
      * @param block The execution block of the patch.
      */
-    fun execute(block: C.() -> Unit) {
+    @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    open fun execute(block: C.() -> Unit) {
         executeBlock = block
     }
 
     /**
      * Set the finalizing block of the patch.
      *
+     * Hidden so that [PatchDefinition] only has its own function. The deprecated builders override this.
+     *
      * @param block The finalizing block of the patch.
      */
-    fun finalize(block: C.() -> Unit) {
+    @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    open fun finalize(block: C.() -> Unit) {
         finalizeBlock = block
     }
 
@@ -647,7 +732,7 @@ sealed class PatchBuilder<C : PatchContext<*>>(
      *
      * @return The built patch.
      */
-    internal abstract fun build(): Patch<C>
+    internal abstract fun build(): Patch
 }
 
 /**
@@ -676,32 +761,24 @@ private fun <B : PatchBuilder<*>> B.buildPatch(block: B.() -> Unit = {}) = apply
  * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
  * @param description The description of the patch.
  * @param default Whether the patch is enabled by default.
- * @property extensionInputStreams Extension input streams registered with [extendWith]. Each is a
- * precompiled DEX file merged into the patched app before this patch is executed.
- * @property extensionStreamProviders Providers of extension input streams registered with [extendWithAll],
- * evaluated at patch time, for when the number of extensions to merge is not known until then.
  *
  * @constructor Create a new [BytecodePatchBuilder] builder.
  */
+@Deprecated("Use PatchDefinition, which builds patches declared with patch().")
 class BytecodePatchBuilder internal constructor(
     name: String?,
     description: String?,
     default: Boolean,
 ) : PatchBuilder<BytecodePatchContext>(name, description, default) {
-    /**
-     * Extension input streams registered with [extendWith]. Each is a precompiled DEX file that is
-     * merged into the patched app before this patch runs. These are combined into the built
-     * [BytecodePatch]'s providers when the patch is built.
-     */
-    internal val extensionInputStreams: MutableList<Supplier<InputStream>> = mutableListOf()
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun execute(block: BytecodePatchContext.() -> Unit) {
+        executeBlock = block
+    }
 
-    /**
-     * Providers of extension input streams registered with [extendWithAll], evaluated at patch time.
-     * Use these when the number of extensions to merge is not known until then, for example when the
-     * extensions are derived by a dependency patch that has already executed.
-     */
-    internal val extensionStreamProviders: MutableList<Supplier<out Iterable<Supplier<InputStream>>>> = mutableListOf()
-
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun finalize(block: BytecodePatchContext.() -> Unit) {
+        finalizeBlock = block
+    }
     // Inlining is necessary to get the class loader that loaded the patch
     // to load the extension from the resources.
     /**
@@ -758,12 +835,7 @@ class BytecodePatchBuilder internal constructor(
         compatibility = compatibility,
         dependencies = dependencies,
         options = options,
-        extensionStreamProviders = buildList {
-            // Each eager extension becomes a provider yielding a single stream, merged before the
-            // patch-time providers registered with extendWithAll.
-            extensionInputStreams.forEach { extension -> add(Supplier { listOf(extension) }) }
-            addAll(extensionStreamProviders)
-        },
+        extensionStreamProviders = buildExtensionStreamProviders(),
         executeBlock = executeBlock,
         finalizeBlock = finalizeBlock,
         availability = availability,
@@ -782,6 +854,10 @@ class BytecodePatchBuilder internal constructor(
  *
  * @return The created [BytecodePatch].
  */
+@Deprecated(
+    "Use patch(), which can use both bytecode and resources.",
+    ReplaceWith("patch(name, description, default, block)", "app.morphe.patcher.patch.patch"),
+)
 fun bytecodePatch(
     name: String? = null,
     description: String? = null,
@@ -799,11 +875,21 @@ fun bytecodePatch(
  *
  * @constructor Create a new [RawResourcePatch] builder.
  */
+@Deprecated("Use PatchDefinition, which builds patches declared with patch().")
 class RawResourcePatchBuilder internal constructor(
     name: String?,
     description: String?,
     default: Boolean = true,
 ) : PatchBuilder<ResourcePatchContext>(name, description, default) {
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun execute(block: ResourcePatchContext.() -> Unit) {
+        executeBlock = block
+    }
+
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun finalize(block: ResourcePatchContext.() -> Unit) {
+        finalizeBlock = block
+    }
     override fun build() = RawResourcePatch(
         name,
         description,
@@ -829,6 +915,10 @@ class RawResourcePatchBuilder internal constructor(
  *
  * @return The created [RawResourcePatch].
  */
+@Deprecated(
+    "Use patch(), which can use both bytecode and resources.",
+    ReplaceWith("patch(name, description, default, block)", "app.morphe.patcher.patch.patch"),
+)
 fun rawResourcePatch(
     name: String? = null,
     description: String? = null,
@@ -846,11 +936,21 @@ fun rawResourcePatch(
  *
  * @constructor Create a new [ResourcePatch] builder.
  */
+@Deprecated("Use PatchDefinition, which builds patches declared with patch().")
 class ResourcePatchBuilder internal constructor(
     name: String?,
     description: String?,
     default: Boolean = true,
 ) : PatchBuilder<ResourcePatchContext>(name, description, default) {
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun execute(block: ResourcePatchContext.() -> Unit) {
+        executeBlock = block
+    }
+
+    @Suppress("OVERRIDE_DEPRECATION")
+    override fun finalize(block: ResourcePatchContext.() -> Unit) {
+        finalizeBlock = block
+    }
     override fun build() = ResourcePatch(
         name,
         description,
@@ -876,12 +976,158 @@ class ResourcePatchBuilder internal constructor(
  *
  * @return The created [ResourcePatch].
  */
+@Deprecated(
+    "Use patch(), which can use both bytecode and resources.",
+    ReplaceWith("patch(name, description, default, block)", "app.morphe.patcher.patch.patch"),
+)
 fun resourcePatch(
     name: String? = null,
     description: String? = null,
     default: Boolean = true,
     block: ResourcePatchBuilder.() -> Unit = {},
 ) = ResourcePatchBuilder(name, description, default).buildPatch(block) as ResourcePatch
+
+/**
+ * What patches declared with [patch] are executed with, which [ContextFreeBlock] ignores.
+ */
+private object NoPatchContext : PatchContext<Unit> {
+    override val fileWorkspace get() = app.morphe.patcher.patch.fileWorkspace
+
+    override val validate get() = app.morphe.patcher.patch.validate
+
+    @InternalApi
+    override fun get() = Unit
+}
+
+/**
+ * An execute or finalize block of a patch declared with [patch], which takes no context.
+ */
+private class ContextFreeBlock(val block: () -> Unit) : (PatchContext<Unit>) -> Unit {
+    override fun invoke(context: PatchContext<Unit>) = block()
+}
+
+/**
+ * A builder of the [Patch] declared with [patch].
+ *
+ * @param name The name of the patch.
+ * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
+ * @param description The description of the patch.
+ * @param default Whether the patch is enabled by default.
+ *
+ * @constructor Create a new [PatchDefinition] builder.
+ */
+class PatchDefinition internal constructor(
+    name: String?,
+    description: String?,
+    default: Boolean,
+) : PatchBuilder<PatchContext<Unit>>(name, description, default) {
+    /**
+     * Set the execution block of the patch.
+     *
+     * @param block The execution block of the patch.
+     */
+    fun execute(block: () -> Unit) {
+        executeBlock = ContextFreeBlock(block)
+    }
+
+    /**
+     * Set the finalizing block of the patch.
+     *
+     * @param block The finalizing block of the patch.
+     */
+    fun finalize(block: () -> Unit) {
+        finalizeBlock = ContextFreeBlock(block)
+    }
+
+    // Inlining is necessary to get the class loader that loaded the patch
+    // to load the extension from the resources.
+    /**
+     * Set the extension of the patch.
+     *
+     * @param extension The name of the extension resource.
+     */
+    @Suppress("NOTHING_TO_INLINE")
+    inline fun extendWith(extension: String) = apply {
+        val classLoader = object {}.javaClass.classLoader
+
+        extendWith {
+            classLoader.getResourceAsStream(extension)
+                ?: throw PatchException("Extension \"$extension\" not found")
+        }
+    }
+
+    /**
+     * Add an extension to the patch, a precompiled DEX file merged into the patched app before
+     * this patch is executed.
+     *
+     * @param extension Opens the extension.
+     */
+    fun extendWith(extension: Supplier<InputStream>) = apply {
+        extensionInputStreams.add(extension)
+    }
+
+    /**
+     * Extend the patch with a variable number of extensions that are resolved at patch time.
+     *
+     * Unlike [extendWith], the [provider] is not evaluated when the patch is built but when the patch
+     * is executed, before the patch's `execute` block runs. This makes it possible to merge a number
+     * of extensions that is not known until patch time, such as extensions derived by a dependency
+     * patch that has already executed.
+     *
+     * @param provider A provider, evaluated at patch time, of the extension input streams to merge.
+     */
+    fun extendWithAll(provider: Supplier<out Iterable<Supplier<InputStream>>>) = apply {
+        extensionStreamProviders.add(provider)
+    }
+
+    override fun build() = Patch(
+        name,
+        description,
+        resolveDefaultValue(),
+        dependencies,
+        compatibility,
+        options,
+        executeBlock.forAnyContext(),
+        finalizeBlock?.forAnyContext(),
+        availability,
+        category,
+        buildExtensionStreamProviders(),
+    )
+}
+
+/**
+ * Create a new [Patch].
+ *
+ * A patch can use both the bytecode and the resources of the app, with the global functions such as
+ * [mutableClassDefBy], [document] and [resourceFile] and with [app.morphe.patcher.Fingerprint]. What it
+ * uses is decoded when it first needs it, and what no patch uses is copied to the patched APK as it is.
+ *
+ * ```kt
+ * val examplePatch = patch(name = "Example") {
+ *     compatibleWith(Compatibility(...))
+ *
+ *     execute {
+ *         ExampleFingerprint.method.returnEarly()
+ *
+ *         document("AndroidManifest.xml").use { document -> }
+ *     }
+ * }
+ * ```
+ *
+ * @param name The name of the patch.
+ * If null, the patch is named "Patch" and will not be loaded by [PatchLoader].
+ * @param description The description of the patch.
+ * @param default Whether the patch is enabled by default.
+ * @param block The block to build the patch.
+ *
+ * @return The created [Patch].
+ */
+fun patch(
+    name: String? = null,
+    description: String? = null,
+    default: Boolean = true,
+    block: PatchDefinition.() -> Unit = {},
+): Patch = PatchDefinition(name, description, default).buildPatch(block)
 
 /**
  * An exception thrown when patching.
@@ -900,7 +1146,7 @@ class PatchException(errorMessage: String?, cause: Throwable?) : Exception(error
  * @param patch The [Patch] that was executed.
  * @param exception The [PatchException] thrown, if any.
  */
-class PatchResult internal constructor(val patch: Patch<*>, val exception: PatchException? = null)
+class PatchResult internal constructor(val patch: Patch, val exception: PatchException? = null)
 
 /**
  * A loader for patches.
@@ -912,8 +1158,8 @@ class PatchResult internal constructor(val patch: Patch<*>, val exception: Patch
  */
 @Suppress("JavaDefaultMethodsNotOverriddenByDelegation")
 sealed class PatchLoader(
-    val byPatchesFile: Map<File, Set<Patch<*>>>,
-) : Set<Patch<*>> by byPatchesFile.values.flatten().toSet() {
+    val byPatchesFile: Map<File, Set<Patch>>,
+) : Set<Patch> by byPatchesFile.values.flatten().toSet() {
     /**
      * @param patchesFiles A set of JAR or DEX files to load the patches from.
      * @param getBinaryClassNames A function that returns the binary names of all classes accessible by the class loader.
@@ -1001,7 +1247,7 @@ sealed class PatchLoader(
             get() = fields.filter { field ->
                 field.type.isPatch && field.canAccess()
             }.map { field ->
-                field.get(null) as Patch<*>
+                field.get(null) as Patch
             }
 
         /**
@@ -1011,7 +1257,7 @@ sealed class PatchLoader(
             get() = methods.filter { method ->
                 method.returnType.isPatch && method.parameterCount == 0 && method.canAccess()
             }.map { method ->
-                method.invoke(null) as Patch<*>
+                method.invoke(null) as Patch
             }
 
         /**
@@ -1023,7 +1269,7 @@ sealed class PatchLoader(
             if (!field.type.isPatch || !Modifier.isStatic(field.modifiers)) return@forEach
 
             field.isAccessible = true
-            val patch = field.get(null) as? Patch<*> ?: return@forEach
+            val patch = field.get(null) as? Patch ?: return@forEach
             if (patch.name == null && patch.declaredAs == null) patch.declaredAs = "$sourceName.${field.name}"
         }
 
@@ -1131,8 +1377,8 @@ sealed class PatchLoader(
          * [PatcherBehavior.STRICT_UNIVERSAL_PATCH_DEFAULT] applies to them.
          * Otherwise, they are warned about and load with default false.
          */
-        private fun checkUniversalPatchDefaults(patches: Collection<Patch<*>>) {
-            val misdeclared = mutableSetOf<Patch<*>>()
+        private fun checkUniversalPatchDefaults(patches: Collection<Patch>) {
+            val misdeclared = mutableSetOf<Patch>()
             patches.forEachRecursively { if (it.declaredUniversalWithDefault) misdeclared += it }
             if (misdeclared.isEmpty()) return
 
@@ -1159,7 +1405,7 @@ sealed class PatchLoader(
          * Dependencies are built with the patch that depends on them, unless they are loaded from
          * a bundle themselves. Otherwise, they would count as built for an unknown version.
          */
-        private fun Patch<*>.assignBundleToDependencies(bundle: PatchBundleInfo) {
+        private fun Patch.assignBundleToDependencies(bundle: PatchBundleInfo) {
             dependencies.forEach { dependency ->
                 if (dependency.name == null || dependency.bundle == null) {
                     if (dependency.bundle == bundle) return@forEach

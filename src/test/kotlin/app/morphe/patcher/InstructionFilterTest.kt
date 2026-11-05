@@ -5,6 +5,7 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.util.proxy.mutableTypes.MutableClass.Companion.toMutable
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
@@ -19,6 +20,7 @@ import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction31c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction31i
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction35c
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction3rc
+import com.android.tools.smali.dexlib2.immutable.ImmutableClassDef
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableFieldReference
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableMethodReference
@@ -31,6 +33,37 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 internal object InstructionFilterTest {
+    @Test
+    fun `type filters accept a lambda returning a class or a type`() {
+        val classDef = ImmutableClassDef("Lcom/test/Target;", 0, null, null, null, null, null, null)
+
+        assertEquals("Lcom/test/Target;", newInstance(type = { classDef }).typeValue)
+        assertEquals("Lcom/test/Target;", instanceOf(type = { classDef }).typeValue)
+        assertEquals("Lcom/test/Target;", checkCast(type = { classDef }).typeValue)
+
+        assertEquals("Lcom/test/Type;", newInstance(type = { "Lcom/test/Type;" }).typeValue)
+        assertEquals("Lcom/test/Type;", instanceOf(type = { "Lcom/test/Type;" }).typeValue)
+        assertEquals("Lcom/test/Type;", checkCast(type = { "Lcom/test/Type;" }).typeValue)
+
+        val location = InstructionLocation.MatchAfterImmediately()
+        assertEquals(location, newInstance({ classDef }, location).location)
+        assertEquals(location, instanceOf({ classDef }, location).location)
+        assertEquals(location, checkCast({ classDef }, location).location)
+    }
+
+    @Test
+    fun `a class is only evaluated when it is needed`() {
+        var evaluated = false
+        val filter = newInstance(type = {
+            evaluated = true
+            ImmutableClassDef("Lcom/test/Target;", 0, null, null, null, null, null, null)
+        })
+
+        assertFalse(evaluated)
+        assertEquals("Lcom/test/Target;", filter.typeValue)
+        assertTrue(evaluated)
+    }
+
 
     // Helper to create a test method
     private fun createTestMethod(
@@ -482,6 +515,133 @@ internal object InstructionFilterTest {
         val nonStringInstruction = BuilderInstruction10x(Opcode.NOP)
 
         assertFalse(filter.matches(method, nonStringInstruction))
+    }
+
+    // ==================== Filters with lambdas ====================
+
+    private val targetClass = ImmutableClassDef("Lcom/Target;", 0, null, null, null, null, null, null)
+
+    private fun methodCallOf(definingClass: String = "Lcom/Target;") = BuilderInstruction35c(
+        Opcode.INVOKE_VIRTUAL, 1, 0, 0, 0, 0, 0,
+        ImmutableMethodReference(definingClass, "target", listOf("I"), "V")
+    )
+
+    private fun fieldAccessOf(definingClass: String = "Lcom/Target;", type: String = "Lcom/Type;") =
+        BuilderInstruction22c(Opcode.IGET_OBJECT, 0, 0, ImmutableFieldReference(definingClass, "field", type))
+
+    @Test
+    fun `methodCall matches a reference from a lambda`() {
+        val method = createTestMethod()
+        val reference = ImmutableMethodReference("Lcom/Target;", "target", listOf("I"), "V")
+        val filter = methodCall(reference = { reference })
+
+        assertTrue(filter.matches(method, methodCallOf()))
+        assertFalse(filter.matches(method, methodCallOf("Lcom/Other;")))
+        assertEquals("Lcom/Target;", filter.definingClass)
+        assertEquals("target", filter.name)
+        assertEquals(listOf("I"), filter.parameters)
+        assertEquals("V", filter.returnType)
+
+        assertTrue(methodCall({ reference }).matches(method, methodCallOf()))
+    }
+
+    @Test
+    fun `methodCall matches values from lambdas`() {
+        val method = createTestMethod()
+        val filters = listOf(
+            methodCall(definingClass = { targetClass }, name = "target"),
+            methodCall(definingClass = { "Lcom/Target;" }, name = "target"),
+            methodCall(definingClass = { targetClass }, name = "target", opcode = Opcode.INVOKE_VIRTUAL),
+            methodCall({ targetClass }),
+            methodCall(definingClass = "Lcom/Target;", parameters = { listOf("I") }),
+            methodCall(parameters = { listOf("I") }, opcode = Opcode.INVOKE_VIRTUAL),
+            methodCall(name = "target", returnType = { "V" }),
+            methodCall(name = "target", returnType = { "V" }, opcode = Opcode.INVOKE_VIRTUAL),
+        )
+
+        filters.forEach { filter -> assertTrue(filter.matches(method, methodCallOf())) }
+        assertFalse(methodCall(definingClass = { targetClass }).matches(method, methodCallOf("Lcom/Other;")))
+        assertFalse(methodCall(parameters = { listOf("J") }).matches(method, methodCallOf()))
+        assertFalse(methodCall(returnType = { "I" }).matches(method, methodCallOf()))
+        assertFalse(
+            methodCall(definingClass = { targetClass }, opcode = Opcode.INVOKE_STATIC).matches(method, methodCallOf())
+        )
+    }
+
+    @Test
+    fun `fieldAccess matches a reference from a lambda`() {
+        val method = createTestMethod()
+        val reference = ImmutableFieldReference("Lcom/Target;", "field", "Lcom/Type;")
+
+        assertTrue(fieldAccess(reference = { reference }).matches(method, fieldAccessOf()))
+        assertTrue(fieldAccess({ reference }).matches(method, fieldAccessOf()))
+        assertTrue(fieldAccess(reference = { reference }, opcode = Opcode.IGET_OBJECT).matches(method, fieldAccessOf()))
+        assertFalse(fieldAccess(reference = { reference }, opcode = Opcode.SGET_OBJECT).matches(method, fieldAccessOf()))
+        assertFalse(fieldAccess(reference = { reference }).matches(method, fieldAccessOf("Lcom/Other;")))
+
+        val filter = fieldAccess(reference = { reference })
+        assertEquals("Lcom/Target;", filter.definingClass)
+        assertEquals("field", filter.name)
+        assertEquals("Lcom/Type;", filter.type)
+    }
+
+    @Test
+    fun `fieldAccess matches values from lambdas`() {
+        val method = createTestMethod()
+        val typeClass = ImmutableClassDef("Lcom/Type;", 0, null, null, null, null, null, null)
+        val filters = listOf(
+            fieldAccess(definingClass = { targetClass }, name = "field"),
+            fieldAccess({ targetClass }),
+            fieldAccess(definingClass = { targetClass }, opcode = Opcode.IGET_OBJECT),
+            fieldAccess(type = { typeClass }),
+            fieldAccess(definingClass = "Lcom/Target;", type = { typeClass }, opcode = Opcode.IGET_OBJECT),
+            fieldAccess(definingClass = { targetClass }, type = { typeClass }),
+            fieldAccess(definingClass = { targetClass }, type = { "Lcom/Type;" }, opcode = Opcode.IGET_OBJECT),
+        )
+
+        filters.forEach { filter -> assertTrue(filter.matches(method, fieldAccessOf())) }
+        assertFalse(fieldAccess(type = { typeClass }).matches(method, fieldAccessOf(type = "Lcom/Other;")))
+        assertFalse(fieldAccess(definingClass = { targetClass }).matches(method, fieldAccessOf("Lcom/Other;")))
+    }
+
+    @Test
+    fun `fieldAccess from a lambda can use a type of this class`() {
+        val method = createTestMethod()
+        val filter = fieldAccess(definingClass = "this", type = { "Lcom/Type;" })
+
+        assertTrue(filter.matches(method, fieldAccessOf(method.definingClass)))
+        assertFalse(filter.matches(method, fieldAccessOf("Lcom/Other;")))
+    }
+
+    @Test
+    fun `a lambda can return any kind of class`() {
+        val mutableClass = targetClass.toMutable()
+        val method = createTestMethod()
+
+        assertTrue(methodCall(definingClass = { mutableClass }).matches(method, methodCallOf()))
+        assertTrue(fieldAccess(definingClass = { mutableClass }).matches(method, fieldAccessOf()))
+    }
+
+    @Test
+    fun `values from lambdas are evaluated once and only when needed`() {
+        var evaluations = 0
+        val method = createTestMethod()
+        val reference = ImmutableMethodReference("Lcom/Target;", "target", listOf("I"), "V")
+        val filters = listOf(
+            methodCall(reference = { evaluations++; reference }),
+            methodCall(definingClass = { evaluations++; targetClass }),
+            fieldAccess(type = { evaluations++; "Lcom/Type;" }),
+            fieldAccess(definingClass = { evaluations++; targetClass }, type = { evaluations++; "Lcom/Type;" }),
+        )
+
+        assertEquals(0, evaluations)
+        repeat(3) {
+            filters.forEach { filter ->
+                filter.matches(method, methodCallOf())
+                filter.matches(method, fieldAccessOf())
+            }
+        }
+        assertEquals(5, evaluations)
     }
 
     // ==================== MethodCallFilter tests ====================

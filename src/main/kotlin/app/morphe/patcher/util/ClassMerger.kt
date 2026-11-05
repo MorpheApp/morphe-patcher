@@ -6,6 +6,8 @@
  * https://github.com/LisoUseInAIKyrios/revanced-patcher
  */
 
+@file:Suppress("DEPRECATION")
+
 package app.morphe.patcher.util
 
 import app.morphe.patcher.patch.BytecodePatchContext

@@ -40,6 +40,10 @@ val publicPatch = bytecodePatch("Public") {
     dependsOn(privateUnnamedDependency)
 }
 
+// Loaded, because it's named.
+val publicDeclaredPatch = patch("Public declared") {
+}
+
 // Not loaded, because it's private.
 private val privateUnnamedPatch = bytecodePatch(default = true) {
 }
@@ -73,7 +77,7 @@ internal object PatchLoaderTest {
     /**
      * Calls the private PatchLoader.Companion.loadPatches function with the test patches.
      */
-    private fun loadPatches(patchesFile: File): Set<Patch<*>> {
+    private fun loadPatches(patchesFile: File): Set<Patch> {
         // Get instance of private PatchLoader.Companion class.
         val patchLoaderCompanionObject = getPrivateFieldByType(
             PatchLoader::class.java,
@@ -85,7 +89,7 @@ internal object PatchLoaderTest {
         val loadPatchesFunction = getPrivateFunctionByName(
             patchLoaderCompanionObject,
             LOAD_PATCHES_FUNCTION_NAME,
-        ) as KFunction<Map<File, Set<Patch<*>>>>
+        ) as KFunction<Map<File, Set<Patch>>>
 
         // Call private PatchLoader.Companion.loadPatches function.
         return loadPatchesFunction.call(
@@ -100,10 +104,10 @@ internal object PatchLoaderTest {
         val patches = loadPatches(File("patchesFile"))
 
         assertEquals(
-            2,
+            3,
             patches.size,
-            "Expected 2 patches to be loaded, " +
-                "because there's only two named patches declared as public static fields " +
+            "Expected 3 patches to be loaded, " +
+                "because there's only three named patches declared as public static fields " +
                 "or returned by public static and non-parametrized methods.",
         )
     }
@@ -223,7 +227,7 @@ internal object PatchLoaderTest {
             ),
         )
 
-        assertEquals(2, loadPatches(patchesFile).size)
+        assertEquals(3, loadPatches(patchesFile).size)
     }
 
     @Test

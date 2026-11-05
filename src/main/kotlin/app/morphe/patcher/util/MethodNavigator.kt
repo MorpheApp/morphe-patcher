@@ -1,4 +1,4 @@
-@file:Suppress("unused", "DEPRECATION_ERROR")
+@file:Suppress("unused", "DEPRECATION", "DEPRECATION_ERROR")
 
 package app.morphe.patcher.util
 

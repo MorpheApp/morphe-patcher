@@ -9,6 +9,8 @@ import app.morphe.patcher.PatcherBehavior.Adoption
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.PatchBundleInfo
 import app.morphe.patcher.patch.bytecodePatch
+import app.morphe.patcher.patch.patch
+import app.morphe.patcher.patch.rawResourcePatch
 import app.morphe.patcher.patch.resourcePatch
 import org.junit.jupiter.api.Test
 import java.io.File
@@ -40,10 +42,10 @@ internal class PatcherBehaviorTest {
     private fun bundle(name: String, patcherVersion: String?) =
         PatchBundleInfo(File("$name.mpp"), name, "1.0.0", patcherVersion)
 
-    private fun <P : Patch<*>> P.from(bundle: PatchBundleInfo) = apply { this.bundle = bundle }
+    private fun <P : Patch> P.from(bundle: PatchBundleInfo) = apply { this.bundle = bundle }
 
     private fun resolve(
-        patches: List<Patch<*>>,
+        patches: List<Patch>,
         configured: String? = null,
         adoption: Adoption = onRequest.adoption,
     ) = resolvePatcherBehaviors(configured, patches, logger, listOf(onRequest)) { adoption }
@@ -55,6 +57,28 @@ internal class PatcherBehaviorTest {
             resourcePatch("Unknown") {}.from(bundle("Unknown patches", null)),
             resourcePatch("New") {}.from(bundle("New patches", newVersion)),
         )
+
+    @Test
+    fun `behaviors of bytecode and of resources both affect a patch that can use both`() {
+        val patch = patch("Patch") {}
+
+        assertTrue(PatcherBehavior.ON_REQUEST_RESOURCE_DECODING.affects(patch))
+        assertTrue(PatcherBehavior.EXACT_FINGERPRINT_STRINGS.affects(patch))
+        assertTrue(PatcherBehavior.RETRY_ALL_INSTRUCTION_FILTERS.affects(patch))
+    }
+
+    @Test
+    fun `behaviors only affect the deprecated patch types they apply to`() {
+        val onRequest = PatcherBehavior.ON_REQUEST_RESOURCE_DECODING
+        val exactStrings = PatcherBehavior.EXACT_FINGERPRINT_STRINGS
+
+        assertTrue(onRequest.affects(resourcePatch("Resources") {}))
+        assertFalse(onRequest.affects(bytecodePatch("Bytecode") {}))
+        assertFalse(onRequest.affects(rawResourcePatch("Raw") {}))
+        assertTrue(exactStrings.affects(bytecodePatch("Bytecode") {}))
+        assertFalse(exactStrings.affects(resourcePatch("Resources") {}))
+        assertFalse(exactStrings.affects(rawResourcePatch("Raw") {}))
+    }
 
     @Test
     fun `on request decoding needs every bundle to be built for it`() {
@@ -153,7 +177,7 @@ internal class PatcherBehaviorTest {
     @Test
     fun `exact fingerprint strings apply to patches built for an unknown version`() {
         val exactStrings = PatcherBehavior.EXACT_FINGERPRINT_STRINGS
-        fun resolve(vararg patches: Patch<*>) =
+        fun resolve(vararg patches: Patch) =
             resolvePatcherBehaviors(null, patches.toList(), logger, listOf(exactStrings))
 
         assertEquals(setOf(exactStrings), resolve(bytecodePatch("Patch") {}), "not loaded from a bundle")
@@ -212,7 +236,7 @@ internal class PatcherBehaviorTest {
         val strict = PatcherBehavior.STRICT_UNIVERSAL_PATCH_DEFAULT
         assertEquals(Adoption.EVERY_BUNDLE, strict.adoption)
 
-        fun resolve(vararg patches: Patch<*>) = resolvePatcherBehaviors(null, patches.toList(), logger, listOf(strict))
+        fun resolve(vararg patches: Patch) = resolvePatcherBehaviors(null, patches.toList(), logger, listOf(strict))
         val newVersion = strict.since.toString()
         val universal = bytecodePatch("Universal") {}
         val compatible = bytecodePatch("Compatible", default = false) {}

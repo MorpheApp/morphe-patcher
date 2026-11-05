@@ -5,11 +5,11 @@
 
 package app.morphe.patcher
 
-import app.morphe.patcher.patch.BytecodePatch
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.PatchBundleInfo
-import app.morphe.patcher.patch.ResourcePatch
 import app.morphe.patcher.patch.anyRecursively
+import app.morphe.patcher.patch.usesBytecode
+import app.morphe.patcher.patch.usesDecodedResources
 import java.util.logging.Logger
 
 /**
@@ -31,7 +31,7 @@ internal enum class PatcherBehavior(
     since: String,
     val adoption: Adoption,
     val description: String,
-    private val affectsPatch: (Patch<*>) -> Boolean,
+    private val affectsPatch: (Patch) -> Boolean,
     private val appliesToUnknownVersion: Boolean = false,
 ) {
     /**
@@ -42,7 +42,7 @@ internal enum class PatcherBehavior(
         // A patch built for an older version may list a directory it expects to be decoded.
         adoption = Adoption.EVERY_BUNDLE,
         description = "Resources are decoded when patches request them, instead of all before patches execute",
-        affectsPatch = { patch -> patch.anyRecursively { it is ResourcePatch } },
+        affectsPatch = { patch -> patch.anyRecursively { it.usesDecodedResources } },
     ),
 
     /**
@@ -53,7 +53,7 @@ internal enum class PatcherBehavior(
         since = "2.0.0-0", // Includes pre-release.
         adoption = Adoption.NEWEST_BUNDLE,
         description = "Fingerprint strings must equal a string of the method, instead of only being contained in one",
-        affectsPatch = { patch -> patch.anyRecursively { it is BytecodePatch } },
+        affectsPatch = { patch -> patch.anyRecursively { it.usesBytecode } },
         appliesToUnknownVersion = true,
     ),
 
@@ -69,7 +69,7 @@ internal enum class PatcherBehavior(
             "their next matching instruction, instead of only the first filter",
         // Only bundles whose bytecode uses instruction locations that can match differently.
         affectsPatch = { patch ->
-            patch.bundle?.retryingFiltersCanChangeMatches != false && patch.anyRecursively { it is BytecodePatch }
+            patch.bundle?.retryingFiltersCanChangeMatches != false && patch.anyRecursively { it.usesBytecode }
         },
         appliesToUnknownVersion = true,
     ),
@@ -95,7 +95,7 @@ internal enum class PatcherBehavior(
      */
     fun appliesTo(version: PatcherVersion?) = if (version == null) appliesToUnknownVersion else version >= since
 
-    fun affects(patch: Patch<*>) = affectsPatch(patch)
+    fun affects(patch: Patch) = affectsPatch(patch)
 
     /**
      * Which patch bundles must be built for [since] or newer for a behavior to apply. Only bundles with
@@ -131,7 +131,7 @@ internal enum class PatcherBehavior(
  */
 internal fun resolvePatcherBehaviors(
     configured: String?,
-    patches: Collection<Patch<*>>,
+    patches: Collection<Patch>,
     logger: Logger,
     candidates: Collection<PatcherBehavior> = PatcherBehavior.entries,
     adoption: (PatcherBehavior) -> PatcherBehavior.Adoption = PatcherBehavior::adoption,

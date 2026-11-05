@@ -101,6 +101,11 @@ private const val PATCHED_CONFIGURATIONS_DIRECTORY = "patched-configurations"
 private const val PATCHED_ROOT_DIRECTORY = "patched-root"
 
 /**
+ * Holds what patches staged in raw mode, while every resource is decoded after all.
+ */
+private const val RAW_ROOT_DIRECTORY = "raw-root"
+
+/**
  * Holds what patches wrote to values files before they were decoded, while those are decoded to be
  * merged with it.
  */
@@ -530,6 +535,11 @@ internal class ArsclibResourceCoder(
             catalogTimings = null
         }
 
+        // Files a patch extracted or added in raw mode are its work, and not what the decoder extracts.
+        val rawRootFiles = workingDir.resolve(RAW_ROOT_DIRECTORY)
+        if (rawEntriesOnRequest != null) otherResourcesRootDirectory.safelyMoveTo(rawRootFiles)
+        rawEntriesOnRequest = null
+
         timings.measure("decodeAll") {
             // The decoder renames the resource files of the table it works on to the paths it writes
             // them under, so the module is not the one the encoder builds the output from.
@@ -582,6 +592,13 @@ internal class ArsclibResourceCoder(
             fileSnapshotCache = buildFileSnapshot()
             pathMap = readPathMap()
             decodedUpFront = listDecodedUpFront(includeResources = true)
+
+            if (rawRootFiles.exists()) {
+                rawRootFiles.walkTopDown().filter { it.isFile }.toList().forEach { file ->
+                    file.safelyMoveTo(otherResourcesRootDirectory.resolve(file.relativeTo(rawRootFiles)))
+                }
+                rawRootFiles.safelyDelete()
+            }
         }
         timings.log()
 
@@ -626,9 +643,9 @@ internal class ArsclibResourceCoder(
             otherResourcesRootDirectory.mkdirs()
         }
 
-        fileSnapshotCache = mutableMapOf()
         pathMap = decoder.pathMap
         onRequestDecoder = decoder
+        rawEntriesOnRequest = null
 
         logger.info("Decoding resources on request, ${decoder.size} files can be decoded")
         releaseInputModuleUnlessRetainable()

@@ -28,7 +28,7 @@ private val logger = Logger.getLogger("PatchUtils")
  * @param countUnusedPatches Whether to count patches that are not used.
  * @return A map of package names to a map of versions to their count.
  */
-fun Set<Patch<*>>.mostCommonCompatibleVersions(
+fun Set<Patch>.mostCommonCompatibleVersions(
     packageNames: Set<String>? = null,
     countUnusedPatches: Boolean = false,
 ): Map<String, LinkedHashMap<String, Count>> = buildMap {
@@ -67,7 +67,7 @@ fun Set<Patch<*>>.mostCommonCompatibleVersions(
  *
  * @param options The options to set. The key is the patch name and the value is a map of option keys to option values.
  */
-fun Set<Patch<*>>.setOptions(options: PatchesOptions) = filter { it.name != null }.forEach { patch ->
+fun Set<Patch>.setOptions(options: PatchesOptions) = filter { it.name != null }.forEach { patch ->
     options[patch.name]?.forEach setOption@{ (optionKey, optionValue) ->
         if (optionKey !in patch.options) {
             return@setOption logger.warning(

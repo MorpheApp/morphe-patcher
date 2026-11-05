@@ -168,6 +168,98 @@ internal object FingerprintTest {
         fingerprint.clearMatch()
     }
 
+    @Test
+    fun `clearMatch evaluates the values of filter lambdas again`() {
+        var value = "first"
+        fun type() = "Lcom/test/$value;"
+
+        val newInstance = newInstance(type = { type() })
+        val instanceOf = instanceOf(type = { type() })
+        val checkCast = checkCast(type = { type() })
+        val methodCall = methodCall(definingClass = { type() })
+        val fieldAccess = fieldAccess(definingClass = { type() })
+        val string = string(string = { value })
+        val literal = literal(literal = { value.length.toLong() })
+        val nestedString = string(string = { value })
+        val stringFilter = string(string = { value })
+
+        val fingerprint = Fingerprint(
+            filters = listOf(
+                newInstance,
+                instanceOf,
+                checkCast,
+                methodCall,
+                fieldAccess,
+                string,
+                literal,
+                anyInstruction(nestedString),
+            ),
+            strings = listOf(stringFilter),
+        )
+
+        fun assertValues(expected: String, expectedType: String) {
+            assertEquals(expectedType, newInstance.typeValue)
+            assertEquals(expectedType, instanceOf.typeValue)
+            assertEquals(expectedType, checkCast.typeValue)
+            assertEquals(expectedType, methodCall.definingClass)
+            assertEquals(expectedType, fieldAccess.definingClass)
+            assertEquals(expected, string.stringValue)
+            assertEquals(expected.length.toLong(), literal.literalValue)
+            assertEquals(expected, nestedString.stringValue)
+            assertEquals(expected, stringFilter.stringValue)
+        }
+
+        assertValues("first", "Lcom/test/first;")
+
+        value = "second"
+        assertValues("first", "Lcom/test/first;") // Evaluated values are stored.
+
+        fingerprint.clearMatch()
+        assertValues("second", "Lcom/test/second;")
+    }
+
+    @Test
+    fun `clearMatch clears the filter values of the class fingerprint`() {
+        var value = "first"
+        val filter = string(string = { value })
+        val fingerprint = Fingerprint(
+            classFingerprint = Fingerprint(filters = listOf(filter)),
+            name = "testMethod",
+        )
+
+        assertEquals("first", filter.stringValue)
+
+        value = "second"
+        fingerprint.clearMatch()
+        assertEquals("second", filter.stringValue)
+    }
+
+    @Test
+    fun `clearFingerprints clears filter values every time`() {
+        var value = "first"
+        val filter = newInstance(type = { "Lcom/test/$value;" })
+        val fingerprint = Fingerprint(filters = listOf(filter))
+
+        repeat(3) { run ->
+            value = "run$run"
+            Fingerprint.clearFingerprints()
+            assertEquals("Lcom/test/run$run;", filter.typeValue)
+        }
+
+        assertNotNull(fingerprint.filters)
+    }
+
+    @Test
+    fun `Filter values known up front are unchanged after clearMatch`() {
+        val filter = methodCall(definingClass = "Lcom/test/Class;", name = "method")
+        val fingerprint = Fingerprint(filters = listOf(filter))
+
+        fingerprint.clearMatch()
+
+        assertEquals("Lcom/test/Class;", filter.definingClass)
+        assertEquals("method", filter.name)
+    }
+
     // ==================== toString tests ====================
 
     @Test
