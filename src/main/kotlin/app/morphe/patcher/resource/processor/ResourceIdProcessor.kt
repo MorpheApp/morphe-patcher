@@ -35,7 +35,10 @@ internal class ResourceIdProcessor(
 
     private val logger = Logger.getLogger(ResourceIdProcessor::class.java.name)
 
-    fun process() {
+    /**
+     * @param onProgress Called with how many of the changed files are read for the ids they declare.
+     */
+    fun process(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }) {
         logger.info("Generating new resource IDs")
 
         // New ids are numbered in the order resources are seen here, so every listing is sorted.
@@ -51,20 +54,21 @@ internal class ResourceIdProcessor(
             val idNode = idDoc.getElementsByTagName("resources").item(0)
                 ?: throw IllegalStateException("ids.xml is missing the <resources> root element.")
 
-            modifiedResResources
+            val files = modifiedResResources
                 .filter { it.exists() && it.extension == "xml" }
                 .sortedBy { it.invariantSeparatorsPath }
-                .forEach { file ->
-                    // The document parser detects the encoding of a file that is not UTF-8, the pull parser does not.
-                    val declarations = if (file.isUtf16()) null else readDeclarations(file)
-                    if (declarations == null || declarations.needsRewrite) {
-                        processIdAndAttrDeclarations(file, idNode)
-                        // The rewrite changes attribute values, so the declarations are read again.
-                        createPublicIdsFromValuesXml(file)
-                    } else {
-                        declarations.createPublicIds()
-                    }
+            files.forEachIndexed { index, file ->
+                // The document parser detects the encoding of a file that is not UTF-8, the pull parser does not.
+                val declarations = if (file.isUtf16()) null else readDeclarations(file)
+                if (declarations == null || declarations.needsRewrite) {
+                    processIdAndAttrDeclarations(file, idNode)
+                    // The rewrite changes attribute values, so the declarations are read again.
+                    createPublicIdsFromValuesXml(file)
+                } else {
+                    declarations.createPublicIds()
                 }
+                onProgress(index + 1, files.size)
+            }
         }
 
         createPublicIdsFromValuesXml(get("res/values/ids.xml"))

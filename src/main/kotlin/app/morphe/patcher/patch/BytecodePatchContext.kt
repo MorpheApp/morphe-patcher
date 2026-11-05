@@ -14,13 +14,16 @@ import app.morphe.patcher.InternalApi
 import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherResult
+import app.morphe.patcher.PatcherTask
 import app.morphe.patcher.StringComparisonType
+import app.morphe.patcher.TaskProgress
 import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.dex.CachingDexBackedDexFile
 import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.dex.DexStripper
 import app.morphe.patcher.dex.MappedFile
 import app.morphe.patcher.dex.MultidexReadResult
+import app.morphe.patcher.runTask
 import app.morphe.patcher.util.ClassMerger.merge
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import app.morphe.patcher.util.PatchClasses
@@ -38,7 +41,7 @@ import java.util.logging.Logger
 /**
  * A context for patches containing the current state of the bytecode.
  *
- * Patches do not need a context any more, since only one APK is ever patched at a time. Use the global
+ * Patches do not need a context anymore, since only one APK is ever patched at a time. Use the global
  * functions instead, such as [app.morphe.patcher.patch.classDefBy], which work on the state this class
  * still holds. Existing patch bundles are executed with this class, so it cannot be removed.
  *
@@ -160,7 +163,7 @@ class BytecodePatchContext internal constructor(
         decodeNanos += System.nanoTime() - startNanos
     }
 
-    internal fun decodeDexFiles() {
+    internal fun decodeDexFiles() = config.progress.runTask(PatcherTask.DECODING_DEX) {
         // Extract original DEX files from the APK to disk for later in-place editing.
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
         dexWorkingDir.apply { deleteRecursively(); mkdirs()}
@@ -169,7 +172,7 @@ class BytecodePatchContext internal constructor(
         opcodes = readResult.dexFile.opcodes
         val classes = readResult.dexFile.classes
         originalClassCount = classes.size
-        patchClasses = PatchClasses(classes)
+        patchClasses = PatchClasses(classes, config.progress)
 
         // Insertion-ordered so iteration follows the original classes*.dex order; a plain
         // HashMap iterates in File-hash order, which varies with the temporary directory
@@ -429,7 +432,7 @@ class BytecodePatchContext internal constructor(
      *
      * @param method The method to navigate.
      *
-     * @return A [app.morphe.patcher.util.MethodNavigator] for the method.
+     * @return A `MethodNavigator` for the method.
      */
     @Deprecated("Instead use Fingerprint instruction match `getMethodCalled()`," +
             " or lookup a method from an index using BytecodeUtils MethodReference.getMutableMethod()",
@@ -452,11 +455,16 @@ class BytecodePatchContext internal constructor(
 
         logger.info("Compiling patched dex files (mode: ${config.bytecodeMode})")
 
-        return when (config.bytecodeMode) {
-            BytecodeMode.NONE -> emptySet()
-            BytecodeMode.FULL -> compileFull()
-            BytecodeMode.STRIP_FAST -> compileStripFast()
-            BytecodeMode.STRIP_SAFE -> compileStripSafe()
+        if (config.bytecodeMode == BytecodeMode.NONE) return emptySet()
+
+        // Counted in the classes written, whose number each mode learns as it goes.
+        return config.progress.runTask(PatcherTask.COMPILING_DEX, total = 0) { task ->
+            when (config.bytecodeMode) {
+                BytecodeMode.NONE -> emptySet()
+                BytecodeMode.FULL -> compileFull(task)
+                BytecodeMode.STRIP_FAST -> compileStripFast(task)
+                BytecodeMode.STRIP_SAFE -> compileStripSafe(task)
+            }
         }
     }
 
@@ -464,7 +472,7 @@ class BytecodePatchContext internal constructor(
      * [BytecodeMode.FULL]: Write ALL classes through DexPool, producing completely new DEX files.
      * Slowest but most space-efficient since no dead data remains.
      */
-    private fun compileFull(): Set<PatcherResult.PatchedDexFile> {
+    private fun compileFull(task: TaskProgress): Set<PatcherResult.PatchedDexFile> {
         val classDefs = patchClasses.classMap.values.let { values ->
             values.mapTo(ArrayList(values.size)) { it.classDef }
         }
@@ -473,7 +481,7 @@ class BytecodePatchContext internal constructor(
 
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
         // TODO: Separate out any j$ classes into their own DEX files, because d8/r8 will reject the DEX files otherwise.
-        DexReadWrite.writeMultiDexFile(dexOutputDir, classDefs, opcodes, -1, logger)
+        DexReadWrite.writeMultiDexFile(dexOutputDir, classDefs, opcodes, -1, logger, task)
 
         // All original classes have now been read; release their mappings.
         releaseAllDexMappings()
@@ -493,7 +501,7 @@ class BytecodePatchContext internal constructor(
      * No class is defined twice, so load order does not matter, and the result holds only the
      * stripped originals and the new files: the output keeps every other original DEX entry as is.
      */
-    private fun compileStripFast(): Set<PatcherResult.PatchedDexFile> {
+    private fun compileStripFast(task: TaskProgress): Set<PatcherResult.PatchedDexFile> {
         val (modifiedOriginalDescriptors, classesForNewDex)
                 = getModifiedOriginalDescriptorsAndClassesForNewDex()
 
@@ -509,7 +517,7 @@ class BytecodePatchContext internal constructor(
         var nextDexIndex = originalDexMappings.keys.maxOfOrNull(::dexIndex) ?: 0
         if (classesForNewDex.isNotEmpty()) {
             logger.info("Writing ${classesForNewDex.size} new classes to new DEX files")
-            DexReadWrite.writeMultiDexFile(config.patchedFiles.resolve("newDex"), classesForNewDex, opcodes, -1, logger)
+            DexReadWrite.writeMultiDexFile(config.patchedFiles.resolve("newDex"), classesForNewDex, opcodes, -1, logger, task)
                 .forEach { dexFile ->
                     dexFile.safelyMoveTo(dexOutputDir.resolve(getDexName(nextDexIndex++)))
                 }
@@ -606,7 +614,7 @@ class BytecodePatchContext internal constructor(
      * Slower than [STRIP_FAST][BytecodeMode.STRIP_FAST] but produces clean DEX files
      * with no dead data or duplicate class definitions.
      */
-    private fun compileStripSafe(): Set<PatcherResult.PatchedDexFile> {
+    private fun compileStripSafe(task: TaskProgress): Set<PatcherResult.PatchedDexFile> {
         val (modifiedOriginalDescriptors, classesForNewDex)
                 = getModifiedOriginalDescriptorsAndClassesForNewDex()
 
@@ -616,7 +624,7 @@ class BytecodePatchContext internal constructor(
         var newDexCount = 0
         if (classesForNewDex.isNotEmpty()) {
             logger.info("Writing ${classesForNewDex.size} modified/new classes to new DEX files")
-            DexReadWrite.writeMultiDexFile(dexOutputDir, classesForNewDex, opcodes, -1, null)
+            DexReadWrite.writeMultiDexFile(dexOutputDir, classesForNewDex, opcodes, -1, null, task)
             newDexCount = dexOutputDir.listFiles { it.isFile }!!.size
         }
 
@@ -652,7 +660,7 @@ class BytecodePatchContext internal constructor(
                         mkdirs()
                     }
                     val rebuiltFiles = DexReadWrite.writeMultiDexFile(
-                        tempDir, unmodifiedClasses, opcodes, -1, null
+                        tempDir, unmodifiedClasses, opcodes, -1, null, task
                     )
                     // This file's classes have been read; release its mapping.
                     releaseDexMapping(originalDex)

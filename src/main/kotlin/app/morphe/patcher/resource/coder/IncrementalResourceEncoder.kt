@@ -87,6 +87,7 @@ internal class IncrementalResourceEncoder(
      * @param newPackageName The package name the manifest now declares.
      * @param packagesToEncode The names of the packages of [packageDirectories] to encode. The others
      * are left as the table has them.
+     * @param onProgress Called with how many values files of a package are encoded.
      */
     fun encode(
         modifiedResources: Set<File>,
@@ -97,6 +98,7 @@ internal class IncrementalResourceEncoder(
         originalPackageName: String,
         newPackageName: String,
         packagesToEncode: Set<String>,
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
     ) {
         val tableBlock = module.tableBlock ?: throw PatchException("The APK has no resource table")
 
@@ -153,7 +155,7 @@ internal class IncrementalResourceEncoder(
                 timings.measure("values") {
                     // Attributes first: styles and enums are encoded against attribute names.
                     val (attrs, others) = appValuesFiles.partition { it.name == "attrs.xml" }
-                    (attrs + others).forEach { valuesFile ->
+                    (attrs + others).forEachIndexed { index, valuesFile ->
                         val typeBlock = packageBlock.getOrCreateTypeBlock(
                             XmlEncodeUtil.getQualifiersFromValuesXml(valuesFile),
                             XmlEncodeUtil.getTypeFromValuesXml(valuesFile),
@@ -167,6 +169,7 @@ internal class IncrementalResourceEncoder(
                         )
                         encoded += counts.first
                         declared += counts.second
+                        onProgress(index + 1, appValuesFiles.size)
                     }
                 }
 

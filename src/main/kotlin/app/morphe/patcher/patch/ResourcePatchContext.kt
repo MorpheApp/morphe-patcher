@@ -38,7 +38,7 @@ import java.util.logging.Logger
  * since a directory only holds the files decoded so far.
  * [listDecodableFiles] lists what can be decoded without decoding it.
  *
- * Patches do not need a context any more, since only one APK is ever patched at a time. Use the global
+ * Patches do not need a context anymore, since only one APK is ever patched at a time. Use the global
  * functions instead, such as [app.morphe.patcher.patch.document], which work on the state this class
  * still holds. Existing patch bundles are executed with this class, so it cannot be removed.
  */
@@ -52,7 +52,12 @@ class ResourcePatchContext internal constructor(
 
     override val validate = config.validate
 
-    private val resourceCoder: ResourceCoder = ArsclibResourceCoder(config.apkFiles, config.apkFile, config.keepArchitectures)
+    private val resourceCoder: ResourceCoder = ArsclibResourceCoder(
+        config.apkFiles,
+        config.apkFile,
+        config.keepArchitectures,
+        progress = config.progress,
+    )
 
     /**
      * The resource ids of the APK being patched, read from its resource table on first use.
@@ -151,8 +156,8 @@ class ResourcePatchContext internal constructor(
 
     /**
      * Decodes as little as patches need so far. Entries of the APK that are not resources are extracted
-     * in raw mode, which keeps the manifest and the resource table as they are, and resources are
-     * decoded once a patch needs them, which keeps what was extracted and changed until then.
+     * in raw mode, which keeps the manifest and the resource table as they are. Resources are decoded
+     * once a patch needs them, which keeps what was extracted and changed until then.
      * That only works when decoding on request, since otherwise every file is extracted and decoded.
      *
      * @param usesDecodedResources Whether a patch needs decoded resources.

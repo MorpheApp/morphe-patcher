@@ -34,6 +34,7 @@ import java.util.logging.Logger
  * [Fingerprint.matchOrNull] must match at most one method, the same as using `matchSingle()`.
  * Slow fingerprints and patches are also logged.
  * Patches can check [app.morphe.patcher.patch.validate] to do their own validation checks.
+ * @param progress Receives how far the patcher got with the work it does besides executing patches.
  */
 class PatcherConfig(
     internal val apkFile: File,
@@ -44,6 +45,7 @@ class PatcherConfig(
     private val fileWorkspacePath: File? = null,
     internal val targetPatcherVersion: String? = null,
     internal val validate: Boolean = false,
+    internal val progress: PatcherProgress? = null,
 ) {
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
 
