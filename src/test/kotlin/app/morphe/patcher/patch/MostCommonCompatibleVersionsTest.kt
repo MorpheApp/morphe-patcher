@@ -141,7 +141,7 @@ internal class MostCommonCompatibleVersionsTest {
 
     private fun assertEqualsVersions(
         expected: Map<String, LinkedHashMap<String, Count>>,
-        patches: Set<Patch<*>>,
+        patches: Set<Patch>,
         compatiblePackageNames: Set<String>?,
         countUnusedPatches: Boolean = false,
     ) = assertEquals(
@@ -151,7 +151,7 @@ internal class MostCommonCompatibleVersionsTest {
 
     private fun assertEqualsVersion(
         expected: String?,
-        patches: Set<Patch<*>>,
+        patches: Set<Patch>,
         compatiblePackageName: String,
     ) {
         assertEquals(

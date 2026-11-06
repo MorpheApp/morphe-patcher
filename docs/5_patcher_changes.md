@@ -3,6 +3,92 @@
 Patches built for an older Morphe Patcher keep the old behavior, decided by the `Patcher-Version`
 attribute of the patch bundle manifest. A warning is logged when an older bundle gets a newer behavior.
 
+## 2.3.0
+
+### 🧩 One patch type without a context
+
+`bytecodePatch`, `resourcePatch` and `rawResourcePatch` are replaced by `patch`, and `BytecodePatchContext` and
+`ResourcePatchContext` are replaced by global functions. A patch can now use both bytecode and resources, and the
+global functions and fingerprints can be used from anywhere while an APK is being patched.
+
+For example, an instruction filter can now depend on the match of another fingerprint:
+
+```kt
+object SearchBoxFingerprint : Fingerprint(
+    filters = listOf(
+        newInstance(type = { SearchBoxHintFingerprint.originalClassDef }),
+    ),
+)
+```
+
+`methodCall` and `fieldAccess` filters also accept lambdas, and a lambda for a type can return a class. See
+[Fingerprinting](2_2_1_fingerprinting.md) for details.
+
+Patch bundles that are already built keep working. Code that uses the old API still compiles, but with a
+deprecation warning, and will stop compiling in a future release.
+
+**Migrate:**
+
+```kt
+// Before.
+val examplePatch = bytecodePatch(name = "Example") {
+    execute {
+        val superclass = classDefBy(ExampleFingerprint.originalMethod.returnType).superclass!!
+        mutableClassDefBy(superclass).methods.forEach { it.accessFlags = it.accessFlags.toPublic() }
+    }
+}
+
+context(_: BytecodePatchContext)
+fun disableExample() = ExampleFingerprint.method.returnEarly()
+
+fun ResourcePatchContext.readStrings() = this["res/values/strings.xml"].readText()
+
+// After.
+import app.morphe.patcher.patch.classDefBy
+import app.morphe.patcher.patch.mutableClassDefBy
+import app.morphe.patcher.patch.patch
+import app.morphe.patcher.patch.resourceFile
+
+val examplePatch = patch(name = "Example") {
+    execute {
+        val superclass = classDefBy(ExampleFingerprint.originalMethod.returnType).superclass!!
+        mutableClassDefBy(superclass).methods.forEach { it.accessFlags = it.accessFlags.toPublic() }
+    }
+}
+
+fun disableExample() = ExampleFingerprint.method.returnEarly()
+
+fun readStrings() = resourceFile("res/values/strings.xml").readText()
+```
+
+| Before | After |
+|---|---|
+| `bytecodePatch`, `resourcePatch`, `rawResourcePatch` | `patch` |
+| `BytecodePatch`, `ResourcePatch`, `RawResourcePatch` | `Patch` |
+| `Patch<*>` | `Patch` |
+| `BytecodePatchBuilder`, `ResourcePatchBuilder`, `RawResourcePatchBuilder` | `PatchDefinition` |
+| `BytecodePatchContext.() -> Unit`, `ResourcePatchContext.() -> Unit` | `() -> Unit` |
+| `fun BytecodePatchContext.helper()`, `context(_: BytecodePatchContext) fun helper()` | `fun helper()` |
+| `get(path)`, `this[path]` | `resourceFile(path)` |
+| `delete(name)` | `deleteResource(name)` |
+
+Every other function and property keeps its name, such as `classDefBy`, `document`, `decode` and `validate`,
+and is imported from `app.morphe.patcher.patch`. Fingerprints need no import, and work the same in an old patch.
+
+Code that calls a helper of a library that still needs a context can use the deprecated `bytecodeContext` and
+`resourceContext` properties until the library is updated:
+
+```kt
+with(resourceContext) { libraryHelper() }
+```
+
+### 🗂️ Only what patches use is decoded
+
+A patch does not declare what it uses, so what it uses is decoded when it first needs it. Anything no patch
+uses is copied to the patched APK as it is, and using only other files of the APK, such as native libraries,
+keeps the manifest and `resources.arsc` as they are. A patch built with the old patch types is decoded as
+before.
+
 ## 2.0.0
 
 ### 🗂️ Resources are decoded on request

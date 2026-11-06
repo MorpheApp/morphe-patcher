@@ -30,41 +30,67 @@ public class app/morphe/patcher/Fingerprint {
 	public synthetic fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
 	public synthetic fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun clearMatch ()V
-	public final fun getClassDef (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
-	public final fun getClassDefOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
+	public final fun getClassDef ()Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
+	public final synthetic fun getClassDef (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
+	public final fun getClassDefOrNull ()Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
+	public final synthetic fun getClassDefOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final fun getClassFingerprint ()Lapp/morphe/patcher/Fingerprint;
 	public final fun getCustom ()Lkotlin/jvm/functions/Function2;
 	public final fun getDefiningClass ()Ljava/lang/String;
 	public final fun getFilters ()Ljava/util/List;
-	public final fun getInstructionMatches (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
-	public final fun getInstructionMatchesOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
-	public final fun getMethod (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
-	public final fun getMethodOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public final fun getInstructionMatches ()Ljava/util/List;
+	public final synthetic fun getInstructionMatches (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
+	public final fun getInstructionMatchesOrNull ()Ljava/util/List;
+	public final synthetic fun getInstructionMatchesOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
+	public final fun getMethod ()Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public final synthetic fun getMethod (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public final fun getMethodOrNull ()Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public final synthetic fun getMethodOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
 	public final fun getName ()Ljava/lang/String;
-	public final fun getOriginalClassDef (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
-	public final fun getOriginalClassDefOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
-	public final fun getOriginalMethod (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/Method;
-	public final fun getOriginalMethodOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/Method;
+	public final fun getOriginalClassDef ()Lcom/android/tools/smali/dexlib2/iface/ClassDef;
+	public final synthetic fun getOriginalClassDef (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
+	public final fun getOriginalClassDefOrNull ()Lcom/android/tools/smali/dexlib2/iface/ClassDef;
+	public final synthetic fun getOriginalClassDefOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
+	public final fun getOriginalMethod ()Lcom/android/tools/smali/dexlib2/iface/Method;
+	public final synthetic fun getOriginalMethod (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/Method;
+	public final fun getOriginalMethodOrNull ()Lcom/android/tools/smali/dexlib2/iface/Method;
+	public final synthetic fun getOriginalMethodOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lcom/android/tools/smali/dexlib2/iface/Method;
 	public final fun getParameters ()Ljava/util/List;
 	public final fun getReturnType ()Ljava/lang/String;
 	public final fun getStringFilters ()Ljava/util/List;
-	public final fun getStringMatches (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
-	public final fun getStringMatchesOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
+	public final fun getStringMatches ()Ljava/util/List;
+	public final synthetic fun getStringMatches (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
+	public final fun getStringMatchesOrNull ()Ljava/util/List;
+	public final synthetic fun getStringMatchesOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
 	public final fun getStrings ()Ljava/util/List;
-	public final fun match (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/Match;
-	public final fun match (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
-	public final fun match (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/Match;
-	public final fun match (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
-	public final fun matchAll (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
-	public final fun matchAll (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Ljava/util/List;
-	public final fun matchAll (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;Lkotlin/ranges/IntRange;)Ljava/util/List;
-	public final fun matchAll (Lapp/morphe/patcher/patch/BytecodePatchContext;Lkotlin/ranges/IntRange;)Ljava/util/List;
-	public final fun matchAllOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
-	public final fun matchAllOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Ljava/util/List;
-	public final fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/Match;
-	public final fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
-	public final fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/Match;
-	public final fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
+	public final fun match ()Lapp/morphe/patcher/Match;
+	public final synthetic fun match (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/Match;
+	public final synthetic fun match (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
+	public final synthetic fun match (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/Match;
+	public final synthetic fun match (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
+	public final fun match (Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
+	public final fun match (Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/Match;
+	public final fun match (Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
+	public final fun matchAll ()Ljava/util/List;
+	public final synthetic fun matchAll (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
+	public final synthetic fun matchAll (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Ljava/util/List;
+	public final synthetic fun matchAll (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;Lkotlin/ranges/IntRange;)Ljava/util/List;
+	public final synthetic fun matchAll (Lapp/morphe/patcher/patch/BytecodePatchContext;Lkotlin/ranges/IntRange;)Ljava/util/List;
+	public final fun matchAll (Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Ljava/util/List;
+	public final fun matchAll (Lcom/android/tools/smali/dexlib2/iface/ClassDef;Lkotlin/ranges/IntRange;)Ljava/util/List;
+	public final fun matchAll (Lkotlin/ranges/IntRange;)Ljava/util/List;
+	public final fun matchAllOrNull ()Ljava/util/List;
+	public final synthetic fun matchAllOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Ljava/util/List;
+	public final synthetic fun matchAllOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Ljava/util/List;
+	public final fun matchAllOrNull (Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Ljava/util/List;
+	public final fun matchOrNull ()Lapp/morphe/patcher/Match;
+	public final synthetic fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/Match;
+	public final synthetic fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
+	public final synthetic fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/Match;
+	public final synthetic fun matchOrNull (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
+	public final fun matchOrNull (Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
+	public final fun matchOrNull (Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/Match;
+	public final fun matchOrNull (Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/Match;
 	public final fun patchException ()Lapp/morphe/patcher/patch/PatchException;
 	public fun toString ()Ljava/lang/String;
 }
@@ -111,18 +137,36 @@ public final class app/morphe/patcher/InstructionFilterKt {
 	public static synthetic fun checkCast$default (Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/CheckCastFilter;
 	public static synthetic fun checkCast$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/CheckCastFilter;
 	public static synthetic fun checkCast$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/CheckCastFilter;
+	public static final fun checkCastToClass (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/CheckCastFilter;
+	public static synthetic fun checkCastToClass$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/CheckCastFilter;
 	public static final fun fieldAccess (Lcom/android/tools/smali/dexlib2/iface/reference/FieldReference;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/FieldAccessFilter;
 	public static final fun fieldAccess (Lcom/android/tools/smali/dexlib2/iface/reference/FieldReference;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/FieldAccessFilter;
 	public static final fun fieldAccess (Ljava/lang/String;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/FieldAccessFilter;
 	public static final fun fieldAccess (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/FieldAccessFilter;
 	public static final fun fieldAccess (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static final fun fieldAccess (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static final fun fieldAccess (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/FieldAccessFilter;
 	public static final fun fieldAccess (Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static final fun fieldAccess (Lkotlin/jvm/functions/Function0;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static final fun fieldAccess (Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static final fun fieldAccess (Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static final fun fieldAccess (Lkotlin/jvm/functions/Function0;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static final fun fieldAccess (Lkotlin/jvm/functions/Function0;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static final fun fieldAccess (Lkotlin/jvm/functions/Function0;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/FieldAccessFilter;
 	public static synthetic fun fieldAccess$default (Lcom/android/tools/smali/dexlib2/iface/reference/FieldReference;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
 	public static synthetic fun fieldAccess$default (Lcom/android/tools/smali/dexlib2/iface/reference/FieldReference;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
 	public static synthetic fun fieldAccess$default (Ljava/lang/String;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
 	public static synthetic fun fieldAccess$default (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
 	public static synthetic fun fieldAccess$default (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static synthetic fun fieldAccess$default (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static synthetic fun fieldAccess$default (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
 	public static synthetic fun fieldAccess$default (Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static synthetic fun fieldAccess$default (Lkotlin/jvm/functions/Function0;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static synthetic fun fieldAccess$default (Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static synthetic fun fieldAccess$default (Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static synthetic fun fieldAccess$default (Lkotlin/jvm/functions/Function0;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static synthetic fun fieldAccess$default (Lkotlin/jvm/functions/Function0;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
+	public static synthetic fun fieldAccess$default (Lkotlin/jvm/functions/Function0;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/FieldAccessFilter;
 	public static final fun instanceOf (Ljava/lang/String;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/InstanceOfFilter;
 	public static final synthetic fun instanceOf (Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/CheckCastFilter;
 	public static final fun instanceOf (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/InstanceOfFilter;
@@ -131,6 +175,8 @@ public final class app/morphe/patcher/InstructionFilterKt {
 	public static synthetic fun instanceOf$default (Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/CheckCastFilter;
 	public static synthetic fun instanceOf$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/InstanceOfFilter;
 	public static synthetic fun instanceOf$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/CheckCastFilter;
+	public static final fun instanceOfClass (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/InstanceOfFilter;
+	public static synthetic fun instanceOfClass$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/InstanceOfFilter;
 	public static final fun literal (DLjava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/LiteralFilter;
 	public static final fun literal (FLjava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/LiteralFilter;
 	public static final fun literal (ILjava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/LiteralFilter;
@@ -145,12 +191,26 @@ public final class app/morphe/patcher/InstructionFilterKt {
 	public static final fun methodCall (Ljava/lang/String;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/MethodCallFilter;
 	public static final fun methodCall (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/MethodCallFilter;
 	public static final fun methodCall (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/MethodCallFilter;
+	public static final fun methodCall (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/MethodCallFilter;
+	public static final fun methodCall (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/MethodCallFilter;
+	public static final fun methodCall (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/MethodCallFilter;
+	public static final fun methodCall (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/MethodCallFilter;
 	public static final fun methodCall (Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/MethodCallFilter;
+	public static final fun methodCall (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/MethodCallFilter;
+	public static final fun methodCall (Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/MethodCallFilter;
+	public static final fun methodCall (Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/MethodCallFilter;
 	public static synthetic fun methodCall$default (Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/MethodCallFilter;
 	public static synthetic fun methodCall$default (Ljava/lang/String;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/MethodCallFilter;
 	public static synthetic fun methodCall$default (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/MethodCallFilter;
 	public static synthetic fun methodCall$default (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/MethodCallFilter;
+	public static synthetic fun methodCall$default (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/MethodCallFilter;
+	public static synthetic fun methodCall$default (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/MethodCallFilter;
+	public static synthetic fun methodCall$default (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/MethodCallFilter;
+	public static synthetic fun methodCall$default (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/MethodCallFilter;
 	public static synthetic fun methodCall$default (Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/MethodCallFilter;
+	public static synthetic fun methodCall$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/MethodCallFilter;
+	public static synthetic fun methodCall$default (Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/MethodCallFilter;
+	public static synthetic fun methodCall$default (Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/MethodCallFilter;
 	public static final fun newInstance (Ljava/lang/String;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/NewInstanceFilter;
 	public static final synthetic fun newInstance (Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/NewInstanceFilter;
 	public static final fun newInstance (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/NewInstanceFilter;
@@ -159,6 +219,8 @@ public final class app/morphe/patcher/InstructionFilterKt {
 	public static synthetic fun newInstance$default (Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/NewInstanceFilter;
 	public static synthetic fun newInstance$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/NewInstanceFilter;
 	public static synthetic fun newInstance$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/StringComparisonType;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/NewInstanceFilter;
+	public static final fun newInstanceOfClass (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/NewInstanceFilter;
+	public static synthetic fun newInstanceOfClass$default (Lkotlin/jvm/functions/Function0;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/NewInstanceFilter;
 	public static final fun opcode (Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/OpcodeFilter;
 	public static synthetic fun opcode$default (Lcom/android/tools/smali/dexlib2/Opcode;Lapp/morphe/patcher/InstructionLocation;ILjava/lang/Object;)Lapp/morphe/patcher/OpcodeFilter;
 	public static final fun resourceLiteral (Lapp/morphe/patcher/resource/ResourceType;Ljava/lang/String;ZLapp/morphe/patcher/InstructionLocation;)Lapp/morphe/patcher/LiteralFilter;
@@ -288,13 +350,15 @@ public final class app/morphe/patcher/Match {
 }
 
 public final class app/morphe/patcher/Match$InstructionMatch {
-	public final fun getFieldAccessed (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableField;
+	public final fun getFieldAccessed ()Lapp/morphe/patcher/util/proxy/mutableTypes/MutableField;
+	public final synthetic fun getFieldAccessed (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableField;
 	public final fun getFieldReference ()Lcom/android/tools/smali/dexlib2/iface/reference/FieldReference;
 	public final fun getFilter ()Lapp/morphe/patcher/InstructionFilter;
 	public final fun getIndex ()I
 	public final fun getInstruction ()Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;
 	public final fun getInstruction ()Ljava/lang/Object;
-	public final fun getMethodCalled (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public final fun getMethodCalled ()Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public final synthetic fun getMethodCalled (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
 	public final fun getMethodReference ()Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;
 	public fun toString ()Ljava/lang/String;
 }
@@ -352,14 +416,15 @@ public final class app/morphe/patcher/Patcher : java/io/Closeable {
 	public fun close ()V
 	public final fun get ()Lapp/morphe/patcher/PatcherResult;
 	public final fun getContext ()Lapp/morphe/patcher/PatcherContext;
-	public final fun invoke ()Lkotlinx/coroutines/flow/Flow;
+	public final fun invoke (Lkotlin/jvm/functions/Function1;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun invoke$default (Lapp/morphe/patcher/Patcher;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
 	public final fun plusAssign (Ljava/util/Set;)V
 	public final fun writeApk (Ljava/io/File;)V
 }
 
 public final class app/morphe/patcher/PatcherConfig {
-	public fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;Ljava/io/File;Ljava/lang/String;Z)V
-	public synthetic fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;Ljava/io/File;Ljava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;Ljava/io/File;Ljava/lang/String;ZLapp/morphe/patcher/PatcherProgress;)V
+	public synthetic fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;Ljava/io/File;Ljava/lang/String;ZLapp/morphe/patcher/PatcherProgress;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getFileWorkspace ()Ljava/io/File;
 }
 
@@ -367,6 +432,10 @@ public final class app/morphe/patcher/PatcherContext : java/io/Closeable {
 	public fun close ()V
 	public final fun getFileWorkspace ()Ljava/io/File;
 	public final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
+}
+
+public abstract interface class app/morphe/patcher/PatcherProgress {
+	public abstract fun onProgress (Lapp/morphe/patcher/PatcherTask;JJ)V
 }
 
 public final class app/morphe/patcher/PatcherResult {
@@ -384,6 +453,19 @@ public final class app/morphe/patcher/PatcherResult$PatchedResources {
 	public final fun getDoNotCompress ()Ljava/util/Set;
 	public final fun getOtherResources ()Ljava/io/File;
 	public final fun getResourcesApk ()Ljava/io/File;
+}
+
+public final class app/morphe/patcher/PatcherTask : java/lang/Enum {
+	public static final field COMPILING_DEX Lapp/morphe/patcher/PatcherTask;
+	public static final field COMPILING_RESOURCES Lapp/morphe/patcher/PatcherTask;
+	public static final field DECODING_DEX Lapp/morphe/patcher/PatcherTask;
+	public static final field DECODING_RESOURCES Lapp/morphe/patcher/PatcherTask;
+	public static final field EXTRACTING_RESOURCES Lapp/morphe/patcher/PatcherTask;
+	public static final field INDEXING_CLASSES Lapp/morphe/patcher/PatcherTask;
+	public static final field WRITING_APK Lapp/morphe/patcher/PatcherTask;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/PatcherTask;
+	public static fun values ()[Lapp/morphe/patcher/PatcherTask;
 }
 
 public final class app/morphe/patcher/StringComparisonType : java/lang/Enum {
@@ -684,14 +766,15 @@ public final class app/morphe/patcher/patch/BytecodePatch : app/morphe/patcher/p
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Ljava/util/function/Supplier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Ljava/util/function/Supplier;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final synthetic fun getExtensionInputStream ()Ljava/util/function/Supplier;
-	public fun toString ()Ljava/lang/String;
 }
 
 public final class app/morphe/patcher/patch/BytecodePatchBuilder : app/morphe/patcher/patch/PatchBuilder {
 	public synthetic fun build$morphe_patcher ()Lapp/morphe/patcher/patch/Patch;
+	public fun execute (Lkotlin/jvm/functions/Function1;)V
 	public final fun extendWith (Ljava/lang/String;)Lapp/morphe/patcher/patch/BytecodePatchBuilder;
 	public final fun extendWith (Ljava/util/function/Supplier;)Lapp/morphe/patcher/patch/BytecodePatchBuilder;
 	public final fun extendWithAll (Ljava/util/function/Supplier;)Lapp/morphe/patcher/patch/BytecodePatchBuilder;
+	public fun finalize (Lkotlin/jvm/functions/Function1;)V
 	public final synthetic fun getExtensionInputStream ()Ljava/util/function/Supplier;
 	public final synthetic fun setExtensionInputStream (Ljava/util/function/Supplier;)V
 }
@@ -978,10 +1061,7 @@ public final class app/morphe/patcher/patch/Options : java/util/Map, kotlin/jvm/
 	public final fun values ()Ljava/util/Collection;
 }
 
-public abstract class app/morphe/patcher/patch/Patch {
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lapp/morphe/patcher/patch/AvailabilityResolver;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/List;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lapp/morphe/patcher/patch/AvailabilityResolver;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+public class app/morphe/patcher/patch/Patch {
 	public final fun execute (Lapp/morphe/patcher/patch/PatchContext;)V
 	public final fun finalize (Lapp/morphe/patcher/patch/PatchContext;)V
 	public final fun getAvailability ()Lapp/morphe/patcher/patch/AvailabilityResolver;
@@ -1019,8 +1099,8 @@ public abstract class app/morphe/patcher/patch/PatchBuilder {
 	public final synthetic fun compatibleWith ([Ljava/lang/String;)V
 	public final synthetic fun compatibleWith ([Lkotlin/Pair;)V
 	public final fun dependsOn ([Lapp/morphe/patcher/patch/Patch;)V
-	public final fun execute (Lkotlin/jvm/functions/Function1;)V
-	public final fun finalize (Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun execute (Lkotlin/jvm/functions/Function1;)V
+	public synthetic fun finalize (Lkotlin/jvm/functions/Function1;)V
 	protected final fun getAvailability ()Lapp/morphe/patcher/patch/AvailabilityResolver;
 	protected final fun getCategory ()Ljava/lang/String;
 	protected final fun getCompatibility ()Ljava/util/List;
@@ -1058,10 +1138,58 @@ public abstract interface class app/morphe/patcher/patch/PatchContext : java/uti
 	public abstract fun getValidate ()Z
 }
 
+public final class app/morphe/patcher/patch/PatchDefinition : app/morphe/patcher/patch/PatchBuilder {
+	public final fun execute (Lkotlin/jvm/functions/Function0;)V
+	public final fun extendWith (Ljava/lang/String;)Lapp/morphe/patcher/patch/PatchDefinition;
+	public final fun extendWith (Ljava/util/function/Supplier;)Lapp/morphe/patcher/patch/PatchDefinition;
+	public final fun extendWithAll (Ljava/util/function/Supplier;)Lapp/morphe/patcher/patch/PatchDefinition;
+	public final fun finalize (Lkotlin/jvm/functions/Function0;)V
+}
+
 public final class app/morphe/patcher/patch/PatchException : java/lang/Exception {
 	public fun <init> (Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
 	public fun <init> (Ljava/lang/Throwable;)V
+}
+
+public final class app/morphe/patcher/patch/PatchFunctionsKt {
+	public static final fun classDefBy (Ljava/lang/String;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
+	public static final fun classDefBy (Lkotlin/jvm/functions/Function1;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
+	public static final fun classDefByOrNull (Ljava/lang/String;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
+	public static final fun classDefByOrNull (Lkotlin/jvm/functions/Function1;)Lcom/android/tools/smali/dexlib2/iface/ClassDef;
+	public static final fun classDefByStrings (Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;)Ljava/util/List;
+	public static synthetic fun classDefByStrings$default (Ljava/lang/String;Lapp/morphe/patcher/StringComparisonType;ILjava/lang/Object;)Ljava/util/List;
+	public static final fun classDefForEach (Lkotlin/jvm/functions/Function1;)V
+	public static final fun decode ([Ljava/lang/String;Ljava/lang/String;)Ljava/util/List;
+	public static synthetic fun decode$default ([Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/List;
+	public static final fun deleteResource (Ljava/lang/String;Ljava/lang/String;)V
+	public static synthetic fun deleteResource$default (Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)V
+	public static final fun document (Ljava/io/InputStream;)Lapp/morphe/patcher/util/Document;
+	public static final fun document (Ljava/lang/String;)Lapp/morphe/patcher/util/Document;
+	public static final fun document (Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/util/Document;
+	public static final fun getAllClassesWithStrings ()Ljava/util/List;
+	public static final fun getBytecodeContext ()Lapp/morphe/patcher/patch/BytecodePatchContext;
+	public static final fun getFileWorkspace ()Ljava/io/File;
+	public static final fun getPackageMetadata ()Lapp/morphe/patcher/PackageMetadata;
+	public static final fun getResourceContext ()Lapp/morphe/patcher/patch/ResourcePatchContext;
+	public static final fun getResourceIds ()Lapp/morphe/patcher/resource/ResourceIds;
+	public static final fun getValidate ()Z
+	public static final fun listApkEntries (Ljava/lang/String;)Ljava/util/List;
+	public static synthetic fun listApkEntries$default (Ljava/lang/String;ILjava/lang/Object;)Ljava/util/List;
+	public static final fun listDecodableFiles (Ljava/lang/String;Ljava/lang/String;)Ljava/util/List;
+	public static synthetic fun listDecodableFiles$default (Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/List;
+	public static final fun mutableClassDefBy (Lcom/android/tools/smali/dexlib2/iface/ClassDef;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
+	public static final fun mutableClassDefBy (Ljava/lang/String;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
+	public static final fun mutableClassDefBy (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
+	public static final fun mutableClassDefByOrNull (Ljava/lang/String;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
+	public static final fun mutableClassDefByOrNull (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
+	public static final fun readXml (Ljava/io/InputStream;)Lapp/morphe/patcher/xml/ResourceXml;
+	public static final fun resourceFile (Ljava/lang/String;Z)Ljava/io/File;
+	public static synthetic fun resourceFile$default (Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
+	public static final fun resourceXml (Ljava/lang/String;ZLjava/lang/String;)Lapp/morphe/patcher/xml/ResourceXml;
+	public static synthetic fun resourceXml$default (Ljava/lang/String;ZLjava/lang/String;ILjava/lang/Object;)Lapp/morphe/patcher/xml/ResourceXml;
+	public static final fun resourceXmlOrNull (Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/ResourceXml;
+	public static synthetic fun resourceXmlOrNull$default (Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lapp/morphe/patcher/xml/ResourceXml;
 }
 
 public final class app/morphe/patcher/patch/PatchKt {
@@ -1070,6 +1198,8 @@ public final class app/morphe/patcher/patch/PatchKt {
 	public static final fun loadPatchesFromDex (Ljava/util/Set;Ljava/io/File;)Lapp/morphe/patcher/patch/PatchLoader$Dex;
 	public static synthetic fun loadPatchesFromDex$default (Ljava/util/Set;Ljava/io/File;ILjava/lang/Object;)Lapp/morphe/patcher/patch/PatchLoader$Dex;
 	public static final fun loadPatchesFromJar (Ljava/util/Set;)Lapp/morphe/patcher/patch/PatchLoader$Jar;
+	public static final fun patch (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/patch/Patch;
+	public static synthetic fun patch$default (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/patch/Patch;
 	public static final fun rawResourcePatch (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/patch/RawResourcePatch;
 	public static synthetic fun rawResourcePatch$default (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/patch/RawResourcePatch;
 	public static final fun resourcePatch (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/patch/ResourcePatch;
@@ -1143,20 +1273,22 @@ public final class app/morphe/patcher/patch/PathOptionsKt {
 
 public final class app/morphe/patcher/patch/RawResourcePatch : app/morphe/patcher/patch/Patch {
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
-	public fun toString ()Ljava/lang/String;
 }
 
 public final class app/morphe/patcher/patch/RawResourcePatchBuilder : app/morphe/patcher/patch/PatchBuilder {
 	public synthetic fun build$morphe_patcher ()Lapp/morphe/patcher/patch/Patch;
+	public fun execute (Lkotlin/jvm/functions/Function1;)V
+	public fun finalize (Lkotlin/jvm/functions/Function1;)V
 }
 
 public final class app/morphe/patcher/patch/ResourcePatch : app/morphe/patcher/patch/Patch {
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZLjava/util/Set;Ljava/util/Set;Ljava/util/Set;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
-	public fun toString ()Ljava/lang/String;
 }
 
 public final class app/morphe/patcher/patch/ResourcePatchBuilder : app/morphe/patcher/patch/PatchBuilder {
 	public synthetic fun build$morphe_patcher ()Lapp/morphe/patcher/patch/Patch;
+	public fun execute (Lkotlin/jvm/functions/Function1;)V
+	public fun finalize (Lkotlin/jvm/functions/Function1;)V
 }
 
 public final class app/morphe/patcher/patch/ResourcePatchContext : app/morphe/patcher/patch/PatchContext, java/io/Closeable {
@@ -1320,23 +1452,31 @@ public final class app/morphe/patcher/resource/XmlPullParserUtilsKt {
 }
 
 public final class app/morphe/patcher/util/BytecodeUtilsKt {
-	public static final fun addFreeRegisters (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;I)Lkotlin/Pair;
+	public static final synthetic fun addFreeRegisters (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;I)Lkotlin/Pair;
+	public static final fun addFreeRegisters (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;I)Lkotlin/Pair;
 	public static final fun addInstructionsAtControlFlowLabel (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;ILjava/lang/String;[Lapp/morphe/patcher/util/smali/ExternalLabel;)V
 	public static final fun cloneMutable (Lcom/android/tools/smali/dexlib2/iface/Method;Ljava/lang/String;ILjava/util/List;Ljava/lang/String;I)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
 	public static synthetic fun cloneMutable$default (Lcom/android/tools/smali/dexlib2/iface/Method;Ljava/lang/String;ILjava/util/List;Ljava/lang/String;IILjava/lang/Object;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
-	public static final fun cloneParameters (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static final synthetic fun cloneParameters (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static final fun cloneParameters (Lcom/android/tools/smali/dexlib2/iface/Method;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
 	public static final fun findInstructionIndicesReversed (Lcom/android/tools/smali/dexlib2/iface/Method;Lapp/morphe/patcher/InstructionFilter;)Ljava/util/List;
 	public static final fun findInstructionIndicesReversedOrThrow (Lcom/android/tools/smali/dexlib2/iface/Method;Lapp/morphe/patcher/InstructionFilter;)Ljava/util/List;
 	public static final fun findMutableMethodOf (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
-	public static final fun getMutableMethod (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static final synthetic fun getMutableMethod (Lapp/morphe/patcher/patch/BytecodePatchContext;Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static final fun getMutableMethod (Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
 	public static final fun getNumberOfParameterRegisters (Lcom/android/tools/smali/dexlib2/iface/Method;)I
 	public static final fun getNumberOfParameterRegistersLogical (Lcom/android/tools/smali/dexlib2/iface/Method;)I
 	public static final fun getP0Register (Lcom/android/tools/smali/dexlib2/iface/Method;)I
-	public static final fun matchAllMethodIndicesForEach (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/Fingerprint;ZLkotlin/jvm/functions/Function2;)V
-	public static final fun matchAllMethodIndicesForEach (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/InstructionFilter;ZLkotlin/jvm/functions/Function2;)V
+	public static final fun matchAllMethodIndicesForEach (Lapp/morphe/patcher/Fingerprint;ZLkotlin/jvm/functions/Function2;)V
+	public static final fun matchAllMethodIndicesForEach (Lapp/morphe/patcher/InstructionFilter;ZLkotlin/jvm/functions/Function2;)V
+	public static final synthetic fun matchAllMethodIndicesForEach (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/Fingerprint;ZLkotlin/jvm/functions/Function2;)V
+	public static final synthetic fun matchAllMethodIndicesForEach (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/InstructionFilter;ZLkotlin/jvm/functions/Function2;)V
+	public static synthetic fun matchAllMethodIndicesForEach$default (Lapp/morphe/patcher/Fingerprint;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)V
+	public static synthetic fun matchAllMethodIndicesForEach$default (Lapp/morphe/patcher/InstructionFilter;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)V
 	public static synthetic fun matchAllMethodIndicesForEach$default (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/Fingerprint;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)V
 	public static synthetic fun matchAllMethodIndicesForEach$default (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/InstructionFilter;ZLkotlin/jvm/functions/Function2;ILjava/lang/Object;)V
-	public static final fun matchSingle (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/Fingerprint;)Lapp/morphe/patcher/Match;
+	public static final fun matchSingle (Lapp/morphe/patcher/Fingerprint;)Lapp/morphe/patcher/Match;
+	public static final synthetic fun matchSingle (Lapp/morphe/patcher/patch/BytecodePatchContext;Lapp/morphe/patcher/Fingerprint;)Lapp/morphe/patcher/Match;
 	public static final fun removeFlags (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableField;[Lcom/android/tools/smali/dexlib2/AccessFlags;)V
 	public static final fun returnBoxedBooleanEarly (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;Z)V
 	public static final fun returnEarly (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;)V
@@ -1814,5 +1954,67 @@ public final class app/morphe/patcher/util/smali/InlineSmaliCompilerKt {
 	public static synthetic fun toInstruction$default (Ljava/lang/String;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;ILjava/lang/Object;)Lcom/android/tools/smali/dexlib2/builder/BuilderInstruction;
 	public static final fun toInstructions (Ljava/lang/String;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;)Ljava/util/List;
 	public static synthetic fun toInstructions$default (Ljava/lang/String;Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;ILjava/lang/Object;)Ljava/util/List;
+}
+
+public abstract interface class app/morphe/patcher/xml/ResourceXml : java/io/Closeable {
+	public fun elementByAttribute (Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public fun elementByAttributeOrNull (Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public fun elements (Ljava/lang/String;)Lkotlin/sequences/Sequence;
+	public static synthetic fun elements$default (Lapp/morphe/patcher/xml/ResourceXml;Ljava/lang/String;ILjava/lang/Object;)Lkotlin/sequences/Sequence;
+	public abstract fun getRoot ()Lapp/morphe/patcher/xml/XmlElement;
+	public fun resource (Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public fun resourceOrNull (Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+}
+
+public final class app/morphe/patcher/xml/ResourceXml$DefaultImpls {
+	public static fun elementByAttribute (Lapp/morphe/patcher/xml/ResourceXml;Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public static fun elementByAttributeOrNull (Lapp/morphe/patcher/xml/ResourceXml;Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public static fun elements (Lapp/morphe/patcher/xml/ResourceXml;Ljava/lang/String;)Lkotlin/sequences/Sequence;
+	public static synthetic fun elements$default (Lapp/morphe/patcher/xml/ResourceXml;Ljava/lang/String;ILjava/lang/Object;)Lkotlin/sequences/Sequence;
+	public static fun resource (Lapp/morphe/patcher/xml/ResourceXml;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public static fun resourceOrNull (Lapp/morphe/patcher/xml/ResourceXml;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+}
+
+public abstract interface class app/morphe/patcher/xml/XmlElement {
+	public fun appendChild (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/xml/XmlElement;
+	public static synthetic fun appendChild$default (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/xml/XmlElement;
+	public fun appendCopy (Lapp/morphe/patcher/xml/XmlElement;)Lapp/morphe/patcher/xml/XmlElement;
+	public abstract fun attribute (Ljava/lang/String;)Ljava/lang/String;
+	public fun children (Ljava/lang/String;)Ljava/util/List;
+	public fun copyAttributesFrom (Lapp/morphe/patcher/xml/XmlElement;)V
+	public abstract fun elementByAttribute (Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public fun elementByAttributeOrNull (Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public fun elements (Ljava/lang/String;)Lkotlin/sequences/Sequence;
+	public static synthetic fun elements$default (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;ILjava/lang/Object;)Lkotlin/sequences/Sequence;
+	public abstract fun getAttributeNames ()Ljava/util/List;
+	public abstract fun getChildren ()Ljava/util/List;
+	public fun getIndex ()I
+	public abstract fun getParent ()Lapp/morphe/patcher/xml/XmlElement;
+	public abstract fun getTag ()Ljava/lang/String;
+	public abstract fun getText ()Ljava/lang/String;
+	public fun hasAttribute (Ljava/lang/String;)Z
+	public abstract fun insertChild (ILjava/lang/String;Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/xml/XmlElement;
+	public static synthetic fun insertChild$default (Lapp/morphe/patcher/xml/XmlElement;ILjava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/xml/XmlElement;
+	public abstract fun insertCopy (ILapp/morphe/patcher/xml/XmlElement;)Lapp/morphe/patcher/xml/XmlElement;
+	public abstract fun remove ()V
+	public abstract fun removeAttribute (Ljava/lang/String;)V
+	public abstract fun removeChildren ()V
+	public abstract fun setAttribute (Ljava/lang/String;Ljava/lang/String;)V
+	public abstract fun setTag (Ljava/lang/String;)V
+	public abstract fun setText (Ljava/lang/String;)V
+}
+
+public final class app/morphe/patcher/xml/XmlElement$DefaultImpls {
+	public static fun appendChild (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/xml/XmlElement;
+	public static synthetic fun appendChild$default (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/xml/XmlElement;
+	public static fun appendCopy (Lapp/morphe/patcher/xml/XmlElement;Lapp/morphe/patcher/xml/XmlElement;)Lapp/morphe/patcher/xml/XmlElement;
+	public static fun children (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;)Ljava/util/List;
+	public static fun copyAttributesFrom (Lapp/morphe/patcher/xml/XmlElement;Lapp/morphe/patcher/xml/XmlElement;)V
+	public static fun elementByAttributeOrNull (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/XmlElement;
+	public static fun elements (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;)Lkotlin/sequences/Sequence;
+	public static synthetic fun elements$default (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;ILjava/lang/Object;)Lkotlin/sequences/Sequence;
+	public static fun getIndex (Lapp/morphe/patcher/xml/XmlElement;)I
+	public static fun hasAttribute (Lapp/morphe/patcher/xml/XmlElement;Ljava/lang/String;)Z
+	public static synthetic fun insertChild$default (Lapp/morphe/patcher/xml/XmlElement;ILjava/lang/String;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/xml/XmlElement;
 }
 

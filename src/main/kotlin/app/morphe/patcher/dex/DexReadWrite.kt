@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.dex
 
+import app.morphe.patcher.TaskProgress
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import com.android.tools.smali.dexlib2.Opcodes
@@ -232,7 +233,7 @@ internal object DexReadWrite {
     ): Boolean {
         if (dexVersion < METHOD_HANDLES_DEX_VERSION) {
             val dexFile = DexBackedDexFile(null, ByteBuffer.wrap(dexBytes))
-            if (dexFile.callSiteSection.size > 0 || dexFile.methodHandleSection.size > 0) return false
+            if (dexFile.callSiteSection.isNotEmpty() || dexFile.methodHandleSection.isNotEmpty()) return false
         }
 
         return keptClasses.parallelStream().allMatch { classDef ->
@@ -251,6 +252,7 @@ internal object DexReadWrite {
      * @param classDefs The class definitions to write. This collection will be cleared after splitting into segments.
      * @param opcodes The [Opcodes] to use for the dex files.
      * @param maxThreads The maximum number of threads to use for writing the dex files.
+     * @param progress Counts the classes as they are written, after adding them to its total.
      *
      * @return A list of [File]s representing the written dex files.
      */
@@ -259,7 +261,8 @@ internal object DexReadWrite {
         classDefs: MutableCollection<ClassDef>,
         opcodes: Opcodes,
         maxThreads: Int = -1,
-        logger: Logger? = null
+        logger: Logger? = null,
+        progress: TaskProgress? = null,
     ): List<File> {
         require(!outputDir.exists() || outputDir.isDirectory) { "Output path must be a directory: $outputDir" }
 
@@ -276,6 +279,7 @@ internal object DexReadWrite {
         }
 
         val numClasses = classDefs.size
+        progress?.expand(numClasses.toLong())
 
         val numSegments = max(1, min(actualMaxThreads, numClasses / MIN_CLASSES_PER_SEGMENT))
 
@@ -287,7 +291,7 @@ internal object DexReadWrite {
             logger?.info("Processing $numClasses classes (single threaded mode)")
 
             segments.mapIndexed { index, segment ->
-                processSegment(segment, opcodes, outputDir, index)
+                processSegment(segment, opcodes, outputDir, index, progress)
             }
         } else {
             logger?.info("Processing $numClasses classes in parallel (${actualMaxThreads} threads)")
@@ -296,7 +300,7 @@ internal object DexReadWrite {
             runBlocking(dispatcher) {
                 segments.mapIndexed { segmentIndex, classQueue ->
                     async {
-                        processSegment(classQueue, opcodes, outputDir, segmentIndex)
+                        processSegment(classQueue, opcodes, outputDir, segmentIndex, progress)
                     }
                 }.awaitAll()
             }
@@ -363,6 +367,7 @@ internal object DexReadWrite {
         opcodes: Opcodes,
         outputDir: File,
         segmentIndex: Int,
+        progress: TaskProgress?,
     ): List<File> {
         val tempFiles = mutableListOf<File>()
         var currentDexPool = DexPool(opcodes)
@@ -378,6 +383,7 @@ internal object DexReadWrite {
                 currentDexPool = DexPool(opcodes)
             } else {
                 classQueue.removeFirst()
+                progress?.advance()
             }
         }
 

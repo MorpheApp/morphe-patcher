@@ -2,12 +2,16 @@
 
 A handful of APIs are available to make patch development easier and more efficient.
 
+Functions that work on the APK being patched, such as `classDefBy` and `document`, are in the
+`app.morphe.patcher.patch` package. They can be called while an APK is being patched, but not when a patch or
+a fingerprint is declared.
+
 ## 📙 Overview
 
 1. 🔍 Find immutable classes with `classDefBy(String)`
 2. 🔄️️ Change immutable classes to mutable with `mutableClassDefBy(String)` and `mutableClassDefBy(ClassDef)`
-3. 💾 Read and write resource files with `get(String, Boolean)` and `delete(String)`
-4. 📃 Read and write DOM files using `document(String)` and  `document(InputStream)`
+3. 💾 Read and write resource files with `resourceFile(String, Boolean)` and `deleteResource(String)`
+4. 📃 Read and write DOM files using `document(String)` and  `document(InputStream)`, or edit XML files without decoding them with `resourceXml(String)` and `readXml(InputStream)`
 5. 📜 List the entries of the APK being patched with `listApkEntries(String)`
 6. 🗂️ Decode resources when they are needed with `decode(String...)` and `listDecodableFiles(String)`
 7. 🧮 Find free registers to use in injected code with `findFreeRegister(Int, Int...)` and `getFreeRegisterProvider(Int, Int, Int...)`
@@ -77,43 +81,90 @@ execute {
 }
 ```
 
-#### 💾 `get(String, Boolean)` and `delete(String)`
+#### 💾 `resourceFile(String, Boolean)` and `deleteResource(String)`
 
-The `get(String, Boolean)` function returns a `File` object that can be used to read and write resource files.
+The `resourceFile(String, Boolean)` function returns a `File` object that can be used to read and write resource files.
 
 ```kt
 execute {
-    val file = get("res/values/strings.xml")
+    val file = resourceFile("res/values/strings.xml")
     val content = file.readText()
     file.writeText(content)
 }
 ```
 
-When resources are decoded on request, as `decode(String...)` below describes, `get` decodes the file
+When resources are decoded on request, as `decode(String...)` below describes, `resourceFile` decodes the file
 first if it is not decoded yet. Pass `false` as the second argument to get the file without decoding it,
 to replace or add a file. A values file written this way, such as
 `res/values-de/strings.xml`, adds its resources to those of the APK and replaces the ones of the same name,
 but removes none.
 
-The `delete` function can mark files for deletion when the APK is rebuilt. It accepts decoded
+The `deleteResource` function can mark files for deletion when the APK is rebuilt. It accepts decoded
 resource paths as well as any other entry of the APK as returned by `listApkEntries(String)`,
 including native libraries, which are never staged to the working directory. A directory name
 such as `lib/x86/` deletes everything below it. The manifest and `resources.arsc` cannot be deleted.
 
 ```kt
 execute {
-    delete("res/values/strings.xml")
+    deleteResource("res/values/strings.xml")
 
     // Keep only one architecture.
     listApkEntries("lib/")
         .filterNot { it.startsWith("lib/arm64-v8a/") }
-        .forEach(::delete)
+        .forEach { deleteResource(it) }
 }
 ```
 
-#### 📃 `document(String)`  and  `document(InputStream)`
+#### 📃 Read and write DOM files using `document(String)` and `document(InputStream)`, or edit XML files without decoding them with `resourceXml(String)` and `readXml(InputStream)`
 
-The `document` function is used to read and write DOM files.
+`resourceXml` is the preferred way to read and edit XML files of the APK. It edits compiled XML and the resource
+table directly, without decoding the file to text, so it is much faster than `document`. Close the document to keep
+the changes, which `use` does.
+
+- Attributes are read and set as written in XML, such as `@string/title` or `match_parent`.
+- A reference to a resource a patch adds, such as `@+id/morphe_button`, is resolved when the APK is written.
+- `resource(String)` looks up one resource of a values file without decoding the rest of it.
+- `resourceXmlOrNull` returns null when the APK has no such file.
+- `readXml` reads XML bundled with the patches, to copy elements from it.
+
+```kt
+execute {
+    resourceXml("res/layout/player.xml").use { layout ->
+        val button = layout.elementByAttribute("android:id", "@id/play_button")
+        button.setAttribute("android:visibility", "gone")
+
+        // Adds an element before the button.
+        button.parent!!.insertChild(button.index, "ImageView") {
+            setAttribute("android:id", "@+id/morphe_button")
+            setAttribute("android:src", "@drawable/morphe_icon")
+        }
+    }
+
+    // Only this string is decoded, not the thousands of others of the file.
+    resourceXml("res/values/strings.xml").use { strings ->
+        strings.resource("app_name").text = "Morphe"
+    }
+
+    // Adds or replaces resources, without reading the file at all.
+    resourceXml("res/values-night/colors.xml", copy = false).use { colors ->
+        colors.root.appendChild("color") {
+            setAttribute("name", "morphe_background")
+            text = "#FF000000"
+        }
+    }
+
+    // Copies elements of XML bundled with the patches.
+    readXml(inputStream).use { source ->
+        resourceXml("res/xml/preferences.xml").use { preferences ->
+            source.root.children.forEach { preferences.root.appendCopy(it) }
+        }
+    }
+}
+```
+
+The `document` function decodes a file to text and edits it as a DOM. It is much slower than `resourceXml`,
+so use `resourceXml` when possible. Both can be used on the same file: `document` first writes out what a
+`resourceXml` document changed.
 
 ```kt
 execute {
@@ -142,7 +193,7 @@ execute {
 The `listApkEntries` function lists the entries of the APK being patched, without staging them
 to the working directory. Use it to discover what an APK contains, rather than walking the
 working directory: not every entry is staged there, and native libraries in particular are left
-in the archive. Names are archive names, so they can be passed straight to `get(String, Boolean)`.
+in the archive. Names are archive names, so they can be passed straight to `resourceFile(String, Boolean)`.
 An optional prefix restricts the listing.
 
 ```kt
@@ -156,11 +207,10 @@ changed or deleted.
 
 #### 🗂️ `decode(String...)` and `listDecodableFiles(String)`
 
-Resources are decoded when patches need them, instead of all of them before any patch executes.
-Decoding a large app takes much of the time patching does, while patches read only a few of its files.
+Resources are decoded when patches need them:
 
-- The manifest is always decoded.
-- A file a patch reads by its path, with `get(String, Boolean)` or `document(String)`, is decoded then.
+- A file a patch reads by its path, with `resourceFile(String, Boolean)` or `document(String)`, is decoded then,
+  the manifest included.
 - A directory only holds the files decoded or added so far. A patch that lists or walks a directory must
   first decode what it looks for with `decode`.
 

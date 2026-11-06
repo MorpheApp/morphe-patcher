@@ -6,6 +6,7 @@
 package app.morphe.patcher.apk
 
 import app.morphe.patcher.PatcherResult
+import app.morphe.patcher.TaskProgress
 import app.morphe.patcher.apk.ApkSigner.newApkSigner
 import app.morphe.patcher.apk.ApkSigner.newPrivateKeyCertificatePair
 import app.morphe.patcher.logging.PhaseTimings
@@ -19,6 +20,7 @@ import com.android.tools.build.apkzlib.zip.ZFile
 import com.android.tools.build.apkzlib.zip.ZFileOptions
 import com.android.tools.build.apkzlib.zip.compress.DeflateExecutionCompressor
 import com.reandroid.apk.ApkModule
+import com.reandroid.archive.WriteProgress
 import com.reandroid.archive.writer.ZipAligner
 import java.io.Closeable
 import java.io.File
@@ -96,11 +98,20 @@ object ApkUtils {
 
     /**
      * Writes this module to [file] aligned as [applyTo] aligns, so that it has nothing left to move.
+     *
+     * @param progress Counts the entries as they are written, up to the number of entries of the module.
      */
-    internal fun ApkModule.writeAlignedApk(file: File) = createApkFileWriter(file).apply {
+    internal fun ApkModule.writeAlignedApk(file: File, progress: TaskProgress? = null) = createApkFileWriter(file).apply {
         zipAligner = ZipAligner().apply {
             setDefaultAlignment(DEFAULT_ALIGNMENT)
             setFileAlignment({ it.endsWith(LIBRARY_EXTENSION) }, LIBRARY_ALIGNMENT)
+        }
+        if (progress != null) {
+            setWriteProgress(object : WriteProgress {
+                override fun onCompressFile(path: String, mode: Int, writtenBytes: Long) = Unit
+
+                override fun onWriteFile(path: String, written: Int, total: Int) = progress.advance()
+            })
         }
     }.write()
 

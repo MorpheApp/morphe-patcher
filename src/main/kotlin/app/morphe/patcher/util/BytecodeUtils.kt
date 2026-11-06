@@ -38,6 +38,7 @@ import app.morphe.patcher.extensions.InstructionExtensions.getInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.instructions
 import app.morphe.patcher.extensions.InstructionExtensions.removeInstruction
 import app.morphe.patcher.patch.BytecodePatchContext
+import app.morphe.patcher.patch.mutableClassDefBy
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import app.morphe.patcher.util.proxy.mutableTypes.MutableField
@@ -66,7 +67,6 @@ import com.android.tools.smali.dexlib2.util.MethodUtil
  * @param requireMatches If true and no matches exist, an exception is thrown.
  * @param block Method iteration block. Indexes are iterated from last to first.
  */
-context(patchContext: BytecodePatchContext)
 fun InstructionFilter.matchAllMethodIndicesForEach(
     requireMatches: Boolean = true,
     block: MutableMethod.(Int) -> Unit
@@ -88,7 +88,6 @@ fun InstructionFilter.matchAllMethodIndicesForEach(
  *
  * An exception is thrown if no matches exist or more than 1 match exists.
  */
-context(patchContext: BytecodePatchContext)
 fun Fingerprint.matchSingle() = matchAll(1 .. 1).first()
 
 /**
@@ -102,7 +101,6 @@ fun Fingerprint.matchSingle() = matchAll(1 .. 1).first()
  * @param requireMatches If true and no matches exist, an exception is thrown.
  * @param block Method iteration block. Indexes are iterated from last to first.
  */
-context(patchContext: BytecodePatchContext)
 fun Fingerprint.matchAllMethodIndicesForEach(
     requireMatches: Boolean = true,
     block: MutableMethod.(Int) -> Unit
@@ -190,9 +188,8 @@ inline fun <reified T : Reference> Instruction.getReference() = (this as? Refere
 /**
  * @return The mutable method for this method call reference.
  */
-context(patchContext: BytecodePatchContext)
 fun MethodReference.getMutableMethod(): MutableMethod {
-    return patchContext.mutableClassDefBy(this.definingClass).methods.first { classMethod ->
+    return mutableClassDefBy(this.definingClass).methods.first { classMethod ->
         MethodUtil.methodSignaturesMatch(classMethod, this@getMutableMethod)
     }
 }
@@ -230,9 +227,8 @@ fun Method.findInstructionIndicesReversedOrThrow(filter: InstructionFilter): Lis
  *
  * **Fingerprint match indexes will be increased positively by [numberOfParameterRegistersLogical]**.
  */
-context(patchContext: BytecodePatchContext)
 fun Method.cloneParameters() = cloneParameters(
-    patchContext.mutableClassDefBy(definingClass)
+    mutableClassDefBy(definingClass)
 )
 
 /**
@@ -285,10 +281,9 @@ internal fun Method.cloneParameters(mutableClass : MutableClass) : MutableMethod
  *         to the start of the cloned method. Instruction indexes of this method, such as
  *         Fingerprint match indexes, must be increased by the number of added instructions.
  */
-context(patchContext: BytecodePatchContext)
 fun MutableMethod.addFreeRegisters(numberOfAdditionalRegisters: Int) = addFreeRegisters(
     numberOfAdditionalRegisters,
-    patchContext.mutableClassDefBy(definingClass)
+    mutableClassDefBy(definingClass)
 )
 
 internal fun MutableMethod.addFreeRegisters(
@@ -818,3 +813,38 @@ fun MutableField.removeFlags(vararg flags: AccessFlags) {
     this.accessFlags = this.accessFlags and bitField.inv()
 }
 
+
+
+//
+// Patches compiled before these stopped taking a context parameter call these.
+//
+
+context(_: BytecodePatchContext)
+@Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+fun InstructionFilter.matchAllMethodIndicesForEach(
+    requireMatches: Boolean = true,
+    block: MutableMethod.(Int) -> Unit
+) = matchAllMethodIndicesForEach(requireMatches, block)
+
+context(_: BytecodePatchContext)
+@Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+fun Fingerprint.matchSingle() = matchSingle()
+
+context(_: BytecodePatchContext)
+@Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+fun Fingerprint.matchAllMethodIndicesForEach(
+    requireMatches: Boolean = true,
+    block: MutableMethod.(Int) -> Unit
+) = matchAllMethodIndicesForEach(requireMatches, block)
+
+context(_: BytecodePatchContext)
+@Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+fun MethodReference.getMutableMethod(): MutableMethod = getMutableMethod()
+
+context(_: BytecodePatchContext)
+@Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+fun Method.cloneParameters() = cloneParameters()
+
+context(_: BytecodePatchContext)
+@Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+fun MutableMethod.addFreeRegisters(numberOfAdditionalRegisters: Int) = addFreeRegisters(numberOfAdditionalRegisters)

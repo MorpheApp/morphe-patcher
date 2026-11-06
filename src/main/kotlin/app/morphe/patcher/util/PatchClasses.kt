@@ -8,8 +8,11 @@
 
 package app.morphe.patcher.util
 
+import app.morphe.patcher.PatcherProgress
+import app.morphe.patcher.PatcherTask
 import app.morphe.patcher.dex.CachingDexBackedDexFile
 import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.runTask
 import app.morphe.patcher.util.proxy.mutableTypes.ChangeStamps
 import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import com.android.tools.smali.dexlib2.Format
@@ -45,7 +48,11 @@ internal class PatchClasses internal constructor(
     /**
      * Class type -> ClassDef.
      */
-    internal val classMap: MutableMap<String, ClassDefWrapper>
+    internal val classMap: MutableMap<String, ClassDefWrapper>,
+    /**
+     * Receives how far building the instruction indexes got.
+     */
+    private val progress: PatcherProgress? = null,
 ) {
     private val logger = Logger.getLogger(PatchClasses::class.java.name)
 
@@ -220,7 +227,7 @@ internal class PatchClasses internal constructor(
      */
     private class DexReferenceDecoder(val dexFile: DexBackedDexFile) {
         private val buffer = dexFile.buffer
-        val dataBuffer = dexFile.dataBuffer
+        val dataBuffer: DexBuffer = dexFile.dataBuffer
         private val stringSection = dexFile.stringSection
         private val typeSection = dexFile.typeSection
         private val fieldSection = dexFile.fieldSection
@@ -428,7 +435,7 @@ internal class PatchClasses internal constructor(
         }
 
         /**
-         * Collects a type of a field or method signature. Primitive types are in most classes
+         * Collects the type a field or a method signature refers to. Primitive types are in most classes
          * and are not indexed.
          */
         fun addSignatureType(type: String) {
@@ -629,7 +636,7 @@ internal class PatchClasses internal constructor(
     internal var indexBuildNanos = 0L
         private set
 
-    internal constructor(set: Set<ClassDef>) : this(
+    internal constructor(set: Set<ClassDef>, progress: PatcherProgress? = null) : this(
         // Must use linked hash map. A regular map does not preserve the order of classes found
         // in the apk, so old fingerprints that have multiple matches can match the wrong class
         // due to hashmap random class iteration during matching. The issue is with
@@ -638,7 +645,8 @@ internal class PatchClasses internal constructor(
         // See https://github.com/ReVanced/revanced-patcher/issues/74
         //
         // Pre-size so rehashing doesn't occur and use a more performant load factor.
-        LinkedHashMap<String, ClassDefWrapper>(2 * set.size, 0.5f)
+        LinkedHashMap<String, ClassDefWrapper>(2 * set.size, 0.5f),
+        progress,
     ) {
         for (classDef in set) {
             val wrapper = ClassDefWrapper(classDef, onWrapperMadeMutable)
@@ -704,9 +712,12 @@ internal class PatchClasses internal constructor(
 
         // Scanning the instructions is the costly part and reads each class on its own, so it runs
         // in parallel, a chunk at a time to bound memory, while the indexes are filled in class order.
-        classMap.values.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
-            chunk.parallelStream().map { wrapper -> wrapper.collectIndexValues() }.collect(Collectors.toList())
-                .forEachIndexed { i, values -> builder.add(chunk[i], values) }
+        progress.runTask(PatcherTask.INDEXING_CLASSES, classMap.size.toLong()) { task ->
+            classMap.values.chunked(INDEX_CHUNK_SIZE).forEach { chunk ->
+                chunk.parallelStream().map { wrapper -> wrapper.collectIndexValues() }.collect(Collectors.toList())
+                    .forEachIndexed { i, values -> builder.add(chunk[i], values) }
+                task.advance(chunk.size.toLong())
+            }
         }
 
         stringMap = builder.strings
@@ -743,8 +754,9 @@ internal class PatchClasses internal constructor(
 
     /**
      * Indexed classes with instructions that reference the type: as the class of a field or method,
-     * as the type of a field, as a return or parameter type of a method, or as a type reference
-     * such as `new-instance` and `check-cast`. Primitive types of fields and methods are not indexed.
+     * as the declared type of a field, as what a method returns or takes, or as the target of an
+     * instruction such as `new-instance` and `check-cast`. Primitive types of fields and methods are
+     * not indexed.
      * Can contain false positives. Does not include changes of mutable classes, see [candidateClasses].
      */
     internal fun getIndexedClassesReferencingType(type: String): List<ClassDefWrapper> =

@@ -44,6 +44,22 @@ val dexFiles = patcherResult.dexFiles
 val resources = patcherResult.resources
 ```
 
+### 📊 Progress
+
+Patches are reported one by one as they execute. The rest of the work, such as decoding the APK,
+indexing its classes and writing the patched APK, is reported through `PatcherConfig.progress`, so a
+host can show how far patching got:
+
+```kt
+val config = PatcherConfig(
+    apkFile = File("some.apk"),
+    progress = { task, done, total -> println("$task: $done of $total") },
+)
+```
+
+Each `PatcherTask` reports 0 of its total when it starts and its total when it is done. Reports are
+spaced out and come from the threads that do the work.
+
 ## ⏭️ What's next
 
 The next page teaches the fundamentals of Morphe Patches.

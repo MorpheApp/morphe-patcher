@@ -6,6 +6,8 @@
  * https://github.com/LisoUseInAIKyrios/revanced-patcher
  */
 
+@file:Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+
 package app.morphe.patcher.patch
 
 import app.morphe.patcher.InternalApi
@@ -15,11 +17,13 @@ import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.CompressedDexFiles
 import app.morphe.patcher.logging.PhaseTimings
+import app.morphe.patcher.resource.PathPatterns
 import app.morphe.patcher.resource.ResourceIds
 import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.resource.coder.ArsclibResourceCoder
 import app.morphe.patcher.resource.coder.ResourceCoder
 import app.morphe.patcher.util.Document
+import app.morphe.patcher.xml.ResourceXml
 import java.io.Closeable
 import java.io.File
 import java.io.InputStream
@@ -29,12 +33,17 @@ import java.util.logging.Logger
 /**
  * A context for patches containing the current state of resources.
  *
- * Resources are decoded when patches request them, instead of all before patches execute. The manifest
- * is always decoded. A file a patch reads by its path with [get] or [document] is decoded then, and
+ * Resources are decoded when patches request them, instead of all before patches execute. A file a patch
+ * reads by its path with [get] or [document] is decoded then, the manifest included, and
  * [decode] decodes every file matching a pattern, which a patch that lists a directory must call first,
  * since a directory only holds the files decoded so far.
  * [listDecodableFiles] lists what can be decoded without decoding it.
+ *
+ * Patches do not need a context anymore, since only one APK is ever patched at a time. Use the global
+ * functions instead, such as [app.morphe.patcher.patch.document], which work on the state this class
+ * still holds. Existing patch bundles are executed with this class, so it cannot be removed.
  */
+@Deprecated("Patches do not need a context. Use the global functions, such as document().")
 class ResourcePatchContext internal constructor(
     private val config: PatcherConfig,
 ) : PatchContext<PatcherResult.PatchedResources>, Closeable {
@@ -44,20 +53,31 @@ class ResourcePatchContext internal constructor(
 
     override val validate = config.validate
 
-    private val resourceCoder: ResourceCoder = ArsclibResourceCoder(config.apkFiles, config.apkFile, config.keepArchitectures)
+    private val resourceCoder: ResourceCoder = ArsclibResourceCoder(
+        config.apkFiles,
+        config.apkFile,
+        config.keepArchitectures,
+        progress = config.progress,
+    )
 
     /**
      * The resource ids of the APK being patched, read from its resource table on first use.
      * It is also reachable without a context through [app.morphe.patcher.resource.resourceId] and
      * [app.morphe.patcher.resource.hasResourceId], which is what [app.morphe.patcher.resourceLiteral] uses.
      */
+    @Deprecated("Use the global property.", ReplaceWith("resourceIds", "app.morphe.patcher.patch.resourceIds"))
     val resourceIds: ResourceIds = ResourceIds { resourceCoder.resourceIds() }.also { ResourceIds.current = it }
 
+    @Deprecated("Use the global property.", ReplaceWith("packageMetadata", "app.morphe.patcher.patch.packageMetadata"))
     val packageMetadata = resourceCoder.getPackageMetadata()
 
     /**
      * Read a document from an [InputStream].
      */
+    @Deprecated(
+        "Use the global function.",
+        ReplaceWith("document(inputStream)", "app.morphe.patcher.patch.document"),
+    )
     @Suppress("unused")
     fun document(inputStream: InputStream) = Document(inputStream)
 
@@ -65,10 +85,32 @@ class ResourcePatchContext internal constructor(
      * Read and write documents in the [PatcherConfig.apkFiles].
      * The file is decoded first if it is not decoded yet.
      */
+    @Deprecated("Use the global function.", ReplaceWith("document(path)", "app.morphe.patcher.patch.document"))
     @Suppress("unused")
-    fun document(path: String) = Document(resourceCoder.getFile(path))
+    fun document(path: String): Document {
+        decodeOnFirstUseIfNeededFor(path)
+        return Document(resourceCoder.getFile(path))
+    }
+
+    @Deprecated(
+        "Use the global function.",
+        ReplaceWith("document(path, packageName)", "app.morphe.patcher.patch.document"),
+    )
     @Suppress("unused")
-    fun document(path: String, packageName: String) = Document(resourceCoder.getFile(path, packageName))
+    fun document(path: String, packageName: String): Document {
+        decodeOnFirstUseIfNeededFor(path)
+        return Document(resourceCoder.getFile(path, packageName))
+    }
+
+    /**
+     * Opens an XML file of the APK as a document.
+     *
+     * @see app.morphe.patcher.patch.resourceXml
+     */
+    internal fun xml(path: String, copy: Boolean, packageName: String?): ResourceXml? {
+        decodeOnFirstUseIfNeededFor(path)
+        return resourceCoder.openXml(path, packageName, copy)
+    }
 
     /**
      * Decode resources of [PatcherConfig.apkFile].
@@ -76,7 +118,6 @@ class ResourcePatchContext internal constructor(
      * @param mode The [ResourceMode] to use.
      */
     internal fun decodeResources(mode: ResourceMode): PackageMetadata {
-        config.initializeTemporaryFilesDirectories()
         val onRequest = config.uses(PatcherBehavior.ON_REQUEST_RESOURCE_DECODING)
         if (mode == ResourceMode.FULL) {
             logger.info(if (onRequest) "Decoding the manifest" else "Decoding all resources")
@@ -85,6 +126,68 @@ class ResourcePatchContext internal constructor(
             logger.info(if (onRequest) "Extracting raw resources on request" else "Decoding resources in raw mode")
             return resourceCoder.decodeRaw(onRequest)
         }
+    }
+
+    /**
+     * Whether resources are decoded when a patch first needs them, instead of before patches execute.
+     */
+    @Volatile
+    internal var decodeOnFirstUse = false
+
+    /**
+     * Time spent decoding resources when they were first needed.
+     */
+    internal var decodeNanos = 0L
+        private set
+
+    /**
+     * Decodes what a patch needs to reach [path], if resources are decoded when they are first needed.
+     */
+    private fun decodeOnFirstUseIfNeededFor(path: String) {
+        if (decodeOnFirstUse) decodeOnFirstUse(usesDecodedResources = isDecodedResource(path))
+    }
+
+    /**
+     * Decodes what a patch needs to reach the files matching [patterns], if resources are decoded when
+     * they are first needed.
+     */
+    private fun decodeOnFirstUseIfNeededFor(patterns: Collection<String>) {
+        if (!decodeOnFirstUse) return
+
+        val matcher = PathPatterns(patterns)
+        val decodedPaths = sequenceOf("AndroidManifest.xml", "package.json").any(matcher::matches)
+        decodeOnFirstUse(usesDecodedResources = decodedPaths || matcher.mayMatchBelow("res"))
+    }
+
+    /**
+     * Whether [path] is reached by decoding resources, rather than by extracting an entry of the APK.
+     */
+    private fun isDecodedResource(path: String) =
+        path == "AndroidManifest.xml" || path == "package.json" || path == "res" || path.startsWith("res/")
+
+    /**
+     * Decodes as little as patches need so far. Entries of the APK that are not resources are extracted
+     * in raw mode, which keeps the manifest and the resource table as they are. Resources are decoded
+     * once a patch needs them, which keeps what was extracted and changed until then.
+     * That only works when decoding on request, since otherwise every file is extracted and decoded.
+     *
+     * @param usesDecodedResources Whether a patch needs decoded resources.
+     */
+    @Synchronized
+    private fun decodeOnFirstUse(usesDecodedResources: Boolean) {
+        if (!decodeOnFirstUse) return
+
+        val startNanos = System.nanoTime()
+        if (usesDecodedResources || !config.uses(PatcherBehavior.ON_REQUEST_RESOURCE_DECODING)) {
+            decodeResources(ResourceMode.FULL)
+            finishDecoding()
+            config.resourceMode = ResourceMode.FULL
+            decodeOnFirstUse = false
+        } else if (config.resourceMode == ResourceMode.NONE) {
+            decodeResources(ResourceMode.RAW_ONLY)
+            config.resourceMode = ResourceMode.RAW_ONLY
+        }
+        decodeNanos += System.nanoTime() - startNanos
     }
 
     /**
@@ -106,6 +209,9 @@ class ResourcePatchContext internal constructor(
      */
     @InternalApi
     override fun get(): PatcherResult.PatchedResources {
+        // Patching ended, so nothing needs the resources that were not decoded.
+        decodeOnFirstUse = false
+
         val resourcesApkFile = if (config.resourceMode == ResourceMode.FULL) {
             logger.info("Compiling modified resources")
             resourceCoder.encodeResources(config.patchedFiles, omitEntry)
@@ -146,10 +252,17 @@ class ResourcePatchContext internal constructor(
      * `res/values-de/strings.xml`, adds its resources to those of the APK or replaces the ones of the same
      * name, but removes none.
      */
+    @Deprecated(
+        "Use the global function, which has this new name as a global function cannot be an operator.",
+        ReplaceWith("resourceFile(path, copy)", "app.morphe.patcher.patch.resourceFile"),
+    )
     operator fun get(
         path: String,
         copy: Boolean = true,
-    ) = resourceCoder.getFile(path, copy = copy)
+    ): File {
+        decodeOnFirstUseIfNeededFor(path)
+        return resourceCoder.getFile(path, copy = copy)
+    }
 
     /**
      * List the files of the APK being patched that can be decoded, by the path they are decoded to,
@@ -167,8 +280,14 @@ class ResourcePatchContext internal constructor(
      * @param packageName The package whose resources to list. Defaults to the package name of the APK.
      * @return The matching paths, sorted.
      */
-    fun listDecodableFiles(pattern: String = "**", packageName: String? = null) =
-        resourceCoder.listDecodableFiles(pattern, packageName)
+    @Deprecated(
+        "Use the global function.",
+        ReplaceWith("listDecodableFiles(pattern, packageName)", "app.morphe.patcher.patch.listDecodableFiles"),
+    )
+    fun listDecodableFiles(pattern: String = "**", packageName: String? = null): List<String> {
+        decodeOnFirstUseIfNeededFor(listOf(pattern))
+        return resourceCoder.listDecodableFiles(pattern, packageName)
+    }
 
     /**
      * Decode the files of the APK being patched that match [patterns] and are not decoded yet, so that a
@@ -190,8 +309,14 @@ class ResourcePatchContext internal constructor(
      * @return The paths of the files in [PatcherConfig.apkFiles] matching [patterns], sorted. These include
      * files patches added, but not the ones they deleted.
      */
-    fun decode(vararg patterns: String, packageName: String? = null) =
-        resourceCoder.decode(patterns.toList(), packageName)
+    @Deprecated(
+        "Use the global function.",
+        ReplaceWith("decode(*patterns, packageName = packageName)", "app.morphe.patcher.patch.decode"),
+    )
+    fun decode(vararg patterns: String, packageName: String? = null): List<String> {
+        decodeOnFirstUseIfNeededFor(patterns.toList())
+        return resourceCoder.decode(patterns.toList(), packageName)
+    }
 
     /**
      * List the entries of the APK being patched, without staging them to the working directory.
@@ -205,6 +330,10 @@ class ResourcePatchContext internal constructor(
      *
      * @param prefix Restricts the listing to entries starting with it, e.g. `lib/`.
      */
+    @Deprecated(
+        "Use the global function.",
+        ReplaceWith("listApkEntries(prefix)", "app.morphe.patcher.patch.listApkEntries"),
+    )
     fun listApkEntries(prefix: String = "") = resourceCoder.listApkEntries(prefix)
 
     /**
@@ -221,8 +350,15 @@ class ResourcePatchContext internal constructor(
      * @param name The name of the file to delete.
      * @param packageName The package name a decoded resource exists in. Defaults to the package name of the APK.
      */
+    @Deprecated(
+        "Use the global function, which has this new name as a global delete function would be unclear.",
+        ReplaceWith("deleteResource(name, packageName)", "app.morphe.patcher.patch.deleteResource"),
+    )
     @Suppress("unused")
-    fun delete(name: String, packageName: String? = null) = resourceCoder.deleteFile(name, packageName)
+    fun delete(name: String, packageName: String? = null) {
+        decodeOnFirstUseIfNeededFor(name)
+        resourceCoder.deleteFile(name, packageName)
+    }
 
     override fun close() {
         if (ResourceIds.current === resourceIds) ResourceIds.current = null

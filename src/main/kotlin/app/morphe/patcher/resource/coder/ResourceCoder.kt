@@ -9,6 +9,7 @@ import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.apk.CompressedDexFiles
 import app.morphe.patcher.logging.PhaseTimings
 import app.morphe.patcher.resource.ResourceMode
+import app.morphe.patcher.xml.ResourceXml
 import java.io.Closeable
 import java.io.File
 
@@ -154,6 +155,16 @@ internal interface ResourceCoder : Closeable {
      * @return a File object representing the desired file.
      */
     fun getFile(path: String, packageName: String? = null, copy: Boolean = true): File
+
+    /**
+     * Open an XML file of the APK as a document, without decoding it to text if it can be edited where it is.
+     *
+     * @param path The path of the file, as [getFile] takes it.
+     * @param packageName The package name of the file. Defaults to the package name of the APK.
+     * @param copy False to open a values file only to add or replace resources, without reading it.
+     * @return The document, or null if there is no such file.
+     */
+    fun openXml(path: String, packageName: String? = null, copy: Boolean = true): ResourceXml?
 
     /**
      * Add a file to the working directory. The file will be tracked for inclusion in the final resources.apk.

@@ -3,6 +3,10 @@
  * https://github.com/MorpheApp/morphe-patcher
  */
 
+// The patch types patch bundles were built with decode what they use before patches execute, which
+// is what most of these tests write the APK after, so they keep using them
+@file:Suppress("DEPRECATION")
+
 package app.morphe.patcher
 
 import app.morphe.patcher.apk.ApkUtils
@@ -13,8 +17,9 @@ import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.logging.PhaseTimings
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.PatchBundleInfo
-import app.morphe.patcher.patch.ResourcePatch
 import app.morphe.patcher.patch.bytecodePatch
+import app.morphe.patcher.patch.document
+import app.morphe.patcher.patch.patch
 import app.morphe.patcher.patch.rawResourcePatch
 import app.morphe.patcher.patch.resourcePatch
 import app.morphe.patcher.resource.CpuArchitecture
@@ -40,6 +45,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.Collections
 import java.util.logging.Logger
 import java.util.zip.CRC32
 import java.util.zip.Deflater
@@ -70,6 +76,7 @@ internal class WriteApkTest {
     private class Config(
         val keepArchitectures: Set<CpuArchitecture> = emptySet(),
         val bytecodeMode: BytecodeMode = BytecodeMode.STRIP_FAST,
+        val progress: PatcherProgress? = null,
     )
 
     // region Scenarios
@@ -261,7 +268,7 @@ internal class WriteApkTest {
             },
         )
         assertTrue(generalPurposeFlags(input).getValue("assets/kept.txt").first and 8 != 0, "precondition")
-        val patches: () -> Set<Patch<*>> = {
+        val patches: () -> Set<Patch> = {
             when (resourceMode) {
                 "NONE" -> setOf(bytecodePatch("Change a class") { execute { mutableClassDefBy("La;") } })
                 "RAW_ONLY" -> setOf(rawResourcePatch("Delete") { execute { delete("assets/delete.txt") } })
@@ -372,11 +379,32 @@ internal class WriteApkTest {
         assertFalse(archive.exists(), "the temporary archive is deleted")
     }
 
+    @Test
+    fun `reports how far reading the resource table and writing the apk got`() {
+        val reports = Collections.synchronizedList(mutableListOf<Triple<PatcherTask, Long, Long>>())
+        val input = inputApk { add("assets/asset.txt", "asset ".repeat(50)) }
+        val patch = patch("Read a string") {
+            execute { document("res/values/strings.xml").use { } }
+        }
+        val config = Config(progress = { task, done, total -> reports += Triple(task, done, total) })
+
+        patcher(input, "a", config, setOf(patch.builtFor(ON_REQUEST))).use { it.writeApk(tempDir.resolve("written.apk")) }
+
+        // Counted by hooks in ARSCLib, which an update of the library could leave without a caller
+        listOf(PatcherTask.DECODING_RESOURCES, PatcherTask.WRITING_APK).forEach { task ->
+            val ofTask = reports.filter { it.first == task }
+            assertTrue(ofTask.any { (_, done, total) -> done in 1 until total }, "$task reports progress on its way: $ofTask")
+        }
+        reports.groupBy { it.first }.forEach { (task, ofTask) ->
+            assertEquals(ofTask.last().third, ofTask.last().second, "$task ends done: $ofTask")
+        }
+    }
+
     // endregion
 
     // region Running the patcher
 
-    private fun ResourcePatch.builtFor(patcherVersion: String) = apply {
+    private fun <T : Patch> T.builtFor(patcherVersion: String) = apply {
         bundle = PatchBundleInfo(File("Patches.mpp"), "Patches", "1.0.0", patcherVersion)
     }
 
@@ -400,13 +428,14 @@ internal class WriteApkTest {
         }
     }
 
-    private fun patcher(input: File, name: String, config: Config, patches: Set<Patch<*>>): Patcher {
+    private fun patcher(input: File, name: String, config: Config, patches: Set<Patch>): Patcher {
         return Patcher(
             PatcherConfig(
                 input,
                 tempDir.resolve(name),
                 keepArchitectures = config.keepArchitectures,
                 useBytecodeMode = config.bytecodeMode,
+                progress = config.progress,
             ),
         ).also { patcher ->
             patcher += patches
@@ -419,7 +448,7 @@ internal class WriteApkTest {
      *
      * @return The APK of each.
      */
-    private fun patchBothWays(input: File, config: Config, patches: () -> Set<Patch<*>>): Pair<File, File> {
+    private fun patchBothWays(input: File, config: Config, patches: () -> Set<Patch>): Pair<File, File> {
         val applied = tempDir.resolve("applied.apk")
         val result = patcher(input, "a", config, patches()).use { it.get() }
         // The compiled resource APK is the base when there is one, which applyTo copies.

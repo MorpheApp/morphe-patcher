@@ -12,9 +12,10 @@ import app.morphe.patcher.resource.writeXml
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import org.xmlpull.v1.XmlPullParser
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.logging.Logger
 
-abstract internal class StringsXmlProcessor(
+internal abstract class StringsXmlProcessor(
     internal val get: (String, String) -> File,
     internal val packageDirectories: Map<String, File>,
     internal val logString: String
@@ -37,11 +38,21 @@ abstract internal class StringsXmlProcessor(
 
     /**
      * @param files The strings files to process. Anything else in the collection is ignored.
-     * @param log Whether to log that strings are processed, which decoding single files on request does not.
+     * @param log Whether to log that strings are processed, which decoding a single file on request does not.
+     * @param onProgress Called with how many of the strings files are processed, from the threads that process them.
      */
-    fun process(files: Collection<File> = stringsFiles(), log: Boolean = true) {
+    fun process(
+        files: Collection<File> = stringsFiles(),
+        log: Boolean = true,
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+    ) {
         if (log) logger.info(logString)
-        files.filter { it.name == "strings.xml" && it.isFile }.parallelStream().forEach(::processFile)
+        val stringsFiles = files.filter { it.name == "strings.xml" && it.isFile }
+        val done = AtomicInteger()
+        stringsFiles.parallelStream().forEach { file ->
+            processFile(file)
+            onProgress(done.incrementAndGet(), stringsFiles.size)
+        }
     }
 
     private fun processFile(file: File) {
@@ -50,7 +61,7 @@ abstract internal class StringsXmlProcessor(
         if (processed == null) {
             logger.fine { "Processing ${file.name} with an XML parser" }
             processFileWithParser(file)
-        } else if (processed !== xml) {
+        } else if (processed != xml) {
             file.writeText(processed, Charsets.UTF_8)
         }
     }
@@ -135,7 +146,7 @@ abstract internal class StringsXmlProcessor(
                 val innerMarkupEnd = markupEnd(xml, tagOpen)
                 if (innerMarkupEnd < 0) return null
                 if (innerMarkupEnd > 0) {
-                    // A comment, CDATA section or processing instruction is part of the text around it,
+                    // A comment, CDATA section or processing instruction is part of the surrounding text,
                     // as an XML parser reads it.
                     val builder = resolved ?: StringBuilder().also {
                         resolved = it
@@ -262,7 +273,7 @@ abstract internal class StringsXmlProcessor(
 
         /**
          * The end of the tag that starts at [open], or -1 if it does not end. Attribute values can
-         * hold any character but the quote around them.
+         * hold any character but the surrounding quote.
          */
         fun tagEnd(xml: String, open: Int): Int {
             var index = open + 1
@@ -299,16 +310,15 @@ abstract internal class StringsXmlProcessor(
             var index = start
             while (true) {
                 val ampersand = raw.indexOf('&', index)
-                if (ampersand < 0 || ampersand >= end) {
+                if (ampersand !in 0..<end) {
                     appendNormalized(builder, raw, index, end)
                     return true
                 }
                 appendNormalized(builder, raw, index, ampersand)
 
                 val semicolon = raw.indexOf(';', ampersand)
-                if (semicolon < 0 || semicolon >= end) return false
-                val name = raw.substring(ampersand + 1, semicolon)
-                when (name) {
+                if (semicolon !in 0..<end) return false
+                when (val name = raw.substring(ampersand + 1, semicolon)) {
                     "lt" -> builder.append('<')
                     "gt" -> builder.append('>')
                     "amp" -> builder.append('&')
@@ -333,7 +343,7 @@ abstract internal class StringsXmlProcessor(
             var index = start
             while (true) {
                 val carriageReturn = raw.indexOf('\r', index)
-                if (carriageReturn < 0 || carriageReturn >= end) {
+                if (carriageReturn !in 0..<end) {
                     builder.append(raw, index, end)
                     return
                 }

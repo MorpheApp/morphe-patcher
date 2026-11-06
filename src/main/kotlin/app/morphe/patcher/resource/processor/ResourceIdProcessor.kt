@@ -25,7 +25,21 @@ internal class ResourceIdProcessor(
     internal val publicIdManager: PublicIds,
     internal val modifiedResResources: Set<File>,
     private val listFiles: (directory: File) -> Array<File>? = File::listFiles,
+    private val heldDeclarations: List<HeldDeclarations> = emptyList(),
 ) {
+    /**
+     * What a file patches changed as a document, rather than as a file, declares.
+     *
+     * @param file Where the file would be decoded to, which orders it among the changed files.
+     * @param resources The resources of a values file, by type and name, in the order of the file.
+     * @param ids The ids `@+id/` declarations of a compiled file declare, in the order of the file.
+     */
+    internal class HeldDeclarations(
+        val file: File,
+        val resources: List<Pair<String, String?>>,
+        val ids: List<String>,
+    )
+
     constructor(
         get: (path: String) -> File,
         publicIdManager: PublicXmlManager,
@@ -35,7 +49,10 @@ internal class ResourceIdProcessor(
 
     private val logger = Logger.getLogger(ResourceIdProcessor::class.java.name)
 
-    fun process() {
+    /**
+     * @param onProgress Called with how many of the changed files are read for the ids they declare.
+     */
+    fun process(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }) {
         logger.info("Generating new resource IDs")
 
         // New ids are numbered in the order resources are seen here, so every listing is sorted.
@@ -51,10 +68,17 @@ internal class ResourceIdProcessor(
             val idNode = idDoc.getElementsByTagName("resources").item(0)
                 ?: throw IllegalStateException("ids.xml is missing the <resources> root element.")
 
-            modifiedResResources
-                .filter { it.exists() && it.extension == "xml" }
-                .sortedBy { it.invariantSeparatorsPath }
-                .forEach { file ->
+            val changedFiles = modifiedResResources.filter { it.exists() && it.extension == "xml" }
+                .map { it to null }
+            val units = (changedFiles + heldDeclarations.map { it.file to it })
+                .sortedBy { it.first.invariantSeparatorsPath }
+            units.forEachIndexed { index, (file, held) ->
+                if (held != null) {
+                    held.ids.forEach { idName ->
+                        idNode.appendChild(idNode.ownerDocument.createElement("id").also { it.setAttribute("name", idName) })
+                    }
+                    held.resources.forEach { (type, name) -> publicIdManager.createPublicId(type, name) }
+                } else {
                     // The document parser detects the encoding of a file that is not UTF-8, the pull parser does not.
                     val declarations = if (file.isUtf16()) null else readDeclarations(file)
                     if (declarations == null || declarations.needsRewrite) {
@@ -65,6 +89,8 @@ internal class ResourceIdProcessor(
                         declarations.createPublicIds()
                     }
                 }
+                onProgress(index + 1, units.size)
+            }
         }
 
         createPublicIdsFromValuesXml(get("res/values/ids.xml"))
@@ -166,13 +192,7 @@ internal class ResourceIdProcessor(
                         if (depth >= 1) {
                             val idName = parser.getAttributeValue(null, "name")
 
-                            val resolvedTagName = if (tagName == "item") {
-                                parser.getAttributeValue(null, "type") ?: tagName
-                            } else {
-                                tagName
-                            }
-                            val publicTagName = resourceToTagOverrideMapping[resolvedTagName] ?: resolvedTagName
-                            publicIds += publicTagName to idName
+                            publicIds += declaredType(tagName, parser.getAttributeValue(null, "type")) to idName
                         }
                         depth += 1
                     }
@@ -185,6 +205,17 @@ internal class ResourceIdProcessor(
         }
 
         return Declarations(publicIds, needsRewrite)
+    }
+
+    internal companion object {
+        /**
+         * The type of the resource an element of a values file declares, such as `array` for a
+         * `<string-array>` and the type attribute of an `<item>`.
+         */
+        fun declaredType(tag: String, type: String?): String {
+            val resolved = if (tag == "item") type ?: tag else tag
+            return resourceToTagOverrideMapping[resolved] ?: resolved
+        }
     }
 
     /**

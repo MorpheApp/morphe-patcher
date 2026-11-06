@@ -6,7 +6,7 @@
  * https://github.com/LisoUseInAIKyrios/revanced-patcher
  */
 
-@file:Suppress("DEPRECATION_ERROR")
+@file:Suppress("DEPRECATION_ERROR", "DEPRECATION", "OVERRIDE_DEPRECATION")
 
 package app.morphe.patcher.patch
 
@@ -14,13 +14,16 @@ import app.morphe.patcher.InternalApi
 import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherResult
+import app.morphe.patcher.PatcherTask
 import app.morphe.patcher.StringComparisonType
+import app.morphe.patcher.TaskProgress
 import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.dex.CachingDexBackedDexFile
 import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.dex.DexStripper
 import app.morphe.patcher.dex.MappedFile
 import app.morphe.patcher.dex.MultidexReadResult
+import app.morphe.patcher.runTask
 import app.morphe.patcher.util.ClassMerger.merge
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import app.morphe.patcher.util.PatchClasses
@@ -38,11 +41,19 @@ import java.util.logging.Logger
 /**
  * A context for patches containing the current state of the bytecode.
  *
+ * Patches do not need a context anymore, since only one APK is ever patched at a time. Use the global
+ * functions instead, such as [app.morphe.patcher.patch.classDefBy], which work on the state this class
+ * still holds. Existing patch bundles are executed with this class, so it cannot be removed.
+ *
  * @param config The [PatcherConfig] used to create this context.
  */
 @Suppress("MemberVisibilityCanBePrivate", "unused")
-class BytecodePatchContext internal constructor(private val config: PatcherConfig, val packageMetadata: PackageMetadata) :
-    PatchContext<Set<PatcherResult.PatchedDexFile>>,
+@Deprecated("Patches do not need a context. Use the global functions, such as classDefBy().")
+class BytecodePatchContext internal constructor(
+    private val config: PatcherConfig,
+    @Deprecated("Use the global property.", ReplaceWith("packageMetadata", "app.morphe.patcher.patch.packageMetadata"))
+    val packageMetadata: PackageMetadata,
+) : PatchContext<Set<PatcherResult.PatchedDexFile>>,
     Closeable {
     private val logger = Logger.getLogger(this::class.java.name)
 
@@ -103,10 +114,37 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      */
     internal var dexFilesComplete = false
 
+    private var classes = PatchClasses(emptySet())
+
     /**
      * All classes for the target app and any extension classes.
      */
-    internal var patchClasses: PatchClasses = PatchClasses(emptySet())
+    internal var patchClasses: PatchClasses
+        get() {
+            if (decodeOnFirstUse) decodeDexFilesOnFirstUse()
+            return classes
+        }
+        set(value) {
+            classes = value
+        }
+
+    /**
+     * Whether the DEX files are decoded when they are first needed, instead of before patches execute.
+     */
+    @Volatile
+    internal var decodeOnFirstUse = false
+
+    /**
+     * Time spent decoding the DEX files when they were first needed.
+     */
+    private var decodeNanos = 0L
+
+    /**
+     * Total time spent on what is not the work of a patch or a fingerprint that happens to need it first,
+     * which is decoding the DEX files and building the instruction indexes.
+     */
+    internal val preparationNanos
+        get() = decodeNanos + classes.indexBuildNanos
 
     /**
      * The directory where DEX files are written during compilation.
@@ -114,7 +152,18 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     private val dexOutputDir = config.patchedFiles.resolve("dex")
     private val dexWorkingDir = config.patchedFiles.resolve("originalDex")
 
-    internal fun decodeDexFiles() {
+    @Synchronized
+    private fun decodeDexFilesOnFirstUse() {
+        if (!decodeOnFirstUse) return
+
+        val startNanos = System.nanoTime()
+        decodeDexFiles()
+        config.bytecodeMode = config.useBytecodeMode
+        decodeOnFirstUse = false
+        decodeNanos += System.nanoTime() - startNanos
+    }
+
+    internal fun decodeDexFiles() = config.progress.runTask(PatcherTask.DECODING_DEX) {
         // Extract original DEX files from the APK to disk for later in-place editing.
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
         dexWorkingDir.apply { deleteRecursively(); mkdirs()}
@@ -123,7 +172,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         opcodes = readResult.dexFile.opcodes
         val classes = readResult.dexFile.classes
         originalClassCount = classes.size
-        patchClasses = PatchClasses(classes)
+        patchClasses = PatchClasses(classes, config.progress)
 
         // Insertion-ordered so iteration follows the original classes*.dex order; a plain
         // HashMap iterates in File-hash order, which varies with the temporary directory
@@ -159,13 +208,13 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     }
 
     /**
-     * Merge the extension of [bytecodePatch] into the [BytecodePatchContext].
+     * Merge the extension of [patch] into the [BytecodePatchContext].
      * If no extension is present, the function will return early.
      *
-     * @param bytecodePatch The [BytecodePatch] to merge the extension of.
+     * @param patch The [Patch] to merge the extension of.
      */
-    internal fun mergeExtension(bytecodePatch: BytecodePatch) {
-        bytecodePatch.extensionStreamProviders.forEach { provider ->
+    internal fun mergeExtension(patch: Patch) {
+        patch.extensionStreamProviders.forEach { provider ->
             provider.get().forEach { supplier ->
                 mergeExtensionStream(supplier.get())
             }
@@ -216,6 +265,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @return An immutable instance of the class type.
      * @see mutableClassDefBy
      */
+    @Deprecated("Use the global function.", ReplaceWith("classDefBy(classType)", "app.morphe.patcher.patch.classDefBy"))
     fun classDefBy(classType: String) = patchClasses.classBy(classType)
 
     /**
@@ -225,6 +275,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @return An immutable instance of the class type.
      * @see mutableClassDefBy
      */
+    @Deprecated("Use the global function.", ReplaceWith("classDefBy(predicate)", "app.morphe.patcher.patch.classDefBy"))
     fun classDefBy(predicate: (ClassDef) -> Boolean) = patchClasses.classBy(predicate)
 
     /**
@@ -234,6 +285,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @return An immutable instance of the class type.
      * @see mutableClassDefBy
      */
+    @Deprecated("Use the global function.", ReplaceWith("classDefByOrNull(classType)", "app.morphe.patcher.patch.classDefByOrNull"))
     fun classDefByOrNull(classType: String) = patchClasses.classByOrNull(classType)
 
     /**
@@ -242,6 +294,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @param predicate A predicate to match the class.
      * @return An immutable instance of the class type.
      */
+    @Deprecated("Use the global function.", ReplaceWith("classDefByOrNull(predicate)", "app.morphe.patcher.patch.classDefByOrNull"))
     fun classDefByOrNull(predicate: (ClassDef) -> Boolean) = patchClasses.classByOrNull(predicate)
 
     /**
@@ -255,6 +308,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @param classType The full classname.
      * @return A mutable version of the class type.
      */
+    @Deprecated("Use the global function.", ReplaceWith("mutableClassDefBy(classType)", "app.morphe.patcher.patch.mutableClassDefBy"))
     fun mutableClassDefBy(classType: String) = patchClasses.mutableClassBy(classType)
 
     /**
@@ -266,6 +320,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @param classDef An immutable class.
      * @return A mutable version of the class definition.
      */
+    @Deprecated("Use the global function.", ReplaceWith("mutableClassDefBy(classDef)", "app.morphe.patcher.patch.mutableClassDefBy"))
     fun mutableClassDefBy(classDef: ClassDef) = patchClasses.mutableClassBy(classDef)
 
     /**
@@ -279,6 +334,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @param predicate A predicate to match the class.
      * @return A mutable class that matches the predicate.
      */
+    @Deprecated("Use the global function.", ReplaceWith("mutableClassDefBy(predicate)", "app.morphe.patcher.patch.mutableClassDefBy"))
     fun mutableClassDefBy(predicate: (ClassDef) -> Boolean) = patchClasses.mutableClassBy(predicate)
 
     /**
@@ -293,6 +349,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @param classType The full classname.
      * @return A mutable version of the class type.
      */
+    @Deprecated("Use the global function.", ReplaceWith("mutableClassDefByOrNull(classType)", "app.morphe.patcher.patch.mutableClassDefByOrNull"))
     fun mutableClassDefByOrNull(classType: String) = patchClasses.mutableClassByOrNull(classType)
 
     /**
@@ -306,11 +363,13 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * @param predicate A predicate to match the class.
      * @return A mutable class that matches the predicate.
      */
+    @Deprecated("Use the global function.", ReplaceWith("mutableClassDefByOrNull(predicate)", "app.morphe.patcher.patch.mutableClassDefByOrNull"))
     fun mutableClassDefByOrNull(predicate: (ClassDef) -> Boolean) = patchClasses.mutableClassByOrNull(predicate)
 
     /**
      * Iterate over all classes in the target app and all extension code.
      */
+    @Deprecated("Use the global function.", ReplaceWith("classDefForEach(action)", "app.morphe.patcher.patch.classDefForEach"))
     fun classDefForEach(action: (ClassDef) -> Unit) {
         patchClasses.forEach(action)
     }
@@ -318,6 +377,10 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     /**
      * @return All classes that contain the string parameter.
      */
+    @Deprecated(
+        "Use the global function.",
+        ReplaceWith("classDefByStrings(literalString, comparison)", "app.morphe.patcher.patch.classDefByStrings"),
+    )
     fun classDefByStrings(
         literalString: String,
         comparison: StringComparisonType = StringComparisonType.EQUALS
@@ -343,6 +406,10 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     /**
      * @return All classes that contain at least 1 string.
      */
+    @Deprecated(
+        "Use the global function.",
+        ReplaceWith("getAllClassesWithStrings()", "app.morphe.patcher.patch.getAllClassesWithStrings"),
+    )
     fun getAllClassesWithStrings(): List<ClassDef> {
         return patchClasses.getAllClassesWithStrings().map { it.classDef }
     }
@@ -365,7 +432,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      *
      * @param method The method to navigate.
      *
-     * @return A [app.morphe.patcher.util.MethodNavigator] for the method.
+     * @return A `MethodNavigator` for the method.
      */
     @Deprecated("Instead use Fingerprint instruction match `getMethodCalled()`," +
             " or lookup a method from an index using BytecodeUtils MethodReference.getMutableMethod()",
@@ -383,13 +450,21 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      */
     @InternalApi
     override fun get(): Set<PatcherResult.PatchedDexFile> {
+        // Patching ended, so nothing needs the DEX files that were not decoded.
+        decodeOnFirstUse = false
+
         logger.info("Compiling patched dex files (mode: ${config.bytecodeMode})")
 
-        return when (config.bytecodeMode) {
-            BytecodeMode.NONE -> emptySet()
-            BytecodeMode.FULL -> compileFull()
-            BytecodeMode.STRIP_FAST -> compileStripFast()
-            BytecodeMode.STRIP_SAFE -> compileStripSafe()
+        if (config.bytecodeMode == BytecodeMode.NONE) return emptySet()
+
+        // Counted in the classes written, whose number each mode learns as it goes.
+        return config.progress.runTask(PatcherTask.COMPILING_DEX, total = 0) { task ->
+            when (config.bytecodeMode) {
+                BytecodeMode.NONE -> emptySet()
+                BytecodeMode.FULL -> compileFull(task)
+                BytecodeMode.STRIP_FAST -> compileStripFast(task)
+                BytecodeMode.STRIP_SAFE -> compileStripSafe(task)
+            }
         }
     }
 
@@ -397,7 +472,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * [BytecodeMode.FULL]: Write ALL classes through DexPool, producing completely new DEX files.
      * Slowest but most space-efficient since no dead data remains.
      */
-    private fun compileFull(): Set<PatcherResult.PatchedDexFile> {
+    private fun compileFull(task: TaskProgress): Set<PatcherResult.PatchedDexFile> {
         val classDefs = patchClasses.classMap.values.let { values ->
             values.mapTo(ArrayList(values.size)) { it.classDef }
         }
@@ -406,7 +481,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
 
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
         // TODO: Separate out any j$ classes into their own DEX files, because d8/r8 will reject the DEX files otherwise.
-        DexReadWrite.writeMultiDexFile(dexOutputDir, classDefs, opcodes, -1, logger)
+        DexReadWrite.writeMultiDexFile(dexOutputDir, classDefs, opcodes, -1, logger, task)
 
         // All original classes have now been read; release their mappings.
         releaseAllDexMappings()
@@ -426,7 +501,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * No class is defined twice, so load order does not matter, and the result holds only the
      * stripped originals and the new files: the output keeps every other original DEX entry as is.
      */
-    private fun compileStripFast(): Set<PatcherResult.PatchedDexFile> {
+    private fun compileStripFast(task: TaskProgress): Set<PatcherResult.PatchedDexFile> {
         val (modifiedOriginalDescriptors, classesForNewDex)
                 = getModifiedOriginalDescriptorsAndClassesForNewDex()
 
@@ -442,7 +517,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         var nextDexIndex = originalDexMappings.keys.maxOfOrNull(::dexIndex) ?: 0
         if (classesForNewDex.isNotEmpty()) {
             logger.info("Writing ${classesForNewDex.size} new classes to new DEX files")
-            DexReadWrite.writeMultiDexFile(config.patchedFiles.resolve("newDex"), classesForNewDex, opcodes, -1, logger)
+            DexReadWrite.writeMultiDexFile(config.patchedFiles.resolve("newDex"), classesForNewDex, opcodes, -1, logger, task)
                 .forEach { dexFile ->
                     dexFile.safelyMoveTo(dexOutputDir.resolve(getDexName(nextDexIndex++)))
                 }
@@ -539,7 +614,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
      * Slower than [STRIP_FAST][BytecodeMode.STRIP_FAST] but produces clean DEX files
      * with no dead data or duplicate class definitions.
      */
-    private fun compileStripSafe(): Set<PatcherResult.PatchedDexFile> {
+    private fun compileStripSafe(task: TaskProgress): Set<PatcherResult.PatchedDexFile> {
         val (modifiedOriginalDescriptors, classesForNewDex)
                 = getModifiedOriginalDescriptorsAndClassesForNewDex()
 
@@ -549,7 +624,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
         var newDexCount = 0
         if (classesForNewDex.isNotEmpty()) {
             logger.info("Writing ${classesForNewDex.size} modified/new classes to new DEX files")
-            DexReadWrite.writeMultiDexFile(dexOutputDir, classesForNewDex, opcodes, -1, null)
+            DexReadWrite.writeMultiDexFile(dexOutputDir, classesForNewDex, opcodes, -1, null, task)
             newDexCount = dexOutputDir.listFiles { it.isFile }!!.size
         }
 
@@ -585,7 +660,7 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
                         mkdirs()
                     }
                     val rebuiltFiles = DexReadWrite.writeMultiDexFile(
-                        tempDir, unmodifiedClasses, opcodes, -1, null
+                        tempDir, unmodifiedClasses, opcodes, -1, null, task
                     )
                     // This file's classes have been read; release its mapping.
                     releaseDexMapping(originalDex)
@@ -667,8 +742,9 @@ class BytecodePatchContext internal constructor(private val config: PatcherConfi
     internal fun getDexName(index: Int): String = if (index == 0) "classes.dex" else "classes${index + 1}.dex"
 
     override fun close() {
+        decodeOnFirstUse = false
         releaseAllDexMappings()
         extensionDexFiles.clear()
-        patchClasses.close()
+        classes.close()
     }
 }

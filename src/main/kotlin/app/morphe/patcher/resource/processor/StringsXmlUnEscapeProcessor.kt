@@ -17,7 +17,9 @@ internal class StringsXmlUnEscapeProcessor(
      */
     override fun processString(text: String): String {
         // Most strings have no escapes or surrounding quotes, so only copy a string that does.
-        val quoted = text.length >= 2 && text[0] == '"' && text[text.length - 1] == '"'
+        // Escaped quotes around the text are part of it, and only quotes that are not escaped quote it.
+        val quoted = text.length >= 2 && text[0] == '"' && text[text.length - 1] == '"' &&
+                !isEscaped(text, text.length - 1)
         if (!quoted && text.indexOf('\\') < 0) return text
 
         val sb = StringBuilder(text.length)
@@ -63,10 +65,23 @@ internal class StringsXmlUnEscapeProcessor(
         }
 
         // Strip surrounding quotes if present
-        if (sb.length >= 2 && sb[0] == '"' && sb[sb.length - 1] == '"') {
+        if (quoted) {
             return sb.substring(1, sb.length - 1)
         }
 
         return sb.toString()
+    }
+
+    /**
+     * Whether the character at [index] is escaped, by an odd number of backslashes before it.
+     */
+    private fun isEscaped(text: String, index: Int): Boolean {
+        var backslashes = 0
+        var position = index - 1
+        while (position >= 0 && text[position] == '\\') {
+            backslashes++
+            position--
+        }
+        return backslashes % 2 == 1
     }
 }
