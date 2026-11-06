@@ -1,3 +1,12 @@
+# [2.3.0](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0...v2.3.0) (2026-11-06)
+
+
+### Features
+
+* Add patch() and global functions, and deprecate patch types and contexts ([#275](https://github.com/MorpheApp/morphe-patcher/issues/275)) ([e080460](https://github.com/MorpheApp/morphe-patcher/commit/e080460990960454fcad73fe30dbbaf6ef85ce1d))
+* Edit XML files using ARSCLib without decoding them ([#277](https://github.com/MorpheApp/morphe-patcher/issues/277)) ([da7543a](https://github.com/MorpheApp/morphe-patcher/commit/da7543a6ddbf028aeb42fa31f9542fb025539586))
+* Report progress of the work besides executing patches ([2564834](https://github.com/MorpheApp/morphe-patcher/commit/2564834b0c5d9181c2e209dcfe1589447260dc15))
+
 # [2.3.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.3.0-dev.2...v2.3.0-dev.3) (2026-11-05)
 
 
