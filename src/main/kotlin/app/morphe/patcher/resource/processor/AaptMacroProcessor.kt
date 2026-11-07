@@ -7,16 +7,16 @@ package app.morphe.patcher.resource.processor
 
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.resource.parseXml
-import app.morphe.patcher.resource.postOrderTraverse
 import app.morphe.patcher.resource.utf8Writer
-import app.morphe.patcher.util.Document
-import app.morphe.patcher.util.XmlWriter
+import app.morphe.patcher.resource.xml.ANDROID_NAMESPACE
+import app.morphe.patcher.resource.xml.ElementBase
+import app.morphe.patcher.resource.xml.TextXmlDocument
+import app.morphe.patcher.resource.xml.writeDocument
+import app.morphe.patcher.xml.XmlElement
 import com.reandroid.apk.ApkUtil
-import org.w3c.dom.Element
 import org.xmlpull.v1.XmlPullParser
 import java.io.File
 import java.util.logging.Logger
-import javax.xml.parsers.DocumentBuilderFactory
 
 internal class AaptMacroProcessor(
     internal val get: (path: String) -> File,
@@ -29,9 +29,6 @@ internal class AaptMacroProcessor(
         "android:drawable" to "drawable",
         "android:fillColor" to "drawable"
     )
-
-    private val dbFactory = DocumentBuilderFactory.newInstance()
-    private val docBuilder = dbFactory.newDocumentBuilder()
 
     /**
      * @param onProgress Called with how many of the files that can hold macros are processed.
@@ -80,65 +77,59 @@ internal class AaptMacroProcessor(
 
         var aaptCounter = 0
 
-        Document(file).use { doc ->
-            val topNodes = doc.childNodes
-            for (i in 0 until topNodes.length) {
-                val topLevelElem = topNodes.item(i) as? Element ?: continue
-                topLevelElem.removeAttribute("xmlns:aapt")
+        val document = file.inputStream().buffered().use { TextXmlDocument.read(it) }
+        document.use {
+            document.root.removeAttribute("xmlns:aapt")
 
-                topLevelElem.postOrderTraverse { element ->
-                    if (element.nodeName != "aapt:attr") return@postOrderTraverse
+            // Nested macros are extracted first, so that the element they are in no longer has them.
+            document.root.postOrder().filter { it.tag == "aapt:attr" }.forEach { element ->
+                val shadowedName = "$${file.nameWithoutExtension}__$aaptCounter"
+                aaptCounter++
 
-                    val shadowedName = "$${file.nameWithoutExtension}__$aaptCounter"
-                    aaptCounter++
+                val parentElement = element.parent!!
+                val parentAttribute = element.attribute("name").orEmpty()
+                val resourceType = aaptNameToResourceType[parentAttribute]
+                    ?: throw PatchException("Unhandled XML attribute: $parentAttribute")
+                parentElement.setAttribute(parentAttribute, "@$resourceType/$shadowedName")
 
-                    val parentElement = element.parentNode as Element
-                    val parentAttribute = element.getAttribute("name")
-                    val resourceType = aaptNameToResourceType[parentAttribute]
-                        ?: throw PatchException("Unhandled XML attribute: $parentAttribute")
-                    parentElement.setAttribute(parentAttribute, "@$resourceType/$shadowedName")
+                val sourceElement = element.children.firstOrNull()
+                    ?: throw PatchException("aapt:attr element has no child element in ${file.name}")
 
-                    // Find first child element without allocating a list
-                    val childNodes = element.childNodes
-                    var sourceElement: Element? = null
-                    for (j in 0 until childNodes.length) {
-                        val child = childNodes.item(j) as? Element
-                        if (child != null) {
-                            sourceElement = child
-                            break
-                        }
-                    }
-                    if (sourceElement == null)
-                        throw PatchException("aapt:attr element has no child element in ${file.name}")
+                val newElementFile = get("res/$resourceType/$shadowedName.xml")
+                writeElementToFile(sourceElement, newElementFile)
+                newlyCreatedFiles.add(newElementFile)
 
-                    sourceElement.setAttribute("xmlns:android", "http://schemas.android.com/apk/res/android")
-
-                    val newElementFile = get("res/$resourceType/$shadowedName.xml")
-                    extractElementToNewDocument(sourceElement, newElementFile)
-                    newlyCreatedFiles.add(newElementFile)
-
-                    // Remove the now-empty aapt:attr element from the source document
-                    parentElement.removeChild(element)
-                }
+                // Removes the macro, and the element it holds, from the source document.
+                element.remove()
             }
+            file.utf8Writer().use { document.root.writeDocument(it) }
         }
 
         return newlyCreatedFiles
     }
 
-    private fun extractElementToNewDocument(element: Element, file: File) {
-        val copiedDocument = docBuilder.newDocument()
-        val copiedRoot = copiedDocument.importNode(element, true)
-        copiedDocument.appendChild(copiedRoot)
-
-        writeDocumentToFile(copiedDocument, file)
-        element.parentNode.removeChild(element)
-    }
-
-    private fun writeDocumentToFile(doc: org.w3c.dom.Document, file: File) {
-        file.utf8Writer().use { writer ->
-            XmlWriter(writer).writeDocument(doc)
+    /**
+     * Writes a copy of [element] as the root of [file]. The copy declares the namespaces it uses.
+     */
+    private fun writeElementToFile(element: XmlElement, file: File) {
+        TextXmlDocument.detached(element.tag).use { copy ->
+            copy.root.setAttribute("xmlns:android", ANDROID_NAMESPACE)
+            copy.root.copyContentFrom(element as ElementBase)
+            file.utf8Writer().use { copy.root.writeDocument(it) }
         }
         modifiedResResources.add(file)
+    }
+
+    /**
+     * This element and every element below it, each after the elements below it.
+     */
+    private fun XmlElement.postOrder(): List<XmlElement> {
+        val elements = mutableListOf<XmlElement>()
+        fun visit(element: XmlElement) {
+            element.children.forEach(::visit)
+            elements += element
+        }
+        visit(this)
+        return elements
     }
 }

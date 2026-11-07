@@ -1646,119 +1646,119 @@ open class Fingerprint private constructor(
     // Patches compiled before these stopped taking a context parameter call these.
     //
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchOrNull(): Match? = matchOrNull()
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchOrNull(classDef: ClassDef): Match? = matchOrNull(classDef)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchOrNull(method: Method): Match? = matchOrNull(method)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchOrNull(method: Method, classDef: ClassDef): Match? = matchOrNull(method, classDef)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchAllOrNull(classDef: ClassDef): List<Match>? = matchAllOrNull(classDef)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchAllOrNull(): List<Match>? = matchAllOrNull()
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun match(): Match = match()
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun match(classDef: ClassDef): Match = match(classDef)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun match(method: Method): Match = match(method)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun match(method: Method, classDef: ClassDef): Match = match(method, classDef)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchAll(classDef: ClassDef): List<Match> = matchAll(classDef)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchAll(classDef: ClassDef, range: IntRange): List<Match> = matchAll(classDef, range)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchAll(): List<Match> = matchAll()
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchAll(range: IntRange): List<Match> = matchAll(range)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val originalClassDefOrNull
         get() = matchOrNull()?.originalClassDef
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val originalMethodOrNull
         get() = matchOrNull()?.originalMethod
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val classDefOrNull
         get() = matchOrNull()?.classDef
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val methodOrNull
         get() = matchOrNull()?.method
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val instructionMatchesOrNull
         get() = matchOrNull()?.instructionMatchesOrNull
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val originalClassDef
         get() = match().originalClassDef
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val originalMethod
         get() = match().originalMethod
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val classDef
         get() = match().classDef
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val method
         get() = match().method
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val instructionMatches
         get() = match().instructionMatches
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val stringMatches
         get() = match().stringMatches
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val stringMatchesOrNull
         get() = matchOrNull()?.stringMatchesOrNull
 
@@ -1962,12 +1962,12 @@ class Match internal constructor(
             }
         }
 
-        context(_: BytecodePatchContext)
         @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+        context(_: BytecodePatchContext)
         fun getMethodCalled(): MutableMethod = getMethodCalled()
 
-        context(_: BytecodePatchContext)
         @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+        context(_: BytecodePatchContext)
         fun getFieldAccessed(): MutableField = getFieldAccessed()
 
         override fun toString(): String {
