@@ -1,3 +1,10 @@
+## [2.3.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.3.0...v2.3.1-dev.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* Internally process resource XML files with ARCSLib ([#279](https://github.com/MorpheApp/morphe-patcher/issues/279)) ([1e27114](https://github.com/MorpheApp/morphe-patcher/commit/1e27114f5f07f80250ec67b33c20ab2ba8a3b012))
+
 # [2.3.0](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0...v2.3.0) (2026-11-06)
 
 
