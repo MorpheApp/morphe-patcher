@@ -688,6 +688,7 @@ public abstract class app/morphe/patcher/logging/Logger {
 	public final fun getHandler ()Ljava/util/logging/Handler;
 	public final fun info (Ljava/lang/String;)V
 	public abstract fun log (Lapp/morphe/patcher/logging/LogLevel;Ljava/lang/String;)V
+	public fun log (Lapp/morphe/patcher/logging/LogLevel;Ljava/lang/String;Ljava/lang/Throwable;)V
 	public final fun trace (Ljava/lang/String;)V
 	public final fun warn (Ljava/lang/String;)V
 }
@@ -699,6 +700,7 @@ public final class app/morphe/patcher/logging/LoggerKt {
 public final class app/morphe/patcher/logging/NoOpLogger : app/morphe/patcher/logging/Logger {
 	public static final field INSTANCE Lapp/morphe/patcher/logging/NoOpLogger;
 	public fun log (Lapp/morphe/patcher/logging/LogLevel;Ljava/lang/String;)V
+	public fun log (Lapp/morphe/patcher/logging/LogLevel;Ljava/lang/String;Ljava/lang/Throwable;)V
 }
 
 public final class app/morphe/patcher/patch/ApkArchitecture : java/lang/Enum {
