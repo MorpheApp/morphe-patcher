@@ -1,3 +1,10 @@
+# [2.4.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.3.1-dev.2...v2.4.0-dev.1) (2026-11-08)
+
+
+### Features
+
+* Let patches read the OBB of a bundle ([#281](https://github.com/MorpheApp/morphe-patcher/issues/281)) ([67464b0](https://github.com/MorpheApp/morphe-patcher/commit/67464b0438cfc5f613111b05140192601712d5a0))
+
 ## [2.3.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.3.1-dev.1...v2.3.1-dev.2) (2026-11-08)
 
 
