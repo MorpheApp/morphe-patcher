@@ -32,6 +32,7 @@ import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction
 import com.android.tools.smali.dexlib2.immutable.ImmutableClassDef
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
+import com.android.tools.smali.dexlib2.immutable.ImmutableMethodParameter
 import com.android.tools.smali.dexlib2.immutable.instruction.ImmutableInstruction21c
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableStringReference
 import com.android.tools.smali.dexlib2.writer.io.MemoryDataStore
@@ -1799,6 +1800,105 @@ internal object PatcherTest {
             assertNotNull(
                 Fingerprint(classFingerprint = baseFingerprint, superclass = "Ljava/lang/Object;").matchOrNull()
             )
+        }
+    }
+
+    @Test
+    fun `fingerprints match values from lambdas that use the match of another fingerprint`() {
+        fun method(definingClass: String, name: String, returnType: String, parameters: List<String>) =
+            ImmutableMethod(
+                definingClass,
+                name,
+                parameters.map { ImmutableMethodParameter(it, null, null) },
+                returnType,
+                AccessFlags.PUBLIC.value,
+                null,
+                null,
+                null,
+            )
+        fun classDef(type: String, superclass: String?, interfaces: List<String>?, vararg methods: Method) =
+            ImmutableClassDef(
+                type, AccessFlags.PUBLIC.value, superclass, interfaces, null, null, null, methods.toList(),
+            )
+
+        val propertiesClass = classDef(
+            "Lproperties;", "Ljava/lang/Object;", null,
+            method("Lproperties;", "toString", "Ljava/lang/String;", emptyList()),
+        )
+        val factoryClass = classDef(
+            "Lfactory;", "Ljava/lang/Object;", listOf("Lproperties;"),
+            method("Lfactory;", "create", "Lproperties;", listOf("I", "I")),
+            method("Lfactory;", "other", "Lproperties;", listOf("I")),
+            method("Lfactory;", "take", "V", listOf("Lproperties;", "I")),
+        )
+        val subClass = classDef(
+            "Lsub;", "Lproperties;", null,
+            method("Lsub;", "run", "V", emptyList()),
+        )
+        every { patcher.context.bytecodeContext.patchClasses } returns
+                PatchClasses(setOf(propertiesClass, factoryClass, subClass))
+
+        with(patcher.context.bytecodeContext) {
+            val toStringFingerprint = Fingerprint(name = "toString", returnType = "Ljava/lang/String;")
+            val factoryClassFingerprint = Fingerprint(name = "create")
+
+            fun Fingerprint.matchedMethod() = match().originalMethod.let { "${it.definingClass}->${it.name}" }
+
+            assertEquals(
+                "Lfactory;->create",
+                Fingerprint(
+                    returnType = { toStringFingerprint.originalClassDef.type },
+                    parameters = listOf("I", "I"),
+                ).matchedMethod(),
+            )
+            assertEquals(
+                "Lfactory;->create",
+                Fingerprint(
+                    returnType = { toStringFingerprint.originalClassDef },
+                    parameters = listOf("I", "I"),
+                ).matchedMethod(),
+            )
+            assertEquals(
+                "Lfactory;->create",
+                Fingerprint(
+                    returnType = { toStringFingerprint.originalClassDef.type },
+                    parameters = { listOf("I", "I") },
+                ).matchedMethod(),
+            )
+            assertEquals(
+                "Lfactory;->take",
+                Fingerprint(parameters = { listOf(toStringFingerprint.originalClassDef, "I") }).matchedMethod(),
+            )
+            assertEquals(
+                "Lfactory;->take",
+                Fingerprint(
+                    definingClass = { factoryClassFingerprint.originalClassDef },
+                    returnType = { "V" },
+                    parameters = { listOf(toStringFingerprint.originalClassDef, "I") },
+                ).matchedMethod(),
+            )
+            assertEquals(
+                "Lproperties;->toString",
+                Fingerprint(
+                    definingClass = { toStringFingerprint.originalClassDef },
+                    returnType = "Ljava/lang/String;",
+                ).matchedMethod(),
+            )
+            assertEquals(
+                "Lsub;->run",
+                Fingerprint(superclass = { toStringFingerprint.originalClassDef }).matchedMethod(),
+            )
+            assertEquals(
+                setOf("create", "other", "take"),
+                Fingerprint(interfaces = { listOf(toStringFingerprint.originalClassDef) })
+                    .matchAll().map { it.originalMethod.name }.toSet(),
+            )
+
+            // A lambda that uses a fingerprint that does not match fails to match.
+            val missingFingerprint = Fingerprint(name = "missing")
+            assertThrows<PatchException> {
+                Fingerprint(returnType = { missingFingerprint.originalClassDef }).match()
+            }
         }
     }
 

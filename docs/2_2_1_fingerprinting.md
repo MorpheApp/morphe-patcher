@@ -482,6 +482,25 @@ object SearchBoxListenerFingerprint : Fingerprint(
 )
 ```
 
+A fingerprint can also give `definingClass`, `superclass`, `interfaces`, `returnType` or `parameters`
+with a lambda:
+
+```kt
+object ResponsiveContainerPropertiesFingerprint : Fingerprint(
+    returnType = { ResponsiveContainerPropertiesToStringFingerprint.originalClassDef },
+    parameters = listOf("I", "I"),
+)
+```
+
+To give more than one of these with a lambda, each of them that is declared must be a lambda:
+
+```kt
+object ResponsiveContainerPropertiesFingerprint : Fingerprint(
+    returnType = { ResponsiveContainerPropertiesToStringFingerprint.originalClassDef },
+    parameters = { listOf(ResponsiveContainerFingerprint.originalClassDef.type, "I") },
+)
+```
+
 Fingerprints cannot be matched when they are declared, so the other fingerprint must be used inside the lambda.
 
 ### 🧩 Pure opcode matching
