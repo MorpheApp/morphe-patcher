@@ -25,9 +25,15 @@ import java.util.Collections
  * inside the bundle, such as `Android/obb/com.example/main.1.com.example.obb`. Only OBB files are included,
  * never other files of the bundle. The files belong to the caller of the patcher and are read-only to
  * patches: a patch that needs a changed copy writes it to [app.morphe.patcher.patch.fileWorkspace].
- * A patch that reads one should declare [app.morphe.patcher.patch.ApkFileType.XAPK_REQUIRED], and still
- * expect an empty map, since the map is also empty when the package was patched from a plain APK, the
- * bundle has no OBB, or the caller of the patcher did not extract them.
+ * The files are taken from any bundle format, not only `.xapk`.
+ *
+ * A patch that needs an OBB must check for it and fail with a clear message when the map has none,
+ * since it is empty when the package was patched from a plain APK, the bundle has no OBB, or the caller
+ * of the patcher did not extract them. Declaring a file type does not guarantee an OBB. Apps that use
+ * OBB files are usually distributed as `.xapk`, so such a patch can declare
+ * [app.morphe.patcher.patch.ApkFileType.XAPK] to suggest that file type to users. Declaring
+ * [app.morphe.patcher.patch.ApkFileType.XAPK_REQUIRED] instead turns away other bundle formats that
+ * carry the OBB as well.
  */
 class PackageMetadata internal constructor(
     val packageName: String,
