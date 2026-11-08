@@ -32,6 +32,7 @@ import com.reandroid.arsc.chunk.xml.ResXmlElement
 import com.reandroid.arsc.value.ValueType
 import com.reandroid.utils.HexUtil
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.file.Path
 import java.util.function.Predicate
@@ -115,17 +116,20 @@ class ApkMerger(
      * for as long as the extracted files are needed.
      * @return The extracted files, keyed by the path they have inside the bundle, such as
      * `Android/obb/com.example/main.1.com.example.obb`.
+     * @throws FileNotFoundException If [bundleFile] does not exist or is not a file.
      * @throws IOException If the bundle cannot be read, or an OBB file could not be extracted.
      */
     @Throws(IOException::class)
     fun extractObbFiles(bundleFile: File, outputDir: File): Map<String, File> {
-        if (!bundleFile.isFile) return emptyMap()
+        if (!bundleFile.isFile) throw FileNotFoundException("Bundle not found: $bundleFile")
 
         val outputRoot = outputDir.canonicalFile.toPath()
         return ArchiveFile(bundleFile).use { archive ->
             val names = archive.iterator().asSequence()
                 .map { it.name }
                 .filter { !it.endsWith("/") && (it.endsWith(".obb", true) || it.startsWith(OBB_DIRECTORY, true)) }
+                // An archive can hold the same name more than once, and only one file is written for it.
+                .distinct()
                 .filter { name ->
                     name.isContainedPath(outputDir, outputRoot).also { contained ->
                         if (!contained) logger.warn("Skipping OBB file with a path outside the output directory: $name")

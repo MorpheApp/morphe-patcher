@@ -5,13 +5,17 @@
 
 package app.morphe.patcher.apk
 
+import app.morphe.patcher.logging.LogLevel
+import app.morphe.patcher.logging.Logger
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.io.FileNotFoundException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -82,13 +86,13 @@ internal class ApkMergerTest {
     }
 
     @Test
-    fun `returns no files for a missing bundle`() {
-        val files = bundler.extractObbFiles(
-            temporaryDirectory.resolve("missing.xapk"),
-            temporaryDirectory.resolve("out"),
-        )
-
-        assertTrue(files.isEmpty())
+    fun `throws for a missing bundle`() {
+        assertFailsWith<FileNotFoundException> {
+            bundler.extractObbFiles(
+                temporaryDirectory.resolve("missing.xapk"),
+                temporaryDirectory.resolve("out"),
+            )
+        }
     }
 
     @Test
@@ -147,6 +151,30 @@ internal class ApkMergerTest {
         assertFalse(caseDir.resolve("escaped.obb").exists(), "wrote outside the output directory")
         assertFalse(caseDir.resolve("escaped-two.obb").exists(), "wrote outside the output directory")
         assertFalse(caseDir.resolve("absolute.obb").exists(), "wrote outside the output directory")
+    }
+
+    @Test
+    fun `logs the OBBs it skips for their path`() {
+        val bundle = writeBundle(
+            "../escaped.obb" to "a".toByteArray(),
+            "Android/obb/com.example/ok.obb" to "b".toByteArray(),
+        )
+        val logger = RecordingLogger()
+
+        ApkMerger(logger).extractObbFiles(bundle, temporaryDirectory.resolve("out"))
+
+        assertEquals(
+            listOf(LogLevel.WARN to "Skipping OBB file with a path outside the output directory: ../escaped.obb"),
+            logger.messages.filter { it.first == LogLevel.WARN },
+        )
+    }
+
+    private class RecordingLogger : Logger() {
+        val messages = mutableListOf<Pair<LogLevel, String>>()
+
+        override fun log(level: LogLevel, message: String) {
+            messages += level to message
+        }
     }
 
     private fun writeBundle(vararg entries: Pair<String, ByteArray>): File {
