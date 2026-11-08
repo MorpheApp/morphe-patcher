@@ -12,44 +12,44 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-internal class BundleFilesTest {
+internal class ObbFilesTest {
     @TempDir
     lateinit var temporaryDirectory: File
 
     @Test
-    fun `patches see the bundle files the config was given`() {
-        val bundleFile = temporaryDirectory.resolve("main.1.com.test.app.obb").apply {
+    fun `patches see the OBB files the config was given`() {
+        val obbFile = temporaryDirectory.resolve("main.1.com.test.app.obb").apply {
             writeBytes(ByteArray(16) { it.toByte() })
         }
-        val bundleFiles = mapOf(BUNDLE_PATH to bundleFile)
+        val obbFiles = mapOf(OBB_PATH to obbFile)
 
-        patcher(bundleFiles).use { patcher ->
+        patcher(obbFiles).use { patcher ->
             val metadata = patcher.context.packageMetadata
 
-            assertEquals(bundleFiles, metadata.bundleFiles)
-            assertEquals(bundleFile, metadata.bundleFiles.getValue(BUNDLE_PATH))
+            assertEquals(obbFiles, metadata.obbFiles)
+            assertEquals(obbFile, metadata.obbFiles.getValue(OBB_PATH))
         }
     }
 
     @Test
-    fun `a package patched from a plain APK has no bundle files`() {
+    fun `a package patched from a plain APK has no OBB files`() {
         patcher(emptyMap()).use { patcher ->
-            assertTrue(patcher.context.packageMetadata.bundleFiles.isEmpty())
+            assertTrue(patcher.context.packageMetadata.obbFiles.isEmpty())
         }
     }
 
-    private fun patcher(bundleFiles: Map<String, File>): Patcher {
+    private fun patcher(obbFiles: Map<String, File>): Patcher {
         val apk = ResourceTestApk.build(temporaryDirectory)
         return Patcher(
             PatcherConfig(
                 apkFile = apk,
-                bundleFiles = bundleFiles,
+                obbFiles = obbFiles,
                 temporaryFilesPath = temporaryDirectory.resolve("temporary-files"),
             ),
         )
     }
 
     private companion object {
-        const val BUNDLE_PATH = "Android/obb/com.test.app/main.1.com.test.app.obb"
+        const val OBB_PATH = "Android/obb/com.test.app/main.1.com.test.app.obb"
     }
 }

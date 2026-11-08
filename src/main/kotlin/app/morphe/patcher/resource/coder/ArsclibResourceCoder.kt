@@ -154,7 +154,6 @@ internal class ArsclibResourceCoder(
     private val keepArchitectures: Set<CpuArchitecture> = emptySet(),
     private val fullResourceEncode: Boolean = System.getProperty(FULL_RESOURCE_ENCODE_PROPERTY).toBoolean(),
     private val progress: PatcherProgress? = null,
-    private val bundleFiles: Map<String, File> = emptyMap(),
 ) : ResourceCoder {
     private val logger = Logger.getLogger(ArsclibResourceCoder::class.java.name)
 
@@ -585,8 +584,7 @@ internal class ArsclibResourceCoder(
             packageInfo.packageName,
             packageInfo.versionName,
             packageInfo.versionCode,
-            packageInfo.signatureBlock,
-            bundleFiles
+            packageInfo.signatureBlock
         )
     }
 

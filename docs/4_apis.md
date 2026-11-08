@@ -205,27 +205,29 @@ execute {
 The listing describes the input APK, so it does not reflect files a patch has since added,
 changed or deleted.
 
-#### 🗄️ `packageMetadata.bundleFiles`
+#### 🗄️ `packageMetadata.obbFiles`
 
-A bundle such as `.xapk` carries files next to its APK modules. The ones patches can read are every
-file with the `.obb` extension and every file under `Android/obb/`, wherever the bundle keeps them.
-They never become a part of the APK, so
-`listApkEntries(String)` and `get(String, Boolean)` do not see them either.
-`packageMetadata.bundleFiles` maps the path a file has inside the bundle to the extracted file.
+A bundle such as `.xapk` can carry the OBB expansion files of an app next to its APK modules.
+Patches can read every file under `Android/obb/` and every file with the `.obb` extension, wherever
+the bundle keeps them. No other file of the bundle is available. OBB files never become a part of
+the APK, so `listApkEntries(String)` and `get(String, Boolean)` do not see them either.
+`packageMetadata.obbFiles` maps the path a file has inside the bundle to the extracted file.
 
 ```kt
 execute {
-    val obb = packageMetadata.bundleFiles.entries
+    val obb = packageMetadata.obbFiles.entries
         .firstOrNull { it.key.endsWith(".obb", ignoreCase = true) }
         ?.value
         ?: throw PatchException("This patch needs the OBB, which only a bundle such as .xapk carries.")
 }
 ```
 
-The map is empty when the app was patched from a plain APK, or when the caller did not extract the
-bundle files, which is why a patch that needs one declares `ApkFileType.XAPK_REQUIRED`.
-`ApkMerger.extractBundleFiles(File, File)` extracts them, for a caller that merges a bundle
-before patching it.
+The files are read-only to patches. A patch that needs a changed copy writes it to `fileWorkspace`.
+
+Declare `ApkFileType.XAPK_REQUIRED` on a patch that needs an OBB, but still handle an empty map: it is
+also empty when the app was patched from a plain APK, the bundle has no OBB, or the caller of the
+patcher did not extract them. `ApkMerger.extractObbFiles(File, File)` extracts them, for a caller that
+merges a bundle before patching it and passes them to `PatcherConfig` as `obbFiles`.
 
 #### 🗂️ `decode(String...)` and `listDecodableFiles(String)`
 

@@ -28,7 +28,7 @@ internal class ApkMergerTest {
             "Android/obb/com.example/game/main.1.com.example.obb" to obb,
         )
 
-        val files = bundler.extractBundleFiles(bundle, temporaryDirectory.resolve("out"))
+        val files = bundler.extractObbFiles(bundle, temporaryDirectory.resolve("out"))
 
         assertEquals(listOf("Android/obb/com.example/game/main.1.com.example.obb"), files.keys.toList())
         assertContentEquals(obb, files.values.single().readBytes())
@@ -41,7 +41,7 @@ internal class ApkMergerTest {
             "Android/obb/com.example/patch.2.com.example.obb" to "two".toByteArray(),
         )
 
-        val files = bundler.extractBundleFiles(bundle, temporaryDirectory.resolve("out"))
+        val files = bundler.extractObbFiles(bundle, temporaryDirectory.resolve("out"))
 
         assertEquals(
             mapOf(
@@ -63,7 +63,7 @@ internal class ApkMergerTest {
             "Android/obb/com.example/main.1.com.example.obb" to "obb".toByteArray(),
         )
 
-        val files = bundler.extractBundleFiles(bundle, temporaryDirectory.resolve("out"))
+        val files = bundler.extractObbFiles(bundle, temporaryDirectory.resolve("out"))
 
         assertEquals(listOf("Android/obb/com.example/main.1.com.example.obb"), files.keys.toList())
         assertFalse(temporaryDirectory.resolve("out/base.apk").exists())
@@ -75,7 +75,7 @@ internal class ApkMergerTest {
         val apk = writeBundle("assets/data.bin" to "data".toByteArray())
         val outputDir = temporaryDirectory.resolve("out")
 
-        val files = bundler.extractBundleFiles(apk, outputDir)
+        val files = bundler.extractObbFiles(apk, outputDir)
 
         assertTrue(files.isEmpty())
         assertFalse(outputDir.exists())
@@ -83,7 +83,7 @@ internal class ApkMergerTest {
 
     @Test
     fun `returns no files for a missing bundle`() {
-        val files = bundler.extractBundleFiles(
+        val files = bundler.extractObbFiles(
             temporaryDirectory.resolve("missing.xapk"),
             temporaryDirectory.resolve("out"),
         )
@@ -99,7 +99,7 @@ internal class ApkMergerTest {
             "extra/data.obb" to "nested".toByteArray(),
         )
 
-        val files = bundler.extractBundleFiles(bundle, temporaryDirectory.resolve("out"))
+        val files = bundler.extractObbFiles(bundle, temporaryDirectory.resolve("out"))
 
         assertEquals(setOf("game.obb", "extra/data.obb"), files.keys)
         assertEquals("nested", files.getValue("extra/data.obb").readText())
@@ -109,7 +109,7 @@ internal class ApkMergerTest {
     fun `extracts an OBB regardless of the case of its extension`() {
         val bundle = writeBundle("Android/obb/com.example/MAIN.OBB" to "obb".toByteArray())
 
-        val files = bundler.extractBundleFiles(bundle, temporaryDirectory.resolve("out"))
+        val files = bundler.extractObbFiles(bundle, temporaryDirectory.resolve("out"))
 
         assertEquals(listOf("Android/obb/com.example/MAIN.OBB"), files.keys.toList())
     }
@@ -118,7 +118,7 @@ internal class ApkMergerTest {
     fun `extracts a file under Android obb that has no OBB extension`() {
         val bundle = writeBundle("Android/obb/com.example/main.1.com.example.bin" to "obb".toByteArray())
 
-        val files = bundler.extractBundleFiles(bundle, temporaryDirectory.resolve("out"))
+        val files = bundler.extractObbFiles(bundle, temporaryDirectory.resolve("out"))
 
         assertEquals(listOf("Android/obb/com.example/main.1.com.example.bin"), files.keys.toList())
     }
@@ -134,7 +134,7 @@ internal class ApkMergerTest {
             "Android/obb/com.example/ok.obb" to "d".toByteArray(),
         )
 
-        val files = bundler.extractBundleFiles(bundle, outputDir)
+        val files = bundler.extractObbFiles(bundle, outputDir)
 
         assertEquals(listOf("Android/obb/com.example/ok.obb"), files.keys.toList())
         val outputRoot = outputDir.canonicalFile.toPath()

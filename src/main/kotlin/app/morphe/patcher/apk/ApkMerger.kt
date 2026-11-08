@@ -93,26 +93,32 @@ class ApkMerger(
     }
 
     /**
-     * Extract the files of a bundle that are not APKs, so that patches can read them.
+     * Extract the OBB files of a bundle, so that patches can read them.
      *
-     * A bundle such as `.xapk` can carry files next to its APK modules. The OBB of the app is
-     * extracted: every file with the `.obb` extension, and every file under `Android/obb/`, where the
-     * format puts it. Matching the extension as well keeps a bundle that names the OBB some other way
-     * from reading as a bundle without one. The files are copied to [outputDir] under the path they
-     * have inside the bundle, and are not merged into the APK.
+     * A bundle such as `.xapk` can carry the OBB expansion files of an app next to its APK modules.
+     * Every file under `Android/obb/`, where the format puts them, is extracted, and so is every file
+     * with the `.obb` extension, so a bundle that keeps the OBB somewhere else still hands it over.
+     * No other file of the bundle is extracted. The files are copied to [outputDir] under the path
+     * they have inside the bundle, and are not merged into the APK.
      *
      * An OBB is copied as it is, without reading its format, which may be anything the app supports.
      *
+     * Entries whose path would leave [outputDir], such as `../x.obb` or an absolute path, are skipped
+     * and logged.
+     *
      * A bundle without OBB files, such as a plain APK, yields an empty map.
+     *
+     * Pass the result to [app.morphe.patcher.PatcherConfig] as `obbFiles`.
      *
      * @param bundleFile The bundle to extract the files from.
      * @param outputDir The directory to extract the files to. The caller owns it, and must keep it
      * for as long as the extracted files are needed.
      * @return The extracted files, keyed by the path they have inside the bundle, such as
      * `Android/obb/com.example/main.1.com.example.obb`.
+     * @throws IOException If the bundle cannot be read, or an OBB file could not be extracted.
      */
     @Throws(IOException::class)
-    fun extractBundleFiles(bundleFile: File, outputDir: File): Map<String, File> {
+    fun extractObbFiles(bundleFile: File, outputDir: File): Map<String, File> {
         if (!bundleFile.isFile) return emptyMap()
 
         val outputRoot = outputDir.canonicalFile.toPath()
@@ -120,12 +126,16 @@ class ApkMerger(
             val names = archive.iterator().asSequence()
                 .map { it.name }
                 .filter { !it.endsWith("/") && (it.endsWith(".obb", true) || it.startsWith(OBB_DIRECTORY, true)) }
-                .filter { it.isContainedPath(outputDir, outputRoot) }
+                .filter { name ->
+                    name.isContainedPath(outputDir, outputRoot).also { contained ->
+                        if (!contained) logger.warn("Skipping OBB file with a path outside the output directory: $name")
+                    }
+                }
                 .toList()
 
             if (names.isEmpty()) return@use emptyMap()
 
-            logger.info("Extracting ${names.size} bundle file(s) to: $outputDir")
+            logger.info("Extracting ${names.size} OBB file(s) to: $outputDir")
             outputDir.mkdirs()
             val extracted = names.toHashSet()
 
@@ -133,8 +143,16 @@ class ApkMerger(
             fixFilePermissions(archive)
             archive.extractAll(outputDir, Predicate { it.name in extracted }, arsclibLogger)
 
-            names.associateWith { File(outputDir, it) }
-                .filterValues { it.isFile && it.canonicalFile.toPath().startsWith(outputRoot) }
+            names.associateWith { name ->
+                val file = File(outputDir, name)
+                if (!file.isFile) {
+                    throw IOException("Failed to extract OBB file $name to: $file")
+                }
+                if (!file.canonicalFile.toPath().startsWith(outputRoot)) {
+                    throw IOException("OBB file $name was extracted outside the output directory: ${file.canonicalFile}")
+                }
+                file
+            }
         }
     }
 
@@ -148,8 +166,12 @@ class ApkMerger(
     private fun String.isContainedPath(outputDir: File, outputRoot: Path): Boolean {
         if (isEmpty() || startsWith("/") || contains('\\') || contains(':')) return false
         if (split('/').any { it == ".." || it == "." }) return false
-        return runCatching { File(outputDir, this).canonicalFile.toPath().startsWith(outputRoot) }
-            .getOrDefault(false)
+        return try {
+            File(outputDir, this).canonicalFile.toPath().startsWith(outputRoot)
+        } catch (ex: IOException) {
+            logger.warn("Failed to resolve the path of OBB file $this: $ex")
+            false
+        }
     }
 
     @Throws(IOException::class)

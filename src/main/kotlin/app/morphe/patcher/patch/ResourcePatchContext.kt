@@ -58,7 +58,6 @@ class ResourcePatchContext internal constructor(
         config.apkFile,
         config.keepArchitectures,
         progress = config.progress,
-        bundleFiles = config.bundleFiles,
     )
 
     /**
@@ -70,7 +69,7 @@ class ResourcePatchContext internal constructor(
     val resourceIds: ResourceIds = ResourceIds { resourceCoder.resourceIds() }.also { ResourceIds.current = it }
 
     @Deprecated("Use the global property.", ReplaceWith("packageMetadata", "app.morphe.patcher.patch.packageMetadata"))
-    val packageMetadata = resourceCoder.getPackageMetadata()
+    val packageMetadata = resourceCoder.getPackageMetadata().withObbFiles(config.obbFiles)
 
     /**
      * Read a document from an [InputStream].
