@@ -1,3 +1,10 @@
+## [2.3.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.3.1-dev.1...v2.3.1-dev.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* Allow Fingerprint fields to reference other Fingerprints ([87bdb41](https://github.com/MorpheApp/morphe-patcher/commit/87bdb41788fb044c8056087a1d39a04380cf0307))
+
 ## [2.3.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.3.0...v2.3.1-dev.1) (2026-11-07)
 
 
