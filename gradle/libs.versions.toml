@@ -10,7 +10,7 @@ kotlin = "2.4.21"
 kotlinx-coroutines-core = "1.10.2"
 kotlinx-serialization = "1.12.0"
 mockk = "1.14.11"
-smali = "ac700e1942"
+smali = "5eaff5a2c9"
 
 [libraries]
 android = { module = "com.google.android:android", version.ref = "android" }
