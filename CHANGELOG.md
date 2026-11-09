@@ -1,3 +1,10 @@
+# [2.4.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.4.0-dev.1...v2.4.0-dev.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* Update smali dependency ([487e02d](https://github.com/MorpheApp/morphe-patcher/commit/487e02d83141fa872970bda0c3984def652f0b3c))
+
 # [2.4.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.3.1-dev.2...v2.4.0-dev.1) (2026-11-08)
 
 
