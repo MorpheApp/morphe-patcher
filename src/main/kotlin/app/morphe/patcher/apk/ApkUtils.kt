@@ -57,7 +57,7 @@ object ApkUtils {
     // about 40% longer, and well within 10% of the default level, which takes about three times as long.
     private const val COMPRESSION_LEVEL = 1
 
-    private val dexEntryName = Regex("""classes(?:\d+)?\.dex""")
+    internal val dexEntryName = Regex("""classes(?:\d+)?\.dex""")
 
     // v1 signature files, which the signer would otherwise leave stale beside its own signature.
     private val v1SignatureEntryName = Regex("""META-INF/(?:MANIFEST\.MF|[^/]+\.(?:SF|RSA|DSA|EC)|SIG-[^/]*)""", RegexOption.IGNORE_CASE)
@@ -123,8 +123,8 @@ object ApkUtils {
      * 2. Delete resources staged for deletion.
      * 3. Write raw resources. This comes after the deletion so that an entry a patch deleted and
      *    then recreated ends up with the recreated content rather than removed.
-     * 4. Write patched dex files. A dex file the input APK stores uncompressed, as an app that loads its
-     *    code from the APK must, is stored uncompressed.
+     * 4. Write patched dex files, stored uncompressed only for an app that runs them from the APK, see
+     *    [storesDexUncompressed].
      * 5. Realign the APK.
      *
      * Without a compiled resource APK, [apkFile] must be a copy of the input APK so that
@@ -187,7 +187,7 @@ object ApkUtils {
             timings.measure("addDex") {
                 try {
                     dexFiles.forEach { dexFile ->
-                        targetApkZFile.add(dexFile.name, dexFile.stream, dexFile.name !in storedDexFileNames)
+                        targetApkZFile.add(dexFile.name, dexFile.stream, !storeDexUncompressed)
                     }
                 } finally {
                     dexFiles.forEach { dexFile ->

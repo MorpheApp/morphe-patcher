@@ -12,8 +12,9 @@ package app.morphe.patcher
 
 import app.morphe.patcher.apk.ApkUtils
 import app.morphe.patcher.apk.CompressedDexFiles
-import app.morphe.patcher.apk.dexFilesStoredIn
 import app.morphe.patcher.apk.overlapDexCompression
+import app.morphe.patcher.apk.storedDexFilesIn
+import app.morphe.patcher.apk.storesDexUncompressed
 import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.logging.PhaseTimings
 import app.morphe.patcher.logging.toLogString
@@ -224,11 +225,9 @@ class Patcher(private val config: PatcherConfig) : Closeable {
      */
     @OptIn(InternalApi::class)
     fun get(): PatcherResult {
-        val (dexFiles, dexFilesComplete) = compileDexFiles()
+        val dex = compileDexFiles()
         val resFiles = context.resourceContext.get()
-        // The output base of applyTo may lack the DEX entries it replaces, so the input tells how to store them.
-        val storedDexFileNames = dexFilesStoredIn(config.apkFile, dexFiles.map { it.name })
-        return PatcherResult(dexFiles, resFiles, dexFilesComplete, storedDexFileNames)
+        return PatcherResult(dex.files, resFiles, dex.complete, dex.storeUncompressed)
     }
 
     /**
@@ -237,8 +236,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
      *
      * The APK holds what [ApkUtils.applyTo] would write and is aligned the same way, but it is not signed,
      * so sign it with [ApkUtils.signApk] before it is installed, which can sign it in place. The DEX files
-     * are compressed while the resources are encoded. A DEX file the input APK stores uncompressed, as an
-     * app that loads its code from the APK must, is stored uncompressed, as [ApkUtils.applyTo] stores it.
+     * are compressed while the resources are encoded, unless they are stored as [ApkUtils.applyTo] stores them.
      *
      * Like [get], this ends patching: the patcher cannot be used afterward, other than to be closed.
      *
@@ -251,12 +249,12 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         }
 
         val timings = PhaseTimings(logger, "writeApk")
-        val (dexFiles, _) = compileDexFiles()
+        val dex = compileDexFiles()
         config.patchedFiles.mkdirs()
         CompressedDexFiles(
-            dexFiles,
+            dex.files,
             config.patchedFiles.resolve("dex.zip"),
-            config.apkFile,
+            dex.storeUncompressed,
             timings,
             overlapDexCompression,
         ).use { compressedDexFiles ->
@@ -266,24 +264,43 @@ class Patcher(private val config: PatcherConfig) : Closeable {
     }
 
     /**
-     * Ends patching and writes the patched DEX files, which is how [get] and [writeApk] begin.
+     * The DEX files the patched APK gets, see [compileDexFiles].
      *
-     * @return The patched DEX files, and whether they replace every DEX file of the input APK.
+     * @param complete Whether [files] replaces every DEX file of the input APK.
+     * @param storeUncompressed Whether [files] are stored rather than compressed, see [storesDexUncompressed].
+     */
+    private class CompiledDexFiles(
+        val files: Set<PatcherResult.PatchedDexFile>,
+        val complete: Boolean,
+        val storeUncompressed: Boolean
+    )
+
+    /**
+     * Ends patching and writes the patched DEX files, which is how [get] and [writeApk] begin.
      */
     @OptIn(InternalApi::class)
-    private fun compileDexFiles(): Pair<Set<PatcherResult.PatchedDexFile>, Boolean> {
+    private fun compileDexFiles(): CompiledDexFiles {
         Fingerprint.clearFingerprints()
         context.allPatches.clear()
         context.executablePatches.clear()
         // Patches are done requesting resources, so the resource table need not be held while the DEX
         // files are written.
         context.resourceContext.finishDecoding()
-        val dexFiles = context.bytecodeContext.get()
+        val patchedDexFiles = context.bytecodeContext.get()
         context.bytecodeContext.close()
         val dexFilesComplete = config.bytecodeMode != BytecodeMode.STRIP_FAST || context.bytecodeContext.dexFilesComplete
+        val storeUncompressed = storesDexUncompressed(config.apkFile)
+        // A partial set leaves the DEX files it does not name as the input holds them, so the stored ones
+        // are written again, to be compressed with the rest rather than kept stored beside them
+        val dexFiles = if (dexFilesComplete || storeUncompressed) {
+            patchedDexFiles
+        } else {
+            val patchedNames = patchedDexFiles.mapTo(HashSet()) { it.name }
+            patchedDexFiles + storedDexFilesIn(config.apkFile, patchedNames, config.patchedFiles.resolve("storedDex"))
+        }
         val dexFileNames = dexFiles.mapTo(HashSet()) { it.name }
         context.resourceContext.omitEntry = { name -> ApkUtils.isReplacedOnApply(name, dexFileNames, dexFilesComplete) }
-        return dexFiles to dexFilesComplete
+        return CompiledDexFiles(dexFiles, dexFilesComplete, storeUncompressed)
     }
 
     private companion object {
