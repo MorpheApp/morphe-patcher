@@ -57,7 +57,7 @@ internal class OnRequestDecodingTest {
         coder.encodeResources(tempDir.resolve("out").apply { mkdirs() })
 
     private fun PackageBlock.string(qualifiers: String, name: String) =
-        getEntry(qualifiers, "string", name)?.takeUnless { it.isNull }?.resValue?.valueAsString
+        getEntry(qualifiers, "string", name)?.takeUnless { it.isNull }?.resValue?.dataAsString
 
     @Test
     fun `the input APK is opened once and its table is parsed by cataloging only`() {

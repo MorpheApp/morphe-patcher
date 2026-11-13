@@ -259,7 +259,7 @@ internal class ValuesXmlDocument(
     private fun XMLElement.toTreeElement(): TreeElement {
         fun convert(source: XMLElement, inString: Boolean): TreeElement {
             val element = createElement(source.getName(false))
-            for (attribute in source.attributes) element.attributes[attribute.getName(true)] = attribute.valueAsString
+            for (attribute in source.attributes) element.attributes[attribute.getName(true)] = attribute.dataAsString
             val string = inString || (isStrings && element.tag == "string")
             for (node in source) {
                 when (node) {

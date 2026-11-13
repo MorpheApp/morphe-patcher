@@ -29,7 +29,7 @@ import com.reandroid.archive.ArchiveEntry
 import com.reandroid.archive.ArchiveFile
 import com.reandroid.arsc.chunk.xml.AndroidManifestBlock
 import com.reandroid.arsc.chunk.xml.ResXmlElement
-import com.reandroid.arsc.value.ValueType
+import com.reandroid.arsc.value.DataType
 import com.reandroid.utils.HexUtil
 import java.io.File
 import java.io.FileNotFoundException
@@ -265,7 +265,7 @@ class ApkMerger(
 
     private fun removeSplitsTableEntry(metaElement: ResXmlElement, apkModule: ApkModule): Boolean {
         val nameAttribute = metaElement.searchAttributeByResourceId(AndroidManifest.ID_name) ?: return false
-        if ("com.android.vending.splits" != nameAttribute.getValueAsString()) {
+        if ("com.android.vending.splits" != nameAttribute.getDataAsString()) {
             return false
         }
         var valueAttribute = metaElement.searchAttributeByResourceId(
@@ -277,7 +277,7 @@ class ApkMerger(
             )
         }
         if (valueAttribute == null
-            || valueAttribute.valueType != ValueType.REFERENCE
+            || valueAttribute.dataType != DataType.REFERENCE
         ) {
             return false
         }
@@ -292,7 +292,7 @@ class ApkMerger(
                 continue
             }
             val resValue = entry.getResValue() ?: continue
-            val path = resValue.getValueAsString()
+            val path = resValue.getDataAsString()
             logger.info("Removed-table-entry : $path")
             //Remove file entry
             zipEntryMap.remove(path)

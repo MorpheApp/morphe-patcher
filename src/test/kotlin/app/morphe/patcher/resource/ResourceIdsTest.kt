@@ -25,9 +25,9 @@ internal class ResourceIdsTest {
     private fun apkWithTable(tempDir: File): File {
         val table = TableBlock()
         val pkg = table.newPackage(0x7f, "com.test.app")
-        pkg.getOrCreate("", "id", "spinner").setValueAsBoolean(false)
-        pkg.getOrCreate("", "layout", "account_compact_link").setValueAsBoolean(false)
-        pkg.getOrCreate("", "string", "app_name").setValueAsString("Test")
+        pkg.getOrCreate("", "id", "spinner").setDataAsBoolean(false)
+        pkg.getOrCreate("", "layout", "account_compact_link").setDataAsBoolean(false)
+        pkg.getOrCreate("", "string", "app_name").setDataAsString("Test")
         table.refresh()
         val apk = tempDir.resolve("input.apk")
         ZFile.openReadWrite(apk).use { zip ->

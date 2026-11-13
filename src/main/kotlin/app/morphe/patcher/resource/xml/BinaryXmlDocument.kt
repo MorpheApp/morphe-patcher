@@ -17,7 +17,7 @@ import com.reandroid.arsc.chunk.xml.ResXmlStartNamespace
 import com.reandroid.arsc.chunk.xml.ResXmlTextNode
 import com.reandroid.arsc.coder.ValueCoder
 import com.reandroid.arsc.coder.XmlSanitizer
-import com.reandroid.arsc.value.ValueType
+import com.reandroid.arsc.value.DataType
 import java.io.IOException
 import java.util.IdentityHashMap
 
@@ -310,8 +310,8 @@ internal class BinaryElement(
      * The value of the attribute as the decoder writes it.
      */
     private fun ResXmlAttribute.textValue(): String? {
-        if (valueType != ValueType.STRING) return decodeValue(true)
-        var value = valueAsString ?: return null
+        if (dataType != DataType.STRING) return decodeValue(true)
+        var value = dataAsString ?: return null
         value = XmlSanitizer.escapeSpecialCharacter(value)
         if (nameId == 0 || resolveName() == null) value = XmlSanitizer.escapeDecodedValue(value)
         return value
@@ -366,7 +366,7 @@ internal class BinaryElement(
         try {
             if (isPendingReference(value)) {
                 attribute.encodeAttributeName(uri, namespacePrefix, local)
-                attribute.setValueAsString(value)
+                attribute.setDataAsString(value)
                 state.pending[attribute] = value
             } else {
                 attribute.encode(uri, namespacePrefix, local, value, true)

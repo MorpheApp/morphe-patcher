@@ -26,6 +26,7 @@ import app.morphe.patcher.resource.PublicXmlManager
 import app.morphe.patcher.resource.TablePublicIds
 import app.morphe.patcher.resource.ResourceMode
 import app.morphe.patcher.resource.UncompressedFiles
+import app.morphe.patcher.resource.writeJson
 import app.morphe.patcher.resource.processor.AaptMacroProcessor
 import app.morphe.patcher.resource.processor.PackageRenamingProcessor
 import app.morphe.patcher.resource.processor.ResourceIdProcessor
@@ -57,10 +58,10 @@ import com.reandroid.archive.block.ApkSignatureBlock
 import com.reandroid.archive.io.InflatingInputStream
 import com.reandroid.archive.io.ZipFileInput
 import com.reandroid.arsc.chunk.PackageBlock
+import com.reandroid.arsc.chunk.TableBlock
 import com.reandroid.arsc.coder.xml.XmlCoder
 import com.reandroid.arsc.io.ReadProgress
 import com.reandroid.arsc.value.ResConfig
-import com.reandroid.json.JSONObject
 import com.reandroid.xml.XMLFactory
 import java.io.Closeable
 import java.io.File
@@ -541,6 +542,9 @@ internal class ArsclibResourceCoder(
         // The incremental encoder gives the output those same names from public.xml, so encoding into a
         // table that already has them changes nothing.
         if (validateResourceNames && validatedModule !== module) {
+            // Removing the specs of invalid names refreshes the pool. It keeps its order, as in the
+            // incremental encoder, so the refresh does not sort it.
+            module.tableBlock?.forEach { it.specStringPool.isKeepStringOrder = true }
             catalogTimings.measure("validateNames") { ApkModuleXmlDecoder(module).validateResourceNames() }
             validatedModule = module
         }
@@ -668,11 +672,12 @@ internal class ArsclibResourceCoder(
                 // Decoded as in a new process, whatever setting an earlier run of this one left.
                 XmlCoderSettings.withSetting(XmlCoderSettings.decoding()) { xmlDecoder.decode(workingDir) }
 
-                // Update ARSCLib package metadata so the resources will be accessible under the correct package name.
-                workingDir.resolve("resources").listFiles { it.isDirectory }?.forEach { dir ->
-                    val packageJson = JSONObject(dir.resolve("package.json"))
-                    val packageName = packageJson.getString("package_name")
-                    packageDirectories[packageName] = dir
+                // The decoder declares the package in public.xml only. Its package.json tells the
+                // packages apart in the working directory, as the decoder on request writes it.
+                apkModule.tableBlock.listPackages().forEach { packageBlock ->
+                    val dir = workingDir.resolve(TableBlock.DIRECTORY_NAME).resolve(packageBlock.buildDecodeDirectoryName())
+                    dir.resolve(PackageBlock.FILE_NAME_JSON).writeJson(packageBlock.toJson(false, true))
+                    packageDirectories[packageBlock.name] = dir
                 }
             }
 

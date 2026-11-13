@@ -63,9 +63,9 @@ internal class OnRequestPatchingTest {
         val resourcesApk = assertNotNull(result.resources.resourcesApk)
         ApkModule.loadApkFile(resourcesApk).use { module ->
             val pkg = module.tableBlock.pickOne()
-            assertEquals("Patched", pkg.getEntry("", "string", "hello")!!.resValue.valueAsString)
-            assertEquals("Hallo", pkg.getEntry("-de", "string", "hello")!!.resValue.valueAsString)
-            assertEquals("Keep", pkg.getEntry("", "string", "keep")!!.resValue.valueAsString)
+            assertEquals("Patched", pkg.getEntry("", "string", "hello")!!.resValue.dataAsString)
+            assertEquals("Hallo", pkg.getEntry("-de", "string", "hello")!!.resValue.dataAsString)
+            assertEquals("Keep", pkg.getEntry("", "string", "keep")!!.resValue.dataAsString)
         }
     }
 
