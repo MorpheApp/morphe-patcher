@@ -21,14 +21,50 @@ public class app/morphe/patcher/Fingerprint {
 	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
 	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
 	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Ljava/lang/String;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lapp/morphe/patcher/Fingerprint;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lapp/morphe/patcher/Fingerprint;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
 	public synthetic fun <init> (Ljava/util/List;Ljava/lang/String;Ljava/util/List;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/Collection;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/util/List;Ljava/lang/Boolean;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ljava/util/List;Ljava/util/List;Lkotlin/jvm/functions/Function2;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun clearMatch ()V
 	public final fun getClassDef ()Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public final synthetic fun getClassDef (Lapp/morphe/patcher/patch/BytecodePatchContext;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
@@ -405,6 +441,7 @@ public final class app/morphe/patcher/OpcodesFilter$Companion {
 }
 
 public final class app/morphe/patcher/PackageMetadata {
+	public final fun getObbFiles ()Ljava/util/Map;
 	public final fun getPackageName ()Ljava/lang/String;
 	public final fun getSigningCertificates ()Ljava/util/Map;
 	public final fun getVersionCode ()Ljava/lang/String;
@@ -423,8 +460,8 @@ public final class app/morphe/patcher/Patcher : java/io/Closeable {
 }
 
 public final class app/morphe/patcher/PatcherConfig {
-	public fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;Ljava/io/File;Ljava/lang/String;ZLapp/morphe/patcher/PatcherProgress;)V
-	public synthetic fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;Ljava/io/File;Ljava/lang/String;ZLapp/morphe/patcher/PatcherProgress;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;Ljava/io/File;Ljava/lang/String;ZLapp/morphe/patcher/PatcherProgress;Ljava/util/Map;)V
+	public synthetic fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;Ljava/io/File;Ljava/lang/String;ZLapp/morphe/patcher/PatcherProgress;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getFileWorkspace ()Ljava/io/File;
 }
 
@@ -494,6 +531,7 @@ public final class app/morphe/patcher/apk/ApkMerger {
 	public fun <init> ()V
 	public fun <init> (Lapp/morphe/patcher/logging/Logger;)V
 	public synthetic fun <init> (Lapp/morphe/patcher/logging/Logger;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun extractObbFiles (Ljava/io/File;Ljava/io/File;)Ljava/util/Map;
 	public final fun merge (Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZLjava/lang/Boolean;Z)V
 	public static synthetic fun merge$default (Lapp/morphe/patcher/apk/ApkMerger;Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZLjava/lang/Boolean;ZILjava/lang/Object;)V
 }
@@ -686,6 +724,7 @@ public abstract class app/morphe/patcher/logging/Logger {
 	public final fun getHandler ()Ljava/util/logging/Handler;
 	public final fun info (Ljava/lang/String;)V
 	public abstract fun log (Lapp/morphe/patcher/logging/LogLevel;Ljava/lang/String;)V
+	public fun log (Lapp/morphe/patcher/logging/LogLevel;Ljava/lang/String;Ljava/lang/Throwable;)V
 	public final fun trace (Ljava/lang/String;)V
 	public final fun warn (Ljava/lang/String;)V
 }
@@ -697,6 +736,7 @@ public final class app/morphe/patcher/logging/LoggerKt {
 public final class app/morphe/patcher/logging/NoOpLogger : app/morphe/patcher/logging/Logger {
 	public static final field INSTANCE Lapp/morphe/patcher/logging/NoOpLogger;
 	public fun log (Lapp/morphe/patcher/logging/LogLevel;Ljava/lang/String;)V
+	public fun log (Lapp/morphe/patcher/logging/LogLevel;Ljava/lang/String;Ljava/lang/Throwable;)V
 }
 
 public final class app/morphe/patcher/patch/ApkArchitecture : java/lang/Enum {
@@ -1600,6 +1640,15 @@ public final class app/morphe/patcher/util/MethodNavigator {
 	public final fun to (ILkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/util/MethodNavigator;
 	public final fun to ([I)Lapp/morphe/patcher/util/MethodNavigator;
 	public static synthetic fun to$default (Lapp/morphe/patcher/util/MethodNavigator;ILkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/util/MethodNavigator;
+}
+
+public final class app/morphe/patcher/util/PatchInterfaceMethodsKt {
+	public static final fun addPatchInterfaceMethod (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;Ljava/lang/String;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/iface/reference/FieldReference;Ljava/util/List;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static final fun addPatchInterfaceMethod (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;Ljava/lang/String;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;Ljava/util/List;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static final fun addPatchInterfaceMethod (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static synthetic fun addPatchInterfaceMethod$default (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;Ljava/lang/String;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/iface/reference/FieldReference;Ljava/util/List;ILjava/lang/Object;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static synthetic fun addPatchInterfaceMethod$default (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;Ljava/lang/String;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;Ljava/util/List;ILjava/lang/Object;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static synthetic fun addPatchInterfaceMethod$default (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;ILjava/lang/Object;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
 }
 
 public final class app/morphe/patcher/util/proxy/mutableTypes/MutableAnnotation : com/android/tools/smali/dexlib2/base/BaseAnnotation {

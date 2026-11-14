@@ -164,9 +164,9 @@ internal class WriteApkTest {
 
         assertContentEquals(tables[0], tables[1], "the second run compiles what the first one does")
         val packageBlock = TableBlock.load(ByteArrayInputStream(tables[1])).listPackages().single()
-        assertEquals(patched, packageBlock.getEntry("", "string", "hello").resValue.valueAsString)
+        assertEquals(patched, packageBlock.getEntry("", "string", "hello").resValue.dataAsString)
         // Decoded as the first run of a process decodes it, not with the string decoder of the encoder.
-        assertEquals("It's \"quoted\"", packageBlock.getEntry("", "string", "escaped").resValue.valueAsString)
+        assertEquals("It's \"quoted\"", packageBlock.getEntry("", "string", "escaped").resValue.dataAsString)
     }
 
     @Test

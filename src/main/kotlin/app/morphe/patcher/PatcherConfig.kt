@@ -35,6 +35,10 @@ import java.util.logging.Logger
  * Slow fingerprints and patches are also logged.
  * Patches can check [app.morphe.patcher.patch.validate] to do their own validation checks.
  * @param progress Receives how far the patcher got with the work it does besides executing patches.
+ * @param obbFiles The OBB files of the bundle the APK was merged from, keyed by their path inside the bundle,
+ * such as `Android/obb/com.example/main.1.com.example.obb`. [app.morphe.patcher.apk.ApkMerger.extractObbFiles]
+ * extracts them. Patches read them through [PackageMetadata.obbFiles]. The files must exist until patching
+ * is done, and patches do not change them.
  */
 class PatcherConfig(
     internal val apkFile: File,
@@ -46,6 +50,7 @@ class PatcherConfig(
     internal val targetPatcherVersion: String? = null,
     internal val validate: Boolean = false,
     internal val progress: PatcherProgress? = null,
+    internal val obbFiles: Map<String, File> = emptyMap(),
 ) {
     private val logger = Logger.getLogger(PatcherConfig::class.java.name)
 

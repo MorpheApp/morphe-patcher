@@ -1,3 +1,52 @@
+# [2.4.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v2.4.0-dev.4...v2.4.0-dev.5) (2026-11-14)
+
+
+### Features
+
+* Add `addPatchInterfaceMethod` to add extension interface methods to a class ([#283](https://github.com/MorpheApp/morphe-patcher/issues/283)) ([6b13459](https://github.com/MorpheApp/morphe-patcher/commit/6b13459cdb4db22dcf4b32f5ffa33703182c3b22))
+
+# [2.4.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v2.4.0-dev.3...v2.4.0-dev.4) (2026-11-13)
+
+
+### Bug Fixes
+
+* Update ARSCLib dependency ([64d572a](https://github.com/MorpheApp/morphe-patcher/commit/64d572a1d08ca4e924ae7c16d8f8a1d24acc16c6))
+
+# [2.4.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.4.0-dev.2...v2.4.0-dev.3) (2026-11-09)
+
+
+### Bug Fixes
+
+* Update ARSCLib dependency ([97ca1a0](https://github.com/MorpheApp/morphe-patcher/commit/97ca1a075de5a658c0c40b94d2602c80f8a59fcf))
+
+# [2.4.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.4.0-dev.1...v2.4.0-dev.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* Update smali dependency ([487e02d](https://github.com/MorpheApp/morphe-patcher/commit/487e02d83141fa872970bda0c3984def652f0b3c))
+
+# [2.4.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.3.1-dev.2...v2.4.0-dev.1) (2026-11-08)
+
+
+### Features
+
+* Let patches read the OBB of a bundle ([#281](https://github.com/MorpheApp/morphe-patcher/issues/281)) ([67464b0](https://github.com/MorpheApp/morphe-patcher/commit/67464b0438cfc5f613111b05140192601712d5a0))
+
+## [2.3.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.3.1-dev.1...v2.3.1-dev.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* Allow Fingerprint fields to reference other Fingerprints ([87bdb41](https://github.com/MorpheApp/morphe-patcher/commit/87bdb41788fb044c8056087a1d39a04380cf0307))
+
+## [2.3.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.3.0...v2.3.1-dev.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* Internally process resource XML files with ARCSLib ([#279](https://github.com/MorpheApp/morphe-patcher/issues/279)) ([1e27114](https://github.com/MorpheApp/morphe-patcher/commit/1e27114f5f07f80250ec67b33c20ab2ba8a3b012))
+
 # [2.3.0](https://github.com/MorpheApp/morphe-patcher/compare/v2.2.0...v2.3.0) (2026-11-06)
 
 

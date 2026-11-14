@@ -29,7 +29,7 @@ import com.reandroid.arsc.coder.xml.XmlEncodeUtil
 import com.reandroid.arsc.list.OverlayableList
 import com.reandroid.arsc.value.Entry
 import com.reandroid.arsc.value.ResConfig
-import com.reandroid.arsc.value.ValueType
+import com.reandroid.arsc.value.DataType
 import com.reandroid.utils.io.IOUtil
 import com.reandroid.xml.StyleDocument
 import com.reandroid.xml.XMLElement
@@ -126,7 +126,7 @@ internal class IncrementalResourceEncoder(
         val archive = module.zipEntryMap
         val isDefinedByFile = { entry: Entry ->
             val value = entry.resValue
-            value?.valueType == ValueType.STRING && value.valueAsString?.let(archive::contains) == true
+            value?.dataType == DataType.STRING && value.dataAsString?.let(archive::contains) == true
         }
 
         val uncompressedFiles = workingDir.resolve(UncompressedFiles.JSON_FILE)
@@ -203,7 +203,7 @@ internal class IncrementalResourceEncoder(
                             // Adds to the overlayables the app declares, which the file never held.
                             packageBlock.overlayableList.parseAddition(overlayable)
                         } else {
-                            packageBlock.overlayableList.clearChildes()
+                            packageBlock.overlayableList.clearBlocks()
                             packageBlock.overlayableList.parse(XMLFactory.newPullParser(overlayable))
                         }
                     }
@@ -295,10 +295,10 @@ internal class IncrementalResourceEncoder(
 
             val typeId = (resourceId shr 16) and 0xff
             getOrCreateTypeString(typeId, type)
-            val entry = getOrCreateTypeBlock(typeId.toByte(), "").getOrCreateEntry(resourceId and 0xffff)
+            val entry = getOrCreateTypeBlock(typeId, "").getOrCreateEntry(resourceId and 0xffff)
             entry.setName(name, true)
             if (type == "id") {
-                entry.setValueAsBoolean(false)
+                entry.setDataAsBoolean(false)
                 entry.header.isPublic = true
                 entry.header.isWeak = true
             }
@@ -341,7 +341,7 @@ internal class IncrementalResourceEncoder(
                 if (definedIds.size == entries.size()) return@forEach
 
                 val pairs = entries.offsetReferenceList
-                pairs.clearChildes()
+                pairs.clearBlocks()
                 pairs.setSize(definedIds.size)
                 definedIds.forEachIndexed { index, id -> pairs.get(index).idx = id }
                 entries.removeIf { it.isNull }
@@ -361,7 +361,7 @@ internal class IncrementalResourceEncoder(
             val name = EncodeUtil.getEntryNameFromResFile(file)
             val resourceEntry = packageBlock.tableBlock.getLocalResource(packageBlock, type, name)
                 ?: throw PatchException("Local resource not defined: @$type/$name, for path: $archiveName")
-            resourceEntry.getOrCreate(EncodeUtil.getQualifiersFromResFile(file)).setValueAsString(archiveName)
+            resourceEntry.getOrCreate(EncodeUtil.getQualifiersFromResFile(file)).setDataAsString(archiveName)
         }
 
         val source = if (file.extension == "xml") {
@@ -494,12 +494,12 @@ internal class IncrementalResourceEncoder(
         }
         if (isNull || isComplex) return false
         val value = resValue ?: return false
-        if (value.valueType != ValueType.STRING) return false
+        if (value.dataType != DataType.STRING) return false
 
         val text = element.textContent
         // A reference or a coded value is encoded as such, never as a plain string.
         if (text.isEmpty() || text[0] == '@' || text[0] == '?') return false
-        val current = value.valueAsString ?: return false
+        val current = value.dataAsString ?: return false
 
         // Text without an escape or quoting encodes to itself.
         return (text == current && text[0] != '"' && text.indexOf('\\') < 0) ||
@@ -512,10 +512,10 @@ internal class IncrementalResourceEncoder(
      */
     private fun Entry.restoreArchiveName() {
         val value = resValue ?: return
-        if (value.valueType != ValueType.STRING) return
-        val path = value.valueAsString ?: return
+        if (value.dataType != DataType.STRING) return
+        val path = value.dataAsString ?: return
         if (!path.startsWith("res/")) return
-        originalNameOf(path)?.let { if (it != path) setValueAsString(it) }
+        originalNameOf(path)?.let { if (it != path) setDataAsString(it) }
     }
 
     /**

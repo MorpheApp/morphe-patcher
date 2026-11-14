@@ -46,7 +46,7 @@ import java.util.logging.Logger
 @Deprecated("Patches do not need a context. Use the global functions, such as document().")
 class ResourcePatchContext internal constructor(
     private val config: PatcherConfig,
-) : PatchContext<PatcherResult.PatchedResources>, Closeable {
+) : PatchContext, Closeable {
     private val logger = Logger.getLogger(ResourcePatchContext::class.java.name)
 
     override val fileWorkspace = config.fileWorkspace
@@ -69,7 +69,7 @@ class ResourcePatchContext internal constructor(
     val resourceIds: ResourceIds = ResourceIds { resourceCoder.resourceIds() }.also { ResourceIds.current = it }
 
     @Deprecated("Use the global property.", ReplaceWith("packageMetadata", "app.morphe.patcher.patch.packageMetadata"))
-    val packageMetadata = resourceCoder.getPackageMetadata()
+    val packageMetadata = resourceCoder.getPackageMetadata().withObbFiles(config.obbFiles)
 
     /**
      * Read a document from an [InputStream].

@@ -34,6 +34,12 @@ internal abstract class TreeDocument : ResourceXml {
     var modified = false
         private set
 
+    /** The comments before the root element, such as a license header. */
+    internal val leadingComments = ArrayList<TreeComment>()
+
+    /** The comments after the root element. */
+    internal val trailingComments = ArrayList<TreeComment>()
+
     internal open fun createElement(tag: String) = TreeElement(this, tag)
 
     /**
@@ -287,7 +293,14 @@ internal fun TreeDocument.parseTree(input: InputStream): TreeElement {
             XmlPullParser.TEXT, XmlPullParser.CDSECT, XmlPullParser.ENTITY_REF, XmlPullParser.IGNORABLE_WHITESPACE ->
                 parser.text?.let { text -> current?.addParsedNode(text) }
 
-            XmlPullParser.COMMENT -> current?.addParsedNode(TreeComment(parser.text))
+            XmlPullParser.COMMENT -> {
+                val comment = TreeComment(parser.text)
+                when {
+                    current != null -> current.addParsedNode(comment)
+                    root == null -> leadingComments += comment
+                    else -> trailingComments += comment
+                }
+            }
         }
         event = parser.nextToken()
     }
@@ -296,12 +309,22 @@ internal fun TreeDocument.parseTree(input: InputStream): TreeElement {
 }
 
 /**
- * Writes the element and everything below it as UTF-8 XML, with an XML declaration.
+ * Writes the element and everything below it as UTF-8 XML, with an XML declaration. The root element is
+ * written with the comments of the document around it.
  */
 internal fun TreeElement.writeDocument(writer: Writer) {
     writer.write("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")
+    val isRoot = owner.root === this
+    if (isRoot) owner.leadingComments.forEach { writer.writeComment(it); writer.write("\n") }
     writeElement(writer)
     writer.write("\n")
+    if (isRoot) owner.trailingComments.forEach { writer.writeComment(it); writer.write("\n") }
+}
+
+private fun Writer.writeComment(comment: TreeComment) {
+    write("<!--")
+    write(comment.text)
+    write("-->")
 }
 
 private fun TreeElement.writeElement(writer: Writer) {
@@ -326,11 +349,7 @@ private fun TreeElement.writeElement(writer: Writer) {
         when (node) {
             is TreeElement -> node.writeElement(writer)
             is String -> writeEscaped(writer, node, inAttribute = false)
-            is TreeComment -> {
-                writer.write("<!--")
-                writer.write(node.text)
-                writer.write("-->")
-            }
+            is TreeComment -> writer.writeComment(node)
         }
     }
     writer.write("</")

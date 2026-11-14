@@ -3,6 +3,35 @@
 Patches built for an older Morphe Patcher keep the old behavior, decided by the `Patcher-Version`
 attribute of the patch bundle manifest. A warning is logged when an older bundle gets a newer behavior.
 
+## 2.4.0
+
+### 🔌 Add extension interface methods with `addPatchInterfaceMethod()`
+
+`addPatchInterfaceMethod()` adds an extension interface to an app class, along with a method that implements
+one of the interface methods. It replaces building the method by hand with `ImmutableMethod`. The parameters
+and the return type come from the interface method, and the number of registers is found from the smali code.
+
+```kt
+// Call an existing method.
+playerClass.addPatchInterfaceMethod(PLAYER_INTERFACE, "patch_seekTo", SeekToFingerprint.method)
+
+// Get or set a field.
+playerClass.addPatchInterfaceMethod(PLAYER_INTERFACE, "patch_getController", controllerField)
+
+// Use smali code.
+playerClass.addPatchInterfaceMethod(
+    PLAYER_INTERFACE,
+    "patch_getVideoTime",
+    """
+        invoke-virtual { p0 }, $getVideoTimeMethod
+        move-result-wide v0
+        return-wide v0
+    """
+)
+```
+
+See [Advanced APIs](4_apis.md) for details.
+
 ## 2.3.0
 
 ### 🧩 One patch type without a context
