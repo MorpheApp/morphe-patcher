@@ -6,13 +6,18 @@
 package app.morphe.patcher.apk
 
 import app.morphe.patcher.PatcherResult.PatchedDexFile
+import app.morphe.patcher.dex.DexBytesInputStream
 import app.morphe.patcher.logging.PhaseTimings
-import com.android.tools.build.apkzlib.zip.ZFile
+import app.morphe.patcher.util.forEachInParallel
 import com.reandroid.app.AndroidManifest
 import com.reandroid.arsc.chunk.xml.AndroidManifestBlock
 import com.reandroid.arsc.value.DataType
 import java.io.Closeable
 import java.io.File
+import java.io.FileInputStream
+import java.io.InputStream
+import java.util.zip.CRC32
+import java.util.zip.Deflater
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
@@ -67,9 +72,11 @@ internal fun storedDexFilesIn(inputApk: File, exceptNames: Set<String>, dir: Fil
  * once, so that the resources are encoded meanwhile. Otherwise, it is started by [await], so that nothing
  * runs while the resources are encoded.
  *
- * The DEX files are compressed in parallel as [ApkUtils.applyTo] compresses them, with
- * [ApkUtils.zFileOptions], so an entry that does not shrink is stored, or all stored if
- * [storeUncompressed], as [ApkUtils.applyTo] stores them.
+ * The DEX files are compressed as [ApkUtils.applyTo] compresses them, at [ApkUtils.COMPRESSION_LEVEL], so
+ * an entry that does not shrink is stored, or all stored if [storeUncompressed], as [ApkUtils.applyTo]
+ * stores them. Each is compressed in a task of its own and written to the archive once it is done, which
+ * takes a fraction of the time of adding them to an archive of apkzlib, which copies each entry into
+ * storage of its own before it compresses it. A DEX file held in memory is compressed where it is.
  *
  * The streams of [dexFiles] are closed once they are read, or by [close] if they never are.
  *
@@ -102,12 +109,10 @@ internal class CompressedDexFiles(
         try {
             timings.measure("dexCompress") {
                 archive.absoluteFile.parentFile?.mkdirs()
-                // Opening an existing file would add to what an earlier run left there.
-                archive.delete()
-                ZFile.openReadWrite(archive, ApkUtils.zFileOptions).use { zFile ->
-                    dexFiles.forEach { dexFile ->
-                        // The stream is read when the entry is added and compressed after.
-                        dexFile.stream.use { stream -> zFile.add(dexFile.name, stream, !storeUncompressed) }
+                // The entries are written in the order they are done in, which the patched APK sorts.
+                DexArchiveWriter(archive).use { writer ->
+                    dexFiles.forEachInParallel { dexFile ->
+                        writer.add(dexFile.stream.use { stream -> compressEntry(dexFile.name, stream) })
                     }
                 }
             }
@@ -115,6 +120,90 @@ internal class CompressedDexFiles(
             failure = throwable
         } finally {
             closeStreams()
+        }
+    }
+
+    /** Compresses a DEX file, or stores it if [storeUncompressed] or it does not shrink. */
+    private fun compressEntry(name: String, stream: InputStream): DexArchiveWriter.Entry = when {
+        stream is DexBytesInputStream -> compressContents(name, stream.bytes)
+        stream is FileInputStream && !storeUncompressed -> compressFile(name, stream)
+        else -> compressContents(name, stream.readBytes())
+    }
+
+    /** Compresses [contents], which are held in memory already. */
+    private fun compressContents(name: String, contents: ByteArray): DexArchiveWriter.Entry {
+        val crc = CRC32().apply { update(contents) }.value
+        if (!storeUncompressed) {
+            val output = DeflaterOutput(contents.size / 3)
+            val deflater = Deflater(ApkUtils.COMPRESSION_LEVEL, true)
+            try {
+                deflater.setInput(contents)
+                deflater.finish()
+                output.deflateAll(deflater)
+            } finally {
+                deflater.end()
+            }
+            if (output.length < contents.size) {
+                return DexArchiveWriter.Entry(name, DexArchiveWriter.DEFLATED, crc, contents.size, output.bytes, output.length)
+            }
+        }
+        return DexArchiveWriter.Entry(name, DexArchiveWriter.STORED, crc, contents.size, contents, contents.size)
+    }
+
+    /**
+     * Compresses a file as it is read, so that only its compressed contents are held in memory, which on a
+     * small heap leaves the collector much less to do while every core compresses a file. A file that does
+     * not shrink is read again to be stored.
+     */
+    private fun compressFile(name: String, stream: FileInputStream): DexArchiveWriter.Entry {
+        val crc = CRC32()
+        val output = DeflaterOutput((stream.channel.size() / 3).toInt())
+        val deflater = Deflater(ApkUtils.COMPRESSION_LEVEL, true)
+        val size = try {
+            val chunk = ByteArray(CHUNK_SIZE)
+            var size = 0L
+            while (true) {
+                val count = stream.read(chunk)
+                if (count < 0) break
+                crc.update(chunk, 0, count)
+                size += count
+                deflater.setInput(chunk, 0, count)
+                output.deflateInput(deflater)
+            }
+            deflater.finish()
+            output.deflateAll(deflater)
+            Math.toIntExact(size)
+        } finally {
+            deflater.end()
+        }
+        if (output.length < size) {
+            return DexArchiveWriter.Entry(name, DexArchiveWriter.DEFLATED, crc.value, size, output.bytes, output.length)
+        }
+        stream.channel.position(0)
+        val contents = stream.readBytes()
+        return DexArchiveWriter.Entry(name, DexArchiveWriter.STORED, crc.value, contents.size, contents, contents.size)
+    }
+
+    /** What a [Deflater] wrote, the first [length] bytes of [bytes], which grow as it writes more. */
+    private class DeflaterOutput(expectedSize: Int) {
+        var bytes = ByteArray(expectedSize.coerceAtLeast(CHUNK_SIZE))
+            private set
+        var length = 0
+            private set
+
+        /** Deflates the input the deflater was given, until it needs more. */
+        fun deflateInput(deflater: Deflater) {
+            while (!deflater.needsInput()) deflate(deflater)
+        }
+
+        /** Deflates the rest, once [Deflater.finish] was called. */
+        fun deflateAll(deflater: Deflater) {
+            while (!deflater.finished()) deflate(deflater)
+        }
+
+        private fun deflate(deflater: Deflater) {
+            if (length == bytes.size) bytes = bytes.copyOf(bytes.size * 2)
+            length += deflater.deflate(bytes, length, bytes.size - length)
         }
     }
 
@@ -159,3 +248,6 @@ internal class CompressedDexFiles(
         archive.delete()
     }
 }
+
+/** How much of a DEX file is read at a time to be compressed. */
+private const val CHUNK_SIZE = 256 * 1024

@@ -55,7 +55,7 @@ object ApkUtils {
 
     // The fastest level. The dex files it compresses are about 3% larger than at level 3, which takes
     // about 40% longer, and well within 10% of the default level, which takes about three times as long.
-    private const val COMPRESSION_LEVEL = 1
+    internal const val COMPRESSION_LEVEL = 1
 
     internal val dexEntryName = Regex("""classes(?:\d+)?\.dex""")
 
