@@ -1642,6 +1642,15 @@ public final class app/morphe/patcher/util/MethodNavigator {
 	public static synthetic fun to$default (Lapp/morphe/patcher/util/MethodNavigator;ILkotlin/jvm/functions/Function1;ILjava/lang/Object;)Lapp/morphe/patcher/util/MethodNavigator;
 }
 
+public final class app/morphe/patcher/util/PatchInterfaceMethodsKt {
+	public static final fun addPatchInterfaceMethod (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;Ljava/lang/String;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/iface/reference/FieldReference;Ljava/util/List;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static final fun addPatchInterfaceMethod (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;Ljava/lang/String;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;Ljava/util/List;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static final fun addPatchInterfaceMethod (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static synthetic fun addPatchInterfaceMethod$default (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;Ljava/lang/String;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/iface/reference/FieldReference;Ljava/util/List;ILjava/lang/Object;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static synthetic fun addPatchInterfaceMethod$default (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;Ljava/lang/String;Ljava/lang/String;Lcom/android/tools/smali/dexlib2/iface/reference/MethodReference;Ljava/util/List;ILjava/lang/Object;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+	public static synthetic fun addPatchInterfaceMethod$default (Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;ILjava/lang/Object;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableMethod;
+}
+
 public final class app/morphe/patcher/util/proxy/mutableTypes/MutableAnnotation : com/android/tools/smali/dexlib2/base/BaseAnnotation {
 	public static final field Companion Lapp/morphe/patcher/util/proxy/mutableTypes/MutableAnnotation$Companion;
 	public fun <init> (Lcom/android/tools/smali/dexlib2/iface/Annotation;)V

@@ -17,12 +17,13 @@ a fingerprint is declared.
 7. 🧮 Find free registers to use in injected code with `findFreeRegister(Int, Int...)` and `getFreeRegisterProvider(Int, Int, Int...)`
 8. 🔬 Get the registers of an instruction with `registersUsed`
 9. ↩️ Override the return value of a method with `returnEarly()` and `returnLate()`
-10. 🔁 Change every matching instruction in all methods with `matchAllMethodIndicesForEach()`
-11. 🏷️ Insert code that jumps to existing code with `addInstructionsWithLabels()` and `addInstructionsAtControlFlowLabel()`
-12. 🔤 Find classes by the strings they contain with `classDefByStrings(String)`
-13. 🆔 Look up resource ids with `resourceId(ResourceType, String)` and `hasResourceId(ResourceType, String)`
-14. ✅ Run extra checks while developing patches with `validate`
-15. 🧰 Small helpers: `getReference()`, `getMutableMethod()`, `p0Register`
+10. 🔌 Let extension code call obfuscated app code with `addPatchInterfaceMethod()`
+11. 🔁 Change every matching instruction in all methods with `matchAllMethodIndicesForEach()`
+12. 🏷️ Insert code that jumps to existing code with `addInstructionsWithLabels()` and `addInstructionsAtControlFlowLabel()`
+13. 🔤 Find classes by the strings they contain with `classDefByStrings(String)`
+14. 🆔 Look up resource ids with `resourceId(ResourceType, String)` and `hasResourceId(ResourceType, String)`
+15. ✅ Run extra checks while developing patches with `validate`
+16. 🧰 Small helpers: `getReference()`, `getMutableMethod()`, `p0Register`
 
 ### 🧰 APIs
 
@@ -498,6 +499,73 @@ execute {
 
 - Prefer `returnLate()` if the method has side effects that other code depends on, and `returnEarly()`
   if the original code should not run at all, such as code that loads ads or sends analytics.
+
+#### 🔌 `addPatchInterfaceMethod()`
+
+Extension code cannot call obfuscated app code directly, because the names differ between app versions.
+Instead the extension declares an interface, and a patch adds that interface to the app class along with
+the methods that implement it. The extension then casts the app object to the interface.
+
+```java
+// Extension code.
+public interface PlayerInterface {
+    long patch_getVideoTime();
+    void patch_seekTo(long time);
+    Object patch_getController();
+    String patch_describe(int flags);
+}
+
+((PlayerInterface) player).patch_seekTo(0);
+```
+
+`addPatchInterfaceMethod()` adds the interface to the class if the class does not have it already,
+and adds one method of the interface. The parameters and the return type come from the interface method,
+so they are not declared again in the patch. The method can be implemented in three ways:
+
+```kt
+import app.morphe.patcher.util.addPatchInterfaceMethod
+
+const val PLAYER_INTERFACE = "Lapp/morphe/extension/PlayerInterface;"
+
+execute {
+    val playerClass = PlayerFingerprint.classDef
+
+    // Call an existing method. The parameters are passed on in the same order.
+    playerClass.addPatchInterfaceMethod(PLAYER_INTERFACE, "patch_getVideoTime", GetVideoTimeFingerprint.method)
+    playerClass.addPatchInterfaceMethod(PLAYER_INTERFACE, "patch_seekTo", SeekToFingerprint.method)
+
+    // Get a field. An interface method with one parameter that returns void sets the field instead.
+    val controllerField = playerClass.fields.single { it.type == controllerType }
+    playerClass.addPatchInterfaceMethod(PLAYER_INTERFACE, "patch_getController", controllerField)
+
+    // Use smali code.
+    playerClass.addPatchInterfaceMethod(
+        PLAYER_INTERFACE,
+        "patch_describe",
+        """
+            invoke-virtual { p0, p1 }, $describeMethod
+            move-result-object v0
+            if-nez v0, :done
+            const-string v0, ""
+            :done
+            return-object v0
+        """
+    )
+}
+```
+
+- The interface can be given as a type such as `Lcom/foo/Outer$Inner;` or as a class name such as
+  `com.foo.Outer$Inner`. It must exist in the app or in the extension code, and the method can be declared
+  by an interface that the interface extends.
+- Smali code can use any `v` registers, and the number of registers is found from the code. `p0` is the
+  class the method is added to, and the parameters of the interface method start at `p1`.
+- When calling a method or using a field, primitive types must be the same as the interface declares.
+  Object types can differ and are then cast, so the interface can declare `Object` where the app uses an
+  obfuscated class.
+- If the interface has more than one method with the same name, pass the parameter types of the one to
+  implement: `parameters = listOf("J", "Ljava/lang/String;")`.
+- A `PatchException` is thrown if the interface or the interface method does not exist,
+  or if the class already has the method.
 
 #### 🔁 `matchAllMethodIndicesForEach()`
 

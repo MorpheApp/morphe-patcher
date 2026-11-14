@@ -53,7 +53,7 @@ class BytecodePatchContext internal constructor(
     private val config: PatcherConfig,
     @Deprecated("Use the global property.", ReplaceWith("packageMetadata", "app.morphe.patcher.patch.packageMetadata"))
     val packageMetadata: PackageMetadata,
-) : PatchContext<Set<PatcherResult.PatchedDexFile>>,
+) : PatchContext,
     Closeable {
     private val logger = Logger.getLogger(this::class.java.name)
 
