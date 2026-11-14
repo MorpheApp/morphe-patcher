@@ -291,11 +291,12 @@ internal class ApkUtilsTest {
     }
 
     @Test
-    fun `an APK for devices without v2 verification is signed for them`() {
+    fun `an APK declaring an Android version before 8 is signed for Android 8`() {
         val apk = manifestApk(minSdkVersion = 21)
         ApkSigner.newApkSigner("Test", signingKey).signApk(apk, apk)
 
-        assertEquals(listOf(signingKey.certificate), ApkUtils.verifiedSigningCertificates(apk, 21))
+        assertEquals(listOf(signingKey.certificate), ApkUtils.verifiedSigningCertificates(apk, 26))
+        assertFalse(readZip(apk).keys.any { it.startsWith("META-INF/") }, "no v1 signature files")
     }
 
     @Test

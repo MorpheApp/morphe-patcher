@@ -32,8 +32,6 @@ import java.io.OutputStream
 import java.io.RandomAccessFile
 import java.math.BigInteger
 import java.nio.ByteBuffer
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PrivateKey
@@ -298,42 +296,23 @@ object ApkSigner {
         /**
          * Signs [inputApkFile] into [outputApkFile], which may be the same file.
          *
-         * An APK every target device verifies with v2 is signed in place with v2 alone:
-         * its entries are hashed once and never rewritten. Older targets also need v1,
-         * which rewrites every entry into a new file.
+         * The APK is signed in place with v2 alone, which every Android version Morphe supports
+         * verifies, whatever minimum the APK declares: its entries are hashed once and never rewritten.
          *
-         * @param minSdkVersion The lowest API level the APK will be installed on,
-         *   if higher than the minimum it declares.
+         * @param minSdkVersion The lowest API level the APK will be installed on, if higher than the
+         *   minimum it declares and [MIN_SDK_VERSION].
          */
         @JvmOverloads
         fun signApk(inputApkFile: File, outputApkFile: File, minSdkVersion: Int = 0) {
             logger.info("Signing APK")
 
-            val inPlace = inputApkFile.canonicalFile == outputApkFile.canonicalFile
             val lowestSdkVersion = RandomAccessFile(inputApkFile, "r").use { file ->
                 ApkSigUtils.getMinSdkVersionFromBinaryAndroidManifest(
                     ApkSigUtils.getAndroidManifest(DataSources.asDataSource(file)),
                 )
-            }.coerceAtLeast(minSdkVersion)
+            }.coerceAtLeast(maxOf(minSdkVersion, MIN_SDK_VERSION))
 
-            if (lowestSdkVersion < V2_ONLY_MIN_SDK_VERSION) {
-                val target = if (inPlace) {
-                    File.createTempFile("signing", ".apk", outputApkFile.absoluteFile.parentFile)
-                } else {
-                    outputApkFile
-                }
-                try {
-                    com.android.apksig.ApkSigner.Builder(
-                        listOf(com.android.apksig.ApkSigner.SignerConfig.Builder(name, keyConfig, certificates).build()),
-                    ).setInputApk(inputApkFile).setOutputApk(target).build().sign()
-                    if (inPlace) Files.move(target.toPath(), outputApkFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
-                } finally {
-                    if (inPlace) target.delete()
-                }
-                return
-            }
-
-            if (!inPlace) ApkUtils.copyApk(inputApkFile, outputApkFile)
+            if (inputApkFile.canonicalFile != outputApkFile.canonicalFile) ApkUtils.copyApk(inputApkFile, outputApkFile)
             signInPlace(outputApkFile, lowestSdkVersion)
         }
 
@@ -378,8 +357,8 @@ object ApkSigner {
         }
 
         private companion object {
-            // Android 7.0, the first release to verify APK Signature Scheme v2
-            private const val V2_ONLY_MIN_SDK_VERSION = 24
+            // Android 8.0, the oldest release Morphe supports, which verifies APK Signature Scheme v2
+            private const val MIN_SDK_VERSION = 26
         }
     }
 }
