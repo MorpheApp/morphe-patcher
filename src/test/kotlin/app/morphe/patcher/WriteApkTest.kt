@@ -226,8 +226,38 @@ internal class WriteApkTest {
     }
 
     @Test
-    fun `a dex file the input stores is stored as applyTo stores it`() {
+    fun `a dex file the input stores is compressed as applyTo compresses it`() {
         val input = inputApk {
+            addStored("classes.dex", dexOf("La;", "Lb;"))
+        }
+        val patches = { setOf(bytecodePatch("Change a class") { execute { mutableClassDefBy("La;") } }) }
+
+        val (applied, written) = patchBothWays(input, Config(bytecodeMode = BytecodeMode.FULL), patches)
+
+        val entries = assertSameApk(applied, written)
+        assertEquals(ZipEntry.DEFLATED, entries.getValue("classes.dex").method)
+    }
+
+    @Test
+    fun `a dex file the input stores is compressed even where a partial set leaves it unchanged`() {
+        val input = inputApk {
+            addStored("classes.dex", dexOf("La;", "Lb;"))
+            addStored("classes2.dex", dexOf("Lc;", "Ld;"))
+        }
+        val patches = { setOf(bytecodePatch("Change a class") { execute { mutableClassDefBy("La;") } }) }
+
+        val (applied, written) = patchBothWays(input, Config(bytecodeMode = BytecodeMode.STRIP_FAST), patches)
+
+        val entries = assertSameApk(applied, written)
+        assertEquals(dexOf("Lc;", "Ld;").toList(), read(written, "classes2.dex").toList())
+        entries.filterKeys { it.endsWith(".dex") }.forEach { (name, entry) ->
+            assertEquals(ZipEntry.DEFLATED, entry.method, name)
+        }
+    }
+
+    @Test
+    fun `the dex files of an app that runs them from the APK are stored as applyTo stores them`() {
+        val input = inputApk(useEmbeddedDex = true) {
             addStored("classes.dex", dexOf("La;", "Lb;"))
         }
         val patches = { setOf(bytecodePatch("Change a class") { execute { mutableClassDefBy("La;") } }) }
@@ -343,7 +373,7 @@ internal class WriteApkTest {
         CompressedDexFiles(
             listOf(PatcherResult.PatchedDexFile("classes.dex", stream)),
             archive,
-            tempDir.resolve("missing.apk"),
+            false,
             timings,
             overlap = false,
         ).close()
@@ -369,7 +399,7 @@ internal class WriteApkTest {
         val failure = CompressedDexFiles(
             listOf(PatcherResult.PatchedDexFile("classes.dex", stream)),
             archive,
-            tempDir.resolve("missing.apk"),
+            false,
             timings,
             overlap,
         ).use { dexFiles -> assertFails { dexFiles.await() } }
@@ -524,8 +554,8 @@ internal class WriteApkTest {
     }
 
     /** [ResourceTestApk] with the entries [build] adds. */
-    private fun inputApk(build: InputBuilder.() -> Unit): File {
-        val apk = ResourceTestApk.build(tempDir.resolve("input").apply { mkdirs() })
+    private fun inputApk(useEmbeddedDex: Boolean = false, build: InputBuilder.() -> Unit): File {
+        val apk = ResourceTestApk.build(tempDir.resolve("input").apply { mkdirs() }, useEmbeddedDex)
         ZFile.openReadWrite(apk).use { zFile -> InputBuilder(zFile).build() }
         return apk
     }

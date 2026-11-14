@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.resource.coder
 
+import app.morphe.patcher.apk.ID_USE_EMBEDDED_DEX
 import com.android.tools.build.apkzlib.zip.ZFile
 import com.reandroid.apk.AndroidFrameworks
 import com.reandroid.arsc.chunk.TableBlock
@@ -20,7 +21,8 @@ import java.io.File
  * A small APK with the kinds of resources apps ship, built in code.
  */
 internal object ResourceTestApk {
-    fun build(dir: File): File {
+    /** @param useEmbeddedDex Whether the manifest sets `android:useEmbeddedDex`. */
+    fun build(dir: File, useEmbeddedDex: Boolean = false): File {
         val packageName = "com.test.app"
         val table = TableBlock()
         table.addFramework(AndroidFrameworks.getLatest().tableBlock)
@@ -92,7 +94,9 @@ internal object ResourceTestApk {
             setTargetSdkVersion(34)
             compileSdkVersion = 34
             platformBuildVersionCode = 34
-            getOrCreateApplicationElement()
+            getOrCreateApplicationElement().apply {
+                if (useEmbeddedDex) getOrCreateAndroidAttribute("useEmbeddedDex", ID_USE_EMBEDDED_DEX).setValueAsBoolean(true)
+            }
             refreshFull()
         }
 
