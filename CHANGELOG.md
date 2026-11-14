@@ -1,3 +1,10 @@
+# [2.4.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v2.4.0-dev.4...v2.4.0-dev.5) (2026-11-14)
+
+
+### Features
+
+* Add `addPatchInterfaceMethod` to add extension interface methods to a class ([#283](https://github.com/MorpheApp/morphe-patcher/issues/283)) ([6b13459](https://github.com/MorpheApp/morphe-patcher/commit/6b13459cdb4db22dcf4b32f5ffa33703182c3b22))
+
 # [2.4.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v2.4.0-dev.3...v2.4.0-dev.4) (2026-11-13)
 
 
