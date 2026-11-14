@@ -46,7 +46,7 @@ import java.util.logging.Logger
 @Deprecated("Patches do not need a context. Use the global functions, such as document().")
 class ResourcePatchContext internal constructor(
     private val config: PatcherConfig,
-) : PatchContext<PatcherResult.PatchedResources>, Closeable {
+) : PatchContext, Closeable {
     private val logger = Logger.getLogger(ResourcePatchContext::class.java.name)
 
     override val fileWorkspace = config.fileWorkspace
