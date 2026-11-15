@@ -1,3 +1,28 @@
+# [2.4.0](https://github.com/MorpheApp/morphe-patcher/compare/v2.3.0...v2.4.0) (2026-11-15)
+
+
+### Bug Fixes
+
+* Allow Fingerprint fields to reference other Fingerprints ([87bdb41](https://github.com/MorpheApp/morphe-patcher/commit/87bdb41788fb044c8056087a1d39a04380cf0307))
+* Compress the DEX files unless the app runs them from the APK ([#284](https://github.com/MorpheApp/morphe-patcher/issues/284)) ([d4fa42b](https://github.com/MorpheApp/morphe-patcher/commit/d4fa42bfe5cece23176424621bdf6c502845acd0))
+* Internally process resource XML files with ARCSLib ([#279](https://github.com/MorpheApp/morphe-patcher/issues/279)) ([1e27114](https://github.com/MorpheApp/morphe-patcher/commit/1e27114f5f07f80250ec67b33c20ab2ba8a3b012))
+* Rename `addPatchInterfaceMethod` to `addPatchInterface` ([bd6e902](https://github.com/MorpheApp/morphe-patcher/commit/bd6e902c38d65358637b5227cf5696c00b235b67))
+* Update ARSCLib dependency ([64d572a](https://github.com/MorpheApp/morphe-patcher/commit/64d572a1d08ca4e924ae7c16d8f8a1d24acc16c6))
+* Update ARSCLib dependency ([97ca1a0](https://github.com/MorpheApp/morphe-patcher/commit/97ca1a075de5a658c0c40b94d2602c80f8a59fcf))
+* Update smali dependency ([487e02d](https://github.com/MorpheApp/morphe-patcher/commit/487e02d83141fa872970bda0c3984def652f0b3c))
+
+
+### Features
+
+* Add `addPatchInterfaceMethod` to add extension interface methods to a class ([#283](https://github.com/MorpheApp/morphe-patcher/issues/283)) ([6b13459](https://github.com/MorpheApp/morphe-patcher/commit/6b13459cdb4db22dcf4b32f5ffa33703182c3b22))
+* Let patches read the OBB of a bundle ([#281](https://github.com/MorpheApp/morphe-patcher/issues/281)) ([67464b0](https://github.com/MorpheApp/morphe-patcher/commit/67464b0438cfc5f613111b05140192601712d5a0))
+
+
+### Performance Improvements
+
+* Read, strip and compress DEX files in parallel, and keep them in memory ([e694e89](https://github.com/MorpheApp/morphe-patcher/commit/e694e89ac264ba6309e997089f1e701805d97554))
+* Sign every APK with v2 alone, in place ([3d4c3f3](https://github.com/MorpheApp/morphe-patcher/commit/3d4c3f37f3728bb22d3d8852287b16112ff517e1))
+
 # [2.4.0-dev.8](https://github.com/MorpheApp/morphe-patcher/compare/v2.4.0-dev.7...v2.4.0-dev.8) (2026-11-15)
 
 
