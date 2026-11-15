@@ -176,7 +176,7 @@ internal class OnRequestDecoder(
             state.resourceFiles.forEach { (archiveName, resFile) ->
                 val entry = resFile.pickOne()
                 if (!entry.isNull) fileEntries.getOrPut(entry.resourceId) { HashSet() } += entry.resConfig.qualifiers
-                val alias = resFile.buildPath(PackageBlock.RES_DIRECTORY_NAME)
+                val alias = resFile.buildPath(PackageBlock.DIRECTORY_NAME_RES)
                 packages[entry.packageBlock.name]?.resourceFiles?.put(alias, archiveName)
                 pathMapEntries += archiveName to alias
             }
@@ -207,7 +207,7 @@ internal class OnRequestDecoder(
                             name != TableBlock.FILE_NAME &&
                             name !in resourceArchiveNames &&
                             // Collides with the paths of the decoded resources, which take precedence.
-                            !name.startsWith("${PackageBlock.RES_DIRECTORY_NAME}/") &&
+                            !name.startsWith("${PackageBlock.DIRECTORY_NAME_RES}/") &&
                             !name.startsWith("lib/") &&
                             !DEX_FILE_NAME.matches(name)
                 }
@@ -278,8 +278,8 @@ internal class OnRequestDecoder(
         val tableBlock = currentState().module.tableBlock
         packages.values.forEach { decodablePackage ->
             val packageBlock = tableBlock.listPackages().first { it.matches(decodablePackage) }
-            val file = decodablePackage.directory.resolve(PackageBlock.JSON_FILE_NAME)
-            file.writeJson(packageBlock.toJson(false))
+            val file = decodablePackage.directory.resolve(PackageBlock.FILE_NAME_JSON)
+            file.writeJson(packageBlock.toJson(false, true))
         }
     }
 
@@ -518,7 +518,7 @@ internal class OnRequestDecoder(
     private companion object {
         fun valuesPath(type: String, qualifiers: String): String {
             val fileName = if (type.endsWith("s")) type else "${type}s"
-            return "${PackageBlock.RES_DIRECTORY_NAME}/${PackageBlock.VALUES_DIRECTORY_NAME}$qualifiers/$fileName.xml"
+            return "${PackageBlock.DIRECTORY_NAME_RES}/${PackageBlock.DIRECTORY_NAME_VALUES}$qualifiers/$fileName.xml"
         }
 
         /**

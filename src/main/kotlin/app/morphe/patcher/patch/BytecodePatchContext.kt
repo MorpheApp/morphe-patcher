@@ -19,14 +19,18 @@ import app.morphe.patcher.StringComparisonType
 import app.morphe.patcher.TaskProgress
 import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.dex.CachingDexBackedDexFile
+import app.morphe.patcher.dex.DexBytesInputStream
 import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.dex.DexStripper
 import app.morphe.patcher.dex.MappedFile
+import app.morphe.patcher.dex.MemoryDexFile
 import app.morphe.patcher.dex.MultidexReadResult
+import app.morphe.patcher.dex.NoOpDexVerifier
 import app.morphe.patcher.runTask
 import app.morphe.patcher.util.ClassMerger.merge
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import app.morphe.patcher.util.PatchClasses
+import app.morphe.patcher.util.mapInParallel
 import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.iface.ClassDef
@@ -53,7 +57,7 @@ class BytecodePatchContext internal constructor(
     private val config: PatcherConfig,
     @Deprecated("Use the global property.", ReplaceWith("packageMetadata", "app.morphe.patcher.patch.packageMetadata"))
     val packageMetadata: PackageMetadata,
-) : PatchContext<Set<PatcherResult.PatchedDexFile>>,
+) : PatchContext,
     Closeable {
     private val logger = Logger.getLogger(this::class.java.name)
 
@@ -168,7 +172,13 @@ class BytecodePatchContext internal constructor(
         dexOutputDir.apply { deleteRecursively(); mkdirs() }
         dexWorkingDir.apply { deleteRecursively(); mkdirs()}
 
-        readResult = DexReadWrite.readMultidexFileFromZip(config.apkFile, dexWorkingDir)
+        // Fast mode edits the original DEX files where they are, and reads them only once more after
+        // that, so it can keep them in memory. The other modes rename or rewrite them as files.
+        readResult = DexReadWrite.readMultidexFileFromZip(
+            config.apkFile,
+            dexWorkingDir,
+            inMemory = config.useBytecodeMode == BytecodeMode.STRIP_FAST,
+        )
         opcodes = readResult.dexFile.opcodes
         val classes = readResult.dexFile.classes
         originalClassCount = classes.size
@@ -526,18 +536,37 @@ class BytecodePatchContext internal constructor(
             dexFile.safelyMoveTo(dexOutputDir.resolve(getDexName(nextDexIndex++)))
         }
 
-        // 3. Strip modified class_def entries from original DEX files in-place.
+        // 3. Strip modified class_def entries from original DEX files in-place, in parallel, as each of
+        // them is hashed whole again.
         val originalDexNames = originalDexMappings.keys.mapTo(HashSet()) { it.name }
-        val emptiedDexNames = HashSet<String>()
-        val strippedDexNames = originalDexMappings.filter { (originalDex, mappedFile) ->
-            val stripped = DexStripper.stripInPlace(mappedFile, modifiedOriginalDescriptors)
-            if (stripped > 0 && stripped == readResult.entryClassCounts[originalDex.name]) {
-                emptiedDexNames += originalDex.name
-            }
-            stripped > 0
-        }.keys.mapTo(HashSet()) { it.name }
+        val strippedCounts = originalDexMappings.entries.toList().mapInParallel { (originalDex, mappedFile) ->
+            originalDex.name to DexStripper.stripInPlace(mappedFile, modifiedOriginalDescriptors)
+        }
+        val strippedDexNames = strippedCounts.filter { (_, stripped) -> stripped > 0 }.mapTo(HashSet()) { it.first }
+        val emptiedDexNames = strippedCounts.filter { (name, stripped) ->
+            stripped > 0 && stripped == readResult.entryClassCounts[name]
+        }.mapTo(HashSet()) { it.first }
         logger.info("Stripped ${modifiedOriginalDescriptors.size} modified classes from ${strippedDexNames.size} original DEX files")
+        val memoryDexFiles = readResult.mappedFiles.filterIsInstance<MemoryDexFile>()
         releaseAllDexMappings()
+
+        if (memoryDexFiles.isNotEmpty()) {
+            // The new DEX files and the stripped originals, which are read from memory as they are.
+            if (config.verifier === NoOpDexVerifier && emptiedDexNames.isEmpty()) {
+                val newDexFiles = dexOutputDir.listFiles { it.isFile }!!.map { dexFile ->
+                    PatcherResult.PatchedDexFile(dexFile.name, dexFile.inputStream())
+                }
+                val strippedDexFiles = memoryDexFiles.filter { it.originalFile.name in strippedDexNames }.map { dexFile ->
+                    PatcherResult.PatchedDexFile(dexFile.originalFile.name, DexBytesInputStream(dexFile.bytes))
+                }
+                return (newDexFiles + strippedDexFiles)
+                    .sortedBy { dexFile -> dexOutputDir.resolve(dexFile.name) }
+                    .toCollection(LinkedHashSet())
+            }
+
+            // The verifier and the renumbering below work on files.
+            memoryDexFiles.forEach(MemoryDexFile::writeToOriginalFile)
+        }
 
         // The verifier checks classes across every DEX file, while the result holds only those that changed.
         dexWorkingDir.listFiles { it.isFile && it.name !in emptiedDexNames }!!

@@ -10,7 +10,9 @@ package app.morphe.patcher
 
 import app.morphe.patcher.apk.ApkSignatureScheme
 import com.reandroid.archive.block.ApkSignatureBlock
+import java.io.File
 import java.security.cert.X509Certificate
+import java.util.Collections
 
 /**
  * Metadata about a package.
@@ -19,13 +21,39 @@ import java.security.cert.X509Certificate
  * @param versionCode The version code of the package.
  * @param versionName The version name of the package.
  * @param signatureBlock The APK signature block of the package, or `null` if the package is unsigned.
+ * @param obbFiles The OBB files of the bundle the package was merged from, keyed by the path they have
+ * inside the bundle, such as `Android/obb/com.example/main.1.com.example.obb`. Only OBB files are included,
+ * never other files of the bundle. The files belong to the caller of the patcher and are read-only to
+ * patches: a patch that needs a changed copy writes it to [app.morphe.patcher.patch.fileWorkspace].
+ * The files are taken from any bundle format, not only `.xapk`.
+ *
+ * A patch that needs an OBB must check for it and fail with a clear message when the map has none,
+ * since it is empty when the package was patched from a plain APK, the bundle has no OBB, or the caller
+ * of the patcher did not extract them. Declaring a file type does not guarantee an OBB. Apps that use
+ * OBB files are usually distributed as `.xapk`, so such a patch can declare
+ * [app.morphe.patcher.patch.ApkFileType.XAPK] to suggest that file type to users. Declaring
+ * [app.morphe.patcher.patch.ApkFileType.XAPK_REQUIRED] instead turns away other bundle formats that
+ * carry the OBB as well.
  */
 class PackageMetadata internal constructor(
     val packageName: String,
     val versionName: String,
     val versionCode: String,
-    private val signatureBlock: ApkSignatureBlock?
+    private val signatureBlock: ApkSignatureBlock?,
+    val obbFiles: Map<String, File> = emptyMap(),
 ) {
+    /**
+     * A copy of this metadata with [obbFiles] set to a read-only copy of [files], so neither the caller
+     * of the patcher nor a patch can change the map the other one sees.
+     */
+    internal fun withObbFiles(files: Map<String, File>) = PackageMetadata(
+        packageName,
+        versionName,
+        versionCode,
+        signatureBlock,
+        Collections.unmodifiableMap(LinkedHashMap(files)),
+    )
+
     /**
      * Get the signing certificates of the package, grouped by the [ApkSignatureScheme] they belong to.
      *

@@ -6,6 +6,7 @@
 package app.morphe.patcher
 
 import com.android.tools.smali.dexlib2.AccessFlags
+import com.android.tools.smali.dexlib2.immutable.ImmutableClassDef
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertEquals
@@ -258,6 +259,144 @@ internal object FingerprintTest {
 
         assertEquals("Lcom/test/Class;", filter.definingClass)
         assertEquals("method", filter.name)
+    }
+
+    // ==================== Lambda value tests ====================
+
+    @Test
+    fun `Fingerprint values can be given by lambdas`() {
+        val classFingerprint = Fingerprint(name = "toString")
+        val fingerprints = listOf(
+            Fingerprint(definingClass = { "Lcom/test/A;" }, parameters = listOf("I")),
+            Fingerprint(superclass = { "Lcom/test/A;" }, name = "method"),
+            Fingerprint(interfaces = { listOf("Lcom/test/A;") }, returnType = "V"),
+            Fingerprint(returnType = { "Lcom/test/A;" }, parameters = listOf("I", "I")),
+            Fingerprint(classFingerprint = classFingerprint, parameters = { listOf("Lcom/test/A;") }),
+            Fingerprint(returnType = { "Lcom/test/A;" }, strings = listOf("a")),
+            Fingerprint(returnType = { "Lcom/test/A;" }, strings = listOf(string("a"))),
+        )
+
+        assertEquals("Lcom/test/A;", fingerprints[0].definingClass)
+        assertEquals(listOf("I"), fingerprints[0].parameters)
+        assertEquals("Lcom/test/A;", fingerprints[1].superclass)
+        assertEquals(listOf("Lcom/test/A;"), fingerprints[2].interfaces)
+        assertEquals("V", fingerprints[2].returnType)
+        assertEquals("Lcom/test/A;", fingerprints[3].returnType)
+        assertEquals(listOf("Lcom/test/A;"), fingerprints[4].parameters)
+        assertEquals(listOf("a"), fingerprints[5].strings)
+        assertEquals(listOf("a"), fingerprints[6].strings)
+    }
+
+    @Test
+    fun `Fingerprint values can be given by more than one lambda`() {
+        val classFingerprint = Fingerprint(name = "toString")
+        val fingerprint = Fingerprint(
+            returnType = { "Lcom/test/A;" },
+            parameters = { listOf("I", "I") },
+        )
+        assertEquals("Lcom/test/A;", fingerprint.returnType)
+        assertEquals(listOf("I", "I"), fingerprint.parameters)
+
+        val all = Fingerprint(
+            definingClass = { "Lcom/test/A;" },
+            superclass = { "Lcom/test/B;" },
+            interfaces = { listOf("Lcom/test/C;") },
+            name = "method",
+            accessFlags = listOf(AccessFlags.PUBLIC),
+            returnType = { "V" },
+            parameters = { listOf("I") },
+            filters = listOf(string("a")),
+            strings = listOf("b"),
+            custom = { _, _ -> true },
+        )
+        assertEquals("Lcom/test/A;", all.definingClass)
+        assertEquals("Lcom/test/B;", all.superclass)
+        assertEquals(listOf("Lcom/test/C;"), all.interfaces)
+        assertEquals("V", all.returnType)
+        assertEquals(listOf("I"), all.parameters)
+        assertEquals(listOf("b"), all.strings)
+
+        val withClassFingerprint = Fingerprint(
+            classFingerprint = classFingerprint,
+            superclass = { "Lcom/test/B;" },
+            parameters = { listOf("I") },
+            strings = listOf(string("b")),
+        )
+        assertEquals(classFingerprint, withClassFingerprint.classFingerprint)
+        assertEquals("Lcom/test/B;", withClassFingerprint.superclass)
+        assertEquals(listOf("I"), withClassFingerprint.parameters)
+        assertEquals(listOf("b"), withClassFingerprint.strings)
+
+        val interfacesAndReturnType = Fingerprint(
+            interfaces = { listOf("Lcom/test/C;") },
+            returnType = { "V" },
+            isStatic = true,
+        )
+        assertEquals(listOf("Lcom/test/C;"), interfacesAndReturnType.interfaces)
+        assertEquals("V", interfacesAndReturnType.returnType)
+        assertEquals(true, interfacesAndReturnType.isStatic)
+    }
+
+    @Test
+    fun `Fingerprint lambdas are evaluated when first needed and again after clearMatch`() {
+        var value = "first"
+        var evaluations = 0
+        val fingerprint = Fingerprint(
+            returnType = {
+                evaluations++
+                "Lcom/test/$value;"
+            },
+        )
+
+        assertEquals(0, evaluations)
+        assertEquals("Lcom/test/first;", fingerprint.returnType)
+        assertEquals("Lcom/test/first;", fingerprint.returnType)
+        assertEquals(1, evaluations)
+
+        value = "second"
+        fingerprint.clearMatch()
+        assertEquals("Lcom/test/second;", fingerprint.returnType)
+        assertEquals(2, evaluations)
+    }
+
+    @Test
+    fun `Fingerprint lambda for a type can return a class`() {
+        val classDef = ImmutableClassDef("Lcom/test/A;", 0, null, null, null, null, null, null)
+
+        assertEquals("Lcom/test/A;", Fingerprint(returnType = { classDef }).returnType)
+        assertEquals(listOf("Lcom/test/A;", "I"), Fingerprint(parameters = { listOf(classDef, "I") }).parameters)
+    }
+
+    @Test
+    fun `Fingerprint lambda values are checked when evaluated`() {
+        val fingerprint = Fingerprint(name = "testMethod", interfaces = { emptyList() })
+
+        assertThrows<IllegalArgumentException> { fingerprint.interfaces }
+        assertThrows<IllegalArgumentException> {
+            Fingerprint(classFingerprint = Fingerprint(name = "toString"), definingClass = { "Lcom/test/A;" })
+        }
+    }
+
+    @Test
+    fun `Fingerprint constructor ignores void return type from a lambda`() {
+        val fingerprint = Fingerprint(accessFlags = listOf(AccessFlags.CONSTRUCTOR), returnType = { "V" })
+
+        assertNull(fingerprint.returnType)
+    }
+
+    @Test
+    fun `toString does not evaluate lambdas`() {
+        val fingerprint = Fingerprint(
+            name = "testMethod",
+            returnType = { error("Must not be evaluated") },
+            parameters = listOf("I"),
+        )
+
+        assertEquals("Fingerprint(name=testMethod, returnType=lambda, parameters=[I])", fingerprint.toString())
+
+        val evaluated = Fingerprint(name = "testMethod", returnType = { "V" })
+        evaluated.returnType
+        assertEquals("Fingerprint(name=testMethod, returnType=V)", evaluated.toString())
     }
 
     // ==================== toString tests ====================

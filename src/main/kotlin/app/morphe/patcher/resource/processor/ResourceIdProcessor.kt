@@ -10,12 +10,12 @@ import app.morphe.patcher.resource.PublicIds
 import app.morphe.patcher.resource.PublicXmlIds
 import app.morphe.patcher.resource.PublicXmlManager
 import app.morphe.patcher.resource.fileResourceTypes
-import app.morphe.patcher.resource.forEachAttribute
 import app.morphe.patcher.resource.parseXml
-import app.morphe.patcher.resource.preOrderTraverse
 import app.morphe.patcher.resource.resourceToTagOverrideMapping
-import app.morphe.patcher.util.Document
-import org.w3c.dom.Node
+import app.morphe.patcher.resource.utf8Writer
+import app.morphe.patcher.resource.xml.TextXmlDocument
+import app.morphe.patcher.resource.xml.writeDocument
+import app.morphe.patcher.xml.ResourceXml
 import org.xmlpull.v1.XmlPullParser
 import java.io.File
 import java.util.logging.Logger
@@ -64,9 +64,11 @@ internal class ResourceIdProcessor(
 
         // Find all new ID declarations in XML files so we can create a corresponding entry in ids.xml
         // They will get added to public.xml later
-        Document(get("res/values/ids.xml")).use { idDoc ->
-            val idNode = idDoc.getElementsByTagName("resources").item(0)
-                ?: throw IllegalStateException("ids.xml is missing the <resources> root element.")
+        val idsFile = get("res/values/ids.xml")
+        TextXmlDocument.read(idsFile).use { ids ->
+            if (ids.root.tag != "resources") {
+                throw IllegalStateException("ids.xml is missing the <resources> root element.")
+            }
 
             val changedFiles = modifiedResResources.filter { it.exists() && it.extension == "xml" }
                 .map { it to null }
@@ -74,15 +76,13 @@ internal class ResourceIdProcessor(
                 .sortedBy { it.first.invariantSeparatorsPath }
             units.forEachIndexed { index, (file, held) ->
                 if (held != null) {
-                    held.ids.forEach { idName ->
-                        idNode.appendChild(idNode.ownerDocument.createElement("id").also { it.setAttribute("name", idName) })
-                    }
+                    held.ids.forEach { idName -> ids.addId(idName) }
                     held.resources.forEach { (type, name) -> publicIdManager.createPublicId(type, name) }
                 } else {
                     // The document parser detects the encoding of a file that is not UTF-8, the pull parser does not.
                     val declarations = if (file.isUtf16()) null else readDeclarations(file)
                     if (declarations == null || declarations.needsRewrite) {
-                        processIdAndAttrDeclarations(file, idNode)
+                        processIdAndAttrDeclarations(file, ids)
                         // The rewrite changes attribute values, so the declarations are read again.
                         createPublicIdsFromValuesXml(file)
                     } else {
@@ -93,7 +93,7 @@ internal class ResourceIdProcessor(
             }
         }
 
-        createPublicIdsFromValuesXml(get("res/values/ids.xml"))
+        createPublicIdsFromValuesXml(idsFile)
 
         // Ensure every file-based resource has a public ID. ARSCLib can decode synthetic inline-AAPT
         // resources which are not initially present in public.xml, so every file is enumerated, not only
@@ -109,38 +109,42 @@ internal class ResourceIdProcessor(
         }
     }
 
-    private fun processIdAndAttrDeclarations(file: File, idNode: Node): Set<String> {
-        val createdIds = mutableSetOf<String>()
-        Document(file).use { doc ->
-            doc.documentElement.preOrderTraverse { element ->
-                val idString = element.getAttribute("android:id")
-                if (idString.startsWith("@+id/")) {
+    private fun ResourceXml.addId(name: String) {
+        root.appendChild("id") { setAttribute("name", name) }
+    }
+
+    /**
+     * Declares the ids [file] declares with `@+id/` in [ids] and expands its shorthand theme attribute
+     * references. The file is always written back, as UTF-8, so that a file of another encoding can then be
+     * read as UTF-8.
+     */
+    private fun processIdAndAttrDeclarations(file: File, ids: ResourceXml) {
+        val document = file.inputStream().buffered().use { TextXmlDocument.read(it) }
+        document.use {
+            document.elements().forEach { element ->
+                val idString = element.attribute("android:id")
+                if (idString != null && idString.startsWith("@+id/")) {
                     logger.fine { "Adding $idString to ids.xml" }
                     val idName = idString.substring(5)
-
-                    val item = idNode.ownerDocument.createElement("id")
-                    item.setAttribute("name", idName)
-                    idNode.appendChild(item)
-
+                    ids.addId(idName)
                     element.setAttribute("android:id", "@id/$idName")
-                    createdIds += "@id/$idName"
                 }
 
                 // Expand shorthand theme attribute references in all attributes.
                 // e.g. ?someValue -> ?attr/someValue, ?android:someValue -> ?android:attr/someValue
-                element.forEachAttribute { attr ->
-                    val value = attr.nodeValue
+                element.attributeNames.forEach { name ->
+                    val value = element.attribute(name)!!
                     if (value.startsWith('?') && !value.contains('/')) {
                         val expanded = expandThemeAttrReference(value)
                         if (expanded != value) {
-                            logger.fine { "Expanding theme attr reference '${attr.nodeName}'='$value' to '$expanded'" }
-                            attr.nodeValue = expanded
+                            logger.fine { "Expanding theme attr reference '$name'='$value' to '$expanded'" }
+                            element.setAttribute(name, expanded)
                         }
                     }
                 }
             }
+            file.utf8Writer().use { document.root.writeDocument(it) }
         }
-        return createdIds
     }
 
     private fun expandThemeAttrReference(value: String): String {

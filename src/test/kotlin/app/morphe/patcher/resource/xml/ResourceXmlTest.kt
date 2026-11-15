@@ -352,6 +352,7 @@ internal class ResourceXmlTest {
         file.parentFile.mkdirs()
         file.writeText(
             """<?xml version="1.0" encoding="utf-8"?>
+            <!-- A header -->
             <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
                 <!-- A comment -->
                 <Preference android:key="a" android:title="A &amp; B"/>
@@ -365,6 +366,7 @@ internal class ResourceXmlTest {
         }
 
         val text = file.readText()
+        assertTrue(text.indexOf("<!-- A header -->") in 0 until text.indexOf("<PreferenceScreen"), text)
         assertTrue("<!-- A comment -->" in text, text)
         assertTrue("android:title=\"A &amp; B\"" in text, text)
         assertTrue(text.indexOf("first") < text.indexOf("\"a\""), text)

@@ -8,6 +8,7 @@ package app.morphe.patcher.dex
 import app.morphe.patcher.TaskProgress
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
+import app.morphe.patcher.util.mapInParallel
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.VersionMap
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
@@ -22,9 +23,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import java.io.Closeable
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.nio.ByteBuffer
-import java.util.Enumeration
 import java.util.logging.Logger
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
@@ -81,22 +82,31 @@ internal object DexReadWrite {
      * Reads a multidex file and returns a [MultidexReadResult] containing a merged [DexFile]
      * with all classes and the names of each DEX entry within the container.
      *
+     * The DEX files are read in parallel. They are held on the heap as [MemoryDexFile]s if [inMemory]
+     * and they fit, see [fitsInMemory], and otherwise extracted to [outputDir] and mapped from there.
+     *
      * @param inputFile The multidex file to read.
+     * @param outputDir The directory the DEX files are extracted to, or would be if they were not held in memory.
+     * @param inMemory Whether the DEX files may be held in memory.
      * @param logger An optional logger to log the loading process.
      *
      * @return A [MultidexReadResult] with the merged DexFile and entry names.
      */
-    internal fun readMultidexFileFromZip(inputFile: File, outputDir: File, logger: Logger? = null): MultidexReadResult {
+    internal fun readMultidexFileFromZip(
+        inputFile: File,
+        outputDir: File,
+        inMemory: Boolean = false,
+        logger: Logger? = null,
+    ): MultidexReadResult {
         require(inputFile.exists()) { "input file does not exist: $inputFile" }
 
-        val extractedFiles = extractDexEntries(inputFile, outputDir)
-        logger?.info("Loaded multidex file: $inputFile with ${extractedFiles.size} dex files")
+        val mappedFiles = readDexEntries(inputFile, outputDir, inMemory)
+        logger?.info("Loaded multidex file: $inputFile with ${mappedFiles.size} dex files")
 
-        val mappedFiles = extractedFiles.map { file -> MappedFile.mapReadWrite(file) }
         val memoryMappedDexFiles = mappedFiles.map { mappedFile ->
             CachingDexBackedDexFile(null, mappedFile.buffer)
         }
-        val entryNames = extractedFiles.map { file -> file.name }
+        val entryNames = mappedFiles.map { mappedFile -> mappedFile.originalFile.name }
 
         val entryClassCounts = entryNames.zip(memoryMappedDexFiles).associate { (name, dex) ->
             name to dex.classes.size
@@ -130,41 +140,107 @@ internal object DexReadWrite {
     }
 
     /**
-     * Extracts raw DEX entries from an APK/ZIP file directly to an output directory.
+     * Whether DEX files of [totalSize] bytes are held on the heap while they are patched, rather than
+     * extracted to files: when they take at most a quarter of the largest heap the VM may use. A file is
+     * written to storage and read back at least once more, and DEX files are read faster from the heap.
+     */
+    internal fun fitsInMemory(totalSize: Long) = totalSize * 4 <= Runtime.getRuntime().maxMemory()
+
+    /**
+     * The DEX files of [apkFile], held on the heap if [inMemory] and they fit, see [fitsInMemory], and
+     * otherwise extracted to [outputDir] and mapped from there.
+     */
+    private fun readDexEntries(apkFile: File, outputDir: File, inMemory: Boolean): List<MappedFile> =
+        (if (inMemory) readDexEntriesIntoMemory(apkFile, outputDir) else null)
+            ?: extractDexEntries(apkFile, outputDir).map { file -> MappedFile.mapReadWrite(file) }
+
+    /**
+     * Reads the raw DEX entries of an APK onto the heap, in the order of the archive, as
+     * [extractDexEntries] extracts them.
+     *
+     * @param apkFile The APK file to read from.
+     * @param outputDir The directory the DEX files would be extracted to, which their [MemoryDexFile.originalFile]s are in.
+     * @return The DEX files, or null if they do not fit, see [fitsInMemory].
+     */
+    private fun readDexEntriesIntoMemory(apkFile: File, outputDir: File): List<MemoryDexFile>? =
+        ZipFile(apkFile).use { zip ->
+            val entries = zip.dexEntries(outputDir)
+            if (entries.any { (entry, _) -> entry.size !in 0..Int.MAX_VALUE }) return@use null
+            if (!fitsInMemory(entries.sumOf { (entry, _) -> entry.size })) return@use null
+
+            entries.readInParallel(zip) { entry, file, input ->
+                MemoryDexFile(file, input.readFully(entry.size.toInt(), entry.name))
+            }
+        }
+
+    /**
+     * Extracts raw DEX entries from an APK/ZIP file directly to an output directory, in parallel.
      * This reads from the zip without dexlib2 parsing, so the output files are
      * byte-identical to the original DEX data in the APK.
      *
      * @param apkFile The APK file to extract from.
      * @param outputDir The directory to write the extracted DEX files to.
-     * @return A list of extracted files.
+     * @return The extracted files, in the order of the archive.
      */
     internal fun extractDexEntries(apkFile: File, outputDir: File): List<File> {
         outputDir.mkdirs()
         return ZipFile(apkFile).use { zip ->
-            val outputFiles = mutableListOf<File>()
-            val entriesEnumeration: Enumeration<out ZipEntry> = zip.entries()
-            while (entriesEnumeration.hasMoreElements()) {
-                val entry: ZipEntry = entriesEnumeration.nextElement()
-                val name = entry.name
-                if (!name.startsWith("classes") || !name.endsWith(".dex")) {
-                    continue
-                }
-
-                // An entry such as classes/../../x.dex would otherwise be written outside outputDir
-                val outputFile = outputDir.resolve(name).normalize()
-                if (!outputFile.toPath().startsWith(outputDir.toPath().normalize())) {
-                    throw SecurityException("DEX entry escapes the output directory: $name")
-                }
-                zip.getInputStream(entry).use { input ->
-                    outputFile.outputStream().use { output ->
-                        input.copyTo(output, bufferSize = 256 * 1024)
-                    }
-                    outputFiles += outputFile
-                }
+            zip.dexEntries(outputDir).readInParallel(zip) { _, file, input ->
+                file.absoluteFile.parentFile?.mkdirs()
+                file.outputStream().use { output -> input.copyTo(output, bufferSize = 256 * 1024) }
+                file
             }
-
-            outputFiles
         }
+    }
+
+    /**
+     * The DEX entries of the archive, in its order, each with the file it is extracted to in [outputDir].
+     *
+     * @throws SecurityException If an entry would be extracted outside [outputDir].
+     */
+    private fun ZipFile.dexEntries(outputDir: File): List<Pair<ZipEntry, File>> =
+        entries().asSequence()
+            .filter { entry -> entry.name.startsWith("classes") && entry.name.endsWith(".dex") }
+            .map { entry ->
+                // An entry such as classes/../../x.dex would otherwise be written outside outputDir
+                val file = outputDir.resolve(entry.name).normalize()
+                if (!file.toPath().startsWith(outputDir.toPath().normalize())) {
+                    throw SecurityException("DEX entry escapes the output directory: ${entry.name}")
+                }
+                entry to file
+            }
+            .toList()
+
+    /**
+     * Reads every entry in a task of its own, the largest first, and returns the results in the order
+     * of the entries. A [ZipFile] can be read from several threads at a time.
+     */
+    private fun <T> List<Pair<ZipEntry, File>>.readInParallel(
+        zip: ZipFile,
+        read: (ZipEntry, File, InputStream) -> T,
+    ): List<T> {
+        val largestFirst = indices.sortedByDescending { index -> this[index].first.size }
+        val results = largestFirst.mapInParallel { index ->
+            val (entry, file) = this[index]
+            zip.getInputStream(entry).use { input -> read(entry, file, input) }
+        }
+        val byIndex = MutableList<T?>(size) { null }
+        largestFirst.forEachIndexed { i, index -> byIndex[index] = results[i] }
+        @Suppress("UNCHECKED_CAST")
+        return byIndex as List<T>
+    }
+
+    /** Reads exactly [size] bytes, the whole of the entry [name]. */
+    private fun InputStream.readFully(size: Int, name: String): ByteArray {
+        val bytes = ByteArray(size)
+        var offset = 0
+        while (offset < size) {
+            val count = read(bytes, offset, size - offset)
+            if (count < 0) throw IOException("DEX entry $name ends after $offset of $size bytes")
+            offset += count
+        }
+        if (read() != -1) throw IOException("DEX entry $name is longer than its $size bytes")
+        return bytes
     }
 
     /**

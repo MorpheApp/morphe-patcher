@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.resource.coder
 
+import app.morphe.patcher.apk.ID_USE_EMBEDDED_DEX
 import com.android.tools.build.apkzlib.zip.ZFile
 import com.reandroid.apk.AndroidFrameworks
 import com.reandroid.arsc.chunk.TableBlock
@@ -20,7 +21,8 @@ import java.io.File
  * A small APK with the kinds of resources apps ship, built in code.
  */
 internal object ResourceTestApk {
-    fun build(dir: File): File {
+    /** @param useEmbeddedDex Whether the manifest sets `android:useEmbeddedDex`. */
+    fun build(dir: File, useEmbeddedDex: Boolean = false): File {
         val packageName = "com.test.app"
         val table = TableBlock()
         table.addFramework(AndroidFrameworks.getLatest().tableBlock)
@@ -53,19 +55,19 @@ internal object ResourceTestApk {
         values("", "color", """<color name="accent">#ffff0000</color>""")
         values("", "style", """<style name="S"><item name="myAttr">@color/accent</item></style>""")
         values("", "array", """<string-array name="arr"><item>one</item><item>two</item></string-array>""")
-        pkg.getOrCreate("", "id", "existing_view").setValueAsBoolean(false)
-        pkg.getOrCreate("", "layout", "main").setValueAsString("res/layout/main.xml")
-        pkg.getOrCreate("", "drawable", "icon").setValueAsString("res/drawable/icon.png")
-        pkg.getOrCreate("-xxhdpi", "drawable", "icon").setValueAsString("res/drawable-xxhdpi/icon.png")
+        pkg.getOrCreate("", "id", "existing_view").setDataAsBoolean(false)
+        pkg.getOrCreate("", "layout", "main").setDataAsString("res/layout/main.xml")
+        pkg.getOrCreate("", "drawable", "icon").setDataAsString("res/drawable/icon.png")
+        pkg.getOrCreate("-xxhdpi", "drawable", "icon").setDataAsString("res/drawable-xxhdpi/icon.png")
         // A sparse configuration, as apps built with aapt2 --enable-sparse-encoding ship them.
-        pkg.getOrCreate("-hdpi", "drawable", "sparse_a").setValueAsString("res/drawable-hdpi/sparse_a.png")
-        pkg.getOrCreate("-hdpi", "drawable", "sparse_b").setValueAsString("res/drawable-hdpi/sparse_b.png")
-        pkg.getOrCreate("-hdpi", "drawable", "sparse_c").setValueAsString("res/drawable-hdpi/sparse_c.png")
+        pkg.getOrCreate("-hdpi", "drawable", "sparse_a").setDataAsString("res/drawable-hdpi/sparse_a.png")
+        pkg.getOrCreate("-hdpi", "drawable", "sparse_b").setDataAsString("res/drawable-hdpi/sparse_b.png")
+        pkg.getOrCreate("-hdpi", "drawable", "sparse_c").setDataAsString("res/drawable-hdpi/sparse_c.png")
         pkg.getOrCreateSpecTypePair("drawable").getTypeBlock(ResConfig.parse("-hdpi"))!!.headerBlock.isSparse = true
-        pkg.getOrCreate("", "color", "selector").setValueAsString("res/color/selector.xml")
+        pkg.getOrCreate("", "color", "selector").setDataAsString("res/color/selector.xml")
         // aapt shares one file between resources with the same content, under an obfuscated name.
-        pkg.getOrCreate("", "color", "shared_a").setValueAsString("res/color/x.xml")
-        pkg.getOrCreate("", "color", "shared_b").setValueAsString("res/color/x.xml")
+        pkg.getOrCreate("", "color", "shared_a").setDataAsString("res/color/x.xml")
+        pkg.getOrCreate("", "color", "shared_b").setDataAsString("res/color/x.xml")
         table.refresh()
 
         fun binaryXml(xml: String) = ResXmlDocument().apply {
@@ -92,7 +94,9 @@ internal object ResourceTestApk {
             setTargetSdkVersion(34)
             compileSdkVersion = 34
             platformBuildVersionCode = 34
-            getOrCreateApplicationElement()
+            getOrCreateApplicationElement().apply {
+                if (useEmbeddedDex) getOrCreateAndroidAttribute("useEmbeddedDex", ID_USE_EMBEDDED_DEX).setValueAsBoolean(true)
+            }
             refreshFull()
         }
 

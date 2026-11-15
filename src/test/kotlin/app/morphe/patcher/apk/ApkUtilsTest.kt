@@ -160,7 +160,7 @@ internal class ApkUtilsTest {
     }
 
     @Test
-    fun `a dex file the input stores is stored and aligned`() {
+    fun `dex files stored uncompressed are stored and aligned`() {
         // The resource APK leaves out the DEX files it replaces, so only the result tells how to store them.
         val resourcesApk = temporaryDirectory.resolve("resources.apk").also { apk ->
             writeZip(apk, mapOf("resources.arsc" to "table".toByteArray(), "assets/odd.txt" to "x".toByteArray()))
@@ -172,7 +172,7 @@ internal class ApkUtilsTest {
                 PatcherResult.PatchedDexFile("classes2.dex", ByteArrayInputStream(dex)),
             ),
             PatcherResult.PatchedResources(resourcesApk, null, emptySet(), emptySet()),
-            storedDexFileNames = setOf("classes.dex"),
+            storeDexUncompressed = true
         )
         val targetApk = temporaryDirectory.resolve("target.apk")
 
@@ -180,7 +180,7 @@ internal class ApkUtilsTest {
 
         ZipFile(targetApk).use { zip ->
             assertEquals(ZipEntry.STORED, zip.getEntry("classes.dex").method)
-            assertEquals(ZipEntry.DEFLATED, zip.getEntry("classes2.dex").method)
+            assertEquals(ZipEntry.STORED, zip.getEntry("classes2.dex").method)
         }
         assertContentEquals(dex, readZip(targetApk)["classes.dex"])
         assertEquals(0L, dexDataOffsetOf(targetApk) % 4, "classes.dex is aligned to 4")
@@ -291,11 +291,12 @@ internal class ApkUtilsTest {
     }
 
     @Test
-    fun `an APK for devices without v2 verification is signed for them`() {
+    fun `an APK declaring an Android version before 8 is signed for Android 8`() {
         val apk = manifestApk(minSdkVersion = 21)
         ApkSigner.newApkSigner("Test", signingKey).signApk(apk, apk)
 
-        assertEquals(listOf(signingKey.certificate), ApkUtils.verifiedSigningCertificates(apk, 21))
+        assertEquals(listOf(signingKey.certificate), ApkUtils.verifiedSigningCertificates(apk, 26))
+        assertFalse(readZip(apk).keys.any { it.startsWith("META-INF/") }, "no v1 signature files")
     }
 
     @Test

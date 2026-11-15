@@ -42,6 +42,11 @@ import kotlin.time.Duration.Companion.nanoseconds
 
 /**
  * @param classFingerprint Fingerprint that finds the class this fingerprint resolves against.
+ * @param declaredDefiningClass Defining class, evaluated when first needed.
+ * @param declaredSuperclass Superclass, evaluated when first needed.
+ * @param declaredInterfaces Interfaces, evaluated when first needed.
+ * @param declaredReturnType Return type, evaluated when first needed.
+ * @param declaredParameters Parameters, evaluated when first needed.
  * @param filters A list of filters to match, declared in the order they are matched.
  *                Each filter matches relative to the previous filter match, using the
  *                [InstructionFilter.location] of the filter. Some locations, such as
@@ -52,25 +57,21 @@ import kotlin.time.Duration.Companion.nanoseconds
  * @param custom A custom condition for this fingerprint.
  */
 open class Fingerprint private constructor(
-    val classFingerprint: Fingerprint? = null,
-    definingClass: String? = null,
-    name: String? = null,
-    accessFlags: List<AccessFlags>? = null,
-    returnType: String? = null,
-    parameters: List<String>? = null,
-    val filters: List<InstructionFilter>? = null,
-    val stringFilters: List<StringFilter>? = null,
-    val custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
-    isStatic: Boolean? = null,
-    superclass: String? = null,
-    interfaces: List<String>? = null,
+    val classFingerprint: Fingerprint?,
+    private val declaredDefiningClass: (() -> CharSequence)?,
+    private val declaredSuperclass: (() -> CharSequence)?,
+    private val declaredInterfaces: (() -> List<CharSequence>)?,
+    name: String?,
+    accessFlags: List<AccessFlags>?,
+    isStatic: Boolean?,
+    private val declaredReturnType: (() -> CharSequence)?,
+    private val declaredParameters: (() -> List<CharSequence>)?,
+    val filters: List<InstructionFilter>?,
+    val stringFilters: List<StringFilter>?,
+    val custom: ((method: Method, classDef: ClassDef) -> Boolean)?,
 ) {
-    internal val definingClass: String? = definingClass
     internal val name: String? = name
-    internal val parameters: List<String>? = parameters
     internal val isStatic: Boolean? = isStatic
-    internal val superclass: String? = superclass
-    internal val interfaces: List<String>? = interfaces
 
     /**
      * The string values of [stringFilters].
@@ -154,17 +155,17 @@ open class Fingerprint private constructor(
         custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
     ) : this(
         classFingerprint,
-        definingClass,
+        constantOrNull(definingClass),
+        constantOrNull(superclass),
+        constantOrNull(interfaces),
         name,
         accessFlags,
-        returnType,
-        parameters,
+        isStatic,
+        constantOrNull(returnType),
+        constantOrNull(parameters),
         filters,
         rawStringFilters(strings),
         custom,
-        isStatic,
-        superclass,
-        interfaces,
     )
 
     /**
@@ -220,17 +221,820 @@ open class Fingerprint private constructor(
         custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
     ) : this(
         classFingerprint,
-        definingClass,
+        constantOrNull(definingClass),
+        constantOrNull(superclass),
+        constantOrNull(interfaces),
         name,
         accessFlags,
-        returnType,
-        parameters,
+        isStatic,
+        constantOrNull(returnType),
+        constantOrNull(parameters),
         filters,
         strings.toList(),
         custom,
-        isStatic,
-        superclass,
-        interfaces,
+    )
+
+    //
+    // Constructors where values are given by lambdas, so they can come from the match of another
+    // fingerprint. Each declares a lambda without a default value, so calls that declare no lambda
+    // always resolve to the constructors above.
+    //
+    // A single lambda can be declared together with values that are not lambdas. More than one lambda
+    // uses the constructor of the first lambda value, which does not declare the values before it and
+    // declares the values after it as lambdas. Calls with a single lambda and no other of these values
+    // resolve to it, as it has fewer parameters, and they declare the same fingerprint.
+    //
+
+    /**
+     * A fingerprint for a method where [definingClass] is given by a lambda. The lambda is evaluated when
+     * the fingerprint is matched, so it can come from the match of another fingerprint.
+     * A lambda for a type can return a class or a type.
+     *
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param definingClass Defining class.
+     *                      Cannot be declared with [classFingerprint].
+     *                      Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                      Type declarations follow the semantics described in [StringComparisonType].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        definingClass: () -> CharSequence,
+        superclass: String? = null,
+        interfaces: List<String>? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = definingClass,
+        declaredSuperclass = constantOrNull(superclass),
+        declaredInterfaces = constantOrNull(interfaces),
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = constantOrNull(returnType),
+        declaredParameters = constantOrNull(parameters),
+        filters = filters,
+        stringFilters = rawStringFilters(strings),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [definingClass] is given by a lambda. The lambda is evaluated when
+     * the fingerprint is matched, so it can come from the match of another fingerprint.
+     * A lambda for a type can return a class or a type.
+     *
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param definingClass Defining class.
+     *                      Cannot be declared with [classFingerprint].
+     *                      Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                      Type declarations follow the semantics described in [StringComparisonType].
+     * @param strings A list of [string] filters that match anywhere in the method in any order.
+     *                Filters cannot declare an [InstructionLocation].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        definingClass: () -> CharSequence,
+        superclass: String? = null,
+        interfaces: List<String>? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: Collection<StringFilter>,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = definingClass,
+        declaredSuperclass = constantOrNull(superclass),
+        declaredInterfaces = constantOrNull(interfaces),
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = constantOrNull(returnType),
+        declaredParameters = constantOrNull(parameters),
+        filters = filters,
+        stringFilters = strings.toList(),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [superclass] is given by a lambda. The lambda is evaluated when
+     * the fingerprint is matched, so it can come from the match of another fingerprint.
+     * A lambda for a type can return a class or a type.
+     *
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param superclass The direct superclass of the defining class.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        definingClass: String? = null,
+        superclass: () -> CharSequence,
+        interfaces: List<String>? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = constantOrNull(definingClass),
+        declaredSuperclass = superclass,
+        declaredInterfaces = constantOrNull(interfaces),
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = constantOrNull(returnType),
+        declaredParameters = constantOrNull(parameters),
+        filters = filters,
+        stringFilters = rawStringFilters(strings),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [superclass] is given by a lambda. The lambda is evaluated when
+     * the fingerprint is matched, so it can come from the match of another fingerprint.
+     * A lambda for a type can return a class or a type.
+     *
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param superclass The direct superclass of the defining class.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param strings A list of [string] filters that match anywhere in the method in any order.
+     *                Filters cannot declare an [InstructionLocation].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        definingClass: String? = null,
+        superclass: () -> CharSequence,
+        interfaces: List<String>? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: Collection<StringFilter>,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = constantOrNull(definingClass),
+        declaredSuperclass = superclass,
+        declaredInterfaces = constantOrNull(interfaces),
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = constantOrNull(returnType),
+        declaredParameters = constantOrNull(parameters),
+        filters = filters,
+        stringFilters = strings.toList(),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [interfaces] is given by a lambda. The lambda is evaluated when
+     * the fingerprint is matched, so it can come from the match of another fingerprint.
+     * A lambda for a type can return a class or a type.
+     *
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param interfaces Interfaces the defining class directly implements, declared in any order.
+     *                   The class can implement other interfaces not declared here.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        definingClass: String? = null,
+        superclass: String? = null,
+        interfaces: () -> List<CharSequence>,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = constantOrNull(definingClass),
+        declaredSuperclass = constantOrNull(superclass),
+        declaredInterfaces = interfaces,
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = constantOrNull(returnType),
+        declaredParameters = constantOrNull(parameters),
+        filters = filters,
+        stringFilters = rawStringFilters(strings),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [interfaces] is given by a lambda. The lambda is evaluated when
+     * the fingerprint is matched, so it can come from the match of another fingerprint.
+     * A lambda for a type can return a class or a type.
+     *
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param interfaces Interfaces the defining class directly implements, declared in any order.
+     *                   The class can implement other interfaces not declared here.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param strings A list of [string] filters that match anywhere in the method in any order.
+     *                Filters cannot declare an [InstructionLocation].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        definingClass: String? = null,
+        superclass: String? = null,
+        interfaces: () -> List<CharSequence>,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: String? = null,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: Collection<StringFilter>,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = constantOrNull(definingClass),
+        declaredSuperclass = constantOrNull(superclass),
+        declaredInterfaces = interfaces,
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = constantOrNull(returnType),
+        declaredParameters = constantOrNull(parameters),
+        filters = filters,
+        stringFilters = strings.toList(),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [returnType] is given by a lambda. The lambda is evaluated when
+     * the fingerprint is matched, so it can come from the match of another fingerprint.
+     * A lambda for a type can return a class or a type.
+     *
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param returnType The return type.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        definingClass: String? = null,
+        superclass: String? = null,
+        interfaces: List<String>? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: () -> CharSequence,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = constantOrNull(definingClass),
+        declaredSuperclass = constantOrNull(superclass),
+        declaredInterfaces = constantOrNull(interfaces),
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = returnType,
+        declaredParameters = constantOrNull(parameters),
+        filters = filters,
+        stringFilters = rawStringFilters(strings),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [returnType] is given by a lambda. The lambda is evaluated when
+     * the fingerprint is matched, so it can come from the match of another fingerprint.
+     * A lambda for a type can return a class or a type.
+     *
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param returnType The return type.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param strings A list of [string] filters that match anywhere in the method in any order.
+     *                Filters cannot declare an [InstructionLocation].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        definingClass: String? = null,
+        superclass: String? = null,
+        interfaces: List<String>? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: () -> CharSequence,
+        parameters: List<String>? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: Collection<StringFilter>,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = constantOrNull(definingClass),
+        declaredSuperclass = constantOrNull(superclass),
+        declaredInterfaces = constantOrNull(interfaces),
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = returnType,
+        declaredParameters = constantOrNull(parameters),
+        filters = filters,
+        stringFilters = strings.toList(),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [parameters] is given by a lambda. The lambda is evaluated when
+     * the fingerprint is matched, so it can come from the match of another fingerprint.
+     * A lambda for a type can return a class or a type.
+     *
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param parameters The parameters.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        definingClass: String? = null,
+        superclass: String? = null,
+        interfaces: List<String>? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: String? = null,
+        parameters: () -> List<CharSequence>,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = constantOrNull(definingClass),
+        declaredSuperclass = constantOrNull(superclass),
+        declaredInterfaces = constantOrNull(interfaces),
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = constantOrNull(returnType),
+        declaredParameters = parameters,
+        filters = filters,
+        stringFilters = rawStringFilters(strings),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [parameters] is given by a lambda. The lambda is evaluated when
+     * the fingerprint is matched, so it can come from the match of another fingerprint.
+     * A lambda for a type can return a class or a type.
+     *
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param parameters The parameters.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param strings A list of [string] filters that match anywhere in the method in any order.
+     *                Filters cannot declare an [InstructionLocation].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        definingClass: String? = null,
+        superclass: String? = null,
+        interfaces: List<String>? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: String? = null,
+        parameters: () -> List<CharSequence>,
+        filters: List<InstructionFilter>? = null,
+        strings: Collection<StringFilter>,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = constantOrNull(definingClass),
+        declaredSuperclass = constantOrNull(superclass),
+        declaredInterfaces = constantOrNull(interfaces),
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = constantOrNull(returnType),
+        declaredParameters = parameters,
+        filters = filters,
+        stringFilters = strings.toList(),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [definingClass] and any of [superclass], [interfaces], [returnType] or [parameters] are given by lambdas.
+     * Each lambda is evaluated when the fingerprint is matched, so it can come from the match of
+     * another fingerprint. A lambda for a type can return a class or a type.
+     *
+     * To give more than one value with a lambda, each of `definingClass`, `superclass`, `interfaces`,
+     * `returnType` and `parameters` that is declared must be given by a lambda.
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param definingClass Defining class.
+     *                      Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                      Type declarations follow the semantics described in [StringComparisonType].
+     * @param superclass The direct superclass of the defining class.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param interfaces Interfaces the defining class directly implements, declared in any order.
+     *                   The class can implement other interfaces not declared here.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param returnType The return type.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     */
+    constructor(
+        definingClass: () -> CharSequence,
+        superclass: (() -> CharSequence)? = null,
+        interfaces: (() -> List<CharSequence>)? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: (() -> CharSequence)? = null,
+        parameters: (() -> List<CharSequence>)? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = null,
+        declaredDefiningClass = definingClass,
+        declaredSuperclass = superclass,
+        declaredInterfaces = interfaces,
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = returnType,
+        declaredParameters = parameters,
+        filters = filters,
+        stringFilters = rawStringFilters(strings),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [definingClass] and any of [superclass], [interfaces], [returnType] or [parameters] are given by lambdas.
+     * Each lambda is evaluated when the fingerprint is matched, so it can come from the match of
+     * another fingerprint. A lambda for a type can return a class or a type.
+     *
+     * To give more than one value with a lambda, each of `definingClass`, `superclass`, `interfaces`,
+     * `returnType` and `parameters` that is declared must be given by a lambda.
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param definingClass Defining class.
+     *                      Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                      Type declarations follow the semantics described in [StringComparisonType].
+     * @param superclass The direct superclass of the defining class.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param interfaces Interfaces the defining class directly implements, declared in any order.
+     *                   The class can implement other interfaces not declared here.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param returnType The return type.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param strings A list of [string] filters that match anywhere in the method in any order.
+     *                Filters cannot declare an [InstructionLocation].
+     */
+    constructor(
+        definingClass: () -> CharSequence,
+        superclass: (() -> CharSequence)? = null,
+        interfaces: (() -> List<CharSequence>)? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: (() -> CharSequence)? = null,
+        parameters: (() -> List<CharSequence>)? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: Collection<StringFilter>,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = null,
+        declaredDefiningClass = definingClass,
+        declaredSuperclass = superclass,
+        declaredInterfaces = interfaces,
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = returnType,
+        declaredParameters = parameters,
+        filters = filters,
+        stringFilters = strings.toList(),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [superclass] and any of [interfaces], [returnType] or [parameters] are given by lambdas.
+     * Each lambda is evaluated when the fingerprint is matched, so it can come from the match of
+     * another fingerprint. A lambda for a type can return a class or a type.
+     *
+     * To give more than one value with a lambda, each of `definingClass`, `superclass`, `interfaces`,
+     * `returnType` and `parameters` that is declared must be given by a lambda.
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param superclass The direct superclass of the defining class.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param interfaces Interfaces the defining class directly implements, declared in any order.
+     *                   The class can implement other interfaces not declared here.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param returnType The return type.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        superclass: () -> CharSequence,
+        interfaces: (() -> List<CharSequence>)? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: (() -> CharSequence)? = null,
+        parameters: (() -> List<CharSequence>)? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = null,
+        declaredSuperclass = superclass,
+        declaredInterfaces = interfaces,
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = returnType,
+        declaredParameters = parameters,
+        filters = filters,
+        stringFilters = rawStringFilters(strings),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [superclass] and any of [interfaces], [returnType] or [parameters] are given by lambdas.
+     * Each lambda is evaluated when the fingerprint is matched, so it can come from the match of
+     * another fingerprint. A lambda for a type can return a class or a type.
+     *
+     * To give more than one value with a lambda, each of `definingClass`, `superclass`, `interfaces`,
+     * `returnType` and `parameters` that is declared must be given by a lambda.
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param superclass The direct superclass of the defining class.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param interfaces Interfaces the defining class directly implements, declared in any order.
+     *                   The class can implement other interfaces not declared here.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param returnType The return type.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param strings A list of [string] filters that match anywhere in the method in any order.
+     *                Filters cannot declare an [InstructionLocation].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        superclass: () -> CharSequence,
+        interfaces: (() -> List<CharSequence>)? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: (() -> CharSequence)? = null,
+        parameters: (() -> List<CharSequence>)? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: Collection<StringFilter>,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = null,
+        declaredSuperclass = superclass,
+        declaredInterfaces = interfaces,
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = returnType,
+        declaredParameters = parameters,
+        filters = filters,
+        stringFilters = strings.toList(),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [interfaces] and any of [returnType] or [parameters] are given by lambdas.
+     * Each lambda is evaluated when the fingerprint is matched, so it can come from the match of
+     * another fingerprint. A lambda for a type can return a class or a type.
+     *
+     * To give more than one value with a lambda, each of `definingClass`, `superclass`, `interfaces`,
+     * `returnType` and `parameters` that is declared must be given by a lambda.
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param interfaces Interfaces the defining class directly implements, declared in any order.
+     *                   The class can implement other interfaces not declared here.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param returnType The return type.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        interfaces: () -> List<CharSequence>,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: (() -> CharSequence)? = null,
+        parameters: (() -> List<CharSequence>)? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = null,
+        declaredSuperclass = null,
+        declaredInterfaces = interfaces,
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = returnType,
+        declaredParameters = parameters,
+        filters = filters,
+        stringFilters = rawStringFilters(strings),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [interfaces] and any of [returnType] or [parameters] are given by lambdas.
+     * Each lambda is evaluated when the fingerprint is matched, so it can come from the match of
+     * another fingerprint. A lambda for a type can return a class or a type.
+     *
+     * To give more than one value with a lambda, each of `definingClass`, `superclass`, `interfaces`,
+     * `returnType` and `parameters` that is declared must be given by a lambda.
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param interfaces Interfaces the defining class directly implements, declared in any order.
+     *                   The class can implement other interfaces not declared here.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param returnType The return type.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param strings A list of [string] filters that match anywhere in the method in any order.
+     *                Filters cannot declare an [InstructionLocation].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        interfaces: () -> List<CharSequence>,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: (() -> CharSequence)? = null,
+        parameters: (() -> List<CharSequence>)? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: Collection<StringFilter>,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = null,
+        declaredSuperclass = null,
+        declaredInterfaces = interfaces,
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = returnType,
+        declaredParameters = parameters,
+        filters = filters,
+        stringFilters = strings.toList(),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [returnType] and optionally [parameters] are given by lambdas.
+     * Each lambda is evaluated when the fingerprint is matched, so it can come from the match of
+     * another fingerprint. A lambda for a type can return a class or a type.
+     *
+     * To give more than one value with a lambda, each of `definingClass`, `superclass`, `interfaces`,
+     * `returnType` and `parameters` that is declared must be given by a lambda.
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param returnType The return type.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: () -> CharSequence,
+        parameters: (() -> List<CharSequence>)? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: List<String>? = null,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = null,
+        declaredSuperclass = null,
+        declaredInterfaces = null,
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = returnType,
+        declaredParameters = parameters,
+        filters = filters,
+        stringFilters = rawStringFilters(strings),
+        custom = custom,
+    )
+
+    /**
+     * A fingerprint for a method where [returnType] and optionally [parameters] are given by lambdas.
+     * Each lambda is evaluated when the fingerprint is matched, so it can come from the match of
+     * another fingerprint. A lambda for a type can return a class or a type.
+     *
+     * To give more than one value with a lambda, each of `definingClass`, `superclass`, `interfaces`,
+     * `returnType` and `parameters` that is declared must be given by a lambda.
+     * Other parameters are the same as a fingerprint declared without a lambda.
+     *
+     * @param returnType The return type.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param parameters The parameters.
+     *                   Evaluated when the fingerprint is matched, and is evaluated again after [clearMatch].
+     *                   Type declarations follow the semantics described in [StringComparisonType].
+     * @param strings A list of [string] filters that match anywhere in the method in any order.
+     *                Filters cannot declare an [InstructionLocation].
+     */
+    constructor(
+        classFingerprint: Fingerprint? = null,
+        name: String? = null,
+        accessFlags: List<AccessFlags>? = null,
+        isStatic: Boolean? = null,
+        returnType: () -> CharSequence,
+        parameters: (() -> List<CharSequence>)? = null,
+        filters: List<InstructionFilter>? = null,
+        strings: Collection<StringFilter>,
+        custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
+    ) : this(
+        classFingerprint = classFingerprint,
+        declaredDefiningClass = null,
+        declaredSuperclass = null,
+        declaredInterfaces = null,
+        name = name,
+        accessFlags = accessFlags,
+        isStatic = isStatic,
+        declaredReturnType = returnType,
+        declaredParameters = parameters,
+        filters = filters,
+        stringFilters = strings.toList(),
+        custom = custom,
     )
 
     //
@@ -249,15 +1053,14 @@ open class Fingerprint private constructor(
         strings: List<String>? = null,
         custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
     ) : this(
-        classFingerprint,
-        null,
-        name,
-        accessFlags,
-        returnType,
-        parameters,
-        filters,
-        rawStringFilters(strings),
-        custom
+        classFingerprint = classFingerprint,
+        name = name,
+        accessFlags = accessFlags,
+        returnType = returnType,
+        parameters = parameters,
+        filters = filters,
+        strings = strings,
+        custom = custom,
     )
 
     @Deprecated("Kept for binary compatibility", level = DeprecationLevel.HIDDEN)
@@ -271,15 +1074,14 @@ open class Fingerprint private constructor(
         strings: List<String>? = null,
         custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
     ) : this(
-        null,
-        definingClass,
-        name,
-        accessFlags,
-        returnType,
-        parameters,
-        filters,
-        rawStringFilters(strings),
-        custom
+        definingClass = definingClass,
+        name = name,
+        accessFlags = accessFlags,
+        returnType = returnType,
+        parameters = parameters,
+        filters = filters,
+        strings = strings,
+        custom = custom,
     )
 
     @Deprecated("Kept for binary compatibility", level = DeprecationLevel.HIDDEN)
@@ -292,15 +1094,13 @@ open class Fingerprint private constructor(
         strings: List<String>? = null,
         custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
     ) : this(
-        null,
-        null,
-        name,
-        accessFlags,
-        returnType,
-        parameters,
-        filters,
-        rawStringFilters(strings),
-        custom
+        name = name,
+        accessFlags = accessFlags,
+        returnType = returnType,
+        parameters = parameters,
+        filters = filters,
+        strings = strings,
+        custom = custom,
     )
 
     @Deprecated("Kept for binary compatibility", level = DeprecationLevel.HIDDEN)
@@ -312,15 +1112,12 @@ open class Fingerprint private constructor(
         strings: List<String>? = null,
         custom: ((method: Method, classDef: ClassDef) -> Boolean)? = null,
     ) : this(
-        null,
-        null,
-        null,
-        accessFlags,
-        returnType,
-        parameters,
-        filters,
-        rawStringFilters(strings),
-        custom
+        accessFlags = accessFlags,
+        returnType = returnType,
+        parameters = parameters,
+        filters = filters,
+        strings = strings,
+        custom = custom,
     )
 
     // Holds a reference to all constructed fingerprints so that they can be later cleared.
@@ -357,6 +1154,12 @@ open class Fingerprint private constructor(
         private fun rawStringFilters(strings: List<String>?) =
             strings?.map { string -> StringFilter({ string }, null, InstructionLocation.MatchAfterAnywhere()) }
 
+        private fun constantOrNull(value: String?): (() -> CharSequence)? =
+            value?.let(::ConstantValue)
+
+        private fun constantOrNull(value: List<String>?): (() -> List<CharSequence>)? =
+            value?.let(::ConstantValue)
+
         fun clearFingerprints() {
             // Fingerprints declared as objects are used again if the same patches are applied again,
             // so only references to fingerprints that no longer exist are removed.
@@ -367,16 +1170,6 @@ open class Fingerprint private constructor(
             }
         }
     }
-
-    private val definingClassComparison = StringComparisonType.typeDeclarationToComparison(definingClass)
-
-    private val returnTypeComparison = StringComparisonType.typeDeclarationToComparison(returnType)
-
-    private val parameterTypeComparison = StringComparisonType.typeDeclarationToComparison(parameters)
-
-    private val superclassComparison = StringComparisonType.typeDeclarationToComparison(superclass)
-
-    private val interfaceComparisons = StringComparisonType.typeDeclarationToComparison(interfaces)
 
     internal val accessFlags: Int? = accessFlags?.fold(0) { acc, it -> acc or it.value }
 
@@ -394,22 +1187,89 @@ open class Fingerprint private constructor(
     private val accessFlagsValue: Int = this.accessFlags
         ?: if (isStatic == true) AccessFlags.STATIC.value else 0
 
-    // Constructor always has return type of void.
-    internal val returnType: String? = if (this.accessFlags != null && AccessFlags.CONSTRUCTOR.isSet(this.accessFlags)
-        && returnType == "V"
-    ) null else returnType
+    /**
+     * Values of this fingerprint that can be given by a lambda. Evaluated when first needed,
+     * as these can come from the match of another fingerprint.
+     */
+    private class Values(
+        val definingClass: String?,
+        val superclass: String?,
+        val interfaces: List<String>?,
+        returnType: String?,
+        val parameters: List<String>?,
+        accessFlags: Int?,
+    ) {
+        init {
+            require(interfaces == null || interfaces.isNotEmpty()) {
+                "Interfaces cannot be empty"
+            }
+        }
+
+        // Constructor always has return type of void.
+        val returnType: String? = if (accessFlags != null && AccessFlags.CONSTRUCTOR.isSet(accessFlags)
+            && returnType == "V"
+        ) null else returnType
+
+        val definingClassComparison = StringComparisonType.typeDeclarationToComparison(definingClass)
+
+        val returnTypeComparison = StringComparisonType.typeDeclarationToComparison(returnType)
+
+        val parameterTypeComparison = StringComparisonType.typeDeclarationToComparison(parameters)
+
+        val superclassComparison = StringComparisonType.typeDeclarationToComparison(superclass)
+
+        val interfaceComparisons = StringComparisonType.typeDeclarationToComparison(interfaces)
+    }
+
+    private fun evaluateValues() = Values(
+        declaredDefiningClass?.invoke()?.toString(),
+        declaredSuperclass?.invoke()?.toString(),
+        declaredInterfaces?.invoke()?.map { it.toString() },
+        declaredReturnType?.invoke()?.toString(),
+        declaredParameters?.invoke()?.map { it.toString() },
+        accessFlags,
+    )
+
+    /**
+     * If no value is given by a lambda, so the values never change.
+     */
+    private val valuesAreConstant = listOf(
+        declaredDefiningClass,
+        declaredSuperclass,
+        declaredInterfaces,
+        declaredReturnType,
+        declaredParameters,
+    ).all { it == null || it is ConstantValue<*> }
+
+    // Values known up front are checked when the fingerprint is declared.
+    private var evaluatedValues: Values? = if (valuesAreConstant) evaluateValues() else null
+
+    private val values: Values
+        get() = evaluatedValues ?: evaluateValues().also { evaluatedValues = it }
+
+    internal val definingClass: String?
+        get() = values.definingClass
+
+    internal val superclass: String?
+        get() = values.superclass
+
+    internal val interfaces: List<String>?
+        get() = values.interfaces
+
+    internal val returnType: String?
+        get() = values.returnType
+
+    internal val parameters: List<String>?
+        get() = values.parameters
 
     init {
         // Verify an empty fingerprint wasn't declared.
-        if (definingClass == null  && name == null && accessFlags == null && isStatic == null
-            && returnType == null && parameters == null && filters == null && stringFilters == null
-            && custom == null && superclass == null && interfaces == null
+        if (declaredDefiningClass == null && name == null && accessFlags == null && isStatic == null
+            && declaredReturnType == null && declaredParameters == null && filters == null
+            && stringFilters == null && custom == null && declaredSuperclass == null
+            && declaredInterfaces == null
         ) {
             throw IllegalArgumentException("At least one field must be set")
-        }
-
-        require(interfaces == null || interfaces.isNotEmpty()) {
-            "Interfaces cannot be empty"
         }
 
         require(filters == null || filters.isNotEmpty()) {
@@ -426,7 +1286,7 @@ open class Fingerprint private constructor(
             }
         }
 
-        if (definingClass != null && classFingerprint != null) {
+        if (declaredDefiningClass != null && classFingerprint != null) {
             throw IllegalArgumentException("Cannot specify both definingClass and classFingerprint")
         }
 
@@ -438,13 +1298,14 @@ open class Fingerprint private constructor(
     private var _matchOrNull: Match? = null
 
     /**
-     * Clears the current match and the values its filters evaluated from lambdas,
+     * Clears the current match and the values it and its filters evaluated from lambdas,
      * forcing this fingerprint to resolve again.
      * This method should only be used if this fingerprint is re-used after it's modified,
      * and the prior match indexes are no longer correct.
      */
     fun clearMatch() {
         _matchOrNull = null
+        if (!valuesAreConstant) evaluatedValues = null
         filters?.forEach { filter -> filter.clearEvaluatedValues() }
         stringFilters?.forEach { filter -> filter.clearEvaluatedValues() }
         classFingerprint?.clearMatch()
@@ -565,9 +1426,10 @@ open class Fingerprint private constructor(
                         "match classDef parameter: $classDef")
             }
 
-            val definingClassLocal = definingClass
+            val values = values
+            val definingClassLocal = values.definingClass
             if (definingClassLocal != null) {
-                if (!definingClassComparison.compare(definingClassLocal, originalClassDef)) {
+                if (!values.definingClassComparison.compare(definingClassLocal, originalClassDef)) {
                     throw IllegalArgumentException("Fingerprint class fingerprint: $classFingerprintLocal " +
                             "resolves to a different class: $originalClassDef than this fingerprint " +
                             "definingClass: $definingClassLocal")
@@ -726,18 +1588,19 @@ open class Fingerprint private constructor(
      * Checked once for each class, so methods of classes that cannot match are not loaded.
      */
     private fun classMatches(classDef: ClassDef): Boolean {
-        val superclassLocal = superclass
+        val values = values
+        val superclassLocal = values.superclass
         if (superclassLocal != null) {
             val classSuperclass = classDef.superclass ?: return false
-            if (!superclassComparison.compare(classSuperclass, superclassLocal)) return false
+            if (!values.superclassComparison.compare(classSuperclass, superclassLocal)) return false
         }
 
-        val interfacesLocal = interfaces
+        val interfacesLocal = values.interfaces
         if (interfacesLocal != null) {
             val classInterfaces = classDef.interfaces
             for (index in interfacesLocal.indices) {
                 val declaredInterface = interfacesLocal[index]
-                val comparison = interfaceComparisons[index]
+                val comparison = values.interfaceComparisons[index]
                 if (classInterfaces.none { comparison.compare(it, declaredInterface) }) return false
             }
         }
@@ -761,7 +1624,8 @@ open class Fingerprint private constructor(
         }
 
         // Store local to avoid duplicate field access and Kotlin intrinsic null check calls.
-        val parametersLocal = parameters
+        val values = values
+        val parametersLocal = values.parameters
         val parameterTypes = if (parametersLocal == null) {
             null
         } else {
@@ -775,9 +1639,9 @@ open class Fingerprint private constructor(
             return null
         }
 
-        val returnTypeLocal = returnType
+        val returnTypeLocal = values.returnType
         if (returnTypeLocal != null) {
-            if (!returnTypeComparison.compare(method.returnType, returnTypeLocal)) {
+            if (!values.returnTypeComparison.compare(method.returnType, returnTypeLocal)) {
                 return null
             }
         }
@@ -785,13 +1649,13 @@ open class Fingerprint private constructor(
         if (parameterTypes != null && !parametersMatch(
                 parameterTypes,
                 parametersLocal!!,
-                parameterTypeComparison
+                values.parameterTypeComparison
             )) {
             return null
         }
 
-        val definingClassLocal = definingClass
-        if (definingClassLocal != null && !definingClassComparison.compare(classDef.type, definingClassLocal)) {
+        val definingClassLocal = values.definingClass
+        if (definingClassLocal != null && !values.definingClassComparison.compare(classDef.type, definingClassLocal)) {
             return null
         }
 
@@ -1196,10 +2060,11 @@ open class Fingerprint private constructor(
      * Iterates all classes that match [definingClass].
      */
     private inline fun forEachDefiningClass(action: (PatchClasses.ClassDefWrapper) -> Unit) {
-        val definingClassLocal = definingClass!!
+        val values = values
+        val definingClassLocal = values.definingClass!!
         val classMap = currentBytecode.patchClasses.classMap
 
-        val definingClassComparisonLocal = definingClassComparison
+        val definingClassComparisonLocal = values.definingClassComparison
         if (definingClassComparisonLocal == StringComparisonType.EQUALS) {
             classMap[definingClassLocal]?.let(action)
             return
@@ -1408,16 +2273,25 @@ open class Fingerprint private constructor(
             return super.toString()
         }
 
+        // Lambdas are not evaluated here, as they can depend on a fingerprint that does not match.
+        val values = evaluatedValues
+        fun describe(declared: (() -> Any)?, evaluated: Any?): Any? = when {
+            declared == null -> null
+            values != null -> evaluated
+            declared is ConstantValue<*> -> declared
+            else -> "lambda"
+        }
+
         val fields = buildList {
             classFingerprint?.let { add("classFingerprint=$it") }
-            definingClass?.let { add("definingClass=$it") }
-            superclass?.let { add("superclass=$it") }
-            interfaces?.let { add("interfaces=$it") }
+            describe(declaredDefiningClass, values?.definingClass)?.let { add("definingClass=$it") }
+            describe(declaredSuperclass, values?.superclass)?.let { add("superclass=$it") }
+            describe(declaredInterfaces, values?.interfaces)?.let { add("interfaces=$it") }
             name?.let { add("name=$it") }
             accessFlags?.let { add("accessFlags=${AccessFlags.formatAccessFlagsForMethod(it)}") }
             isStatic?.let { add("isStatic=$it") }
-            returnType?.let { add("returnType=$it") }
-            parameters?.let { add("parameters=$it") }
+            describe(declaredReturnType, values?.returnType)?.let { add("returnType=$it") }
+            describe(declaredParameters, values?.parameters)?.let { add("parameters=$it") }
             filters?.let { filters -> add("filters=${filters.map { it.javaClass.simpleName }}") }
             strings?.let { add("strings=$it") }
             custom?.let { add("custom") }
@@ -1646,122 +2520,131 @@ open class Fingerprint private constructor(
     // Patches compiled before these stopped taking a context parameter call these.
     //
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchOrNull(): Match? = matchOrNull()
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchOrNull(classDef: ClassDef): Match? = matchOrNull(classDef)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchOrNull(method: Method): Match? = matchOrNull(method)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchOrNull(method: Method, classDef: ClassDef): Match? = matchOrNull(method, classDef)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchAllOrNull(classDef: ClassDef): List<Match>? = matchAllOrNull(classDef)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchAllOrNull(): List<Match>? = matchAllOrNull()
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun match(): Match = match()
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun match(classDef: ClassDef): Match = match(classDef)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun match(method: Method): Match = match(method)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun match(method: Method, classDef: ClassDef): Match = match(method, classDef)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchAll(classDef: ClassDef): List<Match> = matchAll(classDef)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchAll(classDef: ClassDef, range: IntRange): List<Match> = matchAll(classDef, range)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchAll(): List<Match> = matchAll()
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     fun matchAll(range: IntRange): List<Match> = matchAll(range)
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val originalClassDefOrNull
         get() = matchOrNull()?.originalClassDef
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val originalMethodOrNull
         get() = matchOrNull()?.originalMethod
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val classDefOrNull
         get() = matchOrNull()?.classDef
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val methodOrNull
         get() = matchOrNull()?.method
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val instructionMatchesOrNull
         get() = matchOrNull()?.instructionMatchesOrNull
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val originalClassDef
         get() = match().originalClassDef
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val originalMethod
         get() = match().originalMethod
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val classDef
         get() = match().classDef
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val method
         get() = match().method
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val instructionMatches
         get() = match().instructionMatches
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val stringMatches
         get() = match().stringMatches
 
-    context(_: BytecodePatchContext)
     @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+    context(_: BytecodePatchContext)
     val stringMatchesOrNull
         get() = matchOrNull()?.stringMatchesOrNull
 
+}
+
+/**
+ * A value declared without a lambda, so a fingerprint can tell it never changes.
+ */
+private class ConstantValue<out T>(private val value: T) : () -> T {
+    override fun invoke() = value
+
+    override fun toString() = value.toString()
 }
 
 /**
@@ -1962,12 +2845,12 @@ class Match internal constructor(
             }
         }
 
-        context(_: BytecodePatchContext)
         @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+        context(_: BytecodePatchContext)
         fun getMethodCalled(): MutableMethod = getMethodCalled()
 
-        context(_: BytecodePatchContext)
         @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+        context(_: BytecodePatchContext)
         fun getFieldAccessed(): MutableField = getFieldAccessed()
 
         override fun toString(): String {

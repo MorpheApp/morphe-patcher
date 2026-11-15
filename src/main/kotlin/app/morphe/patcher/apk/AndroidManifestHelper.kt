@@ -23,7 +23,7 @@ import com.reandroid.app.AndroidManifest
 import com.reandroid.arsc.chunk.xml.AndroidManifestBlock
 import com.reandroid.arsc.chunk.xml.ResXmlAttribute
 import com.reandroid.arsc.chunk.xml.ResXmlElement
-import com.reandroid.arsc.value.ValueType
+import com.reandroid.arsc.value.DataType
 import com.reandroid.utils.HexUtil
 import com.reandroid.utils.collection.CollectionUtil
 import java.util.function.Predicate
@@ -41,11 +41,11 @@ internal object AndroidManifestHelper {
             if (nameAttribute == null) {
                 return@Predicate false
             }
-            val value = nameAttribute.getValueAsString() ?: return@Predicate false
+            val value = nameAttribute.getDataAsString() ?: return@Predicate false
             if (value == "com.android.dynamic.apk.fused.modules") {
                 val attribute = element.searchAttributeByResourceId(AndroidManifest.ID_value)
                 if (attribute != null) {
-                    val attributeValue = attribute.getValueAsString()
+                    val attributeValue = attribute.getDataAsString()
                     if (attributeValue != null && attributeValue == ApkUtil.DEF_MODULE_NAME) {
                         return@Predicate true
                     }
@@ -131,6 +131,6 @@ internal object AndroidManifestHelper {
         if (!isNameResourceId(attribute!!)) {
             return@Predicate false
         }
-        attribute.valueType == ValueType.STRING
+        attribute.dataType == DataType.STRING
     }
 }

@@ -17,7 +17,7 @@ import java.util.function.Supplier
  * A common interface for contexts such as [ResourcePatchContext] and [BytecodePatchContext].
  */
 @Deprecated("Patches do not need a context. Use the global functions, such as classDefBy() and document().")
-sealed interface PatchContext<T> : Supplier<T> {
+sealed interface PatchContext : Supplier<Any?> {
     /**
      * The path to the file workspace directory.
      * This directory has write access and can be used for temporary files.

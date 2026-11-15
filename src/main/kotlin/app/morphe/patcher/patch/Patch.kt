@@ -63,10 +63,10 @@ open class Patch internal constructor(
     val dependencies: Set<Patch>,
     val compatibility: List<Compatibility>?,
     options: Set<Option<*>>,
-    private val executeBlock: (PatchContext<*>) -> Unit,
+    private val executeBlock: (PatchContext) -> Unit,
     // Must be internal and nullable, so that Patcher.invoke can check,
     // if a patch has a finalizing block in order to not emit it twice.
-    internal var finalizeBlock: ((PatchContext<*>) -> Unit)?,
+    internal var finalizeBlock: ((PatchContext) -> Unit)?,
     // Additive fields. Trailing position with a default keeps binary compatibility for existing
     // pre-compiled patch bundles: they call the previous constructor arity, and Kotlin generates
     // an overload that fills these in as null.
@@ -83,8 +83,8 @@ open class Patch internal constructor(
         dependencies: Set<Patch>,
         compatiblePackages: Set<Pair<String, Set<String>?>>,
         options: Set<Option<*>>,
-        executeBlock: (PatchContext<*>) -> Unit,
-        finalizeBlock: ((PatchContext<*>) -> Unit)?,
+        executeBlock: (PatchContext) -> Unit,
+        finalizeBlock: ((PatchContext) -> Unit)?,
     ) : this(
         name = name,
         description = description,
@@ -157,7 +157,7 @@ open class Patch internal constructor(
      * @param context The [PatchContext] to execute the patch with.
      */
     @Deprecated("Patches are executed by Patcher.")
-    fun execute(context: PatchContext<*>) = executeBlock(context)
+    fun execute(context: PatchContext) = executeBlock(context)
 
     /**
      * Calls the finalizing block of the patch.
@@ -175,7 +175,7 @@ open class Patch internal constructor(
      * @param context The [PatchContext] to finalize the patch with.
      */
     @Deprecated("Patches are finalized by Patcher.")
-    fun finalize(context: PatchContext<*>) {
+    fun finalize(context: PatchContext) {
         finalizeBlock?.invoke(context)
     }
 
@@ -193,7 +193,7 @@ open class Patch internal constructor(
  * This block as [Patch] stores it. A patch only calls its blocks with the context they were declared for.
  */
 @Suppress("UNCHECKED_CAST")
-private fun <C : PatchContext<*>> ((C) -> Unit).forAnyContext() = this as (PatchContext<*>) -> Unit
+private fun <C : PatchContext> ((C) -> Unit).forAnyContext() = this as (PatchContext) -> Unit
 
 /**
  * The class of a block as the patch declares it.
@@ -527,7 +527,7 @@ internal object NoExecuteBlock : (Any?) -> Unit {
  *
  * @constructor Create a new [Patch] builder.
  */
-sealed class PatchBuilder<C : PatchContext<*>>(
+sealed class PatchBuilder<C : PatchContext>(
     protected val name: String?,
     protected val description: String?,
     protected val default: Boolean,
@@ -990,7 +990,7 @@ fun resourcePatch(
 /**
  * What patches declared with [patch] are executed with, which [ContextFreeBlock] ignores.
  */
-private object NoPatchContext : PatchContext<Unit> {
+private object NoPatchContext : PatchContext {
     override val fileWorkspace get() = app.morphe.patcher.patch.fileWorkspace
 
     override val validate get() = app.morphe.patcher.patch.validate
@@ -1002,8 +1002,8 @@ private object NoPatchContext : PatchContext<Unit> {
 /**
  * An execute or finalize block of a patch declared with [patch], which takes no context.
  */
-private class ContextFreeBlock(val block: () -> Unit) : (PatchContext<Unit>) -> Unit {
-    override fun invoke(context: PatchContext<Unit>) = block()
+private class ContextFreeBlock(val block: () -> Unit) : (PatchContext) -> Unit {
+    override fun invoke(context: PatchContext) = block()
 }
 
 /**
@@ -1020,7 +1020,7 @@ class PatchDefinition internal constructor(
     name: String?,
     description: String?,
     default: Boolean,
-) : PatchBuilder<PatchContext<Unit>>(name, description, default) {
+) : PatchBuilder<PatchContext>(name, description, default) {
     /**
      * Set the execution block of the patch.
      *

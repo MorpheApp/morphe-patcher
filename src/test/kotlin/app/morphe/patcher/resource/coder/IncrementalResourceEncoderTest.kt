@@ -9,7 +9,7 @@ import com.reandroid.apk.ApkModule
 import com.reandroid.arsc.chunk.PackageBlock
 import com.reandroid.arsc.chunk.xml.ResXmlDocument
 import com.reandroid.arsc.value.ResConfig
-import com.reandroid.arsc.value.ValueType
+import com.reandroid.arsc.value.DataType
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -106,7 +106,7 @@ internal class IncrementalResourceEncoderTest {
     }
 
     private fun PackageBlock.string(qualifiers: String, name: String) =
-        getEntry(qualifiers, "string", name)?.takeUnless { it.isNull }?.resValue?.valueAsString
+        getEntry(qualifiers, "string", name)?.takeUnless { it.isNull }?.resValue?.dataAsString
 
     // ==================== Tests ====================
 
@@ -168,18 +168,18 @@ internal class IncrementalResourceEncoderTest {
             assertEquals(3, style.resTableMapEntry.value.size(), "a bag is replaced, not appended to")
 
             val array = pkg.getEntry("", "array", "arr")!!.resTableMapEntry.value
-            assertEquals(listOf("uno", "dos", "tres"), array.listItems().map { it.valueAsString })
+            assertEquals(listOf("uno", "dos", "tres"), array.listItems().map { it.dataAsString })
 
             assertNotNull(pkg.getEntry("", "attr", "newAttr"))
             assertEquals("#ff00ff00", pkg.getEntry("", "color", "added_color")!!.resValue.decodeValue())
-            assertEquals("res/color/selector.xml", pkg.getEntry("", "color", "selector")!!.resValue.valueAsString)
+            assertEquals("res/color/selector.xml", pkg.getEntry("", "color", "selector")!!.resValue.dataAsString)
 
-            assertEquals("res/drawable/new_icon.png", pkg.getEntry("", "drawable", "new_icon")!!.resValue.valueAsString)
-            assertEquals("res/drawable/icon.png", pkg.getEntry("", "drawable", "icon")!!.resValue.valueAsString)
+            assertEquals("res/drawable/new_icon.png", pkg.getEntry("", "drawable", "new_icon")!!.resValue.dataAsString)
+            assertEquals("res/drawable/icon.png", pkg.getEntry("", "drawable", "icon")!!.resValue.dataAsString)
             assertTrue(pkg.getEntry("-xxhdpi", "drawable", "icon")?.isNull ?: true, "a deleted file leaves no value")
 
             assertNotNull(pkg.getEntry("", "id", "new_view"), "an id a layout adds is allocated")
-            assertEquals(ValueType.BOOLEAN, pkg.getEntry("", "id", "existing_view")!!.resValue.valueType)
+            assertEquals(DataType.BOOLEAN, pkg.getEntry("", "id", "existing_view")!!.resValue.dataType)
 
             val patched = pkg.getOrCreateSpecTypePair("color").getTypeBlock(ResConfig.parse("-mcc1001"))
             assertNotNull(patched)
@@ -271,7 +271,7 @@ internal class IncrementalResourceEncoderTest {
             )
             // A dense chunk, which the full rebuild produces, legitimately keeps null slots.
             if (mode != Mode.FULL_REBUILD) assertEquals(1, hdpi.entryArray.size(), "a sparse chunk holds no null entries")
-            assertEquals("res/drawable-hdpi/sparse_b.png", pkg.getEntry("-hdpi", "drawable", "sparse_b")!!.resValue.valueAsString)
+            assertEquals("res/drawable-hdpi/sparse_b.png", pkg.getEntry("-hdpi", "drawable", "sparse_b")!!.resValue.dataAsString)
             assertTrue(pkg.getEntry("-hdpi", "drawable", "sparse_a")?.isNull ?: true)
             assertTrue(pkg.getEntry("-hdpi", "drawable", "sparse_c")?.isNull ?: true)
         }
@@ -347,7 +347,7 @@ internal class IncrementalResourceEncoderTest {
             val entry = pkg.getEntry("", "string", "manual")
             assertNotNull(entry)
             assertEquals(manualId, entry.resourceId.toLong() and 0xffffffffL)
-            assertEquals("Declared by hand", entry.resValue.valueAsString)
+            assertEquals("Declared by hand", entry.resValue.dataAsString)
         }
     }
 
@@ -364,7 +364,7 @@ internal class IncrementalResourceEncoderTest {
         ApkModule.loadApkFile(output).use { module ->
             val pkg = module.tableBlock.pickOne()
             listOf("shared_a", "shared_b").forEach { name ->
-                val path = pkg.getEntry("", "color", name)!!.resValue.valueAsString
+                val path = pkg.getEntry("", "color", name)!!.resValue.dataAsString
                 assertTrue(module.zipEntryMap.contains(path), "$name names $path, which is not in the archive")
             }
         }
@@ -409,18 +409,18 @@ internal class IncrementalResourceEncoderTest {
             val pkg = module.tableBlock.pickOne()
             // New types get the type ids after the highest one of the app, in the order they are created in.
             val expected = mapOf(
-                Triple("bool", "enabled", ValueType.BOOLEAN) to 0x7f090000,
-                Triple("dimen", "gap", ValueType.DIMENSION) to 0x7f0a0000,
-                Triple("dimen", "margin", ValueType.DIMENSION) to 0x7f0a0001,
+                Triple("bool", "enabled", DataType.BOOLEAN) to 0x7f090000,
+                Triple("dimen", "gap", DataType.DIMENSION) to 0x7f0a0000,
+                Triple("dimen", "margin", DataType.DIMENSION) to 0x7f0a0001,
             )
             expected.forEach { (resource, id) ->
-                val (type, name, valueType) = resource
+                val (type, name, dataType) = resource
                 val entry = assertNotNull(pkg.getEntry("", type, name), "@$type/$name")
                 assertEquals(id, entry.resourceId, "id of @$type/$name")
                 assertEquals(type, pkg.typeNameOf((id shr 16) and 0xff))
                 val resolved = assertNotNull(module.tableBlock.getResource(id), "0x${id.toString(16)} resolves")
                 assertEquals(name, resolved.name)
-                assertEquals(valueType, entry.resValue.valueType)
+                assertEquals(dataType, entry.resValue.dataType)
             }
             assertEquals("Hello", pkg.string("", "hello"), "the types the app has are kept")
         }
@@ -563,9 +563,9 @@ internal class IncrementalResourceEncoderTest {
             pair.forEach { typeBlock ->
                 typeBlock.listEntries(true).forEach { entry ->
                     val value = if (entry.isComplex) {
-                        entry.resTableMapEntry.value.listItems().joinToString { "${it.nameId}=${it.valueAsString}" }
+                        entry.resTableMapEntry.value.listItems().joinToString { "${it.nameId}=${it.dataAsString}" }
                     } else {
-                        "${entry.resValue.valueType}:${entry.resValue.valueAsString}"
+                        "${entry.resValue.dataType}:${entry.resValue.dataAsString}"
                     }
                     add("${typeBlock.typeName}/${entry.name}[${typeBlock.resConfig.qualifiers}]=$value")
                 }

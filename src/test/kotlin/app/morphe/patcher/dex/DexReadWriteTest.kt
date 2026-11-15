@@ -31,6 +31,7 @@ import java.util.zip.Adler32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -143,6 +144,28 @@ internal class DexReadWriteTest {
 
         assertEquals(listOf("classes.dex", "classes2.dex"), files.map { it.name })
         assertEquals("two", outputDir.resolve("classes2.dex").readText())
+    }
+
+    @Test
+    fun `dex files read into memory are the same as the extracted ones and leave no files`() {
+        val opcodes = Opcodes.forApi(26)
+        val first = dexOf(opcodes, "La;" to stringInstruction("first"))
+        val second = dexOf(opcodes, "Lb;" to stringInstruction("second"))
+        val apk = zipOf("classes.dex" to first, "classes2.dex" to second)
+        val outputDir = temporaryDirectory.resolve("out")
+
+        DexReadWrite.readMultidexFileFromZip(apk, outputDir, inMemory = true).use { result ->
+            assertTrue(result.mappedFiles.all { it is MemoryDexFile })
+            assertEquals(listOf("classes.dex", "classes2.dex"), result.mappedFiles.map { it.originalFile.name })
+            assertContentEquals(second, (result.mappedFiles[1] as MemoryDexFile).bytes)
+            assertEquals(setOf("La;", "Lb;"), result.dexFile.classes.mapTo(HashSet()) { it.type })
+        }
+        assertFalse(outputDir.resolve("classes.dex").exists())
+
+        DexReadWrite.readMultidexFileFromZip(apk, outputDir, inMemory = false).use { result ->
+            assertFalse(result.mappedFiles.any { it is MemoryDexFile })
+            assertContentEquals(first, outputDir.resolve("classes.dex").readBytes())
+        }
     }
 
     @Test
