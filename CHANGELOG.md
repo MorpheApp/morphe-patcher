@@ -1,3 +1,11 @@
+# [2.4.0-dev.8](https://github.com/MorpheApp/morphe-patcher/compare/v2.4.0-dev.7...v2.4.0-dev.8) (2026-11-15)
+
+
+### Performance Improvements
+
+* Read, strip and compress DEX files in parallel, and keep them in memory ([e694e89](https://github.com/MorpheApp/morphe-patcher/commit/e694e89ac264ba6309e997089f1e701805d97554))
+* Sign every APK with v2 alone, in place ([3d4c3f3](https://github.com/MorpheApp/morphe-patcher/commit/3d4c3f37f3728bb22d3d8852287b16112ff517e1))
+
 # [2.4.0-dev.7](https://github.com/MorpheApp/morphe-patcher/compare/v2.4.0-dev.6...v2.4.0-dev.7) (2026-11-14)
 
 
