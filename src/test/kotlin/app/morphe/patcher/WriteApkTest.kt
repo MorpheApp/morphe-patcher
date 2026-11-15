@@ -9,6 +9,7 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.apk.ApkSigner
 import app.morphe.patcher.apk.ApkUtils
 import app.morphe.patcher.apk.ApkUtils.applyTo
 import app.morphe.patcher.apk.CompressedDexFiles
@@ -22,9 +23,11 @@ import app.morphe.patcher.patch.document
 import app.morphe.patcher.patch.patch
 import app.morphe.patcher.patch.rawResourcePatch
 import app.morphe.patcher.patch.resourcePatch
+import app.morphe.patcher.patch.retainOriginalV1Signature
 import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.coder.FULL_RESOURCE_ENCODE_PROPERTY
 import app.morphe.patcher.resource.coder.ResourceTestApk
+import com.android.apksig.KeyConfig
 import com.android.tools.build.apkzlib.zip.ZFile
 import com.reandroid.arsc.chunk.TableBlock
 import com.android.tools.smali.dexlib2.AccessFlags
@@ -46,6 +49,9 @@ import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Collections
+import java.util.Date
+import java.util.logging.Handler
+import java.util.logging.LogRecord
 import java.util.logging.Logger
 import java.util.zip.CRC32
 import java.util.zip.Deflater
@@ -62,6 +68,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import com.android.apksig.ApkSigner as ApkSigSigner
 
 /**
  * Writes the patched APK with [Patcher.writeApk] and compares it with what [Patcher.get] followed by
@@ -223,6 +230,61 @@ internal class WriteApkTest {
             assertEquals(entryOf(input, "classes2.dex"), entries["classes2.dex"])
         }
         assertSigns(written)
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["resource", "bytecode"])
+    fun `a patch that retains the v1 signature keeps the signature files of the input`(patchType: String) {
+        val original = ApkSigner.newPrivateKeyCertificatePair("Original", Date(System.currentTimeMillis() + 86_400_000))
+        val unsigned = inputApk {
+            add("assets/kept.txt", "kept ".repeat(50))
+            add("classes.dex", dexOf("La;"))
+        }
+        val input = v1Signed(unsigned, original)
+        assertEquals(listOf(original.certificate), ApkUtils.verifiedSigningCertificates(input, 23), "the input is v1 signed")
+        val signatureFiles = entriesOf(input).keys.filter { it.startsWith("META-INF/") }
+        assertEquals(3, signatureFiles.size, "MANIFEST.MF, ORIGINAL.SF and ORIGINAL.RSA: $signatureFiles")
+        val patches = {
+            setOf(
+                if (patchType == "resource") {
+                    resourcePatch("Retain the v1 signature") {
+                        execute {
+                            retainOriginalV1Signature()
+                            get("assets/added.txt").writeText("added ".repeat(100))
+                        }
+                    }.builtFor(ON_REQUEST)
+                } else {
+                    bytecodePatch("Retain the v1 signature") {
+                        execute {
+                            retainOriginalV1Signature()
+                            mutableClassDefBy("La;")
+                        }
+                    }
+                },
+            )
+        }
+        val (applied, written) = patchBothWays(input, Config(), patches)
+
+        assertSameApk(applied, written)
+        val signingMessages = mutableListOf<String>()
+        val handler = object : Handler() {
+            override fun publish(record: LogRecord) {
+                signingMessages += record.message
+            }
+
+            override fun flush() {}
+            override fun close() {}
+        }
+        val signerLogger = Logger.getLogger(ApkSigner::class.java.name).apply { addHandler(handler) }
+        try {
+            assertSigns(written)
+        } finally {
+            signerLogger.removeHandler(handler)
+        }
+        assertTrue("Signing APK (preserving v1 signature)" in signingMessages, "$signingMessages")
+        // Signing in place leaves the entries as they are, and only the v2 signature counts.
+        signatureFiles.forEach { name -> assertContentEquals(read(input, name), read(written, name), name) }
+        assertFalse(original.certificate in ApkUtils.verifiedSigningCertificates(written, PLATFORM_VERSION)!!)
     }
 
     @Test
@@ -558,6 +620,20 @@ internal class WriteApkTest {
         val apk = ResourceTestApk.build(tempDir.resolve("input").apply { mkdirs() }, useEmbeddedDex)
         ZFile.openReadWrite(apk).use { zFile -> InputBuilder(zFile).build() }
         return apk
+    }
+
+    /** A copy of [apk] signed with v1 alone by [signer], as an older app is signed. */
+    private fun v1Signed(apk: File, signer: ApkSigner.PrivateKeyCertificatePair): File {
+        val output = tempDir.resolve("input/v1-signed.apk")
+        ApkSigSigner.Builder(
+            listOf(
+                ApkSigSigner.SignerConfig.Builder("ORIGINAL", KeyConfig.Jca(signer.privateKey), listOf(signer.certificate))
+                    .build(),
+            ),
+        ).setInputApk(apk).setOutputApk(output).setMinSdkVersion(21)
+            .setV1SigningEnabled(true).setV2SigningEnabled(false).setV3SigningEnabled(false)
+            .build().sign()
+        return output
     }
 
     /**

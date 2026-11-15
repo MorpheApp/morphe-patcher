@@ -60,7 +60,7 @@ object ApkUtils {
     internal val dexEntryName = Regex("""classes(?:\d+)?\.dex""")
 
     // v1 signature files, which the signer would otherwise leave stale beside its own signature.
-    private val v1SignatureEntryName = Regex("""META-INF/(?:MANIFEST\.MF|[^/]+\.(?:SF|RSA|DSA|EC)|SIG-[^/]*)""", RegexOption.IGNORE_CASE)
+    internal val v1SignatureEntryName = Regex("""META-INF/(?:MANIFEST\.MF|[^/]+\.(?:SF|RSA|DSA|EC)|SIG-[^/]*)""", RegexOption.IGNORE_CASE)
 
     /**
      * The options every archive is written with: aligned as [writeAlignedApk] aligns, and compressed in
@@ -91,9 +91,14 @@ object ApkUtils {
      * gap larger than it can cover with an extra field. The DEX files are near the start of an APK, so
      * replacing them moved most of the archive.
      */
-    internal fun isReplacedOnApply(name: String, dexFileNames: Set<String>, dexFilesComplete: Boolean) =
+    internal fun isReplacedOnApply(
+        name: String,
+        dexFileNames: Set<String>,
+        dexFilesComplete: Boolean,
+        retainsV1Signature: Boolean,
+    ) =
         name in dexFileNames ||
-            name.matches(v1SignatureEntryName) ||
+            (!retainsV1Signature && name.matches(v1SignatureEntryName)) ||
             (dexFilesComplete && dexFileNames.isNotEmpty() && name.matches(dexEntryName))
 
     /**
@@ -130,7 +135,8 @@ object ApkUtils {
      * Without a compiled resource APK, [apkFile] must be a copy of the input APK so that
      * unchanged entries remain available. Otherwise, the compiled resource APK replaces it.
      * Either way it holds the input's DEX files, which a complete patched DEX set replaces and
-     * a partial one overwrites by name. v1 signature files are dropped, as signing replaces them.
+     * a partial one overwrites by name. v1 signature files are dropped, as signing replaces them,
+     * unless a patch called [app.morphe.patcher.patch.retainOriginalV1Signature].
      *
      * @param apkFile A copy of the patched APK, to apply the patched files to.
      */
@@ -158,7 +164,8 @@ object ApkUtils {
             timings.measure("deleteSigDex") {
                 targetApkZFile.entries().filter { entry ->
                     val name = entry.centralDirectoryHeader.name
-                    name.matches(v1SignatureEntryName) || replacesAllDexFiles && name.matches(dexEntryName)
+                    !retainsV1Signature && name.matches(v1SignatureEntryName) ||
+                        replacesAllDexFiles && name.matches(dexEntryName)
                 }.forEach(StoredEntry::delete)
             }
 

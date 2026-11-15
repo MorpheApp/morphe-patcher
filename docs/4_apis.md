@@ -23,7 +23,8 @@ a fingerprint is declared.
 13. 🔤 Find classes by the strings they contain with `classDefByStrings(String)`
 14. 🆔 Look up resource ids with `resourceId(ResourceType, String)` and `hasResourceId(ResourceType, String)`
 15. ✅ Run extra checks while developing patches with `validate`
-16. 🧰 Small helpers: `getReference()`, `getMutableMethod()`, `p0Register`
+16. 🔏 Keep the original v1 signature for apps that check it with `retainOriginalV1Signature()`
+17. 🧰 Small helpers: `getReference()`, `getMutableMethod()`, `p0Register`
 
 ### 🧰 APIs
 
@@ -760,6 +761,22 @@ required to patch the app and do not need to run every time for the end user. Fo
 - Verify that app resources used by extension code exist in the target app.
 - Verify that certain features are or are not present in the target app.
 - Other optional checks that are slow or only useful for development.
+
+#### 🔏 `retainOriginalV1Signature()`
+
+Some older apps check their own signature by reading the v1 (JAR) signature files, such as
+`META-INF/CERT.RSA`, straight from their APK file. The patched APK leaves these files out, so such a check
+fails. A patch for such an app calls `retainOriginalV1Signature()` to keep them, and users need to do nothing:
+
+```kt
+execute {
+    retainOriginalV1Signature()
+}
+```
+
+The patched APK is still signed with v2 alone. Android verifies the v2 signature and ignores the original
+v1 signature, which no longer matches the patched files. If the APK being patched has no v1 signature,
+this does nothing.
 
 #### 🧰 Small helpers
 

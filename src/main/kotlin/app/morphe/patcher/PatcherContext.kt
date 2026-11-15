@@ -52,6 +52,11 @@ class PatcherContext internal constructor(config: PatcherConfig): Closeable {
      */
     internal val bytecodeContext = BytecodePatchContext(config, packageMetadata)
 
+    /**
+     * Whether a patch called [app.morphe.patcher.patch.retainOriginalV1Signature].
+     */
+    internal var retainsV1Signature = false
+
     init {
         current = this
     }
