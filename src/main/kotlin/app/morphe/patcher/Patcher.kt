@@ -227,7 +227,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
     fun get(): PatcherResult {
         val dex = compileDexFiles()
         val resFiles = context.resourceContext.get()
-        return PatcherResult(dex.files, resFiles, dex.complete, dex.storeUncompressed)
+        return PatcherResult(dex.files, resFiles, dex.complete, dex.storeUncompressed, context.retainsV1Signature)
     }
 
     /**
@@ -299,7 +299,10 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             patchedDexFiles + storedDexFilesIn(config.apkFile, patchedNames, config.patchedFiles.resolve("storedDex"))
         }
         val dexFileNames = dexFiles.mapTo(HashSet()) { it.name }
-        context.resourceContext.omitEntry = { name -> ApkUtils.isReplacedOnApply(name, dexFileNames, dexFilesComplete) }
+        val retainsV1Signature = context.retainsV1Signature
+        context.resourceContext.omitEntry = { name ->
+            ApkUtils.isReplacedOnApply(name, dexFileNames, dexFilesComplete, retainsV1Signature)
+        }
         return CompiledDexFiles(dexFiles, dexFilesComplete, storeUncompressed)
     }
 

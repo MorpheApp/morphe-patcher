@@ -42,6 +42,7 @@ import java.security.cert.X509Certificate
 import java.util.Date
 import java.util.Locale
 import java.util.logging.Logger
+import java.util.zip.ZipFile
 import com.android.apksig.apk.ApkUtils as ApkSigUtils
 
 /**
@@ -304,7 +305,11 @@ object ApkSigner {
          */
         @JvmOverloads
         fun signApk(inputApkFile: File, outputApkFile: File, minSdkVersion: Int = 0) {
-            logger.info("Signing APK")
+            // Kept by a patch that called retainOriginalV1Signature, as signing leaves every entry as it is.
+            val preservesV1Signature = ZipFile(inputApkFile).use { zip ->
+                zip.entries().asSequence().any { it.name.matches(ApkUtils.v1SignatureEntryName) }
+            }
+            logger.info(if (preservesV1Signature) "Signing APK (preserving v1 signature)" else "Signing APK")
 
             val lowestSdkVersion = RandomAccessFile(inputApkFile, "r").use { file ->
                 ApkSigUtils.getMinSdkVersionFromBinaryAndroidManifest(
