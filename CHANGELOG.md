@@ -1,3 +1,10 @@
+# [2.5.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.4.0...v2.5.0-dev.1) (2026-11-16)
+
+
+### Features
+
+* Add `retainOriginalV1Signature()` function to allow keeping the original v1 signature ([#288](https://github.com/MorpheApp/morphe-patcher/issues/288)) ([850c5cc](https://github.com/MorpheApp/morphe-patcher/commit/850c5cc09386cb0600e4b3a85a9fb30dc747a32b))
+
 # [2.4.0](https://github.com/MorpheApp/morphe-patcher/compare/v2.3.0...v2.4.0) (2026-11-15)
 
 
