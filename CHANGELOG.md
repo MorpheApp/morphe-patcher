@@ -1,3 +1,10 @@
+# [2.5.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.0-dev.1...v2.5.0-dev.2) (2026-11-17)
+
+
+### Performance Improvements
+
+* Use the instruction indexes for fingerprints with a defining class prefix ([b63a438](https://github.com/MorpheApp/morphe-patcher/commit/b63a4381805f91a6ab0b02306b8d717341d9e5de))
+
 # [2.5.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.4.0...v2.5.0-dev.1) (2026-11-16)
 
 
