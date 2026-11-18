@@ -13,6 +13,7 @@ import app.morphe.patcher.util.proxy.mutableTypes.MutableField.Companion.toMutab
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod.Companion.toMutable
 import com.android.tools.smali.dexlib2.base.reference.BaseTypeReference
 import com.android.tools.smali.dexlib2.iface.ClassDef
+import com.android.tools.smali.dexlib2.iface.Method
 import com.android.tools.smali.dexlib2.util.FieldUtil
 import com.android.tools.smali.dexlib2.util.MethodUtil
 
@@ -123,6 +124,38 @@ class MutableClass(classDef: ClassDef) :
     override fun getVirtualMethods(): MutableSet<MutableMethod> = _virtualMethods
 
     override fun getMethods(): MutableSet<MutableMethod> = _methods
+
+    /**
+     * This class as the DEX writer reads it, with its methods as [MutableMethod.forWriting] gives
+     * them, so the methods a patch left alone are written from the instructions they came with.
+     */
+    internal fun forWriting(): ClassDef = WritableClass(this)
+
+    private class WritableClass(private val classDef: MutableClass) : BaseTypeReference(), ClassDef {
+        override fun getType(): String = classDef.type
+
+        override fun getAccessFlags(): Int = classDef.accessFlags
+
+        override fun getSourceFile(): String? = classDef.sourceFile
+
+        override fun getSuperclass(): String? = classDef.superclass
+
+        override fun getInterfaces(): List<String> = classDef.interfaces
+
+        override fun getAnnotations(): Set<MutableAnnotation> = classDef.annotations
+
+        override fun getStaticFields(): Set<MutableField> = classDef.staticFields
+
+        override fun getInstanceFields(): Set<MutableField> = classDef.instanceFields
+
+        override fun getFields(): Set<MutableField> = classDef.fields
+
+        override fun getDirectMethods(): List<Method> = classDef.directMethods.map(MutableMethod::forWriting)
+
+        override fun getVirtualMethods(): List<Method> = classDef.virtualMethods.map(MutableMethod::forWriting)
+
+        override fun getMethods(): List<Method> = classDef.methods.map(MutableMethod::forWriting)
+    }
 
     companion object {
         fun ClassDef.toMutable(): MutableClass = MutableClass(this)
