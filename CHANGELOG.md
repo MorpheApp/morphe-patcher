@@ -1,3 +1,10 @@
+# [2.5.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.0-dev.2...v2.5.0-dev.3) (2026-11-18)
+
+
+### Features
+
+* Add `replaceStrings()` to replace const-string instructions with a single search ([1f626de](https://github.com/MorpheApp/morphe-patcher/commit/1f626de5d8cc13ac7d268fbae0a6c22864da0c55))
+
 # [2.5.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.0-dev.1...v2.5.0-dev.2) (2026-11-17)
 
 
