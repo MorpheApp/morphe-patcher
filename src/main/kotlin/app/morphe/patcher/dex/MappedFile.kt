@@ -42,7 +42,7 @@ internal interface MappedFile : Closeable {
      * The mapped, writable [ByteBuffer] covering the whole file.
      *
      * Once [close] has been called the buffer must no longer be used; with the
-     * FFM-backed implementation accessing it afterwards throws.
+     * FFM-backed implementation accessing it afterward throws.
      */
     val buffer: ByteBuffer
 
@@ -112,34 +112,33 @@ private class FfmMappedFile(override val originalFile: File) : MappedFile {
 
 /**
  * [RandomAccessFile]-backed [MappedFile] used when the FFM API is unavailable.
- * Preserves the historic behaviour where the mapping is unmapped lazily by the
+ * Preserves the historic behavior where the mapping is unmapped lazily by the
  * garbage collector once the buffer becomes unreachable.
  */
 private class RandomAccessMappedFile(override val originalFile: File) : MappedFile {
     private val randomAccessFile = RandomAccessFile(originalFile, "rw")
-    private val mappedBuffer = randomAccessFile.channel.map(
+    override val buffer: MappedByteBuffer = randomAccessFile.channel.map(
         FileChannel.MapMode.READ_WRITE,
         0,
         randomAccessFile.length(),
     )
     private var closed = false
 
-    override val buffer: ByteBuffer
-        get() = mappedBuffer
-
     override fun force() {
-        mappedBuffer.force()
+        buffer.force()
     }
 
     override fun close() {
         if (closed) return
         closed = true
 
-        if (EnvironmentUtils.isWindowsEnvironment) unsafeUnmap(mappedBuffer)
+        if (EnvironmentUtils.isWindowsEnvironment) unsafeUnmap(buffer)
         randomAccessFile.close()
     }
 
     companion object {
+        // Windows keeps a mapped file locked until the buffer is unmapped, and only Unsafe can do that.
+        @Suppress("DEPRECATION", "removal")
         fun unsafeUnmap(buffer: MappedByteBuffer) {
             try {
                 val unsafeField = Unsafe::class.java.getDeclaredField("theUnsafe")
