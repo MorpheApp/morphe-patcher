@@ -1224,6 +1224,10 @@ public final class app/morphe/patcher/patch/PatchFunctionsKt {
 	public static final fun mutableClassDefByOrNull (Ljava/lang/String;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public static final fun mutableClassDefByOrNull (Lkotlin/jvm/functions/Function1;)Lapp/morphe/patcher/util/proxy/mutableTypes/MutableClass;
 	public static final fun readXml (Ljava/io/InputStream;)Lapp/morphe/patcher/xml/ResourceXml;
+	public static final fun replaceStrings (Ljava/lang/Iterable;)I
+	public static final fun replaceStrings (Ljava/lang/Iterable;Lkotlin/jvm/functions/Function3;)I
+	public static final fun replaceStrings ([Lapp/morphe/patcher/StringFilter;Lkotlin/jvm/functions/Function3;)I
+	public static final fun replaceStrings ([Lkotlin/Pair;)I
 	public static final fun resourceFile (Ljava/lang/String;Z)Ljava/io/File;
 	public static synthetic fun resourceFile$default (Ljava/lang/String;ZILjava/lang/Object;)Ljava/io/File;
 	public static final fun resourceXml (Ljava/lang/String;ZLjava/lang/String;)Lapp/morphe/patcher/xml/ResourceXml;

@@ -19,12 +19,13 @@ a fingerprint is declared.
 9. ↩️ Override the return value of a method with `returnEarly()` and `returnLate()`
 10. 🔌 Let extension code call obfuscated app code with `addPatchInterface()`
 11. 🔁 Change every matching instruction in all methods with `matchAllMethodIndicesForEach()`
-12. 🏷️ Insert code that jumps to existing code with `addInstructionsWithLabels()` and `addInstructionsAtControlFlowLabel()`
-13. 🔤 Find classes by the strings they contain with `classDefByStrings(String)`
-14. 🆔 Look up resource ids with `resourceId(ResourceType, String)` and `hasResourceId(ResourceType, String)`
-15. ✅ Run extra checks while developing patches with `validate`
-16. 🔏 Keep the original v1 signature for apps that check it with `retainOriginalV1Signature()`
-17. 🧰 Small helpers: `getReference()`, `getMutableMethod()`, `p0Register`
+12. ✏️ Replace strings in all methods with `replaceStrings()`
+13. 🏷️ Insert code that jumps to existing code with `addInstructionsWithLabels()` and `addInstructionsAtControlFlowLabel()`
+14. 🔤 Find classes by the strings they contain with `classDefByStrings(String)`
+15. 🆔 Look up resource ids with `resourceId(ResourceType, String)` and `hasResourceId(ResourceType, String)`
+16. ✅ Run extra checks while developing patches with `validate`
+17. 🔏 Keep the original v1 signature for apps that check it with `retainOriginalV1Signature()`
+18. 🧰 Small helpers: `getReference()`, `getMutableMethod()`, `p0Register`
 
 ### 🧰 APIs
 
@@ -578,7 +579,8 @@ This differs from `matchAll()`, which only gives the first matching index of eac
 If a method has the same string three times, `matchAll()` matches it once
 and `matchAllMethodIndicesForEach()` calls the block three times.
 
-For example, to change the text `original text` everywhere it is used in the app:
+For example, to change the text `original text` everywhere it is used in the app
+(to only change strings, `replaceStrings()` below is simpler and replaces many strings with a single search):
 
 ```kt
 import app.morphe.patcher.util.matchAllMethodIndicesForEach
@@ -637,6 +639,52 @@ string("original text").matchAllMethodIndicesForEach { index ->
     replaceInstruction(index, "const-string v$register, \"new text\"")
 }
 ```
+
+#### ✏️ `replaceStrings()`
+
+`replaceStrings()` replaces the strings of `const-string` instructions in all methods of the app.
+Pass `string()` filters with their replacements:
+
+```kt
+execute {
+    replaceStrings(
+        string("original text") to "new text",
+        string("https://old.example.com", StringComparisonType.STARTS_WITH) to "https://new.example.com",
+    )
+}
+```
+
+Each replacement replaces the part of the string its filter matches. For the string `abc-abc` and the
+replacement `string("abc", comparison) to "x"`:
+
+| Comparison    | Result       |
+|---------------|--------------|
+| `EQUALS`      | Not replaced |
+| `STARTS_WITH` | `x-abc`      |
+| `ENDS_WITH`   | `abc-x`      |
+| `CONTAINS`    | `x-x`        |
+
+For a replacement that depends on the string or on where it is used, pass a function instead. It is called with
+the method, the index of the instruction and the string, and returns the replacement, or `null` to keep the string:
+
+```kt
+execute {
+    replaceStrings(string("content://", StringComparisonType.STARTS_WITH)) { method, index, string ->
+        if (string.contains("com.google")) string.replace("com.google", "app.morphe") else null
+    }
+}
+```
+
+- All strings are found with a single search of the classes, so pass all replacements in one call instead of a
+  call for each string. A list of replacements or filters can be passed instead of varargs.
+- A class is made mutable only if one of its strings is replaced. The method given to the function has the
+  instructions from before any replacement, and is not mutable if its class is not mutable yet, so only read it.
+- A string is replaced using the first declared filter it matches, and a replaced string is not matched again by
+  the other filters.
+- The number of replaced instructions is returned. Nothing is thrown if no string matches, so check the number if
+  a string must exist.
+- An exact string declared more than once in a call throws an `IllegalArgumentException`.
+- Strings in annotations and the initial values of static fields are not changed.
 
 #### 🏷️ `addInstructionsWithLabels()` and `addInstructionsAtControlFlowLabel()`
 
