@@ -1,3 +1,10 @@
+# [2.5.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.0-dev.3...v2.5.0-dev.4) (2026-11-18)
+
+
+### Performance Improvements
+
+* Write the methods patches left alone from their own instructions ([#292](https://github.com/MorpheApp/morphe-patcher/issues/292)) ([7b23e2a](https://github.com/MorpheApp/morphe-patcher/commit/7b23e2ad437ca0b6f7ef261555e4a09908f66f0a))
+
 # [2.5.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.0-dev.2...v2.5.0-dev.3) (2026-11-18)
 
 
