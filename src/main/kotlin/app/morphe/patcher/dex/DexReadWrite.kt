@@ -9,6 +9,7 @@ import app.morphe.patcher.TaskProgress
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import app.morphe.patcher.util.mapInParallel
+import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.VersionMap
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
@@ -452,7 +453,7 @@ internal object DexReadWrite {
             val classDef = classQueue.first()
 
             currentDexPool.mark()
-            currentDexPool.internClass(classDef)
+            currentDexPool.internClass((classDef as? MutableClass)?.forWriting() ?: classDef)
             if (currentDexPool.hasOverflowed()) {
                 currentDexPool.reset()
                 tempFiles.add(writeDexPoolToTemp(currentDexPool, outputDir, segmentIndex, tempFiles.size))
