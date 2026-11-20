@@ -25,7 +25,8 @@ a fingerprint is declared.
 15. 🆔 Look up resource ids with `resourceId(ResourceType, String)` and `hasResourceId(ResourceType, String)`
 16. ✅ Run extra checks while developing patches with `validate`
 17. 🔏 Keep the original v1 signature for apps that check it with `retainOriginalV1Signature()`
-18. 🧰 Small helpers: `getReference()`, `getMutableMethod()`, `p0Register`
+18. 🔏 Keep the original v2 signature for apps that read it from their APK with `retainOriginalV2Signature()`
+19. 🧰 Small helpers: `getReference()`, `getMutableMethod()`, `p0Register`
 
 ### 🧰 APIs
 
@@ -825,6 +826,31 @@ execute {
 The patched APK is still signed with v2 alone. Android verifies the v2 signature and ignores the original
 v1 signature, which no longer matches the patched files. If the APK being patched has no v1 signature,
 this does nothing.
+
+#### 🔏 `retainOriginalV2Signature()`
+
+Some apps check their own signature without asking Android: native code opens the APK file, reads the v2
+block of its APK Signing Block and checks the certificate in it. The patched APK carries a new v2 signature,
+so such a check fails. A patch for such an app calls `retainOriginalV2Signature()` to keep the original v2
+block, and users need to do nothing:
+
+```kt
+execute {
+    retainOriginalV2Signature()
+}
+```
+
+The original v2 block takes the v2 slot, so the patched APK is signed with v3 instead. Android 9 and later
+verify the v3 signature and ignore the original v2 signature, which no longer matches the patched files.
+Android 8 verifies only v2, so the patched APK does not install there. Give the patch's `AppTarget`s a
+`minSdk` of 28 so Morphe does not offer it on Android 8 devices. Separately, signing logs a warning whenever
+the APK it signs still declares a minimum below API level 28, since such a build cannot install on Android 8.
+If the APK being patched has no v2 signature, this does nothing. For split APKs, the v2 signature of the base
+APK is kept. The original v2 block is carried by Morphe's own signer only; signing the patched APK with another
+tool, or leaving it unsigned, does not keep it.
+
+This helps an app that only reads its certificate from the v2 block. An app that verifies the v2 signature
+against its files still fails, because the patched files no longer match it.
 
 #### 🧰 Small helpers
 

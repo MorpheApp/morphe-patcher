@@ -57,6 +57,11 @@ class PatcherContext internal constructor(config: PatcherConfig): Closeable {
      */
     internal var retainsV1Signature = false
 
+    /**
+     * Whether a patch called [app.morphe.patcher.patch.retainOriginalV2Signature].
+     */
+    internal var retainsV2Signature = false
+
     init {
         current = this
     }

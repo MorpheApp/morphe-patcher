@@ -1235,6 +1235,7 @@ public final class app/morphe/patcher/patch/PatchFunctionsKt {
 	public static final fun resourceXmlOrNull (Ljava/lang/String;Ljava/lang/String;)Lapp/morphe/patcher/xml/ResourceXml;
 	public static synthetic fun resourceXmlOrNull$default (Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lapp/morphe/patcher/xml/ResourceXml;
 	public static final fun retainOriginalV1Signature ()V
+	public static final fun retainOriginalV2Signature ()V
 }
 
 public final class app/morphe/patcher/patch/PatchKt {

@@ -7,12 +7,19 @@ package app.morphe.patcher.apk
 
 import app.morphe.patcher.PatcherResult
 import app.morphe.patcher.apk.ApkUtils.applyTo
+import com.android.apksig.util.DataSources
 import com.reandroid.apk.ApkModule
 import com.reandroid.arsc.chunk.xml.AndroidManifestBlock
 import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.RandomAccessFile
+import java.nio.ByteBuffer
 import java.util.Date
+import java.util.logging.Handler
+import java.util.logging.Level
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
@@ -23,6 +30,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import com.android.apksig.apk.ApkUtils as ApkSigUtils
 
 internal class ApkUtilsTest {
     @TempDir
@@ -300,6 +308,59 @@ internal class ApkUtilsTest {
     }
 
     @Test
+    fun `the signing block apksig writes is rebuilt byte for byte`() {
+        val signedApk = temporaryDirectory.resolve("signed.apk")
+        ApkSigner.newApkSigner("Test", signingKey).signApk(manifestApk(), signedApk)
+        val block = signingBlockOf(signedApk)
+
+        assertContentEquals(block, ApkSigningBlock.build(ApkSigningBlock.parse(ByteBuffer.wrap(block))))
+    }
+
+    @Test
+    fun `a v2 signature handed to the signer takes the v2 slot beside a v3 signature`() {
+        val apk = manifestApk(minSdkVersion = 28)
+        val original = temporaryDirectory.resolve("original.apk")
+        ApkSigner.newApkSigner("Original", otherSigningKey).signApk(apk, original)
+        val originalV2Signature = ApkSigningBlock.valueOf(original, ApkSignatureScheme.V2.id)!!
+        ApkSigningBlock.writeRetainedV2Signature(apk, originalV2Signature)
+
+        val warnings = warningsLoggedBy(ApkSigner::class.java.name) {
+            ApkSigner.newApkSigner("Test", signingKey).signApk(apk, apk)
+        }
+
+        val entries = RandomAccessFile(apk, "r").use { ApkSigningBlock.entriesOf(DataSources.asDataSource(it)) }
+        assertEquals(
+            listOf(ApkSignatureScheme.V2.id, ApkSignatureScheme.V3.id, ApkSigningBlock.PADDING_ID),
+            entries.map { it.id },
+            "the hand-off pair is gone",
+        )
+        assertContentEquals(originalV2Signature, entries.first().value)
+        assertEquals(0, signingBlockOf(apk).size % 4096, "the block fills whole pages")
+        for (platformVersion in listOf(28, 36)) {
+            assertEquals(
+                listOf(signingKey.certificate),
+                ApkUtils.verifiedSigningCertificates(apk, platformVersion),
+                "Android $platformVersion verifies the v3 signature",
+            )
+        }
+        assertEquals(emptyList(), warnings, "an APK for Android 9 and later needs no warning")
+    }
+
+    @Test
+    fun `re-signing an APK that has a v2 signature keeps none of it`() {
+        val apk = manifestApk()
+        ApkSigner.newApkSigner("Old", otherSigningKey).signApk(apk, apk)
+        val oldV2Signature = ApkSigningBlock.valueOf(apk, ApkSignatureScheme.V2.id)!!
+
+        ApkSigner.newApkSigner("Test", signingKey).signApk(apk, apk)
+
+        val entries = RandomAccessFile(apk, "r").use { ApkSigningBlock.entriesOf(DataSources.asDataSource(it)) }
+        assertEquals(listOf(ApkSignatureScheme.V2.id, ApkSigningBlock.PADDING_ID), entries.map { it.id }, "v2 alone")
+        assertFalse(oldV2Signature.contentEquals(entries.first().value), "the old v2 signature is replaced")
+        assertEquals(listOf(signingKey.certificate), ApkUtils.verifiedSigningCertificates(apk, 26))
+    }
+
+    @Test
     fun `an unsigned APK verifies to no certificates`() {
         assertEquals(emptyList(), ApkUtils.verifiedSigningCertificates(manifestApk(), PLATFORM_VERSION))
     }
@@ -314,6 +375,33 @@ internal class ApkUtilsTest {
     @Test
     fun `a file that cannot be read gives no answer`() {
         assertNull(ApkUtils.verifiedSigningCertificates(temporaryDirectory.resolve("missing.apk"), PLATFORM_VERSION))
+    }
+
+    /** The APK Signing Block of [apk], read with apksig. */
+    private fun signingBlockOf(apk: File): ByteArray = RandomAccessFile(apk, "r").use { file ->
+        val data = DataSources.asDataSource(file)
+        val contents = ApkSigUtils.findApkSigningBlock(data, ApkSigUtils.findZipSections(data)).contents
+        ByteArray(contents.size().toInt()).also { contents.getByteBuffer(0, it.size).get(it) }
+    }
+
+    /** The warnings logged by the logger [name] while [action] runs. */
+    private fun warningsLoggedBy(name: String, action: () -> Unit): List<String> {
+        val warnings = mutableListOf<String>()
+        val handler = object : Handler() {
+            override fun publish(record: LogRecord) {
+                if (record.level.intValue() >= Level.WARNING.intValue()) warnings += record.message
+            }
+
+            override fun flush() {}
+            override fun close() {}
+        }
+        val logger = Logger.getLogger(name).apply { addHandler(handler) }
+        try {
+            action()
+        } finally {
+            logger.removeHandler(handler)
+        }
+        return warnings
     }
 
     /** An unsigned APK carrying only a manifest, which is all signing and verifying read. */
