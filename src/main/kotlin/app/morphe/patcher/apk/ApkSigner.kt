@@ -42,6 +42,7 @@ import java.security.UnrecoverableKeyException
 import java.security.cert.X509Certificate
 import java.util.Date
 import java.util.Locale
+import java.util.logging.Level
 import java.util.logging.Logger
 import java.util.zip.ZipFile
 import com.android.apksig.apk.ApkUtils as ApkSigUtils
@@ -317,7 +318,9 @@ object ApkSigner {
             // APK already has is replaced as before, so re-signing a signed APK keeps nothing of it.
             val retainedV2Signature = try {
                 ApkSigningBlock.valueOf(inputApkFile, ApkSigningBlock.RETAINED_V2_SIGNATURE_ID)
-            } catch (_: ApkFormatException) {
+            } catch (ex: ApkFormatException) {
+                // The block is replaced when signing, so a malformed one only means there is nothing to keep.
+                logger.log(Level.WARNING, "Could not read the APK Signing Block, no v2 signature is kept", ex)
                 null
             }
             val preserved = listOfNotNull(

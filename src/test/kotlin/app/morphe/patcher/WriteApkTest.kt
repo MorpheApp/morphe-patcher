@@ -271,21 +271,7 @@ internal class WriteApkTest {
         val (applied, written) = patchBothWays(input, Config(), patches)
 
         assertSameApk(applied, written)
-        val signingMessages = mutableListOf<String>()
-        val handler = object : Handler() {
-            override fun publish(record: LogRecord) {
-                signingMessages += record.message
-            }
-
-            override fun flush() {}
-            override fun close() {}
-        }
-        val signerLogger = Logger.getLogger(ApkSigner::class.java.name).apply { addHandler(handler) }
-        try {
-            assertSigns(written)
-        } finally {
-            signerLogger.removeHandler(handler)
-        }
+        val signingMessages = messagesLoggedBy(ApkSigner::class.java.name) { assertSigns(written) }
         assertTrue("Signing APK (preserving v1 signature)" in signingMessages, "$signingMessages")
         // Signing in place leaves the entries as they are, and only the v2 signature counts.
         signatureFiles.forEach { name -> assertContentEquals(read(input, name), read(written, name), name) }
