@@ -10,6 +10,8 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.apk.ApkSignatureScheme
+import app.morphe.patcher.apk.ApkSigningBlock
 import app.morphe.patcher.apk.ApkUtils
 import app.morphe.patcher.apk.CompressedDexFiles
 import app.morphe.patcher.apk.overlapDexCompression
@@ -227,7 +229,14 @@ class Patcher(private val config: PatcherConfig) : Closeable {
     fun get(): PatcherResult {
         val dex = compileDexFiles()
         val resFiles = context.resourceContext.get()
-        return PatcherResult(dex.files, resFiles, dex.complete, dex.storeUncompressed, context.retainsV1Signature)
+        return PatcherResult(
+            dex.files,
+            resFiles,
+            dex.complete,
+            dex.storeUncompressed,
+            context.retainsV1Signature,
+            retainedV2Signature(),
+        )
     }
 
     /**
@@ -260,7 +269,21 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         ).use { compressedDexFiles ->
             context.resourceContext.writeApk(outputApk, compressedDexFiles, timings)
         }
+        retainedV2Signature()?.let { signature ->
+            timings.measure("retainV2Signature") { ApkSigningBlock.writeRetainedV2Signature(outputApk, signature) }
+        }
         timings.log()
+    }
+
+    /**
+     * The v2 signature of the input APK if a patch called [app.morphe.patcher.patch.retainOriginalV2Signature],
+     * which the patched APK hands to the signer to keep in place of its own.
+     */
+    private fun retainedV2Signature(): ByteArray? {
+        if (!context.retainsV2Signature) return null
+        return ApkSigningBlock.valueOf(config.apkFile, ApkSignatureScheme.V2.id).also { signature ->
+            if (signature == null) logger.warning("The APK being patched has no v2 signature to retain")
+        }
     }
 
     /**

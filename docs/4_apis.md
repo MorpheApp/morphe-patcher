@@ -24,7 +24,7 @@ a fingerprint is declared.
 14. 🔤 Find classes by the strings they contain with `classDefByStrings(String)`
 15. 🆔 Look up resource ids with `resourceId(ResourceType, String)` and `hasResourceId(ResourceType, String)`
 16. ✅ Run extra checks while developing patches with `validate`
-17. 🔏 Keep the original v1 signature for apps that check it with `retainOriginalV1Signature()`
+17. 🔏 Keep the original signature for apps that check it with `retainOriginalV1Signature()` and `retainOriginalV2Signature()`
 18. 🧰 Small helpers: `getReference()`, `getMutableMethod()`, `p0Register`
 
 ### 🧰 APIs
@@ -810,21 +810,39 @@ required to patch the app and do not need to run every time for the end user. Fo
 - Verify that certain features are or are not present in the target app.
 - Other optional checks that are slow or only useful for development.
 
-#### 🔏 `retainOriginalV1Signature()`
+#### 🔏 `retainOriginalV1Signature()` and `retainOriginalV2Signature()`
 
-Some older apps check their own signature by reading the v1 (JAR) signature files, such as
-`META-INF/CERT.RSA`, straight from their APK file. The patched APK leaves these files out, so such a check
-fails. A patch for such an app calls `retainOriginalV1Signature()` to keep them, and users need to do nothing:
+Some apps check their own signature without asking Android: they open their APK file and read the
+certificate of the original signature from it. The patched APK carries a new signature, so such a check
+fails. A patch for such an app keeps the original signature, and users need to do nothing:
+
+- `retainOriginalV1Signature()` keeps the v1 (JAR) signature files, such as `META-INF/CERT.RSA`, for an app
+  that reads them, as older apps do.
+- `retainOriginalV2Signature()` keeps the v2 block of the APK Signing Block, for an app that reads it, such as
+  from native code.
+
+A patch calls the one the app needs, or both:
 
 ```kt
 execute {
     retainOriginalV1Signature()
+    retainOriginalV2Signature()
 }
 ```
 
-The patched APK is still signed with v2 alone. Android verifies the v2 signature and ignores the original
-v1 signature, which no longer matches the patched files. If the APK being patched has no v1 signature,
-this does nothing.
+Android verifies the new signature and ignores the original one, which no longer matches the patched files.
+The patched APK is signed with v2 alone, unless the original v2 block is kept: it then takes the v2 slot, and
+the patched APK is signed with v3 instead. Android 9 and later verify v3, but Android 8 verifies only v2, so
+such an APK does not install there. Give the patch's `AppTarget`s a `minSdk` of 28 so Morphe does not offer it
+on Android 8 devices. Separately, signing logs a warning whenever the APK it signs still declares a minimum
+below API level 28, since such a build cannot install on Android 8. The original v2 block is carried by
+Morphe's own signer only; signing the patched APK with another tool, or leaving it unsigned, does not keep it.
+
+If the APK being patched has no signature of that version, the function does nothing. For split APKs, the v2
+signature of the base APK is kept.
+
+This helps an app that only reads its certificate from the original signature. An app that verifies the
+original signature against its files still fails, because the patched files no longer match it.
 
 #### 🧰 Small helpers
 

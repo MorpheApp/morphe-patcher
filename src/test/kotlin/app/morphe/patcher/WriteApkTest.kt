@@ -9,7 +9,9 @@
 
 package app.morphe.patcher
 
+import app.morphe.patcher.apk.ApkSignatureScheme
 import app.morphe.patcher.apk.ApkSigner
+import app.morphe.patcher.apk.ApkSigningBlock
 import app.morphe.patcher.apk.ApkUtils
 import app.morphe.patcher.apk.ApkUtils.applyTo
 import app.morphe.patcher.apk.CompressedDexFiles
@@ -24,10 +26,12 @@ import app.morphe.patcher.patch.patch
 import app.morphe.patcher.patch.rawResourcePatch
 import app.morphe.patcher.patch.resourcePatch
 import app.morphe.patcher.patch.retainOriginalV1Signature
+import app.morphe.patcher.patch.retainOriginalV2Signature
 import app.morphe.patcher.resource.CpuArchitecture
 import app.morphe.patcher.resource.coder.FULL_RESOURCE_ENCODE_PROPERTY
 import app.morphe.patcher.resource.coder.ResourceTestApk
 import com.android.apksig.KeyConfig
+import com.android.apksig.util.DataSources
 import com.android.tools.build.apkzlib.zip.ZFile
 import com.reandroid.arsc.chunk.TableBlock
 import com.android.tools.smali.dexlib2.AccessFlags
@@ -46,6 +50,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Collections
@@ -266,25 +271,105 @@ internal class WriteApkTest {
         val (applied, written) = patchBothWays(input, Config(), patches)
 
         assertSameApk(applied, written)
-        val signingMessages = mutableListOf<String>()
-        val handler = object : Handler() {
-            override fun publish(record: LogRecord) {
-                signingMessages += record.message
-            }
-
-            override fun flush() {}
-            override fun close() {}
-        }
-        val signerLogger = Logger.getLogger(ApkSigner::class.java.name).apply { addHandler(handler) }
-        try {
-            assertSigns(written)
-        } finally {
-            signerLogger.removeHandler(handler)
-        }
+        val signingMessages = messagesLoggedBy(ApkSigner::class.java.name) { assertSigns(written) }
         assertTrue("Signing APK (preserving v1 signature)" in signingMessages, "$signingMessages")
         // Signing in place leaves the entries as they are, and only the v2 signature counts.
         signatureFiles.forEach { name -> assertContentEquals(read(input, name), read(written, name), name) }
         assertFalse(original.certificate in ApkUtils.verifiedSigningCertificates(written, PLATFORM_VERSION)!!)
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["resource", "bytecode"])
+    fun `a patch that retains the v2 signature keeps the v2 signature of the input beside a v3 signature`(
+        patchType: String,
+    ) {
+        val original = ApkSigner.newPrivateKeyCertificatePair("Original", Date(System.currentTimeMillis() + 86_400_000))
+        val unsigned = inputApk {
+            add("assets/kept.txt", "kept ".repeat(50))
+            add("classes.dex", dexOf("La;"))
+        }
+        val input = v2Signed(unsigned, original)
+        assertEquals(listOf(original.certificate), ApkUtils.verifiedSigningCertificates(input, 26), "the input is v2 signed")
+        val originalV2Signature = assertNotNull(ApkSigningBlock.valueOf(input, ApkSignatureScheme.V2.id))
+        val patches = {
+            setOf(
+                if (patchType == "resource") {
+                    resourcePatch("Retain the v2 signature") {
+                        execute {
+                            retainOriginalV2Signature()
+                            get("assets/added.txt").writeText("added ".repeat(100))
+                        }
+                    }.builtFor(ON_REQUEST)
+                } else {
+                    bytecodePatch("Retain the v2 signature") {
+                        execute {
+                            retainOriginalV2Signature()
+                            mutableClassDefBy("La;")
+                        }
+                    }
+                },
+            )
+        }
+        val (applied, written) = patchBothWays(input, Config(), patches)
+
+        assertSameApk(applied, written)
+        for (apk in listOf(applied, written)) {
+            assertContentEquals(
+                originalV2Signature,
+                ApkSigningBlock.valueOf(apk, ApkSigningBlock.RETAINED_V2_SIGNATURE_ID),
+                "${apk.name} hands the v2 signature of the input to the signer",
+            )
+            val signingMessages = messagesLoggedBy(ApkSigner::class.java.name) { assertSigns(apk) }
+            assertTrue("Signing APK (preserving v2 signature)" in signingMessages, "$signingMessages")
+            assertTrue(
+                signingMessages.any { "installs only on Android 9" in it },
+                "warns about Android 8: $signingMessages",
+            )
+
+            val entries = signingBlockEntriesOf(apk)
+            assertEquals(
+                listOf(ApkSignatureScheme.V2.id, ApkSignatureScheme.V3.id, ApkSigningBlock.PADDING_ID),
+                entries.map { it.id },
+                apk.name,
+            )
+            assertContentEquals(originalV2Signature, entries.first().value, apk.name)
+            // Android 9 and later verify the v3 signature of the new key, while Android 8 verifies the original
+            // v2 signature, which the patched files no longer match.
+            assertFalse(original.certificate in ApkUtils.verifiedSigningCertificates(apk, PLATFORM_VERSION)!!)
+            assertEquals(emptyList(), ApkUtils.verifiedSigningCertificates(apk, 26), apk.name)
+        }
+    }
+
+    @Test
+    fun `retaining the v2 signature of an APK without one signs it with v2 as before`() {
+        val input = inputApk { add("classes.dex", dexOf("La;")) }
+        val patches = {
+            setOf(
+                bytecodePatch("Retain the v2 signature") {
+                    execute {
+                        retainOriginalV2Signature()
+                        mutableClassDefBy("La;")
+                    }
+                },
+            )
+        }
+
+        lateinit var outputs: Pair<File, File>
+        val patchingMessages = messagesLoggedBy(Patcher::class.java.name) {
+            outputs = patchBothWays(input, Config(), patches)
+        }
+
+        assertEquals(2, patchingMessages.count { it == "The APK being patched has no v2 signature to retain" })
+        for (apk in outputs.toList()) {
+            assertNull(ApkSigningBlock.valueOf(apk, ApkSigningBlock.RETAINED_V2_SIGNATURE_ID), apk.name)
+            assertSigns(apk)
+            assertEquals(
+                listOf(ApkSignatureScheme.V2.id, ApkSigningBlock.PADDING_ID),
+                signingBlockEntriesOf(apk).map { it.id },
+                apk.name,
+            )
+            assertTrue(ApkUtils.verifiedSigningCertificates(apk, 26)!!.isNotEmpty(), "Android 8 installs ${apk.name}")
+        }
     }
 
     @Test
@@ -591,6 +676,29 @@ internal class WriteApkTest {
         assertTrue(ApkUtils.verifiedSigningCertificates(apk, PLATFORM_VERSION)!!.isNotEmpty(), "the signature verifies")
     }
 
+    private fun signingBlockEntriesOf(apk: File) =
+        RandomAccessFile(apk, "r").use { ApkSigningBlock.entriesOf(DataSources.asDataSource(it)) }
+
+    /** The messages logged by the logger [name] while [action] runs. */
+    private fun messagesLoggedBy(name: String, action: () -> Unit): List<String> {
+        val messages = Collections.synchronizedList(mutableListOf<String>())
+        val handler = object : Handler() {
+            override fun publish(record: LogRecord) {
+                messages += record.message
+            }
+
+            override fun flush() {}
+            override fun close() {}
+        }
+        val logger = Logger.getLogger(name).apply { addHandler(handler) }
+        try {
+            action()
+        } finally {
+            logger.removeHandler(handler)
+        }
+        return messages.toList()
+    }
+
     // endregion
 
     // region Archives
@@ -632,6 +740,19 @@ internal class WriteApkTest {
             ),
         ).setInputApk(apk).setOutputApk(output).setMinSdkVersion(21)
             .setV1SigningEnabled(true).setV2SigningEnabled(false).setV3SigningEnabled(false)
+            .build().sign()
+        return output
+    }
+
+    private fun v2Signed(apk: File, signer: ApkSigner.PrivateKeyCertificatePair): File {
+        val output = tempDir.resolve("input/v2-signed.apk")
+        ApkSigSigner.Builder(
+            listOf(
+                ApkSigSigner.SignerConfig.Builder("ORIGINAL", KeyConfig.Jca(signer.privateKey), listOf(signer.certificate))
+                    .build(),
+            ),
+        ).setInputApk(apk).setOutputApk(output).setMinSdkVersion(26)
+            .setV1SigningEnabled(false).setV2SigningEnabled(true).setV3SigningEnabled(false)
             .build().sign()
         return output
     }

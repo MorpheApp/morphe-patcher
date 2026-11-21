@@ -94,12 +94,28 @@ val packageMetadata: PackageMetadata
  * Keep the v1 (JAR) signature files of the APK being patched, such as `META-INF/CERT.RSA`, in the
  * patched APK, for an app that checks its own signature by reading them from its APK file.
  *
- * The patched APK is still signed with v2 alone. Android verifies the v2 signature and ignores the
- * v1 signature, which no longer matches the patched files. Without this, the v1 signature files are
- * left out of the patched APK. If the APK being patched has no v1 signature, this does nothing.
+ * The patched APK is still signed with v2 alone, or v3 alone if [retainOriginalV2Signature] is also
+ * called. Android verifies that signature and ignores the v1 signature, which no longer matches the
+ * patched files. Without this, the v1 signature files are left out of the patched APK. If the APK being
+ * patched has no v1 signature, this does nothing.
  */
 fun retainOriginalV1Signature() {
     currentContext.retainsV1Signature = true
+}
+
+/**
+ * Keep the v2 signature of the APK being patched in the patched APK, for an app that checks its own
+ * signature by reading the v2 block of the APK Signing Block from its APK file, such as from native code.
+ *
+ * The original v2 signature takes the v2 slot of the patched APK, so the patched APK is signed with v3
+ * instead. Android 9 and later verify the v3 signature and ignore the v2 signature, which no longer matches
+ * the patched files. Android 8 verifies only v2, so the patched APK does not install there: give the patch's
+ * [app.morphe.patcher.patch.AppTarget]s a `minSdk` of 28 so Morphe does not offer it on Android 8 devices.
+ * Signing also logs a warning when the APK it signs still declares a minimum below API level 28. If the APK
+ * being patched has no v2 signature, this does nothing.
+ */
+fun retainOriginalV2Signature() {
+    currentContext.retainsV2Signature = true
 }
 
 //

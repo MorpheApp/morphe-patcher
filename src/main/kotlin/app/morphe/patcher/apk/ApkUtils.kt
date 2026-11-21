@@ -136,7 +136,9 @@ object ApkUtils {
      * unchanged entries remain available. Otherwise, the compiled resource APK replaces it.
      * Either way it holds the input's DEX files, which a complete patched DEX set replaces and
      * a partial one overwrites by name. v1 signature files are dropped, as signing replaces them,
-     * unless a patch called [app.morphe.patcher.patch.retainOriginalV1Signature].
+     * unless a patch called [app.morphe.patcher.patch.retainOriginalV1Signature]. If a patch called
+     * [app.morphe.patcher.patch.retainOriginalV2Signature], the v2 signature of the input is handed to the
+     * signer in the APK Signing Block, see [ApkSigningBlock.RETAINED_V2_SIGNATURE_ID].
      *
      * @param apkFile A copy of the patched APK, to apply the patched files to.
      */
@@ -210,6 +212,10 @@ object ApkUtils {
             timings.measure("realign") { targetApkZFile.realign() }
 
             logger.fine("Writing changes")
+        }
+
+        retainedV2Signature?.let { signature ->
+            timings.measure("retainV2Signature") { ApkSigningBlock.writeRetainedV2Signature(apkFile, signature) }
         }
 
         timings.log()
