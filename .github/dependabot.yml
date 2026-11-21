@@ -13,6 +13,11 @@ updates:
     target-branch: dev
     schedule:
       interval: weekly
+    ignore:
+      # gradle-semantic-release-plugin 1.10.3 only supports semantic-release 24 and 25.
+      # Remove this once a plugin release accepts semantic-release 26.
+      - dependency-name: semantic-release
+        versions: [">=26"]
 
   - package-ecosystem: gradle
     labels: []
