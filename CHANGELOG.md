@@ -1,3 +1,18 @@
+# [2.5.0](https://github.com/MorpheApp/morphe-patcher/compare/v2.4.0...v2.5.0) (2026-11-21)
+
+
+### Features
+
+* Add `replaceStrings()` to replace const-string instructions with a single search ([1f626de](https://github.com/MorpheApp/morphe-patcher/commit/1f626de5d8cc13ac7d268fbae0a6c22864da0c55))
+* Add `retainOriginalV1Signature()` function to allow keeping the original v1 signature ([#288](https://github.com/MorpheApp/morphe-patcher/issues/288)) ([850c5cc](https://github.com/MorpheApp/morphe-patcher/commit/850c5cc09386cb0600e4b3a85a9fb30dc747a32b))
+* Retain the original signature v2 block ([#293](https://github.com/MorpheApp/morphe-patcher/issues/293)) ([007b77a](https://github.com/MorpheApp/morphe-patcher/commit/007b77a415fca1ca4b474ce42d8cd4c38b4055c5))
+
+
+### Performance Improvements
+
+* Use the instruction indexes for fingerprints with a defining class prefix ([b63a438](https://github.com/MorpheApp/morphe-patcher/commit/b63a4381805f91a6ab0b02306b8d717341d9e5de))
+* Write the methods patches left alone from their own instructions ([#292](https://github.com/MorpheApp/morphe-patcher/issues/292)) ([7b23e2a](https://github.com/MorpheApp/morphe-patcher/commit/7b23e2ad437ca0b6f7ef261555e4a09908f66f0a))
+
 # [2.5.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.0-dev.4...v2.5.0-dev.5) (2026-11-21)
 
 
