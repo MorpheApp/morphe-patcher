@@ -1,3 +1,10 @@
+# [2.5.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.0-dev.4...v2.5.0-dev.5) (2026-11-21)
+
+
+### Features
+
+* Retain the original signature v2 block ([#293](https://github.com/MorpheApp/morphe-patcher/issues/293)) ([007b77a](https://github.com/MorpheApp/morphe-patcher/commit/007b77a415fca1ca4b474ce42d8cd4c38b4055c5))
+
 # [2.5.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.0-dev.3...v2.5.0-dev.4) (2026-11-18)
 
 
