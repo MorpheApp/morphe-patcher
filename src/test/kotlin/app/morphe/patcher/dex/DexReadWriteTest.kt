@@ -6,6 +6,7 @@
 package app.morphe.patcher.dex
 
 import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.util.proxy.mutableTypes.MutableClass.Companion.toMutable
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.Opcodes
@@ -176,5 +177,44 @@ internal class DexReadWriteTest {
             DexReadWrite.readMultidexFileFromZip(apk, temporaryDirectory.resolve("out"))
         }
         assertEquals("APK contains no DEX files to patch", exception.message)
+    }
+
+    @Test
+    fun `methods patches left alone are written from their own instructions`() {
+        val opcodes = Opcodes.getDefault()
+        fun method(name: String, string: String) = ImmutableMethod(
+            "La;", name, null, "V", AccessFlags.PUBLIC.value, null, null,
+            MutableMethodImplementation(1).apply {
+                addInstruction(stringInstruction(string))
+                addInstruction(BuilderInstruction10x(Opcode.RETURN_VOID))
+            },
+        )
+        val dexBytes = MemoryDataStore().also { dataStore ->
+            DexPool(opcodes).apply {
+                internClass(
+                    ImmutableClassDef(
+                        "La;", AccessFlags.PUBLIC.value, "Ljava/lang/Object;", null, null, null, null,
+                        listOf(method("changed", "old"), method("unchanged", "kept")),
+                    )
+                )
+                writeTo(dataStore)
+            }
+        }.data
+
+        val mutableClass = DexReadWrite.readDexStream(dexBytes.inputStream()).classes.single().toMutable()
+        mutableClass.methods.first { it.name == "changed" }.implementation!!.replaceInstruction(0, stringInstruction("new"))
+
+        val written = DexReadWrite.writeMultiDexFile(temporaryDirectory.resolve("out"), mutableListOf(mutableClass), opcodes)
+
+        assertFalse(
+            mutableClass.methods.first { it.name == "unchanged" }.isImplementationCreated,
+            "Writing must not create the mutable implementation of a method patches left alone",
+        )
+        val strings = DexReadWrite.readDexStream(written.single().readBytes().inputStream()).classes.single().methods.associate { method ->
+            method.name to method.implementation!!.instructions.firstNotNullOf { instruction ->
+                ((instruction as? ReferenceInstruction)?.reference as? StringReference)?.string
+            }
+        }
+        assertEquals(mapOf("changed" to "new", "unchanged" to "kept"), strings)
     }
 }

@@ -3,6 +3,29 @@
 Patches built for an older Morphe Patcher keep the old behavior, decided by the `Patcher-Version`
 attribute of the patch bundle manifest. A warning is logged when an older bundle gets a newer behavior.
 
+## 2.5.0
+
+### ✏️ Replace strings with `replaceStrings()`
+
+`replaceStrings()` replaces the strings of `const-string` instructions in all methods, and finds the strings of all
+filters with a single search of the classes. It replaces `matchAllMethodIndicesForEach()` with `replaceInstruction()`
+for changing strings, and `replaceStringPatch()` of the patches library.
+
+```kt
+// Replace with constants. A filter that is not exact replaces the part of the string it matches.
+replaceStrings(
+    string("com.google.android.gms") to "app.morphe.android.gms",
+    string("content://com.google", StringComparisonType.STARTS_WITH) to "content://app.morphe",
+)
+
+// Replace with a function. Returning null keeps the string, and does not make the class mutable.
+replaceStrings(string("content://", StringComparisonType.STARTS_WITH)) { method, index, string ->
+    if (string.contains("com.google")) string.replace("com.google", "app.morphe") else null
+}
+```
+
+See [Advanced APIs](4_apis.md) for details.
+
 ## 2.4.0
 
 ### 🔌 Add extension interface methods with `addPatchInterface()`

@@ -819,32 +819,38 @@ fun MutableField.removeFlags(vararg flags: AccessFlags) {
 // Patches compiled before these stopped taking a context parameter call these.
 //
 
-context(_: BytecodePatchContext)
+@Suppress("DEPRECATION")
 @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+context(_: BytecodePatchContext)
 fun InstructionFilter.matchAllMethodIndicesForEach(
     requireMatches: Boolean = true,
     block: MutableMethod.(Int) -> Unit
 ) = matchAllMethodIndicesForEach(requireMatches, block)
 
-context(_: BytecodePatchContext)
+@Suppress("DEPRECATION")
 @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+context(_: BytecodePatchContext)
 fun Fingerprint.matchSingle() = matchSingle()
 
-context(_: BytecodePatchContext)
+@Suppress("DEPRECATION")
 @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+context(_: BytecodePatchContext)
 fun Fingerprint.matchAllMethodIndicesForEach(
     requireMatches: Boolean = true,
     block: MutableMethod.(Int) -> Unit
 ) = matchAllMethodIndicesForEach(requireMatches, block)
 
-context(_: BytecodePatchContext)
+@Suppress("DEPRECATION")
 @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+context(_: BytecodePatchContext)
 fun MethodReference.getMutableMethod(): MutableMethod = getMutableMethod()
 
-context(_: BytecodePatchContext)
+@Suppress("DEPRECATION")
 @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+context(_: BytecodePatchContext)
 fun Method.cloneParameters() = cloneParameters()
 
-context(_: BytecodePatchContext)
+@Suppress("DEPRECATION")
 @Deprecated("Kept only for backwards compatibility with older patch bundles.", level = DeprecationLevel.HIDDEN)
+context(_: BytecodePatchContext)
 fun MutableMethod.addFreeRegisters(numberOfAdditionalRegisters: Int) = addFreeRegisters(numberOfAdditionalRegisters)

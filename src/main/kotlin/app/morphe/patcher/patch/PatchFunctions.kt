@@ -11,14 +11,17 @@ import app.morphe.patcher.PackageMetadata
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.PatcherContext
 import app.morphe.patcher.StringComparisonType
+import app.morphe.patcher.StringFilter
 import app.morphe.patcher.resource.ResourceIds
 import app.morphe.patcher.resource.hasResourceId
 import app.morphe.patcher.resource.resourceId
 import app.morphe.patcher.resource.xml.TextXmlDocument
 import app.morphe.patcher.util.Document
+import app.morphe.patcher.util.replaceConstStrings
 import app.morphe.patcher.xml.ResourceXml
 import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
 import com.android.tools.smali.dexlib2.iface.ClassDef
+import com.android.tools.smali.dexlib2.iface.Method
 import java.io.File
 import java.io.InputStream
 
@@ -86,6 +89,34 @@ val validate: Boolean
  */
 val packageMetadata: PackageMetadata
     get() = currentContext.packageMetadata
+
+/**
+ * Keep the v1 (JAR) signature files of the APK being patched, such as `META-INF/CERT.RSA`, in the
+ * patched APK, for an app that checks its own signature by reading them from its APK file.
+ *
+ * The patched APK is still signed with v2 alone, or v3 alone if [retainOriginalV2Signature] is also
+ * called. Android verifies that signature and ignores the v1 signature, which no longer matches the
+ * patched files. Without this, the v1 signature files are left out of the patched APK. If the APK being
+ * patched has no v1 signature, this does nothing.
+ */
+fun retainOriginalV1Signature() {
+    currentContext.retainsV1Signature = true
+}
+
+/**
+ * Keep the v2 signature of the APK being patched in the patched APK, for an app that checks its own
+ * signature by reading the v2 block of the APK Signing Block from its APK file, such as from native code.
+ *
+ * The original v2 signature takes the v2 slot of the patched APK, so the patched APK is signed with v3
+ * instead. Android 9 and later verify the v3 signature and ignore the v2 signature, which no longer matches
+ * the patched files. Android 8 verifies only v2, so the patched APK does not install there: give the patch's
+ * [app.morphe.patcher.patch.AppTarget]s a `minSdk` of 28 so Morphe does not offer it on Android 8 devices.
+ * Signing also logs a warning when the APK it signs still declares a minimum below API level 28. If the APK
+ * being patched has no v2 signature, this does nothing.
+ */
+fun retainOriginalV2Signature() {
+    currentContext.retainsV2Signature = true
+}
 
 //
 // Classes.
@@ -213,6 +244,92 @@ fun classDefByStrings(
  * @return All classes that contain at least 1 string.
  */
 fun getAllClassesWithStrings(): List<ClassDef> = currentBytecode.getAllClassesWithStrings()
+
+/**
+ * Replaces the strings of `const-string` instructions in all classes.
+ * Each replacement replaces the part of the string its filter matches:
+ * - [StringComparisonType.EQUALS]: The whole string.
+ * - [StringComparisonType.STARTS_WITH]: The start of the string.
+ * - [StringComparisonType.ENDS_WITH]: The end of the string.
+ * - [StringComparisonType.CONTAINS]: Every occurrence in the string.
+ *
+ * All replacements are found in a single search of the classes, so pass all replacements in one call
+ * instead of a call for each string. A string is replaced using the first
+ * declared filter it matches, and a replaced string is not matched again by the other filters.
+ * The location of the filters is not used.
+ *
+ * Example:
+ * ```
+ * replaceStrings(
+ *     string("com.google.android.gms") to "app.morphe.android.gms",
+ *     string("content://com.google.android.gms", StringComparisonType.STARTS_WITH) to
+ *         "content://app.morphe.android.gms",
+ * )
+ * ```
+ *
+ * @param replacements String filters and their replacements.
+ * @return The number of instructions replaced.
+ * @throws IllegalArgumentException If an exact string is declared more than once,
+ *                                  or a filter that is not exact has an empty string.
+ */
+fun replaceStrings(vararg replacements: Pair<StringFilter, String>): Int = replaceStrings(replacements.asList())
+
+/**
+ * Replaces the strings of `const-string` instructions in all classes.
+ * See the other [replaceStrings] function with replacement pairs.
+ *
+ * @param replacements String filters and their replacements.
+ * @return The number of instructions replaced.
+ */
+fun replaceStrings(replacements: Iterable<Pair<StringFilter, String>>): Int =
+    currentBytecode.patchClasses.replaceConstStrings(replacements.toList())
+
+/**
+ * Replaces the strings of `const-string` instructions that match any of the filters
+ * with the strings that [replacement] returns.
+ *
+ * [replacement] is called for each matching instruction with:
+ * - method: The method of the instruction. Only read it, as it is not mutable if the class is not
+ *   mutable yet. It has the instructions from before any replacement of this call.
+ * - index: The index of the instruction in the method.
+ * - string: The string of the instruction.
+ *
+ * It returns the replacement string, or null to keep the string. A class is made mutable only if
+ * one of its strings is replaced, so returning null costs nothing extra.
+ *
+ * All filters are found in a single search of the classes, so pass all filters in one call
+ * instead of a call for each filter. The location of the filters is not used.
+ *
+ * Example:
+ * ```
+ * replaceStrings(string("content://", StringComparisonType.STARTS_WITH)) { _, _, string ->
+ *     if (string.contains("com.google")) string.replace("com.google", "app.morphe") else null
+ * }
+ * ```
+ *
+ * @param filters The strings to replace.
+ * @param replacement Returns the replacement of a matching string, or null to keep the string.
+ * @return The number of instructions replaced.
+ * @throws IllegalArgumentException If a filter that is not exact has an empty string.
+ */
+fun replaceStrings(
+    vararg filters: StringFilter,
+    replacement: (method: Method, index: Int, string: String) -> String?,
+): Int = replaceStrings(filters.asList(), replacement)
+
+/**
+ * Replaces the strings of `const-string` instructions that match any of the filters
+ * with the strings that [replacement] returns.
+ * See the other [replaceStrings] function with a replacement function.
+ *
+ * @param filters The strings to replace.
+ * @param replacement Returns the replacement of a matching string, or null to keep the string.
+ * @return The number of instructions replaced.
+ */
+fun replaceStrings(
+    filters: Iterable<StringFilter>,
+    replacement: (method: Method, index: Int, string: String) -> String?,
+): Int = currentBytecode.patchClasses.replaceConstStrings(filters.toList(), replacement)
 
 //
 // Resources.

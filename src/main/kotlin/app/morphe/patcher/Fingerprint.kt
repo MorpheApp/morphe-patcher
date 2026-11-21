@@ -1361,11 +1361,20 @@ open class Fingerprint private constructor(
         }
 
         if (definingClass != null) {
-            forEachDefiningClass { value ->
-                val match = machAllClassMethods(value)
-                if (match != null) {
-                    return match
+            val candidates = definingClassPrefixCandidates()
+            if (candidates == null) {
+                forEachDefiningClass { value ->
+                    val match = machAllClassMethods(value)
+                    if (match != null) {
+                        return match
+                    }
                 }
+                return null
+            }
+
+            candidates.classes.forEach { value ->
+                val match = machAllClassMethods(value, candidates.methodsOf(value))
+                if (match != null) return match
             }
             return null
         }
@@ -2033,13 +2042,18 @@ open class Fingerprint private constructor(
         }
 
         if (definingClass != null) {
-            forEachDefiningClass { value -> machAllClassMethods(value) }
+            val candidates = definingClassPrefixCandidates()
+            if (candidates == null) {
+                forEachDefiningClass { value -> machAllClassMethods(value) }
+            } else {
+                candidates.classes.forEach { value ->
+                    machAllClassMethods(value, candidates.methodsOf(value))
+                }
+            }
             return matches.ifEmpty { null }
         }
 
-        // Custom instruction filters could do logical filtering,
-        // so only fingerprints with bundled filters use the instruction indexes.
-        if (filters?.all(::isBundledFilter) ?: (stringFilters != null)) {
+        if (canUseInstructionIndexes()) {
             indexedCandidates()?.let { candidates ->
                 candidates.classes.forEach { value ->
                     machAllClassMethods(value, candidates.methodsOf(value))
@@ -2054,6 +2068,26 @@ open class Fingerprint private constructor(
         }
 
         return matches.ifEmpty { null }
+    }
+
+    /**
+     * Custom instruction filters could do logical filtering,
+     * so only fingerprints with bundled filters use the instruction indexes.
+     */
+    private fun canUseInstructionIndexes() = filters?.all(::isBundledFilter) ?: (stringFilters != null)
+
+    /**
+     * The classes the instruction indexes allow for a [definingClass] that is not an exact type,
+     * such as a package. Matching the methods checks the defining class of each candidate.
+     *
+     * @return Null if [definingClass] is an exact type, which is a single lookup, or if the
+     * instruction indexes cannot limit the classes, which leaves iterating the classes that
+     * match [definingClass].
+     */
+    private fun definingClassPrefixCandidates(): PatchClasses.Candidates? {
+        if (values.definingClassComparison == StringComparisonType.EQUALS) return null
+        if (!canUseInstructionIndexes()) return null
+        return indexedCandidates()
     }
 
     /**

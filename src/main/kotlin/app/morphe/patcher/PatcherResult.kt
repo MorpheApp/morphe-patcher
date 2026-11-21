@@ -12,13 +12,19 @@ import java.io.InputStream
  *   rather than only those it names.
  * @param storeDexUncompressed Whether the [dexFiles] are stored uncompressed in the patched APK, see
  *   [app.morphe.patcher.apk.storesDexUncompressed].
+ * @param retainsV1Signature Whether the patched APK keeps the v1 signature files of the input, see
+ *   [app.morphe.patcher.patch.retainOriginalV1Signature].
+ * @param retainedV2Signature The v2 signature of the input, which the patched APK hands to the signer to keep,
+ *   see [app.morphe.patcher.patch.retainOriginalV2Signature].
  */
 @Suppress("MemberVisibilityCanBePrivate")
 class PatcherResult internal constructor(
     val dexFiles: Set<PatchedDexFile>,
     val resources: PatchedResources,
     internal val dexFilesComplete: Boolean = true,
-    internal val storeDexUncompressed: Boolean = false
+    internal val storeDexUncompressed: Boolean = false,
+    internal val retainsV1Signature: Boolean = false,
+    internal val retainedV2Signature: ByteArray? = null,
 ) {
 
     /**

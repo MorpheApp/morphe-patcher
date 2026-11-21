@@ -674,7 +674,7 @@ internal class ArsclibResourceCoder(
 
                 // The decoder declares the package in public.xml only. Its package.json tells the
                 // packages apart in the working directory, as the decoder on request writes it.
-                apkModule.tableBlock.listPackages().forEach { packageBlock ->
+                apkModule.tableBlock.forEach { packageBlock ->
                     val dir = workingDir.resolve(TableBlock.DIRECTORY_NAME).resolve(packageBlock.buildDecodeDirectoryName())
                     dir.resolve(PackageBlock.FILE_NAME_JSON).writeJson(packageBlock.toJson(false, true))
                     packageDirectories[packageBlock.name] = dir

@@ -52,6 +52,7 @@ import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
+import org.junit.jupiter.params.provider.ValueSource
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.nio.file.Files
@@ -490,6 +491,42 @@ internal object PatcherTest {
             else assertNull(fingerprint.matchOrNull())
         }
         assertEquals(if (kind == "custom" || kind == "any-custom") 1 else 0, visitedMethods)
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `instruction indexes filter fingerprints with a defining class prefix`(matchAll: Boolean) {
+        fun classWithMethod(type: String, string: String?): ImmutableClassDef {
+            val method = ImmutableMethod(
+                type, "value", emptyList(), "V", AccessFlags.PUBLIC.value,
+                null, null, MutableMethodImplementation(1),
+            ).toMutable().apply {
+                addInstructions(0, if (string == null) "return-void" else "const-string v0, \"$string\"\nreturn-void")
+            }
+            return ImmutableClassDef(type, 0, null, null, null, null, null, listOf(method))
+        }
+        every { patcher.context.bytecodeContext.patchClasses } returns PatchClasses(
+            setOf(
+                // In the defining class prefix, but without the string.
+                classWithMethod("Lcom/app/c;", null),
+                // Has the string, but is outside the defining class prefix.
+                classWithMethod("Lcom/other/b;", "indexed"),
+                classWithMethod("Lcom/app/a;", "indexed"),
+            ),
+        )
+
+        val visitedClasses = mutableListOf<String>()
+        val fingerprint = Fingerprint(
+            definingClass = "Lcom/app/",
+            strings = listOf("indexed"),
+            custom = { _, classDef -> visitedClasses += classDef.type; true },
+        )
+
+        with(patcher.context.bytecodeContext) {
+            val matches = if (matchAll) fingerprint.matchAll() else listOf(fingerprint.match())
+            assertEquals(listOf("Lcom/app/a;"), matches.map { it.originalClassDef.type })
+        }
+        assertEquals(listOf("Lcom/app/a;"), visitedClasses)
     }
 
     @Test

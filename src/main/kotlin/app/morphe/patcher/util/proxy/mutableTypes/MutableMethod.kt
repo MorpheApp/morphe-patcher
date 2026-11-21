@@ -134,6 +134,37 @@ class MutableMethod(method: Method) :
 
     override fun getImplementation(): MutableMethodImplementation? = _implementation
 
+    /**
+     * This method as the DEX writer reads it. Until the mutable implementation is created, the
+     * writer reads the implementation of [sourceMethod], so writing a class does not copy the
+     * instructions of every method a patch left alone into builder objects.
+     */
+    internal fun forWriting(): Method = if (isImplementationCreated) this else UnchangedInstructionsMethod(this)
+
+    /**
+     * A [MutableMethod] whose instructions are read from its [sourceMethod], with everything else
+     * read from the mutable method, which patches may have changed.
+     */
+    private class UnchangedInstructionsMethod(private val method: MutableMethod) : BaseMethodReference(), Method {
+        override fun getDefiningClass(): String = method.definingClass
+
+        override fun getName(): String = method.name
+
+        override fun getParameterTypes(): List<CharSequence> = method.parameterTypes
+
+        override fun getReturnType(): String = method.returnType
+
+        override fun getParameters(): List<MutableMethodParameter> = method.parameters
+
+        override fun getAccessFlags(): Int = method.accessFlags
+
+        override fun getAnnotations(): Set<MutableAnnotation> = method.annotations
+
+        override fun getHiddenApiRestrictions(): Set<HiddenApiRestriction> = method.hiddenApiRestrictions
+
+        override fun getImplementation(): MethodImplementation? = method.sourceMethod.implementation
+    }
+
     companion object {
         /**
          * Creates a new mutable copy of this method.
