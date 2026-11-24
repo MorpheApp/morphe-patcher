@@ -1,3 +1,11 @@
+## [2.5.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.0...v2.5.1-dev.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* Parse the resource table once on small heaps ([ca35030](https://github.com/MorpheApp/morphe-patcher/commit/ca35030463cf46635ea7120b8295413a0e845249))
+* Update ARSCLib dependency ([3d5df0b](https://github.com/MorpheApp/morphe-patcher/commit/3d5df0bfed0f17ae7d536aae600e1f16aff42b9f))
+
 # [2.5.0](https://github.com/MorpheApp/morphe-patcher/compare/v2.4.0...v2.5.0) (2026-11-21)
 
 
