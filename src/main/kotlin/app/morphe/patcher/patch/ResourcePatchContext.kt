@@ -180,7 +180,6 @@ class ResourcePatchContext internal constructor(
         val startNanos = System.nanoTime()
         if (usesDecodedResources || !config.uses(PatcherBehavior.ON_REQUEST_RESOURCE_DECODING)) {
             decodeResources(ResourceMode.FULL)
-            finishDecoding()
             config.resourceMode = ResourceMode.FULL
             decodeOnFirstUse = false
         } else if (config.resourceMode == ResourceMode.NONE) {

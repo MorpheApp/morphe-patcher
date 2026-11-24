@@ -166,7 +166,6 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         // Prevent decoding the app manifest twice if it is not needed.
         if (config.resourceMode != ResourceMode.NONE) {
             context.resourceContext.decodeResources(config.resourceMode)
-            context.resourceContext.finishDecoding()
         } else {
             context.resourceContext.decodeOnFirstUse = true
         }

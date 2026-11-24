@@ -913,6 +913,10 @@ internal class ArsclibResourceCoder(
 
         val timings = PhaseTimings(logger, "compile")
 
+        // Several steps before the encoder read the table the encoder then takes. A small heap released it
+        // while the DEX files were compiled, and parses it again only once.
+        holdInputModule = onRequestDecoder != null
+
         timings.measure("stripLibs") { stripNativeLibraries() }
 
         // TODO: We could potentially remove unused resource splits here as well
