@@ -618,7 +618,6 @@ public final class app/morphe/patcher/apk/ApkUtils$PrivateKeyCertificatePairDeta
 }
 
 public final class app/morphe/patcher/dex/BytecodeMode : java/lang/Enum {
-	public static final field FULL Lapp/morphe/patcher/dex/BytecodeMode;
 	public static final field NONE Lapp/morphe/patcher/dex/BytecodeMode;
 	public static final field STRIP_FAST Lapp/morphe/patcher/dex/BytecodeMode;
 	public static final field STRIP_SAFE Lapp/morphe/patcher/dex/BytecodeMode;
@@ -1393,6 +1392,11 @@ public final class app/morphe/patcher/patch/SupportedAbi : java/lang/Enum {
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/patch/SupportedAbi;
 	public static fun values ()[Lapp/morphe/patcher/patch/SupportedAbi;
+}
+
+public final class app/morphe/patcher/profile/DexMetadata {
+	public static final field INSTANCE Lapp/morphe/patcher/profile/DexMetadata;
+	public static final fun of (Ljava/io/File;I)[B
 }
 
 public final class app/morphe/patcher/resource/CpuArchitecture : java/lang/Enum {
