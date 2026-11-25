@@ -212,7 +212,7 @@ internal class WriteApkTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = ["STRIP_FAST", "FULL"])
+    @ValueSource(strings = ["STRIP_FAST", "STRIP_SAFE"])
     fun `a bytecode patch writes what applyTo writes`(bytecodeMode: String) {
         val input = inputApk {
             add("classes.dex", dexOf("La;", "Lc;"))
@@ -379,7 +379,7 @@ internal class WriteApkTest {
         }
         val patches = { setOf(bytecodePatch("Change a class") { execute { mutableClassDefBy("La;") } }) }
 
-        val (applied, written) = patchBothWays(input, Config(bytecodeMode = BytecodeMode.FULL), patches)
+        val (applied, written) = patchBothWays(input, Config(bytecodeMode = BytecodeMode.STRIP_FAST), patches)
 
         val entries = assertSameApk(applied, written)
         assertEquals(ZipEntry.DEFLATED, entries.getValue("classes.dex").method)
@@ -409,7 +409,7 @@ internal class WriteApkTest {
         }
         val patches = { setOf(bytecodePatch("Change a class") { execute { mutableClassDefBy("La;") } }) }
 
-        val (applied, written) = patchBothWays(input, Config(bytecodeMode = BytecodeMode.FULL), patches)
+        val (applied, written) = patchBothWays(input, Config(bytecodeMode = BytecodeMode.STRIP_FAST), patches)
 
         val entries = assertSameApk(applied, written)
         assertEquals(ZipEntry.STORED, entries.getValue("classes.dex").method)
@@ -490,7 +490,7 @@ internal class WriteApkTest {
                     .builtFor(ON_REQUEST),
             )
         }
-        val config = Config(bytecodeMode = BytecodeMode.FULL)
+        val config = Config(bytecodeMode = BytecodeMode.STRIP_FAST)
 
         val overlapping = tempDir.resolve("overlapping.apk")
         patcher(input, "overlapping", config, patches()).use { it.writeApk(overlapping) }

@@ -474,35 +474,10 @@ class BytecodePatchContext internal constructor(
         return config.progress.runTask(PatcherTask.COMPILING_DEX, total = 0) { task ->
             when (config.bytecodeMode) {
                 BytecodeMode.NONE -> emptySet()
-                BytecodeMode.FULL -> compileFull(task)
                 BytecodeMode.STRIP_FAST -> compileStripFast(task)
                 BytecodeMode.STRIP_SAFE -> compileStripSafe(task)
             }
         }
-    }
-
-    /**
-     * [BytecodeMode.FULL]: Write ALL classes through DexPool, producing completely new DEX files.
-     * Slowest but most space-efficient since no dead data remains.
-     */
-    private fun compileFull(task: TaskProgress): Set<PatcherResult.PatchedDexFile> {
-        val classDefs = patchClasses.classMap.values.let { values ->
-            values.mapTo(ArrayList(values.size)) { it.classDef }
-        }
-        logMutableClassCount()
-        patchClasses.close()
-
-        dexOutputDir.apply { deleteRecursively(); mkdirs() }
-        // TODO: Separate out any j$ classes into their own DEX files, because d8/r8 will reject the DEX files otherwise.
-        DexReadWrite.writeMultiDexFile(dexOutputDir, classDefs, opcodes, -1, logger, task)
-
-        // All original classes have now been read; release their mappings.
-        releaseAllDexMappings()
-
-        config.verifier.verifyDexDirectory(dexOutputDir)
-        return dexOutputDir.listFiles { it.isFile }!!.sorted().map {
-            PatcherResult.PatchedDexFile(it.name, it.inputStream())
-        }.toSet()
     }
 
     /**
