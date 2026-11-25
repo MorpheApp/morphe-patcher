@@ -74,7 +74,7 @@ internal fun storedDexFilesIn(inputApk: File, exceptNames: Set<String>, dir: Fil
  *
  * The DEX files are compressed as [ApkUtils.applyTo] compresses them, at [ApkUtils.COMPRESSION_LEVEL], so
  * an entry that does not shrink is stored, or all stored if [storeUncompressed], as [ApkUtils.applyTo]
- * stores them. Each is compressed in a task of its own and written to the archive once it is done, which
+ * stores them. Each is compressed in a task of its own and written to the archive once it is done. This
  * takes a fraction of the time of adding them to an archive of apkzlib, which copies each entry into
  * storage of its own before it compresses it. A DEX file held in memory is compressed where it is.
  *
@@ -83,6 +83,8 @@ internal fun storedDexFilesIn(inputApk: File, exceptNames: Set<String>, dir: Fil
  * @param storeUncompressed Whether to store the DEX files rather than compress them, see [storesDexUncompressed].
  * @param timings Where compressing and waiting for it are measured.
  * @param overlap Whether to start compressing at once rather than in [await].
+ * @param storedEntries Entries the archive also stores, as the baseline profile, which belongs to the
+ *   DEX files written.
  */
 internal class CompressedDexFiles(
     dexFiles: Collection<PatchedDexFile>,
@@ -90,13 +92,14 @@ internal class CompressedDexFiles(
     private val storeUncompressed: Boolean,
     private val timings: PhaseTimings,
     overlap: Boolean = true,
+    private val storedEntries: Map<String, ByteArray> = emptyMap(),
 ) : Closeable {
     private val dexFiles = dexFiles.toList()
 
     @Volatile
     private var failure: Throwable? = null
 
-    private val thread: Thread? = if (this.dexFiles.isEmpty()) {
+    private val thread: Thread? = if (this.dexFiles.isEmpty() && storedEntries.isEmpty()) {
         null
     } else {
         Thread(::compress, "Morphe DEX compression").apply {
@@ -111,6 +114,10 @@ internal class CompressedDexFiles(
                 archive.absoluteFile.parentFile?.mkdirs()
                 // The entries are written in the order they are done in, which the patched APK sorts.
                 DexArchiveWriter(archive).use { writer ->
+                    storedEntries.forEach { (name, contents) ->
+                        val crc = CRC32().apply { update(contents) }.value
+                        writer.add(DexArchiveWriter.Entry(name, DexArchiveWriter.STORED, crc, contents.size, contents, contents.size))
+                    }
                     dexFiles.forEachInParallel { dexFile ->
                         writer.add(dexFile.stream.use { stream -> compressEntry(dexFile.name, stream) })
                     }
@@ -124,9 +131,9 @@ internal class CompressedDexFiles(
     }
 
     /** Compresses a DEX file, or stores it if [storeUncompressed] or it does not shrink. */
-    private fun compressEntry(name: String, stream: InputStream): DexArchiveWriter.Entry = when {
-        stream is DexBytesInputStream -> compressContents(name, stream.bytes)
-        stream is FileInputStream && !storeUncompressed -> compressFile(name, stream)
+    private fun compressEntry(name: String, stream: InputStream): DexArchiveWriter.Entry = when (stream) {
+        is DexBytesInputStream -> compressContents(name, stream.bytes)
+        is FileInputStream if !storeUncompressed -> compressFile(name, stream)
         else -> compressContents(name, stream.readBytes())
     }
 
