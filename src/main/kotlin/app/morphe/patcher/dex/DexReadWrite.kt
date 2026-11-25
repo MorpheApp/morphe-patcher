@@ -48,12 +48,23 @@ import kotlin.math.min
  * @param mappedFiles The DEX files in the APK, already mapped into memory (classes.dex, classes2.dex, etc.).
  */
 internal class MultidexReadResult(
-    val dexFile: DexFile,
+    dexFile: DexFile,
     val entryClassCounts: Map<String, Int>,
     classDescriptorsByEntrySupplier: () -> Map<String, Set<String>>,
     val mappedFiles: List<MappedFile>,
 ) : Closeable {
+    private var dexFileOrNull: DexFile? = dexFile
+
+    val dexFile get() = checkNotNull(dexFileOrNull) { "The classes were released" }
+
     val classDescriptorsByEntry: Map<String, Set<String>> by lazy(classDescriptorsByEntrySupplier)
+
+    /**
+     * Frees [dexFile], which holds a set of every class, once it is no longer needed.
+     */
+    fun releaseClasses() {
+        dexFileOrNull = null
+    }
 
     override fun close() {
         mappedFiles.forEach { it.close() }

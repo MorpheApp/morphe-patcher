@@ -182,7 +182,8 @@ class BytecodePatchContext internal constructor(
         opcodes = readResult.dexFile.opcodes
         val classes = readResult.dexFile.classes
         originalClassCount = classes.size
-        patchClasses = PatchClasses(classes, config.progress)
+        readResult.releaseClasses()
+        patchClasses = PatchClasses(classes, config.progress).also { it.startBuildingIndexes() }
 
         // Insertion-ordered so iteration follows the original classes*.dex order; a plain
         // HashMap iterates in File-hash order, which varies with the temporary directory
@@ -202,6 +203,7 @@ class BytecodePatchContext internal constructor(
      * file lock beforehand.
      */
     private fun releaseDexMapping(file: File) {
+        classes.cancelBuildingIndexes()
         originalDexMappings.remove(file)?.close()
     }
 
@@ -211,6 +213,7 @@ class BytecodePatchContext internal constructor(
     private fun releaseAllDexMappings() {
         if (originalDexMappings.isEmpty()) return
 
+        classes.cancelBuildingIndexes()
         originalDexMappings.values.toList().forEach { mappedFile ->
             runCatching { mappedFile.close() }
         }

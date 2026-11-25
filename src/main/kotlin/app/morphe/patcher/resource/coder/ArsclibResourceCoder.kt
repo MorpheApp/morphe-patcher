@@ -99,9 +99,9 @@ private enum class CompilingStage { PREPARING, UNESCAPING, EXPANDING_MACROS, GEN
 
 /**
  * The heap below which the parsed resource table is not kept between the resource id lookups of
- * fingerprints and the encoding of the resources.
+ * fingerprints and the encoding of the resources. A VM with a heap of 1 GB reports a bit less.
  */
-private const val RETAINED_TABLE_MIN_HEAP = 1536L * 1024 * 1024
+private const val RETAINED_TABLE_MIN_HEAP = 960L * 1024 * 1024
 
 /**
  * A resource table that uses sparse entries cannot be read below Android 8.
