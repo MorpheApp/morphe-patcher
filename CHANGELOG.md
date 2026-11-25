@@ -1,3 +1,11 @@
+# [2.6.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.1-dev.2...v2.6.0-dev.1) (2026-11-25)
+
+
+### Features
+
+* Carry the baseline profile over to the patched DEX files ([d56a631](https://github.com/MorpheApp/morphe-patcher/commit/d56a6312f6e3dfbf001c8a1fe378526d9598ea61))
+* Remove the FULL bytecode mode ([06a7fbf](https://github.com/MorpheApp/morphe-patcher/commit/06a7fbff007a3ad3a6eb194d76c8022bbb73ddde))
+
 ## [2.5.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.1-dev.1...v2.5.1-dev.2) (2026-11-25)
 
 
