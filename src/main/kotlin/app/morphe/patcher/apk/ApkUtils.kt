@@ -10,6 +10,7 @@ import app.morphe.patcher.TaskProgress
 import app.morphe.patcher.apk.ApkSigner.newApkSigner
 import app.morphe.patcher.apk.ApkSigner.newPrivateKeyCertificatePair
 import app.morphe.patcher.logging.PhaseTimings
+import app.morphe.patcher.profile.BaselineProfile
 import com.android.apksig.ApkVerifier
 import com.android.apksig.apk.ApkFormatException
 import com.android.tools.build.apkzlib.zip.AlignmentRules
@@ -22,6 +23,7 @@ import com.android.tools.build.apkzlib.zip.compress.DeflateExecutionCompressor
 import com.reandroid.apk.ApkModule
 import com.reandroid.archive.WriteProgress
 import com.reandroid.archive.writer.ZipAligner
+import java.io.ByteArrayInputStream
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
@@ -167,7 +169,8 @@ object ApkUtils {
                 targetApkZFile.entries().filter { entry ->
                     val name = entry.centralDirectoryHeader.name
                     !retainsV1Signature && name.matches(v1SignatureEntryName) ||
-                        replacesAllDexFiles && name.matches(dexEntryName)
+                        replacesAllDexFiles && name.matches(dexEntryName) ||
+                        profileEntries != null && name in BaselineProfile.ENTRIES
                 }.forEach(StoredEntry::delete)
             }
 
@@ -194,6 +197,9 @@ object ApkUtils {
 
             // Run this after resource updates to ensure our dex files don't get overwritten.
             timings.measure("addDex") {
+                profileEntries?.entries?.forEach { (name, contents) ->
+                    targetApkZFile.add(name, ByteArrayInputStream(contents), false)
+                }
                 try {
                     dexFiles.forEach { dexFile ->
                         targetApkZFile.add(dexFile.name, dexFile.stream, !storeDexUncompressed)
