@@ -1,3 +1,10 @@
+## [2.5.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.1-dev.1...v2.5.1-dev.2) (2026-11-25)
+
+
+### Performance Improvements
+
+* Index declared methods, and index instructions in the background ([b8e5a3c](https://github.com/MorpheApp/morphe-patcher/commit/b8e5a3c19bf665e20a9b5d7743ad4db6fb1f387d))
+
 ## [2.5.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.0...v2.5.1-dev.1) (2026-11-24)
 
 
