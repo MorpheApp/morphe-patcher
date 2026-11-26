@@ -33,7 +33,52 @@ internal class CachingDexBackedDexFile private constructor(
 
     private val strings = CachedSection(super.getStringSection())
 
+    /**
+     * The hash codes of the strings, or 0 for those not calculated yet. Null until the first is asked for.
+     * Filled racily, which is safe for ints.
+     */
+    private var stringHashCodes: IntArray? = null
+
     override fun getStringSection(): OptionalIndexedSection<String> = strings
+
+    /**
+     * The hash code of the [String] at [index]. A string that was not decoded yet is hashed where it is in the
+     * DEX file, as most strings of an app are only ever looked up by their hash code.
+     */
+    internal fun stringHashCode(index: Int): Int {
+        strings.cached(index)?.let { return it.hashCode() }
+
+        val hashCodes = stringHashCodes ?: IntArray(strings.size).also { stringHashCodes = it }
+        var hashCode = hashCodes[index]
+        if (hashCode == 0) {
+            hashCode = hashEncodedString(index)
+            hashCodes[index] = hashCode
+        }
+        return hashCode
+    }
+
+    /**
+     * Frees the hash codes [stringHashCode] keeps. They are calculated again if needed.
+     */
+    internal fun releaseStringHashCodes() {
+        stringHashCodes = null
+    }
+
+    private fun hashEncodedString(index: Int): Int {
+        val data = dataBuffer
+        val reader = data.readerAt(buffer.readSmallUint(strings.getOffset(index)))
+        val length = reader.readSmallUleb128()
+        val start = reader.offset
+
+        var hashCode = 0
+        for (i in 0 until length) {
+            val byte = data.readByte(start + i)
+            // A character of more than one byte is left to the decoder.
+            if (byte < 0) return strings[index].hashCode()
+            hashCode = 31 * hashCode + byte
+        }
+        return hashCode
+    }
 
     override fun createMethodImplementation(
         dexFile: DexBackedDexFile,
@@ -59,6 +104,11 @@ internal class CachingDexBackedDexFile private constructor(
 
     private class CachedSection(private val section: OptionalIndexedSection<String>) : OptionalIndexedSection<String>() {
         private val cache = arrayOfNulls<String>(section.size)
+
+        /**
+         * The string if it was decoded before.
+         */
+        fun cached(index: Int): String? = cache[index]
 
         override fun get(index: Int): String = cache[index] ?: section[index].also { cache[index] = it }
 

@@ -28,6 +28,8 @@ import app.morphe.patcher.patch.RawResourcePatch
 import app.morphe.patcher.patch.ResourcePatch
 import app.morphe.patcher.patch.anyRecursively
 import app.morphe.patcher.patch.decodesOnFirstUse
+import app.morphe.patcher.profile.BaselineProfile
+import app.morphe.patcher.profile.ProfileEntries
 import app.morphe.patcher.resource.ResourceMode
 import kotlinx.coroutines.flow.flow
 import java.io.Closeable
@@ -166,7 +168,6 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         // Prevent decoding the app manifest twice if it is not needed.
         if (config.resourceMode != ResourceMode.NONE) {
             context.resourceContext.decodeResources(config.resourceMode)
-            context.resourceContext.finishDecoding()
         } else {
             context.resourceContext.decodeOnFirstUse = true
         }
@@ -236,6 +237,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             dex.storeUncompressed,
             context.retainsV1Signature,
             retainedV2Signature(),
+            dex.profile,
         )
     }
 
@@ -266,6 +268,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             dex.storeUncompressed,
             timings,
             overlapDexCompression,
+            dex.profile?.entries.orEmpty(),
         ).use { compressedDexFiles ->
             context.resourceContext.writeApk(outputApk, compressedDexFiles, timings)
         }
@@ -291,11 +294,13 @@ class Patcher(private val config: PatcherConfig) : Closeable {
      *
      * @param complete Whether [files] replaces every DEX file of the input APK.
      * @param storeUncompressed Whether [files] are stored rather than compressed, see [storesDexUncompressed].
+     * @param profile The baseline profile entries that replace those of the input APK, if any do.
      */
     private class CompiledDexFiles(
         val files: Set<PatcherResult.PatchedDexFile>,
         val complete: Boolean,
-        val storeUncompressed: Boolean
+        val storeUncompressed: Boolean,
+        val profile: ProfileEntries?,
     )
 
     /**
@@ -323,10 +328,12 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         }
         val dexFileNames = dexFiles.mapTo(HashSet()) { it.name }
         val retainsV1Signature = context.retainsV1Signature
+        val profile = context.bytecodeContext.profileEntries
         context.resourceContext.omitEntry = { name ->
-            ApkUtils.isReplacedOnApply(name, dexFileNames, dexFilesComplete, retainsV1Signature)
+            ApkUtils.isReplacedOnApply(name, dexFileNames, dexFilesComplete, retainsV1Signature) ||
+                profile != null && name in BaselineProfile.ENTRIES
         }
-        return CompiledDexFiles(dexFiles, dexFilesComplete, storeUncompressed)
+        return CompiledDexFiles(dexFiles, dexFilesComplete, storeUncompressed, profile)
     }
 
     private companion object {

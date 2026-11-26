@@ -38,6 +38,7 @@ import java.lang.ref.WeakReference
 import java.util.BitSet
 import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
+import java.util.stream.Collectors
 import kotlin.time.Duration.Companion.nanoseconds
 
 /**
@@ -1219,6 +1220,18 @@ open class Fingerprint private constructor(
         val superclassComparison = StringComparisonType.typeDeclarationToComparison(superclass)
 
         val interfaceComparisons = StringComparisonType.typeDeclarationToComparison(interfaces)
+
+        /**
+         * What every matching method declares.
+         */
+        fun methodDeclaration(name: String?) = PatchClasses.MethodDeclaration(
+            name,
+            returnType.takeIf { returnTypeComparison == StringComparisonType.EQUALS },
+            parameters?.size,
+            parameters.orEmpty().filterIndexed { index, _ ->
+                parameterTypeComparison[index] == StringComparisonType.EQUALS
+            },
+        )
     }
 
     private fun evaluateValues() = Values(
@@ -1339,6 +1352,9 @@ open class Fingerprint private constructor(
             return match
         }
 
+        val patchClasses = currentBytecode.patchClasses
+        val methodDeclaration = values.methodDeclaration(name)
+
         // Use string declarations to first check only the classes
         // that contain one or more fingerprint strings.
         val filterStrings = mutableListOf<String>()
@@ -1348,6 +1364,7 @@ open class Fingerprint private constructor(
             value: PatchClasses.ClassDefWrapper,
             methods: Iterable<Method> = value.methods,
         ): Match? {
+            if (!patchClasses.canDeclare(value, methodDeclaration)) return null
             val classDef = value.classDef
             if (!classMatches(classDef)) return null
 
@@ -1410,7 +1427,7 @@ open class Fingerprint private constructor(
         }
 
         // Check all classes.
-        currentBytecode.patchClasses.classMap.values.forEach { value ->
+        (patchClasses.classesDeclaring(methodDeclaration) ?: patchClasses.classMap.values).forEach { value ->
             val value = machAllClassMethods(value)
             if (value != null) {
                 return value
@@ -2023,12 +2040,15 @@ open class Fingerprint private constructor(
             return matchesByClass.firstOrNull()
         }
 
+        val patchClasses = currentBytecode.patchClasses
+        val methodDeclaration = values.methodDeclaration(name)
         val matches = mutableListOf<Match>()
 
         fun machAllClassMethods(
             value: PatchClasses.ClassDefWrapper,
             methods: Iterable<Method> = value.methods,
         ) {
+            if (!patchClasses.canDeclare(value, methodDeclaration)) return
             val classDef = value.classDef
             if (!classMatches(classDef)) return
 
@@ -2063,7 +2083,7 @@ open class Fingerprint private constructor(
         }
 
         // Check all classes.
-        currentBytecode.patchClasses.classMap.values.forEach { value ->
+        (patchClasses.classesDeclaring(methodDeclaration) ?: patchClasses.classMap.values).forEach { value ->
             machAllClassMethods(value)
         }
 
@@ -2274,10 +2294,15 @@ open class Fingerprint private constructor(
         }
         if (partialMatches.isNotEmpty()) {
             val partialClasses = partialMatches.map { HashSet<PatchClasses.ClassDefWrapper>() }
-            stringMap.forEach { (instructionString, classes) ->
-                partialMatches.forEachIndexed { index, filterIndex ->
-                    val filter = stringFilters[filterIndex]
-                    if (filter.comparison.compare(instructionString, filter.stringValue)) {
+            val comparisons = partialMatches.map { stringFilters[it].comparison }
+            val strings = partialMatches.map { stringFilters[it].stringValue }
+            // A large app has about a million strings, of which few match, so they are compared in parallel.
+            val matchingEntries = stringMap.entries.parallelStream().filter { (instructionString, _) ->
+                partialMatches.indices.any { index -> comparisons[index].compare(instructionString, strings[index]) }
+            }.collect(Collectors.toList())
+            matchingEntries.forEach { (instructionString, classes) ->
+                partialMatches.indices.forEach { index ->
+                    if (comparisons[index].compare(instructionString, strings[index])) {
                         partialClasses[index].addAll(classes)
                     }
                 }

@@ -1,5 +1,6 @@
 package app.morphe.patcher
 
+import app.morphe.patcher.profile.ProfileEntries
 import java.io.File
 import java.io.InputStream
 
@@ -16,6 +17,7 @@ import java.io.InputStream
  *   [app.morphe.patcher.patch.retainOriginalV1Signature].
  * @param retainedV2Signature The v2 signature of the input, which the patched APK hands to the signer to keep,
  *   see [app.morphe.patcher.patch.retainOriginalV2Signature].
+ * @param profileEntries The baseline profile entries that replace those of the input APK, if any do.
  */
 @Suppress("MemberVisibilityCanBePrivate")
 class PatcherResult internal constructor(
@@ -25,6 +27,7 @@ class PatcherResult internal constructor(
     internal val storeDexUncompressed: Boolean = false,
     internal val retainsV1Signature: Boolean = false,
     internal val retainedV2Signature: ByteArray? = null,
+    internal val profileEntries: ProfileEntries? = null,
 ) {
 
     /**

@@ -26,6 +26,10 @@ import app.morphe.patcher.dex.MappedFile
 import app.morphe.patcher.dex.MemoryDexFile
 import app.morphe.patcher.dex.MultidexReadResult
 import app.morphe.patcher.dex.NoOpDexVerifier
+import app.morphe.patcher.profile.ApkProfile
+import app.morphe.patcher.profile.ProfileEntries
+import app.morphe.patcher.profile.StrippedDexProfile
+import app.morphe.patcher.profile.StrippedDexProfile.OutputDex
 import app.morphe.patcher.runTask
 import app.morphe.patcher.util.ClassMerger.merge
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
@@ -38,6 +42,7 @@ import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import java.io.Closeable
 import java.io.File
 import java.io.InputStream
+import java.nio.ByteBuffer
 import java.util.Collections
 import java.util.IdentityHashMap
 import java.util.logging.Logger
@@ -118,6 +123,13 @@ class BytecodePatchContext internal constructor(
      */
     internal var dexFilesComplete = false
 
+    /**
+     * The baseline profile entries the patched APK gets in place of those of the input, or null to keep
+     * those of the input as they are.
+     */
+    internal var profileEntries: ProfileEntries? = null
+        private set
+
     private var classes = PatchClasses(emptySet())
 
     /**
@@ -182,7 +194,8 @@ class BytecodePatchContext internal constructor(
         opcodes = readResult.dexFile.opcodes
         val classes = readResult.dexFile.classes
         originalClassCount = classes.size
-        patchClasses = PatchClasses(classes, config.progress)
+        readResult.releaseClasses()
+        patchClasses = PatchClasses(classes, config.progress).also { it.startBuildingIndexes() }
 
         // Insertion-ordered so iteration follows the original classes*.dex order; a plain
         // HashMap iterates in File-hash order, which varies with the temporary directory
@@ -202,6 +215,7 @@ class BytecodePatchContext internal constructor(
      * file lock beforehand.
      */
     private fun releaseDexMapping(file: File) {
+        classes.cancelBuildingIndexes()
         originalDexMappings.remove(file)?.close()
     }
 
@@ -211,6 +225,7 @@ class BytecodePatchContext internal constructor(
     private fun releaseAllDexMappings() {
         if (originalDexMappings.isEmpty()) return
 
+        classes.cancelBuildingIndexes()
         originalDexMappings.values.toList().forEach { mappedFile ->
             runCatching { mappedFile.close() }
         }
@@ -471,35 +486,61 @@ class BytecodePatchContext internal constructor(
         return config.progress.runTask(PatcherTask.COMPILING_DEX, total = 0) { task ->
             when (config.bytecodeMode) {
                 BytecodeMode.NONE -> emptySet()
-                BytecodeMode.FULL -> compileFull(task)
                 BytecodeMode.STRIP_FAST -> compileStripFast(task)
-                BytecodeMode.STRIP_SAFE -> compileStripSafe(task)
+                BytecodeMode.STRIP_SAFE -> compileStripSafe(task).also {
+                    if (ApkProfile.hasProfile(config.apkFile)) leaveOutProfile("which STRIP_SAFE does not carry over")
+                }
             }
         }
     }
 
+    /** Leaves out the baseline profile of the input, for the [reason] given. */
+    private fun leaveOutProfile(reason: String) {
+        logger.warning("Leaving out the baseline profile, $reason")
+        profileEntries = ProfileEntries.LEFT_OUT
+    }
+
     /**
-     * [BytecodeMode.FULL]: Write ALL classes through DexPool, producing completely new DEX files.
-     * Slowest but most space-efficient since no dead data remains.
+     * Reads the baseline profile of the input for [StrippedDexProfile], while the original DEX files are
+     * still as the input holds them.
+     *
+     * @param changedClasses The descriptors of the original classes patches changed.
+     * @return The profile, or null if the input has none, or if it cannot be carried over.
      */
-    private fun compileFull(task: TaskProgress): Set<PatcherResult.PatchedDexFile> {
-        val classDefs = patchClasses.classMap.values.let { values ->
-            values.mapTo(ArrayList(values.size)) { it.classDef }
+    private fun prepareStrippedDexProfile(changedClasses: Set<String>): StrippedDexProfile? = try {
+        val apkProfile = ApkProfile.read(config.apkFile)
+        if (apkProfile.profile == null) {
+            // Other profile entries describe the DEX files of the input all the same.
+            if (apkProfile.hasProfileEntries) leaveOutProfile("which has no baseline.prof to carry over")
+            null
+        } else {
+            val changedDexNames = classDescriptorsByEntry.filterValues { descriptors ->
+                descriptors.any(changedClasses::contains)
+            }.keys
+            StrippedDexProfile.prepare(
+                apkProfile.profile,
+                originalDexMappings.entries.associate { (file, mappedFile) -> file.name to mappedFile.buffer },
+                apkProfile.dexChecksums,
+                changedDexNames,
+                changedClasses,
+            )
         }
-        logMutableClassCount()
-        patchClasses.close()
+    } catch (exception: Exception) {
+        leaveOutProfile("which cannot be carried over: $exception")
+        null
+    }
 
-        dexOutputDir.apply { deleteRecursively(); mkdirs() }
-        // TODO: Separate out any j$ classes into their own DEX files, because d8/r8 will reject the DEX files otherwise.
-        DexReadWrite.writeMultiDexFile(dexOutputDir, classDefs, opcodes, -1, logger, task)
-
-        // All original classes have now been read; release their mappings.
-        releaseAllDexMappings()
-
-        config.verifier.verifyDexDirectory(dexOutputDir)
-        return dexOutputDir.listFiles { it.isFile }!!.sorted().map {
-            PatcherResult.PatchedDexFile(it.name, it.inputStream())
-        }.toSet()
+    /** Writes [profile] for the DEX files of the patched APK, which [outputDex] lists. */
+    private fun finishStrippedDexProfile(profile: StrippedDexProfile?, outputDex: () -> List<OutputDex>) {
+        if (profile == null) return
+        val finished = try {
+            profile.finish(outputDex())
+        } catch (exception: Exception) {
+            return leaveOutProfile("which cannot be carried over: $exception")
+        }
+        if (finished == null) return leaveOutProfile("which has nothing left for the patched DEX files")
+        logger.info("Carried the baseline profile over to ${finished.dexFiles.size} DEX files")
+        profileEntries = ProfileEntries.of(finished)
     }
 
     /**
@@ -536,6 +577,8 @@ class BytecodePatchContext internal constructor(
             dexFile.safelyMoveTo(dexOutputDir.resolve(getDexName(nextDexIndex++)))
         }
 
+        val profile = prepareStrippedDexProfile(modifiedOriginalDescriptors)
+
         // 3. Strip modified class_def entries from original DEX files in-place, in parallel, as each of
         // them is hashed whole again.
         val originalDexNames = originalDexMappings.keys.mapTo(HashSet()) { it.name }
@@ -559,6 +602,18 @@ class BytecodePatchContext internal constructor(
                 val strippedDexFiles = memoryDexFiles.filter { it.originalFile.name in strippedDexNames }.map { dexFile ->
                     PatcherResult.PatchedDexFile(dexFile.originalFile.name, DexBytesInputStream(dexFile.bytes))
                 }
+                finishStrippedDexProfile(profile) {
+                    dexOutputDir.listFiles { it.isFile }!!.map { file ->
+                        OutputDex.Added(file.name) { ByteBuffer.wrap(file.readBytes()) }
+                    } + memoryDexFiles.map { dexFile ->
+                        val name = dexFile.originalFile.name
+                        if (name in strippedDexNames) {
+                            OutputDex.Stripped(name, name) { dexFile.buffer }
+                        } else {
+                            OutputDex.Unchanged(name, name)
+                        }
+                    }
+                }
                 return (newDexFiles + strippedDexFiles)
                     .sortedBy { dexFile -> dexOutputDir.resolve(dexFile.name) }
                     .toCollection(LinkedHashSet())
@@ -573,11 +628,26 @@ class BytecodePatchContext internal constructor(
             .forEach { it.safelyMoveTo(dexOutputDir.resolve(it.name)) }
         config.verifier.verifyDexDirectory(dexOutputDir)
 
+        // The name each DEX file had before the ones left without classes were removed.
+        val namesBeforeRemoval = HashMap<String, String>()
         if (emptiedDexNames.isNotEmpty()) {
             dexFilesComplete = true
             logger.info("Removing ${emptiedDexNames.size} DEX files left without classes")
             dexOutputDir.listFiles { it.isFile }!!.sortedBy(::dexIndex).forEachIndexed { index, dexFile ->
+                namesBeforeRemoval[getDexName(index)] = dexFile.name
                 dexFile.safelyMoveTo(dexOutputDir.resolve(getDexName(index)))
+            }
+        }
+
+        finishStrippedDexProfile(profile) {
+            dexOutputDir.listFiles { it.isFile }!!.map { file ->
+                val name = namesBeforeRemoval[file.name] ?: file.name
+                val contents = { ByteBuffer.wrap(file.readBytes()) }
+                when (name) {
+                    in strippedDexNames -> OutputDex.Stripped(file.name, name, contents)
+                    in originalDexNames -> OutputDex.Unchanged(file.name, name)
+                    else -> OutputDex.Added(file.name, contents)
+                }
             }
         }
 

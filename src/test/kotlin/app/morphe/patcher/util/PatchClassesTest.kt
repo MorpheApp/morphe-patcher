@@ -18,6 +18,7 @@ import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction31i
 import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.immutable.ImmutableClassDef
 import com.android.tools.smali.dexlib2.immutable.ImmutableMethod
+import com.android.tools.smali.dexlib2.immutable.ImmutableMethodParameter
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableStringReference
 import com.android.tools.smali.dexlib2.immutable.reference.ImmutableTypeReference
 import com.android.tools.smali.dexlib2.writer.io.MemoryDataStore
@@ -922,5 +923,156 @@ internal object PatchClassesTest {
 
         val classesWithStrings = classes.getAllClassesWithStrings()
         assertTrue(classesWithStrings.any { it.classDef.type == "Lcom/test/ClassWithEmptyString;" })
+    }
+
+    private fun declaringMethod(type: String, name: String, returnType: String, vararg parameters: String) =
+        ImmutableMethod(
+            type, name, parameters.map { ImmutableMethodParameter(it, null, null) }, returnType,
+            AccessFlags.PUBLIC.value or AccessFlags.ABSTRACT.value, null, null, null,
+        )
+
+    private fun declaringClasses() = arrayOf(
+        createClassDef("Lcom/test/A;", listOf(declaringMethod("Lcom/test/A;", "a", "V"))),
+        createClassDef(
+            "Lcom/test/B;",
+            listOf(
+                declaringMethod("Lcom/test/B;", "b", "Z", "I", "Lcom/test/Parameter;"),
+                declaringMethod("Lcom/test/B;", "other", "V", "I"),
+            )
+        ),
+        createClassDef("Lcom/test/C;", listOf(declaringMethod("Lcom/test/C;", "b", "Lcom/test/R;", "I", "J"))),
+        createClassDef("Lcom/test/Empty;"),
+    )
+
+    private fun PatchClasses.typesDeclaring(
+        name: String? = null,
+        returnType: String? = null,
+        parameterCount: Int? = null,
+        vararg parameterTypes: String,
+    ): List<String>? {
+        val declaration = PatchClasses.MethodDeclaration(name, returnType, parameterCount, parameterTypes.toList())
+        val declaring = classesDeclaring(declaration) ?: return null
+        classMap.values.forEach { wrapper ->
+            assertEquals(wrapper in declaring, canDeclare(wrapper, declaration), wrapper.classDef.type)
+        }
+        return declaring.map { it.classDef.type }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = [true, false])
+    fun `classes are found by the methods they declare`(dexBacked: Boolean) {
+        val classDefs = declaringClasses()
+        val classes = PatchClasses(if (dexBacked) dexBackedClasses(*classDefs) else classDefs.toSet())
+        assertNull(classes.typesDeclaring(name = "a"), "The indexes are not built")
+        classes.getClassesByReferenceMap()
+
+        assertNull(classes.typesDeclaring(), "Every method can be one that declares nothing")
+        assertEquals(listOf("Lcom/test/A;"), classes.typesDeclaring(name = "a"))
+        assertEquals(listOf("Lcom/test/B;", "Lcom/test/C;"), classes.typesDeclaring(name = "b"))
+        assertEquals(listOf("Lcom/test/C;"), classes.typesDeclaring(name = "b", returnType = "Lcom/test/R;"))
+        assertEquals(listOf("Lcom/test/A;", "Lcom/test/B;"), classes.typesDeclaring(returnType = "V"))
+        assertEquals(listOf("Lcom/test/A;"), classes.typesDeclaring(parameterCount = 0))
+        assertEquals(listOf("Lcom/test/B;", "Lcom/test/C;"), classes.typesDeclaring(parameterCount = 2))
+        assertEquals(
+            listOf("Lcom/test/B;"),
+            classes.typesDeclaring(parameterCount = 2, parameterTypes = arrayOf("Lcom/test/Parameter;")),
+        )
+        assertEquals(
+            listOf("Lcom/test/C;"),
+            classes.typesDeclaring(parameterCount = 2, parameterTypes = arrayOf("I", "J")),
+        )
+        // The name is of a method, and the return type of another.
+        assertEquals(emptyList(), classes.typesDeclaring(name = "other", returnType = "Z"))
+        assertEquals(emptyList(), classes.typesDeclaring(name = "missing"))
+    }
+
+    @Test
+    fun `mutable and added classes can declare any method`() {
+        val classes = PatchClasses(dexBackedClasses(*declaringClasses()))
+        classes.getClassesByReferenceMap()
+
+        classes.mutableClassBy("Lcom/test/B;")
+        assertEquals(listOf("Lcom/test/A;", "Lcom/test/B;"), classes.typesDeclaring(name = "a"))
+        assertEquals(listOf("Lcom/test/B;", "Lcom/test/C;"), classes.typesDeclaring(name = "b"))
+
+        classes.addClass(createClassDef("Lcom/test/Added;", listOf(declaringMethod("Lcom/test/Added;", "added", "V"))))
+        assertEquals(listOf("Lcom/test/B;", "Lcom/test/Added;"), classes.typesDeclaring(name = "added"))
+
+        // A replaced class keeps its position, and what it declared no longer counts.
+        classes.addClass(createClassDef("Lcom/test/A;", listOf(declaringMethod("Lcom/test/A;", "replaced", "V"))))
+        assertEquals(listOf("Lcom/test/B;"), classes.typesDeclaring(name = "a"))
+        assertEquals(listOf("Lcom/test/A;", "Lcom/test/B;"), classes.typesDeclaring(name = "replaced"))
+    }
+
+    private fun literalClasses(count: Int) = dexBackedClasses(
+        *Array(count) { i ->
+            createClassDef(
+                "Lcom/test/Class$i;",
+                listOf(createMethodWithSmali("Lcom/test/Class$i;", "m", "const v0, ${0x10000 + i}\nconst v0, 0x9999\nreturn-void"))
+            )
+        }
+    )
+
+    @Test
+    fun `indexes built in the background have the classes that changed meanwhile`() {
+        val classes = PatchClasses(literalClasses(300))
+        classes.startBuildingIndexes()
+        assertEquals(0L, classes.indexBuildNanos, "Nothing waited for the indexes")
+
+        // Changed, replaced and added before anything waits for the indexes.
+        val mutableClass = classes.mutableClassBy("Lcom/test/Class1;")
+        mutableClass.methods.single().addInstructions(0, "const v0, 0x5678")
+        classes.addClass(
+            createClassDef(
+                "Lcom/test/Class2;",
+                listOf(createMethodWithSmali("Lcom/test/Class2;", "m", "const v0, 0x5678\nreturn-void"))
+            )
+        )
+        val (added) = dexBackedClasses(
+            createClassDef(
+                "Lcom/test/Added;",
+                listOf(createMethodWithSmali("Lcom/test/Added;", "m", "const v0, 0x5678\nreturn-void"))
+            )
+        ).toList()
+        classes.addClass(added)
+
+        fun typesWith(literal: Long) = classes.getClassesContainingLiteral(literal)?.map { it.classDef.type }
+        assertEquals(listOf("Lcom/test/Class1;", "Lcom/test/Class2;", "Lcom/test/Added;"), typesWith(0x5678))
+        // Without the changed class, which the list of classes alone cannot exclude.
+        fun otherTypesWith(literal: Long) = typesWith(literal).orEmpty() - "Lcom/test/Class1;"
+        assertEquals(emptyList(), otherTypesWith(0x10002), "The class was replaced")
+        for (i in 3 until 300) assertEquals(listOf("Lcom/test/Class$i;"), otherTypesWith(0x10000L + i))
+        assertEquals(299, typesWith(0x9999)?.size)
+        assertTrue(classes.indexBuildNanos > 0L)
+
+        // Classes added once the indexes are built are indexed as before.
+        classes.addClass(
+            createClassDef(
+                "Lcom/test/Later;",
+                listOf(createMethodWithSmali("Lcom/test/Later;", "m", "const v0, 0x9999\nreturn-void"))
+            )
+        )
+        assertEquals(300, typesWith(0x9999)?.size)
+    }
+
+    @Test
+    fun `indexes are built when needed after building them in the background was canceled`() {
+        val classes = PatchClasses(literalClasses(300))
+        classes.startBuildingIndexes()
+        classes.cancelBuildingIndexes()
+        classes.cancelBuildingIndexes()
+
+        assertEquals(1, classes.getClassesContainingLiteral(0x10005)?.size)
+        assertEquals(300, classes.getClassesContainingLiteral(0x9999)?.size)
+    }
+
+    @Test
+    fun `closing ends building the indexes in the background`() {
+        val classes = PatchClasses(literalClasses(300))
+        classes.startBuildingIndexes()
+        classes.close()
+
+        assertTrue(classes.classMap.isEmpty())
+        assertTrue(classes.getClassesByReferenceMap().isEmpty())
     }
 }
