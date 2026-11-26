@@ -1,3 +1,22 @@
+# [2.6.0](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.0...v2.6.0) (2026-11-26)
+
+
+### Bug Fixes
+
+* Parse the resource table once on small heaps ([ca35030](https://github.com/MorpheApp/morphe-patcher/commit/ca35030463cf46635ea7120b8295413a0e845249))
+* Update ARSCLib dependency ([3d5df0b](https://github.com/MorpheApp/morphe-patcher/commit/3d5df0bfed0f17ae7d536aae600e1f16aff42b9f))
+
+
+### Features
+
+* Carry the baseline profile over to the patched DEX files ([d56a631](https://github.com/MorpheApp/morphe-patcher/commit/d56a6312f6e3dfbf001c8a1fe378526d9598ea61))
+* Remove the FULL bytecode mode ([06a7fbf](https://github.com/MorpheApp/morphe-patcher/commit/06a7fbff007a3ad3a6eb194d76c8022bbb73ddde))
+
+
+### Performance Improvements
+
+* Index declared methods, and index instructions in the background ([b8e5a3c](https://github.com/MorpheApp/morphe-patcher/commit/b8e5a3c19bf665e20a9b5d7743ad4db6fb1f387d))
+
 # [2.6.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.1-dev.2...v2.6.0-dev.1) (2026-11-25)
 
 
