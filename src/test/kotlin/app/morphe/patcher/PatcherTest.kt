@@ -529,6 +529,40 @@ internal object PatcherTest {
         assertEquals(listOf("Lcom/app/a;"), visitedClasses)
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `instruction indexes with a common value also use the declared method`(matchAll: Boolean) {
+        fun classWithMethod(type: String, name: String): ImmutableClassDef {
+            val method = ImmutableMethod(
+                type, name, emptyList(), "V", AccessFlags.PUBLIC.value,
+                null, null, MutableMethodImplementation(1),
+            ).toMutable().apply {
+                addInstructions(0, "const/4 v0, 0x5\nreturn-void")
+            }
+            return ImmutableClassDef(type, 0, null, null, null, null, null, listOf(method))
+        }
+        // More classes have the literal than the instruction indexes intersect without the declared method.
+        val classes = LinkedHashSet<ClassDef>()
+        repeat(1100) { classes += classWithMethod("Lother$it;", "other") }
+        classes += classWithMethod("Ltarget;", "target")
+        // The methods of a class that was mutable when indexed are not in the indexes of the declared methods.
+        classes += MutableClass(classWithMethod("Lmutable;", "target"))
+        every { patcher.context.bytecodeContext.patchClasses } returns PatchClasses(classes)
+
+        val fingerprint = Fingerprint(
+            name = "target",
+            filters = listOf(literal(5)),
+        )
+
+        with(patcher.context.bytecodeContext) {
+            val matches = if (matchAll) fingerprint.matchAll() else listOf(fingerprint.match())
+            assertEquals(
+                if (matchAll) listOf("Ltarget;", "Lmutable;") else listOf("Ltarget;"),
+                matches.map { it.originalClassDef.type },
+            )
+        }
+    }
+
     @Test
     fun `fingerprint matchAll`() {
         val class1 = ImmutableClassDef(

@@ -872,6 +872,11 @@ internal class PatchClasses internal constructor(
         val declaredMethods = DeclaredMethodIndex(classCount)
 
         /**
+         * Indexed classes without their methods in [declaredMethods], such as classes that were mutable when indexed.
+         */
+        val undeclaredClasses = ArrayList<ClassDefWrapper>()
+
+        /**
          * Adds the values of a class to the indexes. Classes are added in class map order.
          */
         fun add(wrapper: ClassDefWrapper, values: ClassIndexValues) {
@@ -912,7 +917,8 @@ internal class PatchClasses internal constructor(
 
         private fun addIndexed(wrapper: ClassDefWrapper, values: ClassIndexValues) {
             wrapper.setIndexed(values)
-            values.declaredMethods?.let { declaredMethods.add(wrapper, it) }
+            val classMethods = values.declaredMethods
+            if (classMethods != null) declaredMethods.add(wrapper, classMethods) else undeclaredClasses += wrapper
         }
 
         private fun addStrings(wrapper: ClassDefWrapper, values: ClassIndexValues) {
@@ -1321,6 +1327,21 @@ internal class PatchClasses internal constructor(
         val builder = indexBuilder ?: return true
         if (wrapper.declaredMethodsSlot < 0 || wrapper.classDef !== wrapper.indexedClassDef) return true
         return declaration.isAny || builder.declaredMethods.canDeclare(wrapper, declaration)
+    }
+
+    /**
+     * Indexed classes with a method that can be the declared method, or null if every method can be.
+     * Includes the indexed classes whose methods are not known, such as classes that were mutable when indexed.
+     * Like the other lists of the indexes, the classes are as they were indexed, see [candidateConditionClasses].
+     */
+    internal fun getIndexedClassesDeclaring(declaration: MethodDeclaration): List<ClassDefWrapper>? {
+        if (declaration.isAny) return null
+
+        val builder = getIndexBuilder()
+        val declaring = ArrayList<ClassDefWrapper>()
+        builder.declaredMethods.addClassesDeclaring(declaration, declaring)
+        declaring.addAll(builder.undeclaredClasses)
+        return declaring
     }
 
     /**
