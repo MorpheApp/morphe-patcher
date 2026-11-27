@@ -45,11 +45,13 @@ import app.morphe.patcher.xml.ResourceXml
 import app.morphe.patcher.xml.XmlElement
 import app.morphe.patcher.util.FileUtils.safelyDelete
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
+import app.morphe.patcher.util.forEachInParallel
 import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
 import com.reandroid.apk.ApkUtil
+import com.reandroid.apk.xmlencoder.XMLEncodeSource
 import com.reandroid.archive.Archive
 import com.reandroid.archive.ArchiveFile
 import com.reandroid.archive.FileInputSource
@@ -62,6 +64,7 @@ import com.reandroid.arsc.chunk.TableBlock
 import com.reandroid.arsc.coder.xml.XmlCoder
 import com.reandroid.arsc.io.ReadProgress
 import com.reandroid.arsc.value.ResConfig
+import com.reandroid.identifiers.TableIdentifier
 import com.reandroid.xml.XMLFactory
 import java.io.Closeable
 import java.io.File
@@ -542,10 +545,14 @@ internal class ArsclibResourceCoder(
         // The incremental encoder gives the output those same names from public.xml, so encoding into a
         // table that already has them changes nothing.
         if (validateResourceNames && validatedModule !== module) {
-            // Removing the specs of invalid names refreshes the pool. It keeps its order, as in the
-            // incremental encoder, so the refresh does not sort it.
+            // The pool keeps its order, as in the incremental encoder, so the new names go at its end.
             module.tableBlock?.forEach { it.specStringPool.isKeepStringOrder = true }
-            catalogTimings.measure("validateNames") { ApkModuleXmlDecoder(module).validateResourceNames() }
+            catalogTimings.measure("validateNames") {
+                // The decoder would also remove the names nothing refers to anymore, which moves every
+                // name after them and changes the key of nearly every entry in the table. They are left
+                // in place instead, as nothing refers to them.
+                module.tableBlock?.let { tableBlock -> TableIdentifier().apply { load(tableBlock) }.validateSpecNames() }
+            }
             validatedModule = module
         }
     }
@@ -908,7 +915,13 @@ internal class ArsclibResourceCoder(
         val compiling = StagedProgress.of<CompilingStage>(progress, PatcherTask.COMPILING_RESOURCES)
         val write = { module: ApkModule ->
             compiling.finish()
-            if (writeModule != null) writeModule(module) else module.writeAlignedApk(outputApk)
+            if (writeModule != null) {
+                // Sorts the entries itself, once the DEX and other files are added.
+                writeModule(module)
+            } else {
+                module.zipEntryMap.autoSortApkFiles()
+                module.writeAlignedApk(outputApk)
+            }
         }
 
         val timings = PhaseTimings(logger, "compile")
@@ -1175,7 +1188,6 @@ internal class ArsclibResourceCoder(
                     .filter { it !in encoder.encodedEntries && it != MANIFEST_PATH }
                     .count { module.zipEntryMap.remove(it) != null }
                 val omittedEntries = module.omitEntries(omitEntry)
-                module.zipEntryMap.autoSortApkFiles()
                 droppedEntries to omittedEntries
             }
 
@@ -1693,6 +1705,14 @@ internal class ArsclibResourceCoder(
             // The signature block of the input APK no longer matches, and signing replaces it anyway.
             module.apkSignatureBlock = null
             timings.measure("sort") { zipEntryMap.autoSortApkFiles() }
+            // ARSCLib encodes the XML files it was given as text while it writes them, one after another.
+            // They are encoded on all cores first. The resource table no longer changes, and encoding a file
+            // only reads it.
+            timings.measure("encodeXml") {
+                val xmlSources = zipEntryMap.listInputSources().filterIsInstance<XMLEncodeSource>()
+                timings.count("encodeXmlCount", xmlSources.size.toLong())
+                xmlSources.forEachInParallel { source -> source.length }
+            }
             timings.measure("write") {
                 progress.runTask(PatcherTask.WRITING_APK, zipEntryMap.size().toLong()) { task ->
                     module.writeAlignedApk(outputApk, task)

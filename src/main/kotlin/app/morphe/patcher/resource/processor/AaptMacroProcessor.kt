@@ -12,6 +12,7 @@ import app.morphe.patcher.resource.xml.ANDROID_NAMESPACE
 import app.morphe.patcher.resource.xml.ElementBase
 import app.morphe.patcher.resource.xml.TextXmlDocument
 import app.morphe.patcher.resource.xml.writeDocument
+import app.morphe.patcher.util.mapInParallel
 import app.morphe.patcher.xml.XmlElement
 import com.reandroid.apk.ApkUtil
 import org.xmlpull.v1.XmlPullParser
@@ -42,18 +43,21 @@ internal class AaptMacroProcessor(
         // aapt2 inlines aapt:attr only in files compiled as file resources, never in values files,
         // which are most of what patches modify, so those are not opened.
         val files = modifiedResResources.filter { it.extension == "xml" && !it.isValuesFile() && it.exists() }
+        // Few files have macros, so the files are checked on all cores first. Those that have them are
+        // processed in order, as the files their macros are extracted to can have the same name.
+        val hasMacros = files.mapInParallel(::declaresAaptNamespace)
         files.forEachIndexed { index, file ->
-            newlyCreatedFiles += processDocument(file)
+            if (hasMacros[index]) newlyCreatedFiles += processDocument(file)
             onProgress(index + 1, files.size)
         }
     }
 
     private fun File.isValuesFile() = parentFile?.let { ApkUtil.isValuesDirectoryName(it.name, true) } == true
 
-    private fun processDocument(file: File): Set<File> {
-        val newlyCreatedFiles = mutableSetOf<File>()
-
-        // First pass: check if the file contains aapt namespace at all (quick scan).
+    /**
+     * If the root element of [file] declares the aapt namespace, which every file with macros does.
+     */
+    private fun declaresAaptNamespace(file: File): Boolean {
         var hasAaptNamespace = false
         file.parseXml { parser ->
             var event = parser.eventType
@@ -72,9 +76,11 @@ internal class AaptMacroProcessor(
                 event = parser.next()
             }
         }
+        return hasAaptNamespace
+    }
 
-        if (!hasAaptNamespace) return emptySet()
-
+    private fun processDocument(file: File): Set<File> {
+        val newlyCreatedFiles = mutableSetOf<File>()
         var aaptCounter = 0
 
         val document = file.inputStream().buffered().use { TextXmlDocument.read(it) }

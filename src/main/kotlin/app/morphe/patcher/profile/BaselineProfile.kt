@@ -8,7 +8,6 @@ package app.morphe.patcher.profile
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.util.TreeMap
 import java.util.zip.Deflater
 import java.util.zip.Inflater
 
@@ -91,13 +90,15 @@ internal class BaselineProfile(val dexFiles: List<DexProfile>) {
                 Header(key, classCount, hotSize, checksum, methodCount)
             }
             val dexFiles = headers.map { header ->
-                val methods = TreeMap<Int, Int>()
+                // The flags of each method by its index. A hot method can lie past the method count.
+                var methodFlags = IntArray(header.methodCount)
                 val hotEnd = body.position() + header.hotSize
                 var method = 0
                 while (body.position() < hotEnd) {
                     method += body.u16()
                     repeat(body.u16()) { body.skipInlineCache() }
-                    methods[method] = HOT
+                    if (method >= methodFlags.size) methodFlags = methodFlags.copyOf(maxOf(method + 1, methodFlags.size * 2))
+                    methodFlags[method] = HOT
                 }
                 require(body.position() == hotEnd) { "The hot methods of ${header.key} overrun their region" }
 
@@ -106,10 +107,21 @@ internal class BaselineProfile(val dexFiles: List<DexProfile>) {
 
                 val bitmap = ByteArray((header.methodCount * 2 + 7) / 8).also { body.get(it) }
                 for (index in 0 until header.methodCount) {
-                    var flags = 0
-                    if (bitmap.bit(index)) flags = flags or STARTUP
-                    if (bitmap.bit(header.methodCount + index)) flags = flags or POST_STARTUP
-                    if (flags != 0) methods.merge(index, flags, Int::or)
+                    if (bitmap.bit(index)) methodFlags[index] = methodFlags[index] or STARTUP
+                    if (bitmap.bit(header.methodCount + index)) methodFlags[index] = methodFlags[index] or POST_STARTUP
+                }
+
+                var count = 0
+                for (flags in methodFlags) if (flags != 0) count++
+                val methods = IntArray(count)
+                val flags = ByteArray(count)
+                count = 0
+                methodFlags.forEachIndexed { index, value ->
+                    if (value != 0) {
+                        methods[count] = index
+                        flags[count] = value.toByte()
+                        count++
+                    }
                 }
 
                 DexProfile(
@@ -119,10 +131,8 @@ internal class BaselineProfile(val dexFiles: List<DexProfile>) {
                     methodCount = header.methodCount,
                     classes = classes,
                     classDefs = IntArray(0),
-                    methods = methods.keys.toIntArray(),
-                    methodFlags = ByteArray(methods.size).also { flags ->
-                        methods.values.forEachIndexed { index, value -> flags[index] = value.toByte() }
-                    },
+                    methods = methods,
+                    methodFlags = flags,
                 )
             }
             require(!body.hasRemaining()) { "The profile has data after its DEX files" }

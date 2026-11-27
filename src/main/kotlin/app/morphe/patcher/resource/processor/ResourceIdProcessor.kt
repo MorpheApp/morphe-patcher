@@ -15,6 +15,7 @@ import app.morphe.patcher.resource.resourceToTagOverrideMapping
 import app.morphe.patcher.resource.utf8Writer
 import app.morphe.patcher.resource.xml.TextXmlDocument
 import app.morphe.patcher.resource.xml.writeDocument
+import app.morphe.patcher.util.mapInParallel
 import app.morphe.patcher.xml.ResourceXml
 import org.xmlpull.v1.XmlPullParser
 import java.io.File
@@ -74,13 +75,17 @@ internal class ResourceIdProcessor(
                 .map { it to null }
             val units = (changedFiles + heldDeclarations.map { it.file to it })
                 .sortedBy { it.first.invariantSeparatorsPath }
+            // The files are read on all cores first, and what they declare is then numbered in order.
+            // The document parser detects the encoding of a file that is not UTF-8, the pull parser does not.
+            val unitDeclarations = units.mapInParallel { (file, held) ->
+                if (held != null || file.isUtf16()) null else readDeclarations(file)
+            }
             units.forEachIndexed { index, (file, held) ->
                 if (held != null) {
                     held.ids.forEach { idName -> ids.addId(idName) }
                     held.resources.forEach { (type, name) -> publicIdManager.createPublicId(type, name) }
                 } else {
-                    // The document parser detects the encoding of a file that is not UTF-8, the pull parser does not.
-                    val declarations = if (file.isUtf16()) null else readDeclarations(file)
+                    val declarations = unitDeclarations[index]
                     if (declarations == null || declarations.needsRewrite) {
                         processIdAndAttrDeclarations(file, ids)
                         // The rewrite changes attribute values, so the declarations are read again.
