@@ -45,11 +45,13 @@ import app.morphe.patcher.xml.ResourceXml
 import app.morphe.patcher.xml.XmlElement
 import app.morphe.patcher.util.FileUtils.safelyDelete
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
+import app.morphe.patcher.util.forEachInParallel
 import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
 import com.reandroid.apk.ApkUtil
+import com.reandroid.apk.xmlencoder.XMLEncodeSource
 import com.reandroid.archive.Archive
 import com.reandroid.archive.ArchiveFile
 import com.reandroid.archive.FileInputSource
@@ -1693,6 +1695,14 @@ internal class ArsclibResourceCoder(
             // The signature block of the input APK no longer matches, and signing replaces it anyway.
             module.apkSignatureBlock = null
             timings.measure("sort") { zipEntryMap.autoSortApkFiles() }
+            // ARSCLib encodes the XML files it was given as text while it writes them, one after another.
+            // They are encoded on all cores first. The resource table no longer changes, and encoding a file
+            // only reads it.
+            timings.measure("encodeXml") {
+                val xmlSources = zipEntryMap.listInputSources().filterIsInstance<XMLEncodeSource>()
+                timings.count("encodeXmlCount", xmlSources.size.toLong())
+                xmlSources.forEachInParallel { source -> source.length }
+            }
             timings.measure("write") {
                 progress.runTask(PatcherTask.WRITING_APK, zipEntryMap.size().toLong()) { task ->
                     module.writeAlignedApk(outputApk, task)
