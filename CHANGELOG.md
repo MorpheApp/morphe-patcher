@@ -1,3 +1,11 @@
+## [2.6.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.6.1-dev.1...v2.6.1-dev.2) (2026-11-27)
+
+
+### Performance Improvements
+
+* Compare arrays of primitive types as equal so fingerprints can use the type indexes ([438c828](https://github.com/MorpheApp/morphe-patcher/commit/438c8288e08668d49ed3f5f944849d0718c432bf))
+* Limit the candidate classes with the declared method if the instruction values are common ([440aa26](https://github.com/MorpheApp/morphe-patcher/commit/440aa262faeb72cd0c5d7fa1d15342b8ee42b8cf))
+
 ## [2.6.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.6.0...v2.6.1-dev.1) (2026-11-27)
 
 
