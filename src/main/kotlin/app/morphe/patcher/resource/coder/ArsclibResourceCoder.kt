@@ -910,7 +910,13 @@ internal class ArsclibResourceCoder(
         val compiling = StagedProgress.of<CompilingStage>(progress, PatcherTask.COMPILING_RESOURCES)
         val write = { module: ApkModule ->
             compiling.finish()
-            if (writeModule != null) writeModule(module) else module.writeAlignedApk(outputApk)
+            if (writeModule != null) {
+                // Sorts the entries itself, once the DEX and other files are added.
+                writeModule(module)
+            } else {
+                module.zipEntryMap.autoSortApkFiles()
+                module.writeAlignedApk(outputApk)
+            }
         }
 
         val timings = PhaseTimings(logger, "compile")
@@ -1177,7 +1183,6 @@ internal class ArsclibResourceCoder(
                     .filter { it !in encoder.encodedEntries && it != MANIFEST_PATH }
                     .count { module.zipEntryMap.remove(it) != null }
                 val omittedEntries = module.omitEntries(omitEntry)
-                module.zipEntryMap.autoSortApkFiles()
                 droppedEntries to omittedEntries
             }
 
