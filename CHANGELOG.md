@@ -1,3 +1,10 @@
+## [2.6.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.6.0...v2.6.1-dev.1) (2026-11-27)
+
+
+### Performance Improvements
+
+* Speed up writing the patched APK ([#301](https://github.com/MorpheApp/morphe-patcher/issues/301)) ([f831fff](https://github.com/MorpheApp/morphe-patcher/commit/f831fff5a9e17fb282f7600caaf79062170219c5))
+
 # [2.6.0](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.0...v2.6.0) (2026-11-26)
 
 
