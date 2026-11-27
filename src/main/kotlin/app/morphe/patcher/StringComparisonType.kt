@@ -69,7 +69,11 @@ enum class StringComparisonType {
             val endsWithSemicolon = type.endsWith(';')
 
             if (firstChar == '[') {
-                return if (endsWithSemicolon) EQUALS else STARTS_WITH
+                // Only the type itself starts with an array of a primitive type, such as [B, so it is
+                // compared as equal, which lets fingerprints use the indexes of the types.
+                val elementType = type.trimStart('[')
+                val isPrimitiveArray = elementType.length == 1 && elementType[0] in "BCDFIJSZ"
+                return if (endsWithSemicolon || isPrimitiveArray) EQUALS else STARTS_WITH
             }
 
             val startsWithL = (firstChar == 'L')

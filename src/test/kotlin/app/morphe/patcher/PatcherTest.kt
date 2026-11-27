@@ -1265,10 +1265,14 @@ internal object PatcherTest {
                 StringComparisonType.STARTS_WITH
             )
 
-            assertEquals(
-                StringComparisonType.typeDeclarationToComparison("[I"),
-                StringComparisonType.STARTS_WITH
-            )
+            arrayOf(
+                "[B", "[C", "[D", "[F", "[I", "[J", "[S", "[Z", "[[I"
+            ).forEach { type ->
+                assertEquals(
+                    StringComparisonType.typeDeclarationToComparison(type),
+                    StringComparisonType.EQUALS
+                )
+            }
         }
     }
 
