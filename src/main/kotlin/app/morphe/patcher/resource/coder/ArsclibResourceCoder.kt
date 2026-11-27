@@ -64,6 +64,7 @@ import com.reandroid.arsc.chunk.TableBlock
 import com.reandroid.arsc.coder.xml.XmlCoder
 import com.reandroid.arsc.io.ReadProgress
 import com.reandroid.arsc.value.ResConfig
+import com.reandroid.identifiers.TableIdentifier
 import com.reandroid.xml.XMLFactory
 import java.io.Closeable
 import java.io.File
@@ -544,10 +545,14 @@ internal class ArsclibResourceCoder(
         // The incremental encoder gives the output those same names from public.xml, so encoding into a
         // table that already has them changes nothing.
         if (validateResourceNames && validatedModule !== module) {
-            // Removing the specs of invalid names refreshes the pool. It keeps its order, as in the
-            // incremental encoder, so the refresh does not sort it.
+            // The pool keeps its order, as in the incremental encoder, so the new names go at its end.
             module.tableBlock?.forEach { it.specStringPool.isKeepStringOrder = true }
-            catalogTimings.measure("validateNames") { ApkModuleXmlDecoder(module).validateResourceNames() }
+            catalogTimings.measure("validateNames") {
+                // The decoder would also remove the names nothing refers to anymore, which moves every
+                // name after them and changes the key of nearly every entry in the table. They are left
+                // in place instead, as nothing refers to them.
+                module.tableBlock?.let { tableBlock -> TableIdentifier().apply { load(tableBlock) }.validateSpecNames() }
+            }
             validatedModule = module
         }
     }
