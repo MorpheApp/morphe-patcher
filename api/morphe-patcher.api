@@ -527,6 +527,11 @@ public final class app/morphe/patcher/StringFilter : app/morphe/patcher/OpcodesF
 	public fun matches (Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;)Z
 }
 
+public final class app/morphe/patcher/apk/ApkFormFactor {
+	public static final field INSTANCE Lapp/morphe/patcher/apk/ApkFormFactor;
+	public static final fun of (Ljava/io/File;)Lapp/morphe/patcher/patch/FormFactor;
+}
+
 public final class app/morphe/patcher/apk/ApkMerger {
 	public fun <init> ()V
 	public fun <init> (Lapp/morphe/patcher/logging/Logger;)V
@@ -880,6 +885,7 @@ public final class app/morphe/patcher/patch/Compatibility {
 	public final fun getTargets ()Ljava/util/List;
 	public fun hashCode ()I
 	public final fun including ([Lapp/morphe/patcher/patch/AppTarget;)Lapp/morphe/patcher/patch/Compatibility;
+	public final fun supports (Lapp/morphe/patcher/patch/FormFactor;)Z
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -925,6 +931,7 @@ public final class app/morphe/patcher/patch/FormFactor : java/lang/Enum {
 	public static final field TV Lapp/morphe/patcher/patch/FormFactor;
 	public static final field WEARABLE Lapp/morphe/patcher/patch/FormFactor;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun isCoveredBy (Lapp/morphe/patcher/patch/FormFactor;)Z
 	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/patch/FormFactor;
 	public static fun values ()[Lapp/morphe/patcher/patch/FormFactor;
 }
