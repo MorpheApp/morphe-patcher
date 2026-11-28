@@ -14,7 +14,6 @@ import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.VersionMap
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
-import com.android.tools.smali.dexlib2.dexbacked.instruction.DexBackedInstruction
 import com.android.tools.smali.dexlib2.dexbacked.raw.HeaderItem
 import com.android.tools.smali.dexlib2.iface.ClassDef
 import com.android.tools.smali.dexlib2.iface.DexFile
@@ -344,23 +343,9 @@ internal object DexReadWrite {
      * instructions. An unknown opcode counts as the nop a dex backed instruction reads it as.
      */
     private fun hasOnlyOpcodesOf(implementation: CachingDexBackedDexFile.MethodImplementation, opcodes: Opcodes): Boolean {
-        val dexFile = implementation.dexFile
-        val sourceOpcodes = dexFile.opcodes
-        val buffer = dexFile.dataBuffer
-        var offset = implementation.instructionsStart
-        val end = offset + implementation.instructionsSize * 2
-
-        while (offset < end) {
-            var opcodeValue = buffer.readUbyte(offset)
-            if (opcodeValue == 0) opcodeValue = buffer.readUshort(offset)
-            val opcode = sourceOpcodes.getOpcodeByValue(opcodeValue)
+        implementation.forEachInstruction { opcode, _ ->
             if (opcodes.getOpcodeValue(opcode ?: Opcode.NOP) == null) return false
-
-            offset += if (opcode == null || opcode.format.isPayloadFormat) {
-                DexBackedInstruction.getCodeUnits(dexFile, offset) * 2
-            } else {
-                opcode.format.size
-            }
+            true
         }
         return true
     }

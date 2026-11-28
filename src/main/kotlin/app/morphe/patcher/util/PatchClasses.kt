@@ -716,29 +716,16 @@ internal class PatchClasses internal constructor(
             implementation: CachingDexBackedDexFile.MethodImplementation,
             decoder: DexReferenceDecoder,
         ) {
-            val dexFile = implementation.dexFile
-            val opcodes = dexFile.opcodes
             val buffer = decoder.dataBuffer
-            var offset = implementation.instructionsStart
-            val end = offset + implementation.instructionsSize * 2
-
-            // Reads the instructions as DexBackedMethodImplementation and DexBackedInstruction do.
-            while (offset < end) {
-                var opcodeValue = buffer.readUbyte(offset)
-                if (opcodeValue == 0) opcodeValue = buffer.readUshort(offset)
-                val opcode = opcodes.getOpcodeByValue(opcodeValue)
-
-                val codeUnits = if (opcode == null || opcode.format.isPayloadFormat) {
-                    DexBackedInstruction.getCodeUnits(dexFile, offset)
-                } else {
+            implementation.forEachInstruction { opcode, offset ->
+                // A payload or an unknown opcode has no literal or reference.
+                if (opcode != null && !opcode.format.isPayloadFormat) {
                     addDexBackedLiteral(opcode, offset, buffer)
                     if (!addDexBackedReference(opcode, offset, decoder)) {
-                        addReference(DexBackedInstruction.readFrom(dexFile, buffer.readerAt(offset)))
+                        addReference(DexBackedInstruction.readFrom(implementation.dexFile, buffer.readerAt(offset)))
                     }
-                    opcode.format.size / 2
                 }
-
-                offset += codeUnits * 2
+                true
             }
         }
 
