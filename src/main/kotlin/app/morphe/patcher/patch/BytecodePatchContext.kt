@@ -514,14 +514,10 @@ class BytecodePatchContext internal constructor(
             if (apkProfile.hasProfileEntries) leaveOutProfile("which has no baseline.prof to carry over")
             null
         } else {
-            val changedDexNames = classDescriptorsByEntry.filterValues { descriptors ->
-                descriptors.any(changedClasses::contains)
-            }.keys
             StrippedDexProfile.prepare(
                 apkProfile.profile,
                 originalDexMappings.entries.associate { (file, mappedFile) -> file.name to mappedFile.buffer },
                 apkProfile.dexChecksums,
-                changedDexNames,
                 changedClasses,
             )
         }

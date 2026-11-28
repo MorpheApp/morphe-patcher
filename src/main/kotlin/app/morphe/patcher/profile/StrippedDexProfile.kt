@@ -131,14 +131,12 @@ internal class StrippedDexProfile private constructor(
          *
          * @param originalDex The contents of each original DEX file by its entry name.
          * @param originalChecksums The CRC-32 of each original DEX entry of the input APK.
-         * @param changedDexNames The original DEX files with classes patches changed.
          * @param changedClasses The descriptors of the original classes patches changed.
          */
         fun prepare(
             profile: BaselineProfile,
             originalDex: Map<String, ByteBuffer>,
             originalChecksums: Map<String, Int>,
-            changedDexNames: Set<String>,
             changedClasses: Set<String>,
         ): StrippedDexProfile {
             val kept = HashMap<String, DexProfile>()
@@ -155,7 +153,7 @@ internal class StrippedDexProfile private constructor(
                 val definitionTypes = ids.classDefTypes()
                 // Types whose class moves, of the classes this DEX file defines.
                 val moved = BooleanArray(ids.typeCount)
-                if (dexProfile.name in changedDexNames) {
+                if (changedClasses.isNotEmpty()) {
                     definitionTypes.forEach { type -> if (ids.typeDescriptor(type) in changedClasses) moved[type] = true }
                 }
 
