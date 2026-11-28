@@ -460,8 +460,8 @@ public final class app/morphe/patcher/Patcher : java/io/Closeable {
 }
 
 public final class app/morphe/patcher/PatcherConfig {
-	public fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;Ljava/io/File;Ljava/lang/String;ZLapp/morphe/patcher/PatcherProgress;Ljava/util/Map;)V
-	public synthetic fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;Lapp/morphe/patcher/dex/BytecodeMode;Lapp/morphe/patcher/dex/DexVerifier;Ljava/io/File;Ljava/lang/String;ZLapp/morphe/patcher/PatcherProgress;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;Lapp/morphe/patcher/dex/DexVerifier;Ljava/io/File;Ljava/lang/String;ZLapp/morphe/patcher/PatcherProgress;Ljava/util/Map;)V
+	public synthetic fun <init> (Ljava/io/File;Ljava/io/File;Ljava/util/Set;Lapp/morphe/patcher/dex/DexVerifier;Ljava/io/File;Ljava/lang/String;ZLapp/morphe/patcher/PatcherProgress;Ljava/util/Map;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getFileWorkspace ()Ljava/io/File;
 }
 
@@ -527,13 +527,62 @@ public final class app/morphe/patcher/StringFilter : app/morphe/patcher/OpcodesF
 	public fun matches (Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;)Z
 }
 
+public final class app/morphe/patcher/apk/Abi {
+	public static final field INSTANCE Lapp/morphe/patcher/apk/Abi;
+	public static final field NAMES Ljava/util/List;
+	public static final fun architectureOf (Ljava/lang/String;)Lapp/morphe/patcher/patch/ApkArchitecture;
+	public static final fun namedIn (Ljava/lang/String;)Ljava/lang/String;
+	public static final fun of (Ljava/io/File;)Ljava/util/List;
+	public static final fun of (Ljava/io/InputStream;)Ljava/util/List;
+	public static final fun ofLibraryPath (Ljava/lang/String;)Ljava/lang/String;
+	public static final fun tokensOf (Ljava/lang/String;)Ljava/util/Set;
+}
+
+public final class app/morphe/patcher/apk/ApkFormFactor {
+	public static final field INSTANCE Lapp/morphe/patcher/apk/ApkFormFactor;
+	public static final fun of (Ljava/io/File;)Lapp/morphe/patcher/patch/FormFactor;
+}
+
+public final class app/morphe/patcher/apk/ApkManifest {
+	public static final field Companion Lapp/morphe/patcher/apk/ApkManifest$Companion;
+	public final fun getFormFactor ()Lapp/morphe/patcher/patch/FormFactor;
+	public final fun getLabel ()Ljava/lang/String;
+	public final fun getMinSdkVersion ()Ljava/lang/Integer;
+	public final fun getPackageName ()Ljava/lang/String;
+	public final fun getVersionCode ()J
+	public final fun getVersionName ()Ljava/lang/String;
+	public static final fun of (Ljava/io/File;)Lapp/morphe/patcher/apk/ApkManifest;
+	public static final fun of (Ljava/io/File;Z)Lapp/morphe/patcher/apk/ApkManifest;
+}
+
+public final class app/morphe/patcher/apk/ApkManifest$Companion {
+	public final fun of (Ljava/io/File;)Lapp/morphe/patcher/apk/ApkManifest;
+	public final fun of (Ljava/io/File;Z)Lapp/morphe/patcher/apk/ApkManifest;
+	public static synthetic fun of$default (Lapp/morphe/patcher/apk/ApkManifest$Companion;Ljava/io/File;ZILjava/lang/Object;)Lapp/morphe/patcher/apk/ApkManifest;
+}
+
 public final class app/morphe/patcher/apk/ApkMerger {
 	public fun <init> ()V
 	public fun <init> (Lapp/morphe/patcher/logging/Logger;)V
 	public synthetic fun <init> (Lapp/morphe/patcher/logging/Logger;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun extractObbFiles (Ljava/io/File;Ljava/io/File;)Ljava/util/Map;
-	public final fun merge (Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZLjava/lang/Boolean;Z)V
-	public static synthetic fun merge$default (Lapp/morphe/patcher/apk/ApkMerger;Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZLjava/lang/Boolean;ZILjava/lang/Object;)V
+	public final fun merge (Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZLjava/lang/Boolean;ZLkotlin/jvm/functions/Function1;)V
+	public static synthetic fun merge$default (Lapp/morphe/patcher/apk/ApkMerger;Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZLjava/lang/Boolean;ZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+}
+
+public abstract interface class app/morphe/patcher/apk/ApkMerger$Step {
+}
+
+public final class app/morphe/patcher/apk/ApkMerger$Step$Merging : app/morphe/patcher/apk/ApkMerger$Step {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getModuleName ()Ljava/lang/String;
+}
+
+public final class app/morphe/patcher/apk/ApkMerger$Step$Writing : app/morphe/patcher/apk/ApkMerger$Step {
+	public static final field INSTANCE Lapp/morphe/patcher/apk/ApkMerger$Step$Writing;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class app/morphe/patcher/apk/ApkSignatureScheme {
@@ -617,13 +666,13 @@ public final class app/morphe/patcher/apk/ApkUtils$PrivateKeyCertificatePairDeta
 	public final fun getValidUntil ()Ljava/util/Date;
 }
 
-public final class app/morphe/patcher/dex/BytecodeMode : java/lang/Enum {
-	public static final field NONE Lapp/morphe/patcher/dex/BytecodeMode;
-	public static final field STRIP_FAST Lapp/morphe/patcher/dex/BytecodeMode;
-	public static final field STRIP_SAFE Lapp/morphe/patcher/dex/BytecodeMode;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/dex/BytecodeMode;
-	public static fun values ()[Lapp/morphe/patcher/dex/BytecodeMode;
+public final class app/morphe/patcher/apk/SplitArchive {
+	public static final field EXTENSIONS Ljava/util/Set;
+	public static final field INSTANCE Lapp/morphe/patcher/apk/SplitArchive;
+	public static final fun baseModule (Ljava/util/zip/ZipFile;)Ljava/util/zip/ZipEntry;
+	public static final fun isBaseModule (Ljava/util/zip/ZipFile;Ljava/util/zip/ZipEntry;)Z
+	public static final fun isSplitArchive (Ljava/io/File;)Z
+	public static final fun modules (Ljava/util/zip/ZipFile;)Lkotlin/sequences/Sequence;
 }
 
 public final class app/morphe/patcher/dex/DexVerificationException : java/lang/RuntimeException {
@@ -880,6 +929,7 @@ public final class app/morphe/patcher/patch/Compatibility {
 	public final fun getTargets ()Ljava/util/List;
 	public fun hashCode ()I
 	public final fun including ([Lapp/morphe/patcher/patch/AppTarget;)Lapp/morphe/patcher/patch/Compatibility;
+	public final fun supports (Lapp/morphe/patcher/patch/FormFactor;)Z
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -925,6 +975,7 @@ public final class app/morphe/patcher/patch/FormFactor : java/lang/Enum {
 	public static final field TV Lapp/morphe/patcher/patch/FormFactor;
 	public static final field WEARABLE Lapp/morphe/patcher/patch/FormFactor;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun isCoveredBy (Lapp/morphe/patcher/patch/FormFactor;)Z
 	public static fun valueOf (Ljava/lang/String;)Lapp/morphe/patcher/patch/FormFactor;
 	public static fun values ()[Lapp/morphe/patcher/patch/FormFactor;
 }

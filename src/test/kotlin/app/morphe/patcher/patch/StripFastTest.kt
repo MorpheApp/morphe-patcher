@@ -7,7 +7,6 @@ package app.morphe.patcher.patch
 
 import app.morphe.patcher.InternalApi
 import app.morphe.patcher.PatcherConfig
-import app.morphe.patcher.dex.BytecodeMode
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
@@ -42,7 +41,7 @@ internal class StripFastTest {
             }
         }
         val config = PatcherConfig(apk, temporaryDirectory.resolve("tmp")).apply {
-            bytecodeMode = BytecodeMode.STRIP_FAST
+            bytecodeEnabled = true
             initializeTemporaryFilesDirectories()
         }
 
@@ -71,7 +70,7 @@ internal class StripFastTest {
             }
         }
         val config = PatcherConfig(apk, temporaryDirectory.resolve("tmp")).apply {
-            bytecodeMode = BytecodeMode.STRIP_FAST
+            bytecodeEnabled = true
             initializeTemporaryFilesDirectories()
         }
 
@@ -99,7 +98,7 @@ internal class StripFastTest {
             }
         }
         val config = PatcherConfig(apk, temporaryDirectory.resolve("tmp")).apply {
-            bytecodeMode = BytecodeMode.STRIP_FAST
+            bytecodeEnabled = true
             initializeTemporaryFilesDirectories()
         }
 
@@ -125,7 +124,7 @@ internal class StripFastTest {
             zip.closeEntry()
         }
         val config = PatcherConfig(apk, temporaryDirectory.resolve("tmp")).apply {
-            bytecodeMode = BytecodeMode.STRIP_FAST
+            bytecodeEnabled = true
             initializeTemporaryFilesDirectories()
         }
         // A newer dex version than the app, as extensions often are.

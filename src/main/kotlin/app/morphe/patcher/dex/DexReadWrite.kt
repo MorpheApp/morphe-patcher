@@ -10,6 +10,7 @@ import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
 import app.morphe.patcher.util.mapInParallel
 import app.morphe.patcher.util.proxy.mutableTypes.MutableClass
+import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.VersionMap
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
@@ -44,20 +45,16 @@ import kotlin.math.min
  *
  * @param dexFile A merged [DexFile] containing all classes from all DEX entries.
  * @param entryClassCounts Maps each DEX entry name to the number of classes it contains.
- * @param classDescriptorsByEntrySupplier Maps each DEX entry name to the set of class descriptors it contains.
  * @param mappedFiles The DEX files in the APK, already mapped into memory (classes.dex, classes2.dex, etc.).
  */
 internal class MultidexReadResult(
     dexFile: DexFile,
     val entryClassCounts: Map<String, Int>,
-    classDescriptorsByEntrySupplier: () -> Map<String, Set<String>>,
     val mappedFiles: List<MappedFile>,
 ) : Closeable {
     private var dexFileOrNull: DexFile? = dexFile
 
     val dexFile get() = checkNotNull(dexFileOrNull) { "The classes were released" }
-
-    val classDescriptorsByEntry: Map<String, Set<String>> by lazy(classDescriptorsByEntrySupplier)
 
     /**
      * Frees [dexFile], which holds a set of every class, once it is no longer needed.
@@ -124,15 +121,6 @@ internal object DexReadWrite {
             name to dex.classes.size
         }
 
-        // Track which class descriptors belong to which DEX entry lazily when requested during DEX compilation.
-        val classDescriptorsByEntrySupplier = {
-            entryNames.zip(memoryMappedDexFiles).associate { (name, dex) ->
-                name to dex.classes.let { classes ->
-                    classes.mapTo(HashSet(2 * classes.size)) { it.type }
-                }
-            }
-        }
-
         val opcodes = memoryMappedDexFiles.maxByOrNull { it.opcodes.api }?.opcodes
             ?: throw PatchException("APK contains no DEX files to patch")
 
@@ -148,7 +136,7 @@ internal object DexReadWrite {
             }
         }
 
-        return MultidexReadResult(mergedDexFile, entryClassCounts, classDescriptorsByEntrySupplier, mappedFiles)
+        return MultidexReadResult(mergedDexFile, entryClassCounts, mappedFiles)
     }
 
     /**
@@ -326,11 +314,27 @@ internal object DexReadWrite {
 
         return keptClasses.parallelStream().allMatch { classDef ->
             classDef.methods.all { method ->
-                method.implementation?.instructions?.all { instruction ->
-                    opcodes.getOpcodeValue(instruction.opcode) != null
-                } ?: true
+                when (val implementation = method.implementation) {
+                    null -> true
+                    is CachingDexBackedDexFile.MethodImplementation -> hasOnlyOpcodesOf(implementation, opcodes)
+                    else -> implementation.instructions.all { instruction ->
+                        opcodes.getOpcodeValue(instruction.opcode) != null
+                    }
+                }
             }
         }
+    }
+
+    /**
+     * If every instruction of a dex backed method has an opcode of [opcodes], read without creating the
+     * instructions. An unknown opcode counts as the nop a dex backed instruction reads it as.
+     */
+    private fun hasOnlyOpcodesOf(implementation: CachingDexBackedDexFile.MethodImplementation, opcodes: Opcodes): Boolean {
+        implementation.forEachInstruction { opcode, _ ->
+            if (opcodes.getOpcodeValue(opcode ?: Opcode.NOP) == null) return false
+            true
+        }
+        return true
     }
 
     /**

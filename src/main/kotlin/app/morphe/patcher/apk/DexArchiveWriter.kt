@@ -14,9 +14,9 @@ import java.nio.ByteOrder
 
 /**
  * Writes a zip archive of entries that were compressed before they are added, in the order they are
- * added, for [CompressedDexFiles]. Entries can be added from several threads at a time. The archive is
- * only read by the writer of the patched APK, which copies the entries as they are, so it is not aligned
- * and has no ZIP64 records.
+ * added, for [CompressedDexFiles] and the other files patches changed. Entries can be added from several
+ * threads at a time. The archive is only read by the writer of the patched APK, which copies the entries
+ * as they are, so it is not aligned and has no ZIP64 records.
  *
  * @param file The file to write, replacing what is there.
  */

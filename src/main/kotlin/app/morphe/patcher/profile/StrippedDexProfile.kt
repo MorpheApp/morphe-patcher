@@ -11,7 +11,7 @@ import java.util.zip.CRC32
 
 /**
  * Carries the baseline profile of the input APK over to the DEX files that
- * [STRIP_FAST][app.morphe.patcher.dex.BytecodeMode.STRIP_FAST] writes.
+ * compiling writes.
  *
  * Stripping a class from an original DEX file keeps every id of that file, so the profile keeps its
  * indices there, and only the class definitions and the checksum change. The classes it strips, which
@@ -66,7 +66,7 @@ internal class StrippedDexProfile private constructor(
     private fun stripped(profile: DexProfile, dex: OutputDex.Stripped): DexProfile {
         val contents = dex.contents()
         val ids = DexIds(contents)
-        val (classes, classDefs) = definedClasses(profile.classes, ids.classDefTypes())
+        val (classes, classDefs) = definedClasses(profile.classes, ids.classDefTypes(), ids.typeCount)
         return DexProfile(
             dex.name, crc32(contents), ids.typeCount, ids.methodCount, classes, classDefs,
             profile.methods, profile.methodFlags,
@@ -80,38 +80,42 @@ internal class StrippedDexProfile private constructor(
         val ids = DexIds(contents)
         val definitionTypes = ids.classDefTypes()
 
-        val classes = ArrayList<Int>()
-        val classDefs = ArrayList<Int>()
+        val classes = IntList()
+        val classDefs = IntList()
         // The classes defined here that declare a moved method, whose methods are looked up.
-        val owners = HashSet<Int>()
+        val owners = BooleanArray(ids.typeCount)
+        var hasOwners = false
         definitionTypes.forEachIndexed { definition, type ->
             val descriptor = ids.typeDescriptor(type)
             if (descriptor in movedClasses) {
-                classes += type
-                classDefs += definition
+                classes.add(type)
+                classDefs.add(definition)
             }
-            if (descriptor in movedMethodOwners) owners += type
+            if (descriptor in movedMethodOwners) {
+                owners[type] = true
+                hasOwners = true
+            }
         }
 
-        val methods = ArrayList<Int>()
-        val flags = ArrayList<Byte>()
-        if (owners.isNotEmpty()) {
+        val methods = IntList()
+        val flags = IntList()
+        if (hasOwners) {
             for (method in 0 until ids.methodCount) {
-                if (ids.methodClass(method) !in owners) continue
+                if (!owners[ids.methodClass(method)]) continue
                 val methodFlags = movedMethods[ids.methodSignature(method)] ?: continue
-                methods += method
-                flags += methodFlags.toByte()
+                methods.add(method)
+                flags.add(methodFlags)
             }
         }
-        if (classes.isEmpty() && methods.isEmpty()) return null
+        if (classes.size == 0 && methods.size == 0) return null
 
         return DexProfile(
             name = dex.name,
             checksum = crc32(contents),
             typeCount = ids.typeCount,
             methodCount = ids.methodCount,
-            classes = classes.sorted().toIntArray(),
-            classDefs = classDefs.sorted().toIntArray(),
+            classes = classes.toIntArray().apply { sort() },
+            classDefs = classDefs.toIntArray().apply { sort() },
             methods = methods.toIntArray(),
             methodFlags = flags.toByteArray(),
         )
@@ -127,14 +131,12 @@ internal class StrippedDexProfile private constructor(
          *
          * @param originalDex The contents of each original DEX file by its entry name.
          * @param originalChecksums The CRC-32 of each original DEX entry of the input APK.
-         * @param changedDexNames The original DEX files with classes patches changed.
          * @param changedClasses The descriptors of the original classes patches changed.
          */
         fun prepare(
             profile: BaselineProfile,
             originalDex: Map<String, ByteBuffer>,
             originalChecksums: Map<String, Int>,
-            changedDexNames: Set<String>,
             changedClasses: Set<String>,
         ): StrippedDexProfile {
             val kept = HashMap<String, DexProfile>()
@@ -150,29 +152,31 @@ internal class StrippedDexProfile private constructor(
 
                 val definitionTypes = ids.classDefTypes()
                 // Types whose class moves, of the classes this DEX file defines.
-                val moved = HashSet<Int>()
-                if (dexProfile.name in changedDexNames) {
-                    definitionTypes.forEach { type -> if (ids.typeDescriptor(type) in changedClasses) moved += type }
+                val moved = BooleanArray(ids.typeCount)
+                if (changedClasses.isNotEmpty()) {
+                    definitionTypes.forEach { type -> if (ids.typeDescriptor(type) in changedClasses) moved[type] = true }
                 }
 
-                val (movingClasses, stayingClasses) = dexProfile.classes.partition { it in moved }
-                movingClasses.mapTo(movedClasses, ids::typeDescriptor)
+                val stayingClasses = IntList()
+                dexProfile.classes.forEach { type ->
+                    if (type < moved.size && moved[type]) movedClasses += ids.typeDescriptor(type) else stayingClasses.add(type)
+                }
 
-                val methods = ArrayList<Int>(dexProfile.methods.size)
-                val flags = ArrayList<Byte>(dexProfile.methods.size)
+                val methods = IntList()
+                val flags = IntList()
                 dexProfile.methods.forEachIndexed { index, method ->
                     if (method >= ids.methodCount) return@forEachIndexed
                     val type = ids.methodClass(method)
-                    if (type in moved) {
+                    if (moved[type]) {
                         movedMethods.merge(ids.methodSignature(method), dexProfile.methodFlags[index].toInt(), Int::or)
                         movedMethodOwners += ids.typeDescriptor(type)
                     } else {
-                        methods += method
-                        flags += dexProfile.methodFlags[index]
+                        methods.add(method)
+                        flags.add(dexProfile.methodFlags[index].toInt())
                     }
                 }
 
-                val (classes, classDefs) = definedClasses(stayingClasses.toIntArray(), definitionTypes)
+                val (classes, classDefs) = definedClasses(stayingClasses.toIntArray(), definitionTypes, ids.typeCount)
                 kept[dexProfile.name] = DexProfile(
                     dexProfile.name, dexProfile.checksum, ids.typeCount, ids.methodCount, classes, classDefs,
                     methods.toIntArray(), flags.toByteArray(),
@@ -186,11 +190,20 @@ internal class StrippedDexProfile private constructor(
          * The [classes] that [definitionTypes] defines, and the indices of their definitions, both
          * ascending, as a profile and its metadata record them.
          */
-        private fun definedClasses(classes: IntArray, definitionTypes: IntArray): Pair<IntArray, IntArray> {
-            val definitions = HashMap<Int, Int>(definitionTypes.size * 2)
-            definitionTypes.forEachIndexed { definition, type -> definitions[type] = definition }
-            val defined = classes.filter { it in definitions }.toIntArray()
-            return defined to defined.map { definitions.getValue(it) }.sorted().toIntArray()
+        private fun definedClasses(classes: IntArray, definitionTypes: IntArray, typeCount: Int): Pair<IntArray, IntArray> {
+            // The definition of each type plus one, or 0 for a type this DEX file does not define.
+            val definitions = IntArray(typeCount)
+            definitionTypes.forEachIndexed { definition, type -> definitions[type] = definition + 1 }
+            val defined = IntList()
+            val definedDefinitions = IntList()
+            classes.forEach { type ->
+                val definition = if (type < typeCount) definitions[type] else 0
+                if (definition != 0) {
+                    defined.add(type)
+                    definedDefinitions.add(definition - 1)
+                }
+            }
+            return defined.toIntArray() to definedDefinitions.toIntArray().apply { sort() }
         }
 
         /** The number in the name of a DEX entry, 1 for `classes.dex`, which orders the entries. */
@@ -204,4 +217,20 @@ internal class StrippedDexProfile private constructor(
             return CRC32().apply { update(buffer) }.value.toInt()
         }
     }
+}
+
+/** A growable list of ints, which unlike a list of boxed values is quick before the code is compiled. */
+private class IntList {
+    private var values = IntArray(16)
+    var size = 0
+        private set
+
+    fun add(value: Int) {
+        if (size == values.size) values = values.copyOf(size * 2)
+        values[size++] = value
+    }
+
+    fun toIntArray() = values.copyOf(size)
+
+    fun toByteArray() = ByteArray(size) { values[it].toByte() }
 }

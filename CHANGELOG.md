@@ -1,3 +1,73 @@
+# [2.7.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v2.7.0-dev.5...v2.7.0-dev.6) (2026-11-28)
+
+
+### Bug Fixes
+
+* Keep split modules from being extracted outside the work directory ([4240521](https://github.com/MorpheApp/morphe-patcher/commit/4240521a412901647c18ae9af8122d998a84006d))
+
+# [2.7.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v2.7.0-dev.4...v2.7.0-dev.5) (2026-11-28)
+
+
+### Features
+
+* Share split archive, ABI and merge handling with the apps ([472a19b](https://github.com/MorpheApp/morphe-patcher/commit/472a19b7825beb0f1582c5775064f1f04b561d62))
+
+# [2.7.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v2.7.0-dev.3...v2.7.0-dev.4) (2026-11-28)
+
+
+### Features
+
+* Read what an app declares in its manifest straight from the APK ([cf57fc7](https://github.com/MorpheApp/morphe-patcher/commit/cf57fc760b9a802bd5eb3eafff4ff146bd83eddc))
+
+# [2.7.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.7.0-dev.2...v2.7.0-dev.3) (2026-11-28)
+
+
+### Bug Fixes
+
+* Remove BytecodeMode ([4679489](https://github.com/MorpheApp/morphe-patcher/commit/46794897eb3d25a473cd1d0cd2a711bcaa380dd9))
+
+# [2.7.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.7.0-dev.1...v2.7.0-dev.2) (2026-11-28)
+
+
+### Bug Fixes
+
+* Reject baseline profiles with impossible sizes instead of failing to allocate ([98ff4d4](https://github.com/MorpheApp/morphe-patcher/commit/98ff4d4611b8f2c7e0963a8728065b54e5a8c568))
+
+
+### Performance Improvements
+
+* Do not build the class descriptors of every DEX file to carry a profile over ([54de783](https://github.com/MorpheApp/morphe-patcher/commit/54de7835b1b214528b6331a713eb11c5af357d8d))
+* Size the compression buffers of a file to the file ([2c4233c](https://github.com/MorpheApp/morphe-patcher/commit/2c4233c010e4b9e530ef04f65098d7bc3928c31a))
+
+# [2.7.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.6.1-dev.3...v2.7.0-dev.1) (2026-11-28)
+
+
+### Features
+
+* Read the form factor an APK is built for ([#304](https://github.com/MorpheApp/morphe-patcher/issues/304)) ([0f0e60a](https://github.com/MorpheApp/morphe-patcher/commit/0f0e60a0f485070faf47a823244e6b4eddaceb55))
+
+## [2.6.1-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.6.1-dev.2...v2.6.1-dev.3) (2026-11-28)
+
+
+### Performance Improvements
+
+* Compress the other files patches change on all cores ([1ab5f7d](https://github.com/MorpheApp/morphe-patcher/commit/1ab5f7dfce81777c74e987808cd8e3fbf2a282fb))
+
+## [2.6.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.6.1-dev.1...v2.6.1-dev.2) (2026-11-27)
+
+
+### Performance Improvements
+
+* Compare arrays of primitive types as equal so fingerprints can use the type indexes ([438c828](https://github.com/MorpheApp/morphe-patcher/commit/438c8288e08668d49ed3f5f944849d0718c432bf))
+* Limit the candidate classes with the declared method if the instruction values are common ([440aa26](https://github.com/MorpheApp/morphe-patcher/commit/440aa262faeb72cd0c5d7fa1d15342b8ee42b8cf))
+
+## [2.6.1-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.6.0...v2.6.1-dev.1) (2026-11-27)
+
+
+### Performance Improvements
+
+* Speed up writing the patched APK ([#301](https://github.com/MorpheApp/morphe-patcher/issues/301)) ([f831fff](https://github.com/MorpheApp/morphe-patcher/commit/f831fff5a9e17fb282f7600caaf79062170219c5))
+
 # [2.6.0](https://github.com/MorpheApp/morphe-patcher/compare/v2.5.0...v2.6.0) (2026-11-26)
 
 

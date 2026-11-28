@@ -16,6 +16,7 @@ private val PACKAGE_NAME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-
  * 2. Indicates a required file type that must be used and all other types may
  *    fail to patch or are undesirable to use.
  */
+@Suppress("unused")
 enum class ApkFileType {
     APK,
     APK_REQUIRED,
@@ -71,7 +72,17 @@ enum class FormFactor {
     /**
      * Android Automotive OS. Android Auto apps run on the phone and are [MOBILE].
      */
-    AUTOMOTIVE
+    AUTOMOTIVE;
+
+    /**
+     * Whether an app target declared for [declared] applies to an APK built for this form factor.
+     * A null declaration applies to every form factor.
+     *
+     * An app target is [MOBILE] unless it says otherwise, even one for a TV only app whose author
+     * never declared a form factor. Filtering by form factor is therefore only meaningful for
+     * a package whose targets declare more than one.
+     */
+    fun isCoveredBy(declared: FormFactor?): Boolean = declared == null || declared == this
 }
 
 /**
@@ -444,6 +455,12 @@ data class Compatibility internal constructor(
 
         return copy(targets = updatedTargets)
     }
+
+    /**
+     * Whether this declaration applies to an APK built for [formFactor], as read by
+     * [app.morphe.patcher.apk.ApkFormFactor]. See [FormFactor.isCoveredBy].
+     */
+    fun supports(formFactor: FormFactor): Boolean = formFactor.isCoveredBy(this.formFactor)
 
     @Deprecated(
         "Here only for binary backwards compatibility",

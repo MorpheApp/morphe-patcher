@@ -183,14 +183,26 @@ internal object StringComparisonTypeTest {
     }
 
     @Test
-    fun `typeDeclarationToComparison returns STARTS_WITH for array types without semicolon`() {
+    fun `typeDeclarationToComparison returns EQUALS for arrays of primitive types`() {
         assertEquals(
-            StringComparisonType.STARTS_WITH,
+            StringComparisonType.EQUALS,
             StringComparisonType.typeDeclarationToComparison("[I")
         )
         assertEquals(
+            StringComparisonType.EQUALS,
+            StringComparisonType.typeDeclarationToComparison("[[B")
+        )
+    }
+
+    @Test
+    fun `typeDeclarationToComparison returns STARTS_WITH for partial array types`() {
+        assertEquals(
             StringComparisonType.STARTS_WITH,
             StringComparisonType.typeDeclarationToComparison("[Ljava/lang")
+        )
+        assertEquals(
+            StringComparisonType.STARTS_WITH,
+            StringComparisonType.typeDeclarationToComparison("[[")
         )
     }
 

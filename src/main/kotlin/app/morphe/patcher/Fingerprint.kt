@@ -1134,6 +1134,12 @@ open class Fingerprint private constructor(
         private val SLOW_MATCH_NANOS = TimeUnit.MILLISECONDS.toNanos(30)
 
         /**
+         * The indexes of the declared methods limit the candidate classes only
+         * if the instruction indexes leave more classes than this.
+         */
+        private const val DECLARATION_CANDIDATES_MIN_CLASSES = 1000
+
+        /**
          * How raw strings declared with [strings] are compared. Only patches built for a version of
          * Morphe Patcher older than 2.0.0 use [StringComparisonType.CONTAINS], see
          * [PatcherBehavior.EXACT_FINGERPRINT_STRINGS].
@@ -2173,6 +2179,16 @@ open class Fingerprint private constructor(
             }
         }
         if (conditions.isEmpty()) return null
+
+        // If all the values are common, such as a small literal or a type of the Java library, the declared
+        // method can leave much fewer classes, and then the classes of the common values are not intersected.
+        // Finding the classes that declare it reads the methods of every class, so it is done only if needed.
+        if (conditions.minOf { it.indexedClasses.size } > DECLARATION_CANDIDATES_MIN_CLASSES) {
+            patchClasses.getIndexedClassesDeclaring(values.methodDeclaration(name))?.let { declaring ->
+                // Methods that changed since they were indexed can declare it, and matching checks them.
+                conditions += PatchClasses.IndexCondition(declaring) { true }
+            }
+        }
 
         return patchClasses.candidateConditionClasses(conditions)
     }

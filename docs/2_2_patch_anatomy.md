@@ -253,6 +253,12 @@ The same order is followed for multiple patches depending on the patch.
   It is recommended that compatibility is specified to present known compatible packages and versions.
   - If `compatibleWith` is not used, the patch is treated as compatible with any package.
   - If a package is specified with no versions, the patch is compatible with any version of the package.
+  - If one package name is shared by builds for different devices, such as a phone app and its TV or
+    Wear OS app, declare one `Compatibility` per build with its `formFactor`. A patch for both builds
+    declares both, or one with `formFactor = null` when the versions are the same.
+    `ApkFormFactor.of` reads the form factor of an APK, and `Compatibility.supports` matches it.
+    Since every declaration is `FormFactor.MOBILE` by default, the form factor only narrows the patches
+    of a package that declares more than one.
 - A patch can raise a `PatchException` at any time of execution to indicate that the patch failed to execute.
 
 ## ⏭️ What's next

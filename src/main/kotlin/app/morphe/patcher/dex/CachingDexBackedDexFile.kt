@@ -5,10 +5,12 @@
 
 package app.morphe.patcher.dex
 
+import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.Opcodes
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedMethod
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedMethodImplementation
+import com.android.tools.smali.dexlib2.dexbacked.instruction.DexBackedInstruction
 import java.nio.ByteBuffer
 
 /**
@@ -100,6 +102,34 @@ internal class CachingDexBackedDexFile private constructor(
          */
         val instructionsStart: Int
             get() = instructionsStartOffset
+
+        /**
+         * Calls [action] with the opcode and the offset in the data buffer of each instruction, read
+         * without creating the instructions, as [DexBackedMethodImplementation] and [DexBackedInstruction]
+         * read them, until [action] returns false.
+         *
+         * The opcode is null if the value is not an opcode of the DEX file version, which a dex backed
+         * instruction reads as a nop.
+         */
+        inline fun forEachInstruction(action: (opcode: Opcode?, offset: Int) -> Boolean) {
+            val opcodes = dexFile.opcodes
+            val buffer = dexFile.dataBuffer
+            var offset = instructionsStart
+            val end = offset + instructionsSize * 2
+
+            while (offset < end) {
+                var opcodeValue = buffer.readUbyte(offset)
+                if (opcodeValue == 0) opcodeValue = buffer.readUshort(offset)
+                val opcode = opcodes.getOpcodeByValue(opcodeValue)
+                if (!action(opcode, offset)) return
+
+                offset += if (opcode == null || opcode.format.isPayloadFormat) {
+                    DexBackedInstruction.getCodeUnits(dexFile, offset) * 2
+                } else {
+                    opcode.format.size
+                }
+            }
+        }
     }
 
     private class CachedSection(private val section: OptionalIndexedSection<String>) : OptionalIndexedSection<String>() {

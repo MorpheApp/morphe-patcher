@@ -44,7 +44,8 @@ internal class ApkProfile(
          */
         fun read(apk: File): ApkProfile = ZipFile(apk).use { zip ->
             val dexChecksums = zip.entries().asSequence()
-                .filter { it.name.matches(ApkUtils.dexEntryName) }
+                // The quick checks first, as an APK has many thousands of entries.
+                .filter { it.name.startsWith("classes") && it.name.matches(ApkUtils.dexEntryName) }
                 .associate { it.name to it.crc.toInt() }
             val profile = zip.getEntry(BaselineProfile.PROFILE_ENTRY)?.let { entry ->
                 BaselineProfile.read(zip.getInputStream(entry).use { it.readBytes() })

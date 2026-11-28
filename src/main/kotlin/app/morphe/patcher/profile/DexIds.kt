@@ -5,6 +5,7 @@
 
 package app.morphe.patcher.profile
 
+import java.nio.Buffer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -63,15 +64,31 @@ internal class DexIds(buffer: ByteBuffer) {
         }
     }
 
+    /** The array of [dex] and where the DEX file starts in it, or null if it has none, such as a mapped file. */
+    private val array = if (dex.hasArray()) dex.array() else null
+    private val arrayOffset = if (dex.hasArray()) dex.arrayOffset() else 0
+
     private fun string(index: Int): String {
         var offset = dex.getInt(stringIdsOff + index * STRING_ID_SIZE)
         // The data starts with the length in UTF-16 code units, which the bytes do not need.
         var lengthByte: Int
         do lengthByte = dex.get(offset++).toInt() while (lengthByte and 0x80 != 0)
         val start = offset
+
+        // Read from the array where there is one, which is much faster before the code is compiled.
+        val array = array
+        if (array != null) {
+            var end = arrayOffset + start
+            while (array[end] != 0.toByte()) end++
+            return String(array, arrayOffset + start, end - arrayOffset - start, Charsets.ISO_8859_1)
+        }
+
         while (dex.get(offset) != 0.toByte()) offset++
-        // Older Android versions have no absolute bulk reads of a ByteBuffer.
-        val bytes = ByteArray(offset - start) { dex.get(start + it) }
+        val bytes = ByteArray(offset - start)
+        // Older Android versions have no absolute bulk reads of a ByteBuffer, and no position(Int) that
+        // returns a ByteBuffer.
+        (dex as Buffer).position(start)
+        dex.get(bytes)
         return String(bytes, Charsets.ISO_8859_1)
     }
 

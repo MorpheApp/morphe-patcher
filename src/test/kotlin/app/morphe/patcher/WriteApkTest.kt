@@ -16,7 +16,6 @@ import app.morphe.patcher.apk.ApkUtils
 import app.morphe.patcher.apk.ApkUtils.applyTo
 import app.morphe.patcher.apk.CompressedDexFiles
 import app.morphe.patcher.apk.overlapDexCompression
-import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.logging.PhaseTimings
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.PatchBundleInfo
@@ -87,7 +86,6 @@ internal class WriteApkTest {
 
     private class Config(
         val keepArchitectures: Set<CpuArchitecture> = emptySet(),
-        val bytecodeMode: BytecodeMode = BytecodeMode.STRIP_FAST,
         val progress: PatcherProgress? = null,
     )
 
@@ -211,9 +209,8 @@ internal class WriteApkTest {
         assertSigns(written)
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = ["STRIP_FAST", "STRIP_SAFE"])
-    fun `a bytecode patch writes what applyTo writes`(bytecodeMode: String) {
+    @Test
+    fun `a bytecode patch writes what applyTo writes`() {
         val input = inputApk {
             add("classes.dex", dexOf("La;", "Lc;"))
             add("classes2.dex", dexOf("Lb;"))
@@ -221,19 +218,17 @@ internal class WriteApkTest {
             addStored("lib/x86/libfoo.so", ByteArray(3000) { it.toByte() })
         }
         val patches = { setOf(bytecodePatch("Change a class") { execute { mutableClassDefBy("La;") } }) }
-        val config = Config(setOf(CpuArchitecture.ARM64_V8A), BytecodeMode.valueOf(bytecodeMode))
+        val config = Config(setOf(CpuArchitecture.ARM64_V8A))
 
         val (applied, written) = patchBothWays(input, config, patches)
 
         val entries = assertSameApk(applied, written)
         assertCopiedAsTheyAre(input, written, "resources.arsc", "AndroidManifest.xml")
         assertTrue("lib/x86/libfoo.so" !in entries)
-        if (bytecodeMode == "STRIP_FAST") {
-            // A partial set: the stripped original, the new file and the untouched original.
-            assertEquals(setOf("classes.dex", "classes2.dex", "classes3.dex"), entries.keys.filter { it.endsWith(".dex") }.toSet())
-            assertEquals(setOf("La;"), typesIn(read(written, "classes3.dex")))
-            assertEquals(entryOf(input, "classes2.dex"), entries["classes2.dex"])
-        }
+        // A partial set: the stripped original, the new file and the untouched original.
+        assertEquals(setOf("classes.dex", "classes2.dex", "classes3.dex"), entries.keys.filter { it.endsWith(".dex") }.toSet())
+        assertEquals(setOf("La;"), typesIn(read(written, "classes3.dex")))
+        assertEquals(entryOf(input, "classes2.dex"), entries["classes2.dex"])
         assertSigns(written)
     }
 
@@ -379,7 +374,7 @@ internal class WriteApkTest {
         }
         val patches = { setOf(bytecodePatch("Change a class") { execute { mutableClassDefBy("La;") } }) }
 
-        val (applied, written) = patchBothWays(input, Config(bytecodeMode = BytecodeMode.STRIP_FAST), patches)
+        val (applied, written) = patchBothWays(input, Config(), patches)
 
         val entries = assertSameApk(applied, written)
         assertEquals(ZipEntry.DEFLATED, entries.getValue("classes.dex").method)
@@ -393,7 +388,7 @@ internal class WriteApkTest {
         }
         val patches = { setOf(bytecodePatch("Change a class") { execute { mutableClassDefBy("La;") } }) }
 
-        val (applied, written) = patchBothWays(input, Config(bytecodeMode = BytecodeMode.STRIP_FAST), patches)
+        val (applied, written) = patchBothWays(input, Config(), patches)
 
         val entries = assertSameApk(applied, written)
         assertEquals(dexOf("Lc;", "Ld;").toList(), read(written, "classes2.dex").toList())
@@ -409,7 +404,7 @@ internal class WriteApkTest {
         }
         val patches = { setOf(bytecodePatch("Change a class") { execute { mutableClassDefBy("La;") } }) }
 
-        val (applied, written) = patchBothWays(input, Config(bytecodeMode = BytecodeMode.STRIP_FAST), patches)
+        val (applied, written) = patchBothWays(input, Config(), patches)
 
         val entries = assertSameApk(applied, written)
         assertEquals(ZipEntry.STORED, entries.getValue("classes.dex").method)
@@ -490,7 +485,7 @@ internal class WriteApkTest {
                     .builtFor(ON_REQUEST),
             )
         }
-        val config = Config(bytecodeMode = BytecodeMode.STRIP_FAST)
+        val config = Config()
 
         val overlapping = tempDir.resolve("overlapping.apk")
         patcher(input, "overlapping", config, patches()).use { it.writeApk(overlapping) }
@@ -611,7 +606,6 @@ internal class WriteApkTest {
                 input,
                 tempDir.resolve(name),
                 keepArchitectures = config.keepArchitectures,
-                useBytecodeMode = config.bytecodeMode,
                 progress = config.progress,
             ),
         ).also { patcher ->

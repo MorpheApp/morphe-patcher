@@ -14,6 +14,8 @@ import app.morphe.patcher.StagedProgress
 import app.morphe.patcher.apk.ApkUtils
 import app.morphe.patcher.apk.ApkUtils.writeAlignedApk
 import app.morphe.patcher.apk.CompressedDexFiles
+import app.morphe.patcher.apk.DexArchiveWriter
+import app.morphe.patcher.apk.compressedEntry
 import app.morphe.patcher.logging.PhaseTimings
 import app.morphe.patcher.logging.measure
 import app.morphe.patcher.patch.PatchException
@@ -45,11 +47,13 @@ import app.morphe.patcher.xml.ResourceXml
 import app.morphe.patcher.xml.XmlElement
 import app.morphe.patcher.util.FileUtils.safelyDelete
 import app.morphe.patcher.util.FileUtils.safelyMoveTo
+import app.morphe.patcher.util.forEachInParallel
 import com.reandroid.apk.ApkModule
 import com.reandroid.apk.ApkModuleRawDecoder
 import com.reandroid.apk.ApkModuleXmlDecoder
 import com.reandroid.apk.ApkModuleXmlEncoder
 import com.reandroid.apk.ApkUtil
+import com.reandroid.apk.xmlencoder.XMLEncodeSource
 import com.reandroid.archive.Archive
 import com.reandroid.archive.ArchiveFile
 import com.reandroid.archive.FileInputSource
@@ -62,9 +66,11 @@ import com.reandroid.arsc.chunk.TableBlock
 import com.reandroid.arsc.coder.xml.XmlCoder
 import com.reandroid.arsc.io.ReadProgress
 import com.reandroid.arsc.value.ResConfig
+import com.reandroid.identifiers.TableIdentifier
 import com.reandroid.xml.XMLFactory
 import java.io.Closeable
 import java.io.File
+import java.io.FileInputStream
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -73,7 +79,6 @@ import java.nio.file.attribute.FileTime
 import java.util.logging.Level
 import java.util.zip.CRC32
 import java.util.logging.Logger
-import com.android.tools.build.apkzlib.zip.ZFile
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.measureTime
@@ -542,10 +547,14 @@ internal class ArsclibResourceCoder(
         // The incremental encoder gives the output those same names from public.xml, so encoding into a
         // table that already has them changes nothing.
         if (validateResourceNames && validatedModule !== module) {
-            // Removing the specs of invalid names refreshes the pool. It keeps its order, as in the
-            // incremental encoder, so the refresh does not sort it.
+            // The pool keeps its order, as in the incremental encoder, so the new names go at its end.
             module.tableBlock?.forEach { it.specStringPool.isKeepStringOrder = true }
-            catalogTimings.measure("validateNames") { ApkModuleXmlDecoder(module).validateResourceNames() }
+            catalogTimings.measure("validateNames") {
+                // The decoder would also remove the names nothing refers to anymore, which moves every
+                // name after them and changes the key of nearly every entry in the table. They are left
+                // in place instead, as nothing refers to them.
+                module.tableBlock?.let { tableBlock -> TableIdentifier().apply { load(tableBlock) }.validateSpecNames() }
+            }
             validatedModule = module
         }
     }
@@ -908,7 +917,13 @@ internal class ArsclibResourceCoder(
         val compiling = StagedProgress.of<CompilingStage>(progress, PatcherTask.COMPILING_RESOURCES)
         val write = { module: ApkModule ->
             compiling.finish()
-            if (writeModule != null) writeModule(module) else module.writeAlignedApk(outputApk)
+            if (writeModule != null) {
+                // Sorts the entries itself, once the DEX and other files are added.
+                writeModule(module)
+            } else {
+                module.zipEntryMap.autoSortApkFiles()
+                module.writeAlignedApk(outputApk)
+            }
         }
 
         val timings = PhaseTimings(logger, "compile")
@@ -1175,7 +1190,6 @@ internal class ArsclibResourceCoder(
                     .filter { it !in encoder.encodedEntries && it != MANIFEST_PATH }
                     .count { module.zipEntryMap.remove(it) != null }
                 val omittedEntries = module.omitEntries(omitEntry)
-                module.zipEntryMap.autoSortApkFiles()
                 droppedEntries to omittedEntries
             }
 
@@ -1669,9 +1683,15 @@ internal class ArsclibResourceCoder(
                     addAsCompressed(FileInputSource(file, name).apply { method = Archive.STORED })
                 }
                 if (compressed.isNotEmpty()) {
-                    val archive = compressIntoArchive(otherFilesArchive) { zFile ->
-                        compressed.forEach { (name, file) -> file.inputStream().use { zFile.add(name, it) } }
-                    }.also(archives::add)
+                    // On all cores, as the DEX files are compressed, rather than one after another by apkzlib.
+                    // The entries are written in the order they are done in, which the patched APK sorts.
+                    otherFilesArchive.absoluteFile.parentFile?.mkdirs()
+                    DexArchiveWriter(otherFilesArchive).use { writer ->
+                        compressed.sortedByDescending { (_, file) -> file.length() }.forEachInParallel { (name, file) ->
+                            writer.add(FileInputStream(file).use { stream -> compressedEntry(name, stream) })
+                        }
+                    }
+                    val archive = ArchiveFile(otherFilesArchive).also(archives::add)
                     archive.createZipEntryMap().listInputSources().forEach(::addAsCompressed)
                 }
                 timings.count("otherFileCount", filesByName.size.toLong())
@@ -1693,6 +1713,14 @@ internal class ArsclibResourceCoder(
             // The signature block of the input APK no longer matches, and signing replaces it anyway.
             module.apkSignatureBlock = null
             timings.measure("sort") { zipEntryMap.autoSortApkFiles() }
+            // ARSCLib encodes the XML files it was given as text while it writes them, one after another.
+            // They are encoded on all cores first. The resource table no longer changes, and encoding a file
+            // only reads it.
+            timings.measure("encodeXml") {
+                val xmlSources = zipEntryMap.listInputSources().filterIsInstance<XMLEncodeSource>()
+                timings.count("encodeXmlCount", xmlSources.size.toLong())
+                xmlSources.forEachInParallel { source -> source.length }
+            }
             timings.measure("write") {
                 progress.runTask(PatcherTask.WRITING_APK, zipEntryMap.size().toLong()) { task ->
                     module.writeAlignedApk(outputApk, task)
@@ -1702,18 +1730,6 @@ internal class ArsclibResourceCoder(
             archives.forEach { archive -> runCatching { archive.close() } }
             otherFilesArchive.delete()
         }
-    }
-
-    /**
-     * Writes an archive with [ApkUtils.zFileOptions], as [ApkUtils.applyTo] writes the patched APK, and
-     * opens it to copy its entries.
-     */
-    private fun compressIntoArchive(file: File, add: (ZFile) -> Unit): ArchiveFile {
-        file.absoluteFile.parentFile?.mkdirs()
-        // Opening an existing file would add to what an earlier run left there.
-        file.delete()
-        ZFile.openReadWrite(file, ApkUtils.zFileOptions).use(add)
-        return ArchiveFile(file)
     }
 
     override fun getUncompressedFiles(resourceMode: ResourceMode): Set<String> {
