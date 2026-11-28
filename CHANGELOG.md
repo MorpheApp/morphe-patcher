@@ -1,3 +1,10 @@
+# [2.7.0-dev.6](https://github.com/MorpheApp/morphe-patcher/compare/v2.7.0-dev.5...v2.7.0-dev.6) (2026-11-28)
+
+
+### Bug Fixes
+
+* Keep split modules from being extracted outside the work directory ([4240521](https://github.com/MorpheApp/morphe-patcher/commit/4240521a412901647c18ae9af8122d998a84006d))
+
 # [2.7.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v2.7.0-dev.4...v2.7.0-dev.5) (2026-11-28)
 
 
