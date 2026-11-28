@@ -56,22 +56,19 @@ internal class BaseModule private constructor(
             }
         }
 
-        // Module names differ between formats, so the base is the module whose manifest names no
-        // split, with `base.apk` tried first
-        private fun nested(zip: ZipFile): BaseModule? =
-            zip.entries().asSequence()
-                .filter { !it.isDirectory && it.name.endsWith(".apk", ignoreCase = true) }
-                .sortedByDescending { it.name.substringAfterLast('/').equals("base.apk", ignoreCase = true) }
-                .firstNotNullOfOrNull { module ->
-                    val manifest = zip.getInputStream(module)
-                        .use { nestedEntry(it, MANIFEST) { input -> AndroidManifestBlock.load(input) } }
-                        ?.takeUnless { it.isSplit }
-                        ?: return@firstNotNullOfOrNull null
+        // An archive that holds no base answers with the module most likely to be one, which is
+        // still a split and describes no app of its own
+        private fun nested(zip: ZipFile): BaseModule? {
+            val module = SplitArchive.baseModule(zip) ?: return null
+            val manifest = zip.getInputStream(module)
+                .use { nestedEntry(it, MANIFEST) { input -> AndroidManifestBlock.load(input) } }
+                ?.takeUnless { it.isSplit }
+                ?: return null
 
-                    BaseModule(manifest) {
-                        zip.getInputStream(module).use { nestedEntry(it, TableBlock.FILE_NAME) { input -> TableBlock.load(input) } }
-                    }
-                }
+            return BaseModule(manifest) {
+                zip.getInputStream(module).use { nestedEntry(it, TableBlock.FILE_NAME) { input -> TableBlock.load(input) } }
+            }
+        }
 
         /** The entry [name] of the APK streamed in [input], read by [load] without unpacking the APK. */
         private fun <T> nestedEntry(input: InputStream, name: String, load: (InputStream) -> T): T? {

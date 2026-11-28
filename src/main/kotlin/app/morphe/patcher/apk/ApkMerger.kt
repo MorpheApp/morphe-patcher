@@ -22,20 +22,20 @@ import app.morphe.patcher.logging.ArsclibLogger
 import app.morphe.patcher.logging.Logger
 import app.morphe.patcher.logging.NoOpLogger
 import app.morphe.patcher.util.FileUtils.safelyDelete
+import com.reandroid.apk.APKLogger
 import com.reandroid.apk.ApkBundle
 import com.reandroid.apk.ApkModule
 import com.reandroid.app.AndroidManifest
-import com.reandroid.archive.ArchiveEntry
 import com.reandroid.archive.ArchiveFile
-import com.reandroid.arsc.chunk.xml.AndroidManifestBlock
 import com.reandroid.arsc.chunk.xml.ResXmlElement
 import com.reandroid.arsc.value.DataType
 import com.reandroid.utils.HexUtil
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
+import java.nio.charset.CoderMalfunctionError
 import java.nio.file.Path
-import java.util.function.Predicate
+import java.util.zip.ZipFile
 
 @Suppress("unused")
 class ApkMerger(
@@ -43,9 +43,32 @@ class ApkMerger(
 ) {
     private val arsclibLogger = ArsclibLogger(logger)
 
+    /** A step of [merge], reported as it starts. */
+    sealed interface Step {
+        /** Merging the module [moduleName], such as `split_config.arm64_v8a.apk`, into the APK. */
+        class Merging(val moduleName: String) : Step
+
+        /** Writing the merged APK. */
+        data object Writing : Step
+    }
+
     /**
+     * Merges the modules of a split archive into one APK that installs on its own.
+     *
+     * @param inputFile The split archive, or a directory holding its modules.
+     * @param outputFile The file to write the merged APK to.
+     * @param validateModules Whether to refuse modules that do not belong together, such as those
+     *   of another app or another version of it.
+     * @param resDirName The directory to move the resource files into, or null to leave them.
+     * @param validateResDir Whether to give the resource files the paths their types name.
+     * @param extractNativeLibs Whether the native libraries are extracted on install, or null to
+     *   keep what the manifest of the base says.
      * @param cleanMetaInf Ignored: META-INF is always kept, so the signature block is retained.
+     * @param onStep Called as each [Step] of the merge starts.
+     *
+     * @throws IOException If the modules cannot be read or merged.
      */
+    @Throws(IOException::class)
     fun merge(
         inputFile: File,
         outputFile: File,
@@ -53,44 +76,86 @@ class ApkMerger(
         resDirName: String? = null,
         validateResDir: Boolean = true,
         extractNativeLibs: Boolean? = null,
-        @Suppress("UNUSED_PARAMETER") cleanMetaInf: Boolean = false
+        @Suppress("UNUSED_PARAMETER") cleanMetaInf: Boolean = false,
+        onStep: (Step) -> Unit = {},
     ) {
         outputFile.safelyDelete()
-        var dir: File = inputFile
-        var extracted = false
-        if (dir.isFile) {
-            dir = extractFile(dir)
-            extracted = true
-        }
-        logger.info("Searching apk files ...")
-        val bundle = ApkBundle()
-        bundle.setAPKLogger(arsclibLogger)
-        bundle.loadApkDirectory(dir, extracted)
-        logger.info("Found modules: " + bundle.apkModuleList.size)
-        val mergedModule = bundle.mergeModules(validateModules)
-        if (resDirName != null) {
-            logger.info("Renaming resources root dir: $resDirName")
-            mergedModule.setResourcesRootDir(resDirName)
-        }
-        if (validateResDir) {
-            logger.info("Validating resources dir ...")
-            mergedModule.validateResourcesDir()
-        }
-        sanitizeManifest(mergedModule)
-        mergedModule.refreshTable()
-        mergedModule.refreshManifest()
-        val shouldExtractNativeLibs = extractNativeLibs ?: mergedModule.androidManifest?.isExtractNativeLibs
-        logger.info("Setting extractNativeLibs=$shouldExtractNativeLibs")
-        mergedModule.setExtractNativeLibs(shouldExtractNativeLibs)
-        logger.info("Writing apk ...")
-        mergedModule.writeAlignedApk(outputFile)
-        mergedModule.close()
-        bundle.close()
-        if (extracted) {
-            dir.safelyDelete()
-            dir.deleteOnExit()
+        val extracted = inputFile.isFile
+        val dir = if (extracted) extractModules(inputFile) else inputFile
+        try {
+            ApkBundle().use { bundle ->
+                bundle.setAPKLogger(StepLogger(onStep))
+                val merged = readingResources {
+                    bundle.loadApkDirectory(dir, false)
+                    logger.info("Found modules: " + bundle.apkModuleList.size)
+                    bundle.mergeModules(!validateModules)
+                }
+                merged.use {
+                    if (resDirName != null) {
+                        logger.info("Renaming resources root dir: $resDirName")
+                        merged.setResourcesRootDir(resDirName)
+                    }
+                    if (validateResDir) {
+                        logger.info("Validating resources dir ...")
+                        merged.validateResourcesDir()
+                    }
+                    sanitizeManifest(merged)
+                    merged.refreshTable()
+                    merged.refreshManifest()
+                    val shouldExtractNativeLibs = extractNativeLibs ?: merged.androidManifest?.isExtractNativeLibs
+                    logger.info("Setting extractNativeLibs=$shouldExtractNativeLibs")
+                    merged.setExtractNativeLibs(shouldExtractNativeLibs)
+
+                    onStep(Step.Writing)
+                    logger.info("Writing apk ...")
+                    outputFile.parentFile?.mkdirs()
+                    merged.writeAlignedApk(outputFile)
+                }
+            }
+        } finally {
+            if (extracted) dir.safelyDelete()
         }
         logger.info("Saved to: $outputFile")
+    }
+
+    // ARSCLib fails with these on resources it cannot make sense of, which tells the user nothing
+    private inline fun <T> readingResources(block: () -> T): T = try {
+        block()
+    } catch (error: Throwable) {
+        if (error.isUnreadableResources() || error.cause?.isUnreadableResources() == true) {
+            throw IOException(
+                "Failed to merge split APK resources. The split set may be incomplete, corrupted, or unsupported.",
+                error
+            )
+        }
+        throw error
+    }
+
+    private fun Throwable.isUnreadableResources() =
+        this is CoderMalfunctionError || this is IllegalArgumentException && message?.contains("newPosition > limit") == true
+
+    /**
+     * What ARSCLib says while merging, kept at trace level. It reports nothing but its log, so the
+     * module it merges is read off the line it logs for it.
+     */
+    private inner class StepLogger(private val onStep: (Step) -> Unit) : APKLogger {
+        override fun logMessage(msg: String) {
+            logger.trace(msg)
+            reportMerging(msg)
+        }
+
+        override fun logError(msg: String, tr: Throwable?) {
+            logger.trace(tr?.let { "$msg\n${it.stackTraceToString()}" } ?: msg)
+        }
+
+        override fun logVerbose(msg: String) {
+            logger.trace(msg)
+        }
+
+        private fun reportMerging(msg: String) {
+            val name = MERGING_LINE.matchEntire(msg)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() } ?: return
+            onStep(Step.Merging(if (name.endsWith(".apk", ignoreCase = true)) name else "$name.apk"))
+        }
     }
 
     /**
@@ -145,7 +210,7 @@ class ApkMerger(
 
             // The permissions the archive declares can leave the files unreadable for a patch.
             fixFilePermissions(archive)
-            archive.extractAll(outputDir, Predicate { it.name in extracted }, arsclibLogger)
+            archive.extractAll(outputDir, { it.name in extracted }, arsclibLogger)
 
             names.associateWith { name ->
                 val file = File(outputDir, name)
@@ -178,24 +243,20 @@ class ApkMerger(
         }
     }
 
+    // Only the modules are extracted, the root of the archive being where they sit
     @Throws(IOException::class)
-    private fun extractFile(file: File): File {
-        val tmp = toTmpDir(file)
-        logger.info("Extracting to: $tmp")
-        if (tmp.exists()) {
-            logger.info("Delete: $tmp")
-            tmp.safelyDelete()
+    private fun extractModules(file: File): File {
+        val dir = toTmpDir(file)
+        logger.info("Extracting to: $dir")
+        dir.mkdirs()
+        ZipFile(file).use { zip ->
+            val modules = SplitArchive.modules(zip).toList()
+            if (modules.isEmpty()) throw IOException("No *.apk files found on: $file")
+            modules.forEach { module ->
+                zip.getInputStream(module).use { input -> File(dir, module.name).outputStream().use(input::copyTo) }
+            }
         }
-        tmp.deleteOnExit()
-        val archive = ArchiveFile(file)
-        fixFilePermissions(archive)
-        val filter = Predicate { archiveEntry: ArchiveEntry? -> archiveEntry!!.name.endsWith(".apk") }
-        val count = archive.extractAll(tmp, filter, arsclibLogger)
-        archive.close()
-        if (count == 0) {
-            throw IOException("No *.apk files found on: $file")
-        }
-        return tmp
+        return dir
     }
 
     private fun fixFilePermissions(archive: ArchiveFile) {
@@ -213,96 +274,75 @@ class ApkMerger(
         return ApkEditorUtil.ensureUniqueFile(tmp)
     }
 
-    private fun sanitizeManifest(apkModule: ApkModule) {
-        if (!apkModule.hasAndroidManifest()) {
-            return
-        }
-        val manifest = apkModule.getAndroidManifest()
+    // Strips what ties the base to its splits, so the merged APK installs as a single package
+    private fun sanitizeManifest(module: ApkModule) {
+        if (!module.hasAndroidManifest()) return
         logger.info("Sanitizing manifest ...")
 
-        AndroidManifestHelper.removeAttributeFromManifestById(
-            manifest,
-            AndroidManifest.ID_requiredSplitTypes, arsclibLogger
-        )
-        AndroidManifestHelper.removeAttributeFromManifestById(
-            manifest,
-            AndroidManifest.ID_splitTypes, arsclibLogger
-        )
-        AndroidManifestHelper.removeAttributeFromManifestByName(
-            manifest,
-            AndroidManifest.NAME_splitTypes, arsclibLogger
-        )
-
-        AndroidManifestHelper.removeAttributeFromManifestByName(
-            manifest,
-            AndroidManifest.NAME_requiredSplitTypes, arsclibLogger
-        )
-        AndroidManifestHelper.removeAttributeFromManifestByName(
-            manifest,
-            AndroidManifest.NAME_splitTypes, arsclibLogger
-        )
-        AndroidManifestHelper.removeAttributeFromManifestAndApplication(
-            manifest,
-            AndroidManifest.ID_isSplitRequired,
-            arsclibLogger, AndroidManifest.NAME_isSplitRequired
-        )
-        val application = manifest.getApplicationElement()
-        val splitMetaDataElements: MutableList<ResXmlElement> =
-            AndroidManifestHelper.listSplitRequired(application)
-        var splitsRemoved = false
-        for (meta in splitMetaDataElements) {
-            if (!splitsRemoved) {
-                splitsRemoved = removeSplitsTableEntry(meta, apkModule)
+        module.androidManifest.apply {
+            arrayOf(
+                AndroidManifest.ID_isSplitRequired,
+                AndroidManifest.ID_requiredSplitTypes,
+                AndroidManifest.ID_splitTypes
+            ).forEach { id ->
+                applicationElement.removeAttributesWithId(id)
+                manifestElement.removeAttributesWithId(id)
             }
-            logger.info(
-                ("Removed-element : <" + meta.name + "> name=\""
-                        + AndroidManifestBlock.getAndroidNameValue(meta) + "\"")
-            )
-            application.remove(meta)
+            arrayOf(AndroidManifest.NAME_requiredSplitTypes, AndroidManifest.NAME_splitTypes).forEach { name ->
+                manifestElement.removeAttributeIf { it.name == name }
+            }
+
+            manifestElement.removeElementsIf { it.name == "uses-split" }
+            arrayOf("splitName", "split").forEach { name ->
+                manifestElement.removeAttributeIf { it.name == name }
+                applicationElement.removeAttributeIf { it.name == name }
+            }
+
+            applicationElement.removeElementsIf { element ->
+                if (element.name != AndroidManifest.TAG_meta_data) return@removeElementsIf false
+                val name = element.getAttributes { it.nameId == AndroidManifest.ID_name }
+                    .asSequence().singleOrNull()?.valueString
+                    ?: return@removeElementsIf false
+                val splitMetaData = when {
+                    name == "com.android.dynamic.apk.fused.modules" ->
+                        element.getAttributes { it.nameId == AndroidManifest.ID_value }
+                            .asSequence().firstOrNull()?.valueString == "base"
+                    name.startsWith("com.android.vending.") -> true
+                    name.startsWith("com.android.stamp.") -> true
+                    else -> false
+                }
+                if (splitMetaData && name == "com.android.vending.splits") removeSplitsResource(module, element)
+                splitMetaData
+            }
+
+            refresh()
         }
-        manifest.refresh()
     }
 
-    private fun removeSplitsTableEntry(metaElement: ResXmlElement, apkModule: ApkModule): Boolean {
-        val nameAttribute = metaElement.searchAttributeByResourceId(AndroidManifest.ID_name) ?: return false
-        if ("com.android.vending.splits" != nameAttribute.getDataAsString()) {
-            return false
-        }
-        var valueAttribute = metaElement.searchAttributeByResourceId(
-            AndroidManifest.ID_value
-        )
-        if (valueAttribute == null) {
-            valueAttribute = metaElement.searchAttributeByResourceId(
-                AndroidManifest.ID_resource
-            )
-        }
-        if (valueAttribute == null
-            || valueAttribute.dataType != DataType.REFERENCE
-        ) {
-            return false
-        }
-        if (!apkModule.hasTableBlock()) {
-            return false
-        }
-        val tableBlock = apkModule.tableBlock
-        val resourceEntry = tableBlock.getResource(valueAttribute.data) ?: return false
-        val zipEntryMap = apkModule.zipEntryMap
-        for (entry in resourceEntry) {
-            if (entry == null) {
-                continue
+    // The resource lists the splits the app was built with, none of which is left to list
+    private fun removeSplitsResource(module: ApkModule, element: ResXmlElement) {
+        if (!module.hasTableBlock()) return
+        val value = element
+            .getAttributes { it.nameId == AndroidManifest.ID_value || it.nameId == AndroidManifest.ID_resource }
+            .asSequence()
+            .firstOrNull()
+            ?.takeIf { it.dataType == DataType.REFERENCE }
+            ?: return
+
+        val table = module.tableBlock
+        val resource = table.getResource(value.data) ?: return
+        for (entry in resource) {
+            val resEntry = entry ?: continue
+            resEntry.resValue?.dataAsString?.takeUnless { it.isBlank() }?.let { path ->
+                module.zipEntryMap.remove(path)
+                logger.trace("Removed table entry $path")
             }
-            val resValue = entry.getResValue() ?: continue
-            val path = resValue.getDataAsString()
-            logger.info("Removed-table-entry : $path")
-            //Remove file entry
-            zipEntryMap.remove(path)
             // It's not safe to destroy entry, resource id might be used in dex code.
             // Better replace it with boolean value.
-            entry.isNull = true
-            val specTypePair = entry.typeBlock.parentSpecTypePair
-            specTypePair.removeNullEntries(entry.getId())
+            resEntry.isNull = true
+            resEntry.typeBlock.parentSpecTypePair.removeNullEntries(resEntry.id)
         }
-        return true
+        table.refresh()
     }
 
     private companion object {
@@ -310,5 +350,8 @@ class ApkMerger(
          * The directory of a bundle that holds the OBB files of the app, which patches can read.
          */
         private const val OBB_DIRECTORY = "Android/obb/"
+
+        /** The line ARSCLib logs for each module it merges. */
+        private val MERGING_LINE = Regex("Merging: (.+)")
     }
 }

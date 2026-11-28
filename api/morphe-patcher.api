@@ -527,6 +527,17 @@ public final class app/morphe/patcher/StringFilter : app/morphe/patcher/OpcodesF
 	public fun matches (Lcom/android/tools/smali/dexlib2/iface/Method;Lcom/android/tools/smali/dexlib2/iface/instruction/Instruction;)Z
 }
 
+public final class app/morphe/patcher/apk/Abi {
+	public static final field INSTANCE Lapp/morphe/patcher/apk/Abi;
+	public static final field NAMES Ljava/util/List;
+	public static final fun architectureOf (Ljava/lang/String;)Lapp/morphe/patcher/patch/ApkArchitecture;
+	public static final fun namedIn (Ljava/lang/String;)Ljava/lang/String;
+	public static final fun of (Ljava/io/File;)Ljava/util/List;
+	public static final fun of (Ljava/io/InputStream;)Ljava/util/List;
+	public static final fun ofLibraryPath (Ljava/lang/String;)Ljava/lang/String;
+	public static final fun tokensOf (Ljava/lang/String;)Ljava/util/Set;
+}
+
 public final class app/morphe/patcher/apk/ApkFormFactor {
 	public static final field INSTANCE Lapp/morphe/patcher/apk/ApkFormFactor;
 	public static final fun of (Ljava/io/File;)Lapp/morphe/patcher/patch/FormFactor;
@@ -555,8 +566,23 @@ public final class app/morphe/patcher/apk/ApkMerger {
 	public fun <init> (Lapp/morphe/patcher/logging/Logger;)V
 	public synthetic fun <init> (Lapp/morphe/patcher/logging/Logger;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun extractObbFiles (Ljava/io/File;Ljava/io/File;)Ljava/util/Map;
-	public final fun merge (Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZLjava/lang/Boolean;Z)V
-	public static synthetic fun merge$default (Lapp/morphe/patcher/apk/ApkMerger;Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZLjava/lang/Boolean;ZILjava/lang/Object;)V
+	public final fun merge (Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZLjava/lang/Boolean;ZLkotlin/jvm/functions/Function1;)V
+	public static synthetic fun merge$default (Lapp/morphe/patcher/apk/ApkMerger;Ljava/io/File;Ljava/io/File;ZLjava/lang/String;ZLjava/lang/Boolean;ZLkotlin/jvm/functions/Function1;ILjava/lang/Object;)V
+}
+
+public abstract interface class app/morphe/patcher/apk/ApkMerger$Step {
+}
+
+public final class app/morphe/patcher/apk/ApkMerger$Step$Merging : app/morphe/patcher/apk/ApkMerger$Step {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun getModuleName ()Ljava/lang/String;
+}
+
+public final class app/morphe/patcher/apk/ApkMerger$Step$Writing : app/morphe/patcher/apk/ApkMerger$Step {
+	public static final field INSTANCE Lapp/morphe/patcher/apk/ApkMerger$Step$Writing;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class app/morphe/patcher/apk/ApkSignatureScheme {
@@ -638,6 +664,15 @@ public final class app/morphe/patcher/apk/ApkUtils$PrivateKeyCertificatePairDeta
 	public synthetic fun <init> (Ljava/lang/String;Ljava/util/Date;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getCommonName ()Ljava/lang/String;
 	public final fun getValidUntil ()Ljava/util/Date;
+}
+
+public final class app/morphe/patcher/apk/SplitArchive {
+	public static final field EXTENSIONS Ljava/util/Set;
+	public static final field INSTANCE Lapp/morphe/patcher/apk/SplitArchive;
+	public static final fun baseModule (Ljava/util/zip/ZipFile;)Ljava/util/zip/ZipEntry;
+	public static final fun isBaseModule (Ljava/util/zip/ZipFile;Ljava/util/zip/ZipEntry;)Z
+	public static final fun isSplitArchive (Ljava/io/File;)Z
+	public static final fun modules (Ljava/util/zip/ZipFile;)Lkotlin/sequences/Sequence;
 }
 
 public final class app/morphe/patcher/dex/DexVerificationException : java/lang/RuntimeException {
