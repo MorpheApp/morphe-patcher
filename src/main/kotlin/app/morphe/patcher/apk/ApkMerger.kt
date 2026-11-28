@@ -249,11 +249,17 @@ class ApkMerger(
         val dir = toTmpDir(file)
         logger.info("Extracting to: $dir")
         dir.mkdirs()
+        val root = dir.canonicalFile.toPath()
         ZipFile(file).use { zip ->
             val modules = SplitArchive.modules(zip).toList()
             if (modules.isEmpty()) throw IOException("No *.apk files found on: $file")
             modules.forEach { module ->
-                zip.getInputStream(module).use { input -> File(dir, module.name).outputStream().use(input::copyTo) }
+                // The archive picks the name, so the file it lands in is checked before anything is written
+                val target = File(dir, module.name).canonicalFile
+                if (!target.toPath().startsWith(root)) {
+                    throw IOException("Module ${module.name} would be extracted outside: $dir")
+                }
+                zip.getInputStream(module).use { input -> target.outputStream().use(input::copyTo) }
             }
         }
         return dir

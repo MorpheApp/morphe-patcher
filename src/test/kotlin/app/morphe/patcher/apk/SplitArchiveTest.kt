@@ -66,10 +66,11 @@ internal class SplitArchiveTest {
     }
 
     @Test
-    fun `nested APKs are not modules`() {
+    fun `nested APKs and Windows paths are not modules`() {
         val modules = withArchive(
             "base.apk" to module(MANIFEST to manifest(split = null)),
             "res/raw/helper.apk" to byteArrayOf(0),
+            "..\\evil.apk" to byteArrayOf(0),
         ) { zip -> SplitArchive.modules(zip).map { it.name }.toList() }
 
         assertEquals(listOf("base.apk"), modules)

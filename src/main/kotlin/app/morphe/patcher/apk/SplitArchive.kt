@@ -31,12 +31,16 @@ object SplitArchive {
 
     /**
      * The APK modules of [zip]. Modules sit at the root of the archive, so an APK nested deeper,
-     * such as one kept under `res/raw/`, is a file of a module rather than one of its own.
+     * such as one kept under `res/raw/`, is a file of a module rather than one of its own. A name
+     * with a backslash is a path on Windows, so it is no module either.
      */
     @JvmStatic
     fun modules(zip: ZipFile): Sequence<ZipEntry> =
         zip.entries().asSequence().filter { entry ->
-            !entry.isDirectory && !entry.name.contains('/') && entry.name.endsWith(".apk", ignoreCase = true)
+            !entry.isDirectory &&
+                    !entry.name.contains('/') &&
+                    !entry.name.contains('\\') &&
+                    entry.name.endsWith(".apk", ignoreCase = true)
         }
 
     /**
