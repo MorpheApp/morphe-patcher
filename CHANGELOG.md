@@ -1,3 +1,10 @@
+## [2.6.1-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.6.1-dev.2...v2.6.1-dev.3) (2026-11-28)
+
+
+### Performance Improvements
+
+* Compress the other files patches change on all cores ([1ab5f7d](https://github.com/MorpheApp/morphe-patcher/commit/1ab5f7dfce81777c74e987808cd8e3fbf2a282fb))
+
 ## [2.6.1-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.6.1-dev.1...v2.6.1-dev.2) (2026-11-27)
 
 
