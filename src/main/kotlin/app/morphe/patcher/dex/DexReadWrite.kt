@@ -45,20 +45,16 @@ import kotlin.math.min
  *
  * @param dexFile A merged [DexFile] containing all classes from all DEX entries.
  * @param entryClassCounts Maps each DEX entry name to the number of classes it contains.
- * @param classDescriptorsByEntrySupplier Maps each DEX entry name to the set of class descriptors it contains.
  * @param mappedFiles The DEX files in the APK, already mapped into memory (classes.dex, classes2.dex, etc.).
  */
 internal class MultidexReadResult(
     dexFile: DexFile,
     val entryClassCounts: Map<String, Int>,
-    classDescriptorsByEntrySupplier: () -> Map<String, Set<String>>,
     val mappedFiles: List<MappedFile>,
 ) : Closeable {
     private var dexFileOrNull: DexFile? = dexFile
 
     val dexFile get() = checkNotNull(dexFileOrNull) { "The classes were released" }
-
-    val classDescriptorsByEntry: Map<String, Set<String>> by lazy(classDescriptorsByEntrySupplier)
 
     /**
      * Frees [dexFile], which holds a set of every class, once it is no longer needed.
@@ -125,15 +121,6 @@ internal object DexReadWrite {
             name to dex.classes.size
         }
 
-        // Track which class descriptors belong to which DEX entry lazily when requested during DEX compilation.
-        val classDescriptorsByEntrySupplier = {
-            entryNames.zip(memoryMappedDexFiles).associate { (name, dex) ->
-                name to dex.classes.let { classes ->
-                    classes.mapTo(HashSet(2 * classes.size)) { it.type }
-                }
-            }
-        }
-
         val opcodes = memoryMappedDexFiles.maxByOrNull { it.opcodes.api }?.opcodes
             ?: throw PatchException("APK contains no DEX files to patch")
 
@@ -149,7 +136,7 @@ internal object DexReadWrite {
             }
         }
 
-        return MultidexReadResult(mergedDexFile, entryClassCounts, classDescriptorsByEntrySupplier, mappedFiles)
+        return MultidexReadResult(mergedDexFile, entryClassCounts, mappedFiles)
     }
 
     /**

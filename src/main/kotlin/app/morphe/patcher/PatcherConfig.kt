@@ -8,7 +8,6 @@
 
 package app.morphe.patcher
 
-import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.dex.DexVerifier
 import app.morphe.patcher.dex.NoOpDexVerifier
 import app.morphe.patcher.resource.CpuArchitecture
@@ -44,7 +43,6 @@ class PatcherConfig(
     internal val apkFile: File,
     private val temporaryFilesPath: File = File("morphe-temporary-files"),
     internal val keepArchitectures: Set<CpuArchitecture> = emptySet(),
-    internal val useBytecodeMode: BytecodeMode = BytecodeMode.STRIP_FAST,
     internal val verifier: DexVerifier = NoOpDexVerifier,
     private val fileWorkspacePath: File? = null,
     internal val targetPatcherVersion: String? = null,
@@ -68,11 +66,9 @@ class PatcherConfig(
     internal var resourceMode = ResourceMode.NONE
 
     /**
-     * The mode to use for resource decoding and compiling.
-     *
-     * @see BytecodeMode
+     * Whether bytecode is decoded and compiled, which only bytecode patches need.
      */
-    internal var bytecodeMode = BytecodeMode.NONE
+    internal var bytecodeEnabled = false
 
     /**
      * The behaviors of Morphe Patcher that apply to the patches being applied.

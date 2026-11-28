@@ -11,7 +11,7 @@ import java.util.zip.CRC32
 
 /**
  * Carries the baseline profile of the input APK over to the DEX files that
- * [STRIP_FAST][app.morphe.patcher.dex.BytecodeMode.STRIP_FAST] writes.
+ * compiling writes.
  *
  * Stripping a class from an original DEX file keeps every id of that file, so the profile keeps its
  * indices there, and only the class definitions and the checksum change. The classes it strips, which

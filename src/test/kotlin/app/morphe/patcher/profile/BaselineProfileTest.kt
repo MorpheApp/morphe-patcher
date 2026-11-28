@@ -10,7 +10,6 @@ package app.morphe.patcher.profile
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherConfig
 import app.morphe.patcher.apk.ApkUtils.applyTo
-import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.resource.coder.ResourceTestApk
@@ -233,7 +232,7 @@ internal class BaselineProfileTest {
     }
 
     private fun patcher(input: File, name: String, patches: Set<Patch>): Patcher =
-        Patcher(PatcherConfig(input, tempDir.resolve(name), useBytecodeMode = BytecodeMode.STRIP_FAST)).also { patcher ->
+        Patcher(PatcherConfig(input, tempDir.resolve(name))).also { patcher ->
             patcher += patches
             runBlocking { patcher().toList() }.forEach { assertNull(it.exception, it.exception?.stackTraceToString()) }
         }

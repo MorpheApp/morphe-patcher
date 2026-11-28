@@ -8,7 +8,6 @@
 
 package app.morphe.patcher
 
-import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.dex.DexReadWrite
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatch
@@ -77,7 +76,7 @@ internal object PatcherTest {
                 "config",
                 mockk<PatcherConfig> {
                     every { resourceMode } returns ResourceMode.NONE
-                    every { bytecodeMode } returns BytecodeMode.NONE
+                    every { bytecodeEnabled } returns false
                     every { validate } returns false
                     every { initializeTemporaryFilesDirectories() } just runs
                 },

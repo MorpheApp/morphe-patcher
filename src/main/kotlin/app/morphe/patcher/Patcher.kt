@@ -17,7 +17,6 @@ import app.morphe.patcher.apk.CompressedDexFiles
 import app.morphe.patcher.apk.overlapDexCompression
 import app.morphe.patcher.apk.storedDexFilesIn
 import app.morphe.patcher.apk.storesDexUncompressed
-import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.logging.PhaseTimings
 import app.morphe.patcher.logging.toLogString
 import app.morphe.patcher.patch.BytecodePatch
@@ -89,11 +88,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
                 ResourceMode.NONE
             }
 
-            config.bytecodeMode = if (allPatches.any { patch -> patch.anyRecursively { it is BytecodePatch } }) {
-                config.useBytecodeMode
-            } else {
-                BytecodeMode.NONE
-            }
+            config.bytecodeEnabled = allPatches.any { patch -> patch.anyRecursively { it is BytecodePatch } }
 
             config.behaviors = resolvePatcherBehaviors(config.targetPatcherVersion, allPatches, logger)
             Fingerprint.rawStringComparison = if (config.uses(PatcherBehavior.EXACT_FINGERPRINT_STRINGS)) {
@@ -172,7 +167,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
             context.resourceContext.decodeOnFirstUse = true
         }
 
-        if (config.bytecodeMode != BytecodeMode.NONE) {
+        if (config.bytecodeEnabled) {
             context.bytecodeContext.decodeDexFiles()
         } else {
             context.bytecodeContext.decodeOnFirstUse = true
@@ -316,7 +311,7 @@ class Patcher(private val config: PatcherConfig) : Closeable {
         context.resourceContext.finishDecoding()
         val patchedDexFiles = context.bytecodeContext.get()
         context.bytecodeContext.close()
-        val dexFilesComplete = config.bytecodeMode != BytecodeMode.STRIP_FAST || context.bytecodeContext.dexFilesComplete
+        val dexFilesComplete = !config.bytecodeEnabled || context.bytecodeContext.dexFilesComplete
         val storeUncompressed = storesDexUncompressed(config.apkFile)
         // A partial set leaves the DEX files it does not name as the input holds them, so the stored ones
         // are written again, to be compressed with the rest rather than kept stored beside them

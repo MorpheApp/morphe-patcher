@@ -7,7 +7,6 @@
 
 package app.morphe.patcher
 
-import app.morphe.patcher.dex.BytecodeMode
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.PatchException
@@ -88,7 +87,7 @@ internal class SinglePatchTypeTest {
     private class Patched(
         val entries: Map<String, Long>,
         val resourceMode: ResourceMode,
-        val bytecodeMode: BytecodeMode,
+        val bytecodeEnabled: Boolean,
     ) {
         /** The entries that are not as in [other], and the ones [other] does not have. */
         fun changedFrom(other: Patched) = entries.filter { (name, crc) -> other.entries[name] != crc }.keys
@@ -100,7 +99,7 @@ internal class SinglePatchTypeTest {
         zip.entries().asSequence().associate { it.name to it.crc }
     }
 
-    private val input by lazy { Patched(entriesOf(inputApk), ResourceMode.NONE, BytecodeMode.NONE) }
+    private val input by lazy { Patched(entriesOf(inputApk), ResourceMode.NONE, false) }
 
     private var runs = 0
 
@@ -126,7 +125,7 @@ internal class SinglePatchTypeTest {
             runBlocking { patcher().toList() }.forEach { assertNull(it.exception, it.exception?.stackTraceToString()) }
             patcher.writeApk(output)
         }
-        return Patched(entriesOf(output), config.resourceMode, config.bytecodeMode)
+        return Patched(entriesOf(output), config.resourceMode, config.bytecodeEnabled)
     }
 
     private fun changeClass() {
@@ -155,7 +154,7 @@ internal class SinglePatchTypeTest {
         val patched = patched(patch("Nothing") { execute { } })
 
         assertEquals(ResourceMode.NONE, patched.resourceMode)
-        assertEquals(BytecodeMode.NONE, patched.bytecodeMode)
+        assertFalse(patched.bytecodeEnabled)
         assertEquals(input.entries, patched.entries)
     }
 
@@ -164,7 +163,7 @@ internal class SinglePatchTypeTest {
         val patched = patched(patch("Classes") { execute { changeClass() } })
 
         assertEquals(ResourceMode.NONE, patched.resourceMode)
-        assertEquals(BytecodeMode.STRIP_FAST, patched.bytecodeMode)
+        assertTrue(patched.bytecodeEnabled)
         assertEquals(setOf("classes2.dex"), patched.changedFrom(input) - "classes.dex")
         patched.assertSameAs(patched(bytecodePatch("Classes") { execute { changeClass() } }))
     }
@@ -174,7 +173,7 @@ internal class SinglePatchTypeTest {
         val patched = patched(patch("Resources") { execute { changeResource() } })
 
         assertEquals(ResourceMode.FULL, patched.resourceMode)
-        assertEquals(BytecodeMode.NONE, patched.bytecodeMode)
+        assertFalse(patched.bytecodeEnabled)
         assertFalse(patched.changedFrom(input).any { it.endsWith(".dex") })
         patched.assertSameAs(patched(resourcePatch("Resources") { execute { changeResource() } }))
     }
@@ -184,7 +183,7 @@ internal class SinglePatchTypeTest {
         val patched = patched(patch("Entries") { execute { changeEntries() } })
 
         assertEquals(ResourceMode.RAW_ONLY, patched.resourceMode)
-        assertEquals(BytecodeMode.NONE, patched.bytecodeMode)
+        assertFalse(patched.bytecodeEnabled)
         assertEquals(setOf("assets/edit.txt", "assets/added.txt"), patched.changedFrom(input))
         assertFalse("assets/delete.txt" in patched.entries)
         patched.assertSameAs(patched(rawResourcePatch("Entries") { execute { changeEntries() } }))
@@ -228,14 +227,14 @@ internal class SinglePatchTypeTest {
         )
 
         assertEquals(ResourceMode.NONE, patched.resourceMode)
-        assertEquals(BytecodeMode.NONE, patched.bytecodeMode)
+        assertFalse(patched.bytecodeEnabled)
     }
 
     @Test
     fun `validating does not decode what patches do not use`() {
         val patched = patched(patch("Resources") { execute { changeResource() } }, validate = true)
 
-        assertEquals(BytecodeMode.NONE, patched.bytecodeMode)
+        assertFalse(patched.bytecodeEnabled)
     }
 
     @Test
@@ -331,7 +330,7 @@ internal class SinglePatchTypeTest {
 
         assertEquals(bytecodeUsesResources.entries, resourcesUseBytecode.entries)
         assertEquals(ResourceMode.FULL, bytecodeUsesResources.resourceMode)
-        assertEquals(BytecodeMode.STRIP_FAST, resourcesUseBytecode.bytecodeMode)
+        assertTrue(resourcesUseBytecode.bytecodeEnabled)
     }
 
     @Test
@@ -405,7 +404,7 @@ internal class SinglePatchTypeTest {
         )
 
         assertTrue(extended)
-        assertEquals(BytecodeMode.STRIP_FAST, patched.bytecodeMode)
+        assertTrue(patched.bytecodeEnabled)
     }
 
     @Test
