@@ -36,6 +36,7 @@ import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -147,6 +148,29 @@ internal class BaselineProfileTest {
     fun `dex metadata is not written for a profile that does not match the APK`() {
         assertNull(DexMetadata.of(inputApk(checksumOffset = 1), 34))
         assertNotNull(DexMetadata.of(inputApk(), 34))
+    }
+
+    @Test
+    fun `a profile with an impossible inflated size is rejected`() {
+        val body = ByteArray(16)
+        val deflated = ProfileCompression.deflate(body)
+        val profile = LittleEndianOutput().bytes(byteArrayOf('p'.code.toByte(), 'r'.code.toByte(), 'o'.code.toByte(), 0))
+            .bytes(byteArrayOf('0'.code.toByte(), '1'.code.toByte(), '0'.code.toByte(), 0))
+            .u8(1).u32(0x7FFFFFF0).u32(deflated.size).bytes(deflated).toByteArray()
+
+        assertFailsWith<IllegalArgumentException> { BaselineProfile.read(profile) }
+    }
+
+    @Test
+    fun `a profile with an impossible method count is rejected`() {
+        assertFailsWith<IllegalArgumentException> { BaselineProfile.read(profileWithHeader(methodCount = 0x7FFFFFFF)) }
+        assertFailsWith<IllegalArgumentException> { BaselineProfile.read(profileWithHeader(methodCount = -1)) }
+    }
+
+    @Test
+    fun `a profile shorter than its headers claim is rejected`() {
+        assertFailsWith<IllegalArgumentException> { BaselineProfile.read(profileWithHeader(methodCount = 40, keySize = 500)) }
+        assertFailsWith<IllegalArgumentException> { BaselineProfile.read(profileWithHeader(methodCount = 40)) }
     }
 
     // region Input
@@ -277,6 +301,15 @@ internal class BaselineProfileTest {
     }
 
     // endregion
+
+    /** A version 010 profile of one DEX file whose body holds only the header, which may claim more than follows. */
+    private fun profileWithHeader(methodCount: Int, keySize: Int = 3): ByteArray {
+        val body = LittleEndianOutput().u16(keySize).u16(0).u32(0).u32(1).u32(methodCount).bytes("key".toByteArray()).toByteArray()
+        val deflated = ProfileCompression.deflate(body)
+        return LittleEndianOutput().bytes(byteArrayOf('p'.code.toByte(), 'r'.code.toByte(), 'o'.code.toByte(), 0))
+            .bytes(byteArrayOf('0'.code.toByte(), '1'.code.toByte(), '0'.code.toByte(), 0))
+            .u8(1).u32(body.size).u32(deflated.size).bytes(deflated).toByteArray()
+    }
 
     private fun dexProfile(name: String, checksum: Int, methodCount: Int, classes: IntArray, methods: Map<Int, Int>): DexProfile {
         val sorted = methods.toSortedMap()

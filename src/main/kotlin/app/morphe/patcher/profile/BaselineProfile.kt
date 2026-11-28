@@ -6,6 +6,7 @@
 package app.morphe.patcher.profile
 
 import java.io.ByteArrayOutputStream
+import java.nio.BufferUnderflowException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.zip.Deflater
@@ -66,7 +67,13 @@ internal class BaselineProfile(val dexFiles: List<DexProfile>) {
          *
          * @throws IllegalArgumentException If [bytes] are not a profile of this version.
          */
-        fun read(bytes: ByteArray): BaselineProfile {
+        fun read(bytes: ByteArray): BaselineProfile = try {
+            readV010(bytes)
+        } catch (exception: BufferUnderflowException) {
+            throw IllegalArgumentException("The profile is truncated", exception)
+        }
+
+        private fun readV010(bytes: ByteArray): BaselineProfile {
             val header = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
             require(bytes.size >= V010_HEADER_SIZE) { "The profile is truncated" }
             require(bytes.copyOfRange(0, 4).contentEquals(PROFILE_MAGIC)) { "Not a baseline profile" }
@@ -90,12 +97,14 @@ internal class BaselineProfile(val dexFiles: List<DexProfile>) {
                 Header(key, classCount, hotSize, checksum, methodCount)
             }
             val dexFiles = headers.map { header ->
+                require(header.methodCount in 0..MAX_METHOD_COUNT) { "${header.key} has too many methods" }
                 // The flags of each method by its index. A hot method can lie past the method count.
                 var methodFlags = IntArray(header.methodCount)
                 val hotEnd = body.position() + header.hotSize
                 var method = 0
                 while (body.position() < hotEnd) {
                     method += body.u16()
+                    require(method < MAX_METHOD_COUNT) { "A hot method of ${header.key} is out of range" }
                     repeat(body.u16()) { body.skipInlineCache() }
                     if (method >= methodFlags.size) methodFlags = methodFlags.copyOf(maxOf(method + 1, methodFlags.size * 2))
                     methodFlags[method] = HOT
@@ -242,6 +251,9 @@ internal class BaselineProfile(val dexFiles: List<DexProfile>) {
         private const val V015_SECTION_INFO_SIZE = 16
         private const val HOT_METHOD_SIZE = 4
 
+        /** A DEX file refers to at most 65536 methods, as its method indexes are 16 bits wide. */
+        private const val MAX_METHOD_COUNT = 0x10000
+
         private const val SECTION_DEX_FILES = 0
         private const val SECTION_CLASSES = 2
         private const val SECTION_METHODS = 3
@@ -253,8 +265,11 @@ internal class BaselineProfile(val dexFiles: List<DexProfile>) {
 
 /** zlib streams, in which every profile format stores its compressed data. */
 internal object ProfileCompression {
+    /** The most zlib shrinks data, so a larger inflated size cannot be right. */
+    private const val MAX_RATIO = 1032L
+
     fun inflate(bytes: ByteArray, offset: Int, length: Int, inflatedSize: Int): ByteArray {
-        require(inflatedSize >= 0) { "The profile is corrupt" }
+        require(inflatedSize >= 0 && inflatedSize <= length * MAX_RATIO + 64) { "The profile is corrupt" }
         val inflater = Inflater()
         try {
             inflater.setInput(bytes, offset, length)
