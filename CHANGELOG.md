@@ -1,3 +1,10 @@
+# [2.7.0-dev.5](https://github.com/MorpheApp/morphe-patcher/compare/v2.7.0-dev.4...v2.7.0-dev.5) (2026-11-28)
+
+
+### Features
+
+* Share split archive, ABI and merge handling with the apps ([472a19b](https://github.com/MorpheApp/morphe-patcher/commit/472a19b7825beb0f1582c5775064f1f04b561d62))
+
 # [2.7.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v2.7.0-dev.3...v2.7.0-dev.4) (2026-11-28)
 
 
