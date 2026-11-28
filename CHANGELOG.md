@@ -1,3 +1,16 @@
+# [2.7.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.7.0-dev.1...v2.7.0-dev.2) (2026-11-28)
+
+
+### Bug Fixes
+
+* Reject baseline profiles with impossible sizes instead of failing to allocate ([98ff4d4](https://github.com/MorpheApp/morphe-patcher/commit/98ff4d4611b8f2c7e0963a8728065b54e5a8c568))
+
+
+### Performance Improvements
+
+* Do not build the class descriptors of every DEX file to carry a profile over ([54de783](https://github.com/MorpheApp/morphe-patcher/commit/54de7835b1b214528b6331a713eb11c5af357d8d))
+* Size the compression buffers of a file to the file ([2c4233c](https://github.com/MorpheApp/morphe-patcher/commit/2c4233c010e4b9e530ef04f65098d7bc3928c31a))
+
 # [2.7.0-dev.1](https://github.com/MorpheApp/morphe-patcher/compare/v2.6.1-dev.3...v2.7.0-dev.1) (2026-11-28)
 
 
