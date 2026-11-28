@@ -1,3 +1,10 @@
+# [2.7.0-dev.4](https://github.com/MorpheApp/morphe-patcher/compare/v2.7.0-dev.3...v2.7.0-dev.4) (2026-11-28)
+
+
+### Features
+
+* Read what an app declares in its manifest straight from the APK ([cf57fc7](https://github.com/MorpheApp/morphe-patcher/commit/cf57fc760b9a802bd5eb3eafff4ff146bd83eddc))
+
 # [2.7.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.7.0-dev.2...v2.7.0-dev.3) (2026-11-28)
 
 
