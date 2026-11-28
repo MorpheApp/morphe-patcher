@@ -39,10 +39,12 @@ internal fun compressedEntry(name: String, contents: ByteArray, store: Boolean =
  */
 internal fun compressedEntry(name: String, stream: FileInputStream): DexArchiveWriter.Entry {
     val crc = CRC32()
-    val output = DeflaterOutput((stream.channel.size() / 3).toInt())
+    val fileSize = stream.channel.size()
+    val output = DeflaterOutput((fileSize / 3).toInt())
     val deflater = Deflater(ApkUtils.COMPRESSION_LEVEL, true)
     val size = try {
-        val chunk = ByteArray(CHUNK_SIZE)
+        // Most files are small, so a chunk is not larger than the file. A chunk of no size would read nothing.
+        val chunk = ByteArray(fileSize.coerceIn(1L, CHUNK_SIZE.toLong()).toInt())
         var size = 0L
         while (true) {
             val count = stream.read(chunk)
@@ -68,7 +70,7 @@ internal fun compressedEntry(name: String, stream: FileInputStream): DexArchiveW
 
 /** What a [Deflater] wrote, the first [length] bytes of [bytes], which grow as it writes more. */
 private class DeflaterOutput(expectedSize: Int) {
-    var bytes = ByteArray(expectedSize.coerceAtLeast(CHUNK_SIZE))
+    var bytes = ByteArray(expectedSize.coerceAtLeast(MIN_OUTPUT_SIZE))
         private set
     var length = 0
         private set
@@ -89,5 +91,8 @@ private class DeflaterOutput(expectedSize: Int) {
     }
 }
 
-/** How much of a file is read at a time to be compressed. */
+/** How much of a file is read at a time to be compressed, at most. */
 private const val CHUNK_SIZE = 256 * 1024
+
+/** The least room for compressed data, which grows by doubling when it is not enough. */
+private const val MIN_OUTPUT_SIZE = 4 * 1024
