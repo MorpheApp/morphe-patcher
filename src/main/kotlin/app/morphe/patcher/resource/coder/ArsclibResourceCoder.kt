@@ -14,6 +14,8 @@ import app.morphe.patcher.StagedProgress
 import app.morphe.patcher.apk.ApkUtils
 import app.morphe.patcher.apk.ApkUtils.writeAlignedApk
 import app.morphe.patcher.apk.CompressedDexFiles
+import app.morphe.patcher.apk.DexArchiveWriter
+import app.morphe.patcher.apk.compressedEntry
 import app.morphe.patcher.logging.PhaseTimings
 import app.morphe.patcher.logging.measure
 import app.morphe.patcher.patch.PatchException
@@ -68,6 +70,7 @@ import com.reandroid.identifiers.TableIdentifier
 import com.reandroid.xml.XMLFactory
 import java.io.Closeable
 import java.io.File
+import java.io.FileInputStream
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -76,7 +79,6 @@ import java.nio.file.attribute.FileTime
 import java.util.logging.Level
 import java.util.zip.CRC32
 import java.util.logging.Logger
-import com.android.tools.build.apkzlib.zip.ZFile
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.measureTime
@@ -1681,9 +1683,15 @@ internal class ArsclibResourceCoder(
                     addAsCompressed(FileInputSource(file, name).apply { method = Archive.STORED })
                 }
                 if (compressed.isNotEmpty()) {
-                    val archive = compressIntoArchive(otherFilesArchive) { zFile ->
-                        compressed.forEach { (name, file) -> file.inputStream().use { zFile.add(name, it) } }
-                    }.also(archives::add)
+                    // On all cores, as the DEX files are compressed, rather than one after another by apkzlib.
+                    // The entries are written in the order they are done in, which the patched APK sorts.
+                    otherFilesArchive.absoluteFile.parentFile?.mkdirs()
+                    DexArchiveWriter(otherFilesArchive).use { writer ->
+                        compressed.sortedByDescending { (_, file) -> file.length() }.forEachInParallel { (name, file) ->
+                            writer.add(FileInputStream(file).use { stream -> compressedEntry(name, stream) })
+                        }
+                    }
+                    val archive = ArchiveFile(otherFilesArchive).also(archives::add)
                     archive.createZipEntryMap().listInputSources().forEach(::addAsCompressed)
                 }
                 timings.count("otherFileCount", filesByName.size.toLong())
@@ -1722,18 +1730,6 @@ internal class ArsclibResourceCoder(
             archives.forEach { archive -> runCatching { archive.close() } }
             otherFilesArchive.delete()
         }
-    }
-
-    /**
-     * Writes an archive with [ApkUtils.zFileOptions], as [ApkUtils.applyTo] writes the patched APK, and
-     * opens it to copy its entries.
-     */
-    private fun compressIntoArchive(file: File, add: (ZFile) -> Unit): ArchiveFile {
-        file.absoluteFile.parentFile?.mkdirs()
-        // Opening an existing file would add to what an earlier run left there.
-        file.delete()
-        ZFile.openReadWrite(file, ApkUtils.zFileOptions).use(add)
-        return ArchiveFile(file)
     }
 
     override fun getUncompressedFiles(resourceMode: ResourceMode): Set<String> {
