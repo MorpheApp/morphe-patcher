@@ -1,3 +1,10 @@
+# [2.7.0-dev.3](https://github.com/MorpheApp/morphe-patcher/compare/v2.7.0-dev.2...v2.7.0-dev.3) (2026-11-28)
+
+
+### Bug Fixes
+
+* Remove BytecodeMode ([4679489](https://github.com/MorpheApp/morphe-patcher/commit/46794897eb3d25a473cd1d0cd2a711bcaa380dd9))
+
 # [2.7.0-dev.2](https://github.com/MorpheApp/morphe-patcher/compare/v2.7.0-dev.1...v2.7.0-dev.2) (2026-11-28)
 
 
