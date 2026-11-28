@@ -532,6 +532,24 @@ public final class app/morphe/patcher/apk/ApkFormFactor {
 	public static final fun of (Ljava/io/File;)Lapp/morphe/patcher/patch/FormFactor;
 }
 
+public final class app/morphe/patcher/apk/ApkManifest {
+	public static final field Companion Lapp/morphe/patcher/apk/ApkManifest$Companion;
+	public final fun getFormFactor ()Lapp/morphe/patcher/patch/FormFactor;
+	public final fun getLabel ()Ljava/lang/String;
+	public final fun getMinSdkVersion ()Ljava/lang/Integer;
+	public final fun getPackageName ()Ljava/lang/String;
+	public final fun getVersionCode ()J
+	public final fun getVersionName ()Ljava/lang/String;
+	public static final fun of (Ljava/io/File;)Lapp/morphe/patcher/apk/ApkManifest;
+	public static final fun of (Ljava/io/File;Z)Lapp/morphe/patcher/apk/ApkManifest;
+}
+
+public final class app/morphe/patcher/apk/ApkManifest$Companion {
+	public final fun of (Ljava/io/File;)Lapp/morphe/patcher/apk/ApkManifest;
+	public final fun of (Ljava/io/File;Z)Lapp/morphe/patcher/apk/ApkManifest;
+	public static synthetic fun of$default (Lapp/morphe/patcher/apk/ApkManifest$Companion;Ljava/io/File;ZILjava/lang/Object;)Lapp/morphe/patcher/apk/ApkManifest;
+}
+
 public final class app/morphe/patcher/apk/ApkMerger {
 	public fun <init> ()V
 	public fun <init> (Lapp/morphe/patcher/logging/Logger;)V

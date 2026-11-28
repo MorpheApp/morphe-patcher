@@ -13,9 +13,6 @@ import com.reandroid.arsc.value.DataType
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
-import java.io.InputStream
-import java.util.zip.ZipFile
-import java.util.zip.ZipInputStream
 
 /**
  * Reads which [FormFactor] an original app is built for, so that the patches offered for it can
@@ -24,8 +21,6 @@ import java.util.zip.ZipInputStream
  * Only the manifest is read, which keeps it cheap even for the largest apps.
  */
 object ApkFormFactor {
-    private const val MANIFEST = "AndroidManifest.xml"
-
     // android:required, absent from the public constants of ARSCLib.
     private const val ID_REQUIRED = 0x0101028e
 
@@ -54,16 +49,7 @@ object ApkFormFactor {
      */
     @JvmStatic
     @Throws(IOException::class)
-    fun of(file: File): FormFactor {
-        if (!file.isFile) throw FileNotFoundException("APK not found: $file")
-
-        return ZipFile(file).use { zip ->
-            val manifest = zip.getEntry(MANIFEST)?.let { zip.getInputStream(it).use(::load) }
-                ?: baseModuleManifest(zip)
-                ?: throw IOException("No base APK manifest found in: $file")
-            of(manifest)
-        }
-    }
+    fun of(file: File): FormFactor = BaseModule.read(file) { of(it.manifest) }
 
     internal fun of(manifest: AndroidManifestBlock): FormFactor {
         val root = manifest.manifestElement ?: return FormFactor.MOBILE
@@ -80,29 +66,6 @@ object ApkFormFactor {
             else -> FormFactor.MOBILE
         }
     }
-
-    /**
-     * The manifest of the base module of a split archive. Module names differ between formats,
-     * so the base is the module whose manifest names no split, with `base.apk` tried first.
-     */
-    private fun baseModuleManifest(zip: ZipFile): AndroidManifestBlock? =
-        zip.entries().asSequence()
-            .filter { !it.isDirectory && it.name.endsWith(".apk", ignoreCase = true) }
-            .sortedByDescending { it.name.substringAfterLast('/').equals("base.apk", ignoreCase = true) }
-            .firstNotNullOfOrNull { entry ->
-                zip.getInputStream(entry).use(::nestedManifest)?.takeUnless { it.isSplit }
-            }
-
-    /** The manifest of the APK streamed in [input], read without unpacking the module. */
-    private fun nestedManifest(input: InputStream): AndroidManifestBlock? {
-        val apk = ZipInputStream(input)
-        while (true) {
-            val entry = apk.nextEntry ?: return null
-            if (entry.name == MANIFEST) return load(apk)
-        }
-    }
-
-    private fun load(input: InputStream): AndroidManifestBlock = AndroidManifestBlock.load(input)
 
     /**
      * Whether the app can be opened from the TV launcher and not from the phone one. Apps built for

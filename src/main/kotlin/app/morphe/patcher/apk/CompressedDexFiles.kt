@@ -9,8 +9,6 @@ import app.morphe.patcher.PatcherResult.PatchedDexFile
 import app.morphe.patcher.dex.DexBytesInputStream
 import app.morphe.patcher.logging.PhaseTimings
 import app.morphe.patcher.util.forEachInParallel
-import com.reandroid.app.AndroidManifest
-import com.reandroid.arsc.chunk.xml.AndroidManifestBlock
 import com.reandroid.arsc.value.DataType
 import java.io.Closeable
 import java.io.File
@@ -39,10 +37,8 @@ internal const val ID_USE_EMBEDDED_DEX = 0x0101059e
  * nothing. An input that cannot be read stores none.
  */
 internal fun storesDexUncompressed(inputApk: File): Boolean = try {
-    ZipFile(inputApk).use { zip ->
-        val entry = zip.getEntry(AndroidManifest.FILE_NAME) ?: return@use false
-        val manifest = zip.getInputStream(entry).use(AndroidManifestBlock::load)
-        val attribute = manifest.applicationElement?.searchAttributeByResourceId(ID_USE_EMBEDDED_DEX)
+    BaseModule.read(inputApk) { module ->
+        val attribute = module.manifest.applicationElement?.searchAttributeByResourceId(ID_USE_EMBEDDED_DEX)
         attribute?.dataType == DataType.BOOLEAN && attribute.dataAsBoolean
     }
 } catch (_: Exception) {
