@@ -34,7 +34,9 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.charset.CoderMalfunctionError
+import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.util.zip.ZipFile
 
 @Suppress("unused")
@@ -249,17 +251,17 @@ class ApkMerger(
         val dir = toTmpDir(file)
         logger.info("Extracting to: $dir")
         dir.mkdirs()
-        val root = dir.canonicalFile.toPath()
+        val root = dir.toPath().normalize()
         ZipFile(file).use { zip ->
             val modules = SplitArchive.modules(zip).toList()
             if (modules.isEmpty()) throw IOException("No *.apk files found on: $file")
             modules.forEach { module ->
                 // The archive picks the name, so the file it lands in is checked before anything is written
-                val target = File(dir, module.name).canonicalFile
-                if (!target.toPath().startsWith(root)) {
+                val target = root.resolve(module.name).normalize()
+                if (!target.startsWith(root)) {
                     throw IOException("Module ${module.name} would be extracted outside: $dir")
                 }
-                zip.getInputStream(module).use { input -> target.outputStream().use(input::copyTo) }
+                zip.getInputStream(module).use { input -> Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING) }
             }
         }
         return dir
